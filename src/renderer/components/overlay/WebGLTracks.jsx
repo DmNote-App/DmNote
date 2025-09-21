@@ -45,7 +45,9 @@ const vertexShader = `
 
     // [핵심 로직 1] 픽셀 길이를 기준으로 필요한 '유예 시간'을 역산
     // uFlowSpeed가 0이 되는 경우를 대비해 분모에 최소값 1.0 보장
-    float uMinNoteDurationMs = (uMinNoteLengthPx / max(uFlowSpeed, 1.0)) * 1000.0;
+    // 최소 유예 시간을 100ms로 보장하여 매우 빠른 속도에서도 단노트가 일관되게 처리됨
+    float calculatedGracePeriod = (uMinNoteLengthPx / max(uFlowSpeed, 1.0)) * 1000.0;
+    float uMinNoteDurationMs = max(calculatedGracePeriod, 100.0);
 
     bool isActive = endTime == 0.0;
     float rawNoteLength = 0.0;
