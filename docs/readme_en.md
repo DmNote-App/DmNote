@@ -101,8 +101,7 @@ npm run start
 ```
 
 ### (Optional) quick test without C++ build tools
-If setting up a C++ build environment is difficult, you can test with a prebuilt version of the package  
-Remove the `postinstall` script from `package.json` and change `dependencies` as below
+If setting up a C++ build environment is difficult, you can test with a prebuilt version of the package. Remove the `postinstall` script from `package.json` and change `dependencies` as below
 ```json
 {
   "dependencies": {
@@ -136,8 +135,7 @@ After editing the file, run `npm install` and then `npm run start`
 - Default settings live at `%appdata%/dm-note/config.json`  
 
 ## 🤝 Contributing
-We welcome your contributions  
-See the [contribution guide](CONTRIBUTING.md) for details
+We welcome your contributions. See the [contribution guide](CONTRIBUTING.md) for details
 
 ## 📄 License
 [GPL-3.0 License Copyright (C) 2024 lee-sihun](https://github.com/lee-sihun/DmNote/blob/master/LICENSE)
