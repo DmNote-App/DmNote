@@ -54,7 +54,7 @@
     }
   ],
   "author": "lee-sihun",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "devDependencies": {
     "@electron/rebuild": "^3.7.2",
     "@types/node": "^22.15.27",
