@@ -4,7 +4,7 @@
   <h1>DM Note</h1>
   
   <p>
-    <strong>리듬게임을 위한 실시간 키 입력 표시 프로그램</strong>
+    <strong>리듬게임을 위한 오픈 소스 키뷰어 프로그램</strong>
   </p>
   <p>
     <strong>사용자 정의 키 매핑과 스타일링, 손쉽게 전환 가능한 프리셋, 모던하고 직관적인 인터페이스를 제공합니다.</strong>
@@ -55,7 +55,7 @@
 - 설정 초기화 
   
 ## 🚀 개발 환경 
-이 프로젝트는 키보드 입력을 전역적으로 감지하기 위해 `node-gyp`를 이용하는 [node-global-key-listener-extended](https://github.com/lee-sihun/node-global-key-listener) 패키지에 의존하고 있습니다. 이 패키지는 네이티브 C++ 코드를 빌드해야 하므로, 다음 개발 환경이 설치되어 있어야 합니다.
+이 프로젝트는 키보드 입력을 전역적으로 감지하기 위해 `node-gyp`를 이용하는 [node-global-key-listener-extended](https://github.com/lee-sihun/node-global-key-listener) 패키지를 사용하고 있습니다. 이 패키지는 네이티브 C++ 코드를 빌드해야 하므로, 다음 개발 환경이 설치되어 있어야 합니다.
 
 *   **Node.js**
 *   **Python 3.x**
@@ -70,13 +70,13 @@ npm install
 npm run start
 ```
 
-### (선택) 빌드 도구 없이 빠르게 테스트 
-개발 환경에 Node.js만 설치되어 있거나 C++ 빌드 환경 구성이 어려운 경우, 사전 빌드된 버전을 참조하여 바로 테스트해볼 수 있습니다.
-`package.json`의 `dependencies` 항목을 아래와 같이 변경해주세요.
+### (선택) C++ 빌드 도구 없이 빠르게 테스트 
+개발 환경에 C++ 빌드 환경 구성이 어려운 경우, 패키지의 사전 빌드된 버전을 사용해서 테스트를 진행할 수 있습니다. `package.json`의 `postinstall` 스크립트를 제거하고 `dependencies` 항목을 아래와 같이 변경해주세요.
+
 ```json
 {
   "dependencies": {
-    "node-global-key-listener-extended": "github:lee-sihun/node-global-key-listener",
+    "node-global-key-listener-extended": "github:lee-sihun/node-global-key-listener#win-keyserver-version",
   }
 }
 ```
@@ -123,6 +123,7 @@ npm run start
 - 키 입력 카운트, 입력 속도 시각화  
 <!-- 동시 입력 간격 밀리초(ms) 표시 -->
 - 입력 통계 분석 기능
+
 
 
 
