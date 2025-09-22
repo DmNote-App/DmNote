@@ -4,140 +4,89 @@ import { animationScheduler } from "../../utils/animationScheduler";
 
 const MAX_NOTES = 2048; // 씬에서 동시에 렌더링할 수 있는 최대 노트 수
 
-// 버텍스 셰이더: 캔버스 로직과 동일한 (위▶아래 좌표계) 계산을 위해 DOM 기준(y 아래로 증가) 값을 받아
-// 화면 변환 시 실제 WebGL 상(y 위로 증가)으로 변환 + 라운드 코너 처리를 위한 로컬 좌표 전달.
+// 버텍스 셰이더: Timeline Stamping Model
+// 타임라인 위의 절대 좌표로 노트를 배치하는 새로운 렌더링 방식
 const vertexShader = `
   uniform float uTime;
   uniform float uFlowSpeed;
-  uniform float uScreenHeight; // 전체 화면 높이 (캔버스 y -> WebGL y 변환용)
-  uniform float uTrackHeight; // 트랙 높이 (px, runtime 설정)
-  uniform float uReverse; // 0.0 = normal (bottom->up), 1.0 = reversed (top->down)
+  uniform float uScreenHeight;
+  uniform float uTrackHeight;
+  uniform float uReverse;
 
-  attribute vec3 noteInfo; // x: startTime, y: endTime, z: trackX (왼쪽 X px, DOM 기준)
-  attribute vec2 noteSize; // x: width, y: trackBottomY (DOM 기준; 키 위치)
+  attribute vec3 noteInfo;
+  attribute vec2 noteSize;
   attribute vec4 noteColor;
-  attribute float noteRadius; // 픽셀 단위 라운드 반경
-  attribute float trackIndex; // 키 순서 (첫 번째 키 = 0, 두 번째 키 = 1, ...)
+  attribute float noteRadius;
+  attribute float trackIndex;
 
   varying vec4 vColor;
-  varying vec2 vLocalPos;     // 노트 중심 기준 로컬 좌표(px)
-  varying vec2 vHalfSize;     // (width/2, height/2)
-  varying float vRadius;      // 라운드 반경(px)
-  varying float vTrackTopY;   // 트랙 상단 Y 좌표 (DOM 기준)
-  varying float vTrackBottomY; // 트랙 하단 Y 좌표 (DOM 기준)
-  varying float vReverse;     // 리버스 모드 플래그
+  varying vec2 vLocalPos;
+  varying vec2 vHalfSize;
+  varying float vRadius;
+  varying float vTrackTopY;
+  varying float vTrackBottomY;
+  varying float vReverse;
 
   void main() {
     float startTime = noteInfo.x;
     float endTime = noteInfo.y;
     float trackX = noteInfo.z;
-    float trackBottomY = noteSize.y; // DOM 기준(위=0 아래=+)
+    float trackBottomY = noteSize.y;
     float noteWidth = noteSize.x;
+    float trackTopY = trackBottomY - uTrackHeight;
 
-    // startTime이 0이면 제거된 노트이므로 렌더링하지 않음
     if (startTime == 0.0) {
       gl_Position = vec4(2.0, 2.0, 2.0, 0.0);
-      vColor = vec4(0.0);
       return;
     }
 
-    bool isActive = endTime == 0.0;
-    float rawNoteLength = 0.0;     // 원본 노트 길이
-    float bottomCanvasY = 0.0;     // DOM 기준 바닥 y
+    // [핵심 로직] 타임라인 스탬핑 모델 좌표 계산
+    // 활성 노트(endTime=0)의 끝나는 시점은 현재 시간(uTime)으로 간주합니다.
+    float effectiveEndTime = (endTime == 0.0) ? uTime : endTime;
 
-    if (isActive) {
-      rawNoteLength = max(0.0, (uTime - startTime) * uFlowSpeed / 1000.0);
-      bottomCanvasY = trackBottomY; // 활성 중엔 바닥 고정
-    } else {
-      rawNoteLength = max(0.0, (endTime - startTime) * uFlowSpeed / 1000.0);
-      float travel = (uTime - endTime) * uFlowSpeed / 1000.0;
-      // normal: bottom->up (trackBottomY - travel)
-      // reverse: top->down (trackTopY + travel) => noteBottomY will be below top
-      float trackTopY_local = trackBottomY - uTrackHeight;
-      if (uReverse < 0.5) {
-        bottomCanvasY = trackBottomY - travel;
-      } else {
-        bottomCanvasY = trackTopY_local + travel;
-      }
-    }
-
-    // 노트 길이를 트랙 높이로 제한 (원본 Track.jsx와 동일한 동작)
-    float noteLength = min(rawNoteLength, uTrackHeight);
+    // uTime(현재 시간)을 기준으로 각 노트의 시작과 끝이 판정선에서 얼마나 떨어져 있는지를 계산합니다.
+    float travelFromStart = (uTime - startTime) * uFlowSpeed / 1000.0;
+    float travelFromEnd = (uTime - effectiveEndTime) * uFlowSpeed / 1000.0;
     
-    // 원본 Track.jsx와 동일한 위치 계산: 트랙 컨테이너 내부에서 바닥부터 위로 자라남
-    // yPosition = height - noteLength (원본 코드)
-    // 트랙 상단 = trackBottomY - uTrackHeight, 트랙 바닥 = trackBottomY
     float noteTopY, noteBottomY;
-    
-    if (isActive) {
-      // 활성 노트: 트랙 바닥부터 위로 자라남 (normal)
-      // 활성 노트 in reverse mode should grow from trackTop downward
-      if (uReverse < 0.5) {
-        noteBottomY = trackBottomY;
-        noteTopY = trackBottomY - noteLength;
-      } else {
-        float trackTopY_local = trackBottomY - uTrackHeight;
-        noteTopY = trackTopY_local;
-        noteBottomY = trackTopY_local + noteLength;
-      }
-    } else {
-      // 비활성 노트: 이동
-      if (uReverse < 0.5) {
-        float travel = (uTime - endTime) * uFlowSpeed / 1000.0;
-        noteBottomY = trackBottomY - travel;
-        noteTopY = noteBottomY - noteLength;
-      } else {
-        float travel = (uTime - endTime) * uFlowSpeed / 1000.0;
-        float trackTopY_local = trackBottomY - uTrackHeight;
-        noteTopY = trackTopY_local + travel;
-        noteBottomY = noteTopY + noteLength;
-      }
+
+    if (uReverse < 0.5) { // Normal Mode: Bottom -> Up
+      noteTopY = trackBottomY - travelFromStart;
+      noteBottomY = trackBottomY - travelFromEnd;
+    } else { // Reverse Mode: Top -> Down
+      noteTopY = trackTopY + travelFromEnd;
+      noteBottomY = trackTopY + travelFromStart;
     }
-    
-    // 트랙 영역을 벗어나는 경우 클리핑 (트랙 내부로 강제 제한)
-    float trackTopY = trackBottomY - uTrackHeight;
-    // 노트가 트랙 범위를 넘어 확장되는 것을 방지하기 위해 상/하 경계를 모두 클램프
+
+    // --- 이하 클리핑 및 좌표 변환 로직 (기존과 거의 동일) ---
     noteTopY = max(noteTopY, trackTopY);
     noteBottomY = min(noteBottomY, trackBottomY);
 
-    // 노트가 트랙 범위 밖에 완전히 벗어난 경우 렌더링하지 않음
-    if (noteBottomY <= trackTopY) {
+    if (noteBottomY <= trackTopY || (uReverse < 0.5 && noteBottomY < 0.0) || (uReverse > 0.5 && noteTopY > uScreenHeight)) {
       gl_Position = vec4(2.0, 2.0, 2.0, 0.0);
-      vColor = vec4(0.0);
-      return;
-    }
-    
-    // 완전히 화면 위로 사라진 경우: 투명 처리
-    if (noteBottomY < 0.0) {
-      gl_Position = vec4(2.0, 2.0, 2.0, 0.0);
-      vColor = vec4(0.0);
       return;
     }
 
-    // 실제 렌더링될 노트 길이 재계산
-    noteLength = noteBottomY - noteTopY;
+    float noteLength = abs(noteBottomY - noteTopY);
+    if (noteLength <= 0.0) {
+      gl_Position = vec4(2.0, 2.0, 2.0, 0.0);
+      return;
+    }
     float centerCanvasY = (noteTopY + noteBottomY) / 2.0;
-
-    // WebGL 좌표 변환 (origin bottom-left): DOM top-left 기준 -> bottom-left 기준으로 변환
     float centerWorldY = uScreenHeight - centerCanvasY;
 
-    // 인스턴스 평면 기본 -0.5~0.5 범위 -> 크기 적용
     vec3 transformed = vec3(position.x, position.y, position.z);
-    transformed.x *= noteWidth;   // -0.5~0.5 -> 실제 픽셀 폭
-    transformed.y *= noteLength;  // -0.5~0.5 -> 실제 픽셀 높이
-
-    // 위치 이동 (x는 왼쪽 정렬, y는 중심 위치로 보정)
+    transformed.x *= noteWidth;
+    transformed.y *= noteLength;
     transformed.x += trackX + noteWidth / 2.0;
     transformed.y += centerWorldY;
-    
-    // Z는 0으로 고정 (키 레이어 순서는 mesh.renderOrder로 제어)
     transformed.z = 0.0;
 
     gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
 
-    vColor = noteColor; // 색상
+    vColor = noteColor;
     vHalfSize = vec2(noteWidth, noteLength) * 0.5;
-    vLocalPos = vec2(position.x * noteWidth, position.y * noteLength); // 중심 기준 -half~half
+    vLocalPos = vec2(position.x * noteWidth, position.y * noteLength);
     vRadius = noteRadius;
     vTrackTopY = trackTopY;
     vTrackBottomY = trackBottomY;
@@ -267,7 +216,6 @@ export const WebGLTracks = memo(
           uScreenHeight: { value: window.innerHeight },
           uTrackHeight: { value: noteSettings.trackHeight || 150 },
           uReverse: { value: noteSettings.reverse ? 1.0 : 0.0 },
-          // fadePosition: 'auto' | 'top' | 'bottom' -> 0 | 1 | 2
           uFadePosition: {
             value:
               noteSettings.fadePosition === "top"
@@ -382,8 +330,15 @@ export const WebGLTracks = memo(
         // 조기 종료: 노트가 전혀 없으면 렌더링하지 않음
         const totalNotes = Object.values(notesRef.current).reduce((sum, notes) => sum + notes.length, 0);
         if (totalNotes === 0) {
-          if (meshRef.current.count > 0) {
-            meshRef.current.count = 0;
+          // 모든 메쉬의 count를 0으로 설정하고 렌더링
+          let hasVisibleNotes = false;
+          for (const [, entry] of meshMapRef.current) {
+            if (entry.mesh.count > 0) {
+              entry.mesh.count = 0;
+              hasVisibleNotes = true;
+            }
+          }
+          if (hasVisibleNotes) {
             rendererRef.current.render(sceneRef.current, cameraRef.current);
           }
           return;

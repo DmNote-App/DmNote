@@ -4,6 +4,9 @@ import { DEFAULT_NOTE_SETTINGS } from "@constants/overlayConfig";
 
 export const FLOW_SPEED = 180;
 
+// Timeline Stamping Model: Fixed duration for short notes
+const SHORT_NOTE_DURATION = 120; // 단노트의 고정 지속 시간 (ms)
+
 export function useNoteSystem() {
   const notesRef = useRef({});
   const noteEffectEnabled = useRef(true);
@@ -86,8 +89,7 @@ export function useNoteSystem() {
   );
 
   const finalizeNote = useCallback(
-    (keyName, noteId) => {
-      const endTime = performance.now();
+    (keyName, noteId, endTime) => {
       const currentNotes = notesRef.current;
 
       if (!currentNotes[keyName]) return;
@@ -97,6 +99,7 @@ export function useNoteSystem() {
       const newKeyNotes = currentNotes[keyName].map((note) => {
         if (note.id === noteId && note.isActive) {
           changed = true;
+          // 전달받은 endTime으로 노트를 최종 확정합니다.
           finalizedNote = { ...note, endTime, isActive: false };
           return finalizedNote;
         }
@@ -132,9 +135,27 @@ export function useNoteSystem() {
     (keyName) => {
       if (!noteEffectEnabled.current) return;
 
-      const activeNote = activeNotes.current.get(keyName);
-      if (activeNote) {
-        finalizeNote(keyName, activeNote.noteId);
+      const activeNoteRef = activeNotes.current.get(keyName);
+      if (activeNoteRef) {
+        const { noteId } = activeNoteRef;
+        const currentNotes = notesRef.current[keyName] || [];
+        const note = currentNotes.find((n) => n.id === noteId);
+
+        if (note) {
+          const pressDuration = performance.now() - note.startTime;
+          
+          // 단노트인지 판별하여 최종 endTime을 결정합니다.
+          const finalEndTime =
+            pressDuration < SHORT_NOTE_DURATION
+              ? note.startTime + SHORT_NOTE_DURATION // 단노트: endTime을 보정
+              : performance.now(); // 롱노트: 실제 시간을 사용
+
+          finalizeNote(keyName, noteId, finalEndTime);
+        } else {
+          // 예외 처리
+          finalizeNote(keyName, noteId, performance.now());
+        }
+        
         activeNotes.current.delete(keyName);
       }
     },
