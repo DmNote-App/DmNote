@@ -1,6 +1,6 @@
 [한국어](README.md) | **English**
 <div align="center">
-<img src="build/icon.ico" alt="DM Note Logo" width="120" height="120">
+<img src="../build/icon.ico" alt="DM Note Logo" width="120" height="120">
 
 <h1>DM Note</h1>
   
@@ -115,16 +115,16 @@ After editing the file, run `npm install` and then `npm run start`
 
 ## 🖼️ Screenshots
 
-<img src="./images/2025-08-29_12-07-12.webp" alt="Note Effect" width="700">
-<img src="./images/IMG_1005.gif" alt="Note Effect" width="700">
+<img src="../images/2025-08-29_12-07-12.webp" alt="Note Effect" width="700">
+<img src="../images/IMG_1005.gif" alt="Note Effect" width="700">
 
-<img src="./images/1.webp" alt="Key viewer demo 1" width="700">
+<img src="../images/1.webp" alt="Key viewer demo 1" width="700">
 
-<img src="./images/2025-09-20_11-55-17.gif" alt="Key viewer demo 2" width="700">
+<img src="../images/2025-09-20_11-55-17.gif" alt="Key viewer demo 2" width="700">
 
-<img src="./images/IMG_1008.gif" alt="Key viewer demo 3" width="700">
+<img src="../images/IMG_1008.gif" alt="Key viewer demo 3" width="700">
 
-<img src="./images/2025-09-20_11-57-38.gif" alt="Key viewer demo 4" width="700">
+<img src="../images/2025-09-20_11-57-38.gif" alt="Key viewer demo 4" width="700">
 
 
 ## 📝 Notes
