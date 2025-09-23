@@ -130,15 +130,15 @@ After editing the file, run `npm install` and then `npm run start`
 
 <!--img src="docs/assets/2025-08-29_12-07-12.webp" alt="Note Effect" width="700"-->
 
-<img src="docs/assets/IMG_1005.gif" alt="Note Effect" width="700">
+<img src="./assets/IMG_1005.gif" alt="Note Effect" width="700">
 
 <!--img src="docs/assets/1.webp" alt="키뷰어 데모 1" width="700"-->
 
-<img src="docs/assets/2025-09-20_11-55-17.gif" alt="키뷰어 데모 2" width="700">
+<img src="./assets/2025-09-20_11-55-17.gif" alt="키뷰어 데모 2" width="700">
 
-<img src="docs/assets/IMG_1008.gif" alt="키뷰어 데모 3" width="700">
+<img src="./assets/IMG_1008.gif" alt="키뷰어 데모 3" width="700">
 
-<img src="docs/assets/2025-09-20_11-57-38.gif" alt="키뷰어 데모 4" width="700">
+<img src="./assets/2025-09-20_11-57-38.gif" alt="키뷰어 데모 4" width="700">
 
 ## 📝 Notes
 
