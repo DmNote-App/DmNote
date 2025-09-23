@@ -95,16 +95,6 @@ export default function DraggableKey({
       data-state="inactive"
       onClick={handleClick}
       onDragStart={(e) => e.preventDefault()}
-      // onMouseOver={(e) => {
-      //   if (activeTool === "eraser" && e.currentTarget) {
-      //     // e.currentTarget.style.cursor = "pointer";
-      //   }
-      // }}
-      // onMouseOut={(e) => {
-      //   if (activeTool === "eraser" && e.currentTarget) {
-      //     // e.currentTarget.style.cursor = "default";
-      //   }
-      // }}
     >
       {inactiveImage ? (
         <img src={inactiveImage} alt="" style={imageStyle} draggable={false} />
@@ -132,10 +122,11 @@ export const Key = memo(
       className, // 단일 클래스 네임으로 통일
     } = position;
 
+    // 활성 상태에서 activeImage가 없으면 inactiveImage를 fallback으로 사용
     const currentImage =
       active && activeImage
         ? activeImage
-        : !active && inactiveImage
+        : inactiveImage
         ? inactiveImage
         : null;
 
@@ -145,17 +136,15 @@ export const Key = memo(
         height: `${height}px`,
         transform: `translate3d(${dx}px, ${dy}px, 0)`,
         backgroundColor: `var(--key-bg, ${
-          (active && activeImage) || (!active && inactiveImage)
+          currentImage
             ? "transparent"
             : active
             ? "rgba(121, 121, 121, 0.9)"
             : "rgba(46, 46, 47, 0.9)"
         })`,
-        borderRadius: `var(--key-radius, ${
-          active ? (activeImage ? "0" : "10px") : inactiveImage ? "0" : "10px"
-        })`,
+        borderRadius: `var(--key-radius, ${currentImage ? "0" : "10px"})`,
         border: `var(--key-border, ${
-          activeImage || inactiveImage
+          currentImage
             ? "none"
             : active
             ? "3px solid rgba(255, 255, 255, 0.9)"
@@ -186,6 +175,8 @@ export const Key = memo(
         display: "block",
         pointerEvents: "none",
         userSelect: "none",
+        position: "relative",
+        zIndex: 0,
       }),
       []
     );
@@ -198,8 +189,8 @@ export const Key = memo(
       []
     );
 
-    // 텍스트 표시 조건
-    const showText = (!active && !inactiveImage) || (active && !activeImage);
+    // 텍스트 표시 조건: 현재 상태에 사용할 이미지가 없을 때만 텍스트를 표시
+    const showText = !currentImage;
 
     return (
       <div
@@ -216,6 +207,27 @@ export const Key = memo(
           >
             {keyName}
           </div>
+        ) : null}
+        {active && !activeImage && inactiveImage ? (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              backgroundColor: "rgba(0,0,0,0.4)",
+              borderRadius: "inherit",
+              pointerEvents: "none",
+              zIndex: 1,
+              WebkitMaskImage: `url(${currentImage})`,
+              WebkitMaskRepeat: "no-repeat",
+              WebkitMaskSize: "100% 100%",
+              maskImage: `url(${currentImage})`,
+              maskRepeat: "no-repeat",
+              maskSize: "100% 100%",
+            }}
+          />
         ) : null}
       </div>
     );
