@@ -1,4 +1,5 @@
 [한국어](README.md) | **English**
+
 <div align="center">
 <img src="../build/icon.ico" alt="DM Note Logo" width="120" height="120">
 
@@ -17,53 +18,60 @@
 </div>
 
 ## 🌟 Overview
+
 **DM Note** is a key viewer built for rhythm games. Built with Electron and React, powered by [node-global-key-listener-extended](https://github.com/lee-sihun/node-global-key-listener) for global keyboard hooks.
-Set it up in minutes and visualize your keystrokes for streams or gameplay captures. Windows only for now, and it works with non-rhythm games too  
+Set it up in minutes and visualize your keystrokes for streams or gameplay captures. Windows only for now, and it works with non-rhythm games too
 
 [Download DM NOTE v1.2.0](https://github.com/lee-sihun/DmNote/releases/download/1.2.0/DM.NOTE.v.1.2.0.zip)
-
 
 ## ✨ Features
 
 ### ⌨️ Keyboard input and mapping
-- Detect and visualize keyboard input in real time  
+
+- Detect and visualize keyboard input in real time
 - Configure custom key mappings
 
 ### 🎨 Key style customization
-- Resize keys and add or remove keys  
-- Grid-based key layout  
-- Assign images to keys  
+
+- Resize keys and add or remove keys
+- Grid-based key layout
+- Assign images to keys
 - Support for custom CSS
 
 ### 💾 Presets and settings management
-- Auto-save user settings  
+
+- Auto-save user settings
 - Save and load presets
 
 ### 🖼️ Overlay and window management
-- Lock window position  
-- Keep window always on top  
+
+- Lock window position
+- Keep window always on top
 - Choose a resize anchor
 
 ### 🌧️ Raining Note effect customization
-- Adjust color, opacity, rounding, speed, and height  
+
+- Adjust color, opacity, rounding, speed, and height
 - Reverse direction
 
 ### ⚙️ Graphics and settings
-- Multilingual support (Korean, English)  
-- Graphics rendering options (Direct3D 11/9, OpenGL)  
-- Reset to defaults
 
+- Multilingual support (Korean, English)
+- Graphics rendering options (Direct3D 11/9, OpenGL)
+- Reset to defaults
 
 ## 🚀 Development
 
 ### Tech stack
-- **Frontend**: React 19 + TypeScript + Vite 7  
-- **Backend**: Electron  
-- **Styling**: Tailwind CSS 3  
-- **Keyboard hooking**: [node-global-key-listener-extended](https://github.com/lee-sihun/node-global-key-listener)  
+
+- **Frontend**: React 19 + TypeScript + Vite 7
+- **Backend**: Electron
+- **Styling**: Tailwind CSS 3
+- **Keyboard hooking**: [node-global-key-listener-extended](https://github.com/lee-sihun/node-global-key-listener)
 - **Package manager**: npm
 
 ### Project structure
+
 ```
 DmNote/
 ├── src/                   # Source code
@@ -86,13 +94,15 @@ DmNote/
 ```
 
 ### Basic setup and run
+
 This project uses [node-global-key-listener-extended](https://github.com/lee-sihun/node-global-key-listener), which relies on `node-gyp` and builds native C++ code, so you need the following development environment
 
-* **Node.js**  
-* **Python 3.x**  
-* **Visual Studio Build Tools** with the C++ Desktop Development workload
+- **Node.js**
+- **Python 3.x**
+- **Visual Studio Build Tools** with the C++ Desktop Development workload
 
 Once your environment is ready, run the following commands in your terminal
+
 ```bash
 git clone https://github.com/lee-sihun/DmNote.git
 cd DmNote
@@ -101,7 +111,9 @@ npm run start
 ```
 
 ### (Optional) quick test without C++ build tools
+
 If setting up a C++ build environment is difficult, you can test with a prebuilt version of the package. Remove the `postinstall` script from `package.json` and change `dependencies` as below
+
 ```json
 {
   "dependencies": {
@@ -109,45 +121,48 @@ If setting up a C++ build environment is difficult, you can test with a prebuilt
   }
 }
 ```
-After editing the file, run `npm install` and then `npm run start`
 
+After editing the file, run `npm install` and then `npm run start`
 
 ## 🖼️ Screenshots
 
-<img src="../images/2025-08-29_12-07-12.webp" alt="Note Effect" width="700">
-<img src="../images/IMG_1005.gif" alt="Note Effect" width="700">
+<img src="assets/2025-08-29_12-07-12.webp" alt="Note Effect" width="700">
+<img src="assets/IMG_1005.gif" alt="Note Effect" width="700">
 
-<img src="../images/1.webp" alt="Key viewer demo 1" width="700">
+<img src="assets/1.webp" alt="Key viewer demo 1" width="700">
 
-<img src="../images/2025-09-20_11-55-17.gif" alt="Key viewer demo 2" width="700">
+<img src="assets/2025-09-20_11-55-17.gif" alt="Key viewer demo 2" width="700">
 
-<img src="../images/IMG_1008.gif" alt="Key viewer demo 3" width="700">
+<img src="assets/IMG_1008.gif" alt="Key viewer demo 3" width="700">
 
-<img src="../images/2025-09-20_11-57-38.gif" alt="Key viewer demo 4" width="700">
-
+<img src="assets/2025-09-20_11-57-38.gif" alt="Key viewer demo 4" width="700">
 
 ## 📝 Notes
+
 - If you encounter graphics issues, try changing the graphics API option in Settings
-- With OBS Window Capture, you can bring it in with a transparent background — no chroma key needed  
-- When overlaying on top of a game, enable **Always on top** and turn on **Overlay window lock**  
-- Default presets and custom CSS examples live in `resources/resources`  
-- When adding class names, enter just the name — no selector (`blue` = OK, `.blue` = not OK)  
-- Default settings live at `%appdata%/dm-note/config.json`  
+- With OBS Window Capture, you can bring it in with a transparent background — no chroma key needed
+- When overlaying on top of a game, enable **Always on top** and turn on **Overlay window lock**
+- Default presets and custom CSS examples live in `resources/resources`
+- When adding class names, enter just the name — no selector (`blue` = OK, `.blue` = not OK)
+- Default settings live at `%appdata%/dm-note/config.json`
 
 ## 🤝 Contributing
+
 We welcome your contributions. See the [contribution guide](CONTRIBUTING.md) for details
 
 ## 📄 License
+
 [GPL-3.0 License Copyright (C) 2024 lee-sihun](https://github.com/lee-sihun/DmNote/blob/master/LICENSE)
 
 ## ❤️ Special thanks
-- [electron/electron](https://github.com/electron/electron)  
+
+- [electron/electron](https://github.com/electron/electron)
 - [LaunchMenu/node-global-key-listener](https://github.com/LaunchMenu/node-global-key-listener)
 
-<!-- 
+<!--
 ## 🔜 Coming soon
 
-- Keystroke counter and input speed visualization  
-- Millisecond interval display for simultaneous presses  
+- Keystroke counter and input speed visualization
+- Millisecond interval display for simultaneous presses
 - Input analytics
 -->
