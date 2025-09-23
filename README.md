@@ -138,7 +138,7 @@ npm run start
 
 <img src="docs/assets/2025-09-20_11-55-17.gif" alt="키뷰어 데모 2" width="700">
 
-<img src="docs/assets/IMG_1008.gif" alt="키뷰어 데모 3" width="700">
+<!--img src="docs/assets/IMG_1008.gif" alt="키뷰어 데모 3" width="700"-->
 
 <img src="docs/assets/2025-09-20_11-57-38.gif" alt="키뷰어 데모 4" width="700">
 
@@ -171,4 +171,5 @@ npm run start
 - 동시 입력 간격 밀리초(ms) 표시
 - 입력 통계 분석 기능
  -->
+
 
