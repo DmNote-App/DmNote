@@ -91,16 +91,19 @@ export function registerPresetDomain(ctx: DomainContext) {
         fallback: ctx.store.getState().selectedKeyType,
       });
 
-      ctx.store.setState({
-        keys,
-        keyPositions: positions,
+      ctx.settings.applyPatch({
         backgroundColor: preset.backgroundColor ?? "transparent",
         noteSettings: preset.noteSettings ?? NOTE_SETTINGS_DEFAULTS,
         laboratoryEnabled: preset.laboratoryEnabled ?? false,
-        customTabs,
-        selectedKeyType,
         useCustomCSS: preset.useCustomCSS ?? false,
         customCSS: preset.customCSS ?? { path: null, content: "" },
+      });
+
+      ctx.store.setState({
+        keys,
+        keyPositions: positions,
+        customTabs,
+        selectedKeyType,
       });
 
       ctx.keyboard.updateKeyMapping(keys);
@@ -111,13 +114,6 @@ export function registerPresetDomain(ctx: DomainContext) {
       windowRegistry.broadcast("customTabs:changed", {
         customTabs,
         selectedKeyType,
-      });
-      windowRegistry.broadcast("settings:changed", {
-        backgroundColor: preset.backgroundColor ?? "transparent",
-        noteSettings: preset.noteSettings ?? NOTE_SETTINGS_DEFAULTS,
-        laboratoryEnabled: preset.laboratoryEnabled ?? false,
-        useCustomCSS: preset.useCustomCSS ?? false,
-        customCSS: preset.customCSS ?? { path: null, content: "" },
       });
       windowRegistry.broadcast("keys:mode-changed", { mode: selectedKeyType });
       windowRegistry.broadcast("css:use", {
@@ -156,3 +152,4 @@ function chooseSelectedKeyType({
   if (keys[fallback]) return fallback;
   return "4key";
 }
+
