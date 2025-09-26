@@ -10,10 +10,13 @@ import { CustomTab, KeyMappings, KeyPositions } from "@src/types/keys";
 
 // 기본 제공 탭(모드)
 const DEFAULT_MODES = ["4key", "5key", "6key", "8key"];
+const DEFAULT_SELECTED_MODE = "4key";
 
 interface ModePayload {
   mode: string;
 }
+
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 // 키 매핑/포지션/커스텀 탭 관련 IPC 라우팅
 export function registerKeyDomain(ctx: DomainContext) {
@@ -56,9 +59,21 @@ export function registerKeyDomain(ctx: DomainContext) {
 
   // 전체 탭/설정 초기화 
   ipcRouter.handle("keys:reset-all", async () => {
+    const nextKeys = clone(DEFAULT_KEYS);
+    const nextPositions = clone(DEFAULT_POSITIONS);
+
+    // 전체 초기화: 기본 키/포지션/커스텀 탭을 새 사본으로 준비
     ctx.store.setState({
-      keys: DEFAULT_KEYS,
-      keyPositions: DEFAULT_POSITIONS,
+      keys: nextKeys,
+      keyPositions: nextPositions,
+      customTabs: [],
+      selectedKeyType: DEFAULT_SELECTED_MODE,
+    });
+
+    ctx.keyboard.updateKeyMapping(nextKeys);
+    ctx.keyboard.setKeyMode(DEFAULT_SELECTED_MODE);
+
+    ctx.settings.applyPatch({
       backgroundColor: appStoreDefaults.backgroundColor,
       useCustomCSS: false,
       customCSS: { path: null, content: "" },
@@ -66,20 +81,20 @@ export function registerKeyDomain(ctx: DomainContext) {
       noteSettings: NOTE_SETTINGS_DEFAULTS,
       overlayLocked: appStoreDefaults.overlayLocked,
     });
-    ctx.keyboard.updateKeyMapping(DEFAULT_KEYS);
-    windowRegistry.broadcast("keys:changed", DEFAULT_KEYS);
-    windowRegistry.broadcast("positions:changed", DEFAULT_POSITIONS);
-    windowRegistry.broadcast("settings:changed", {
-      backgroundColor: appStoreDefaults.backgroundColor,
-      useCustomCSS: false,
-      customCSS: { path: null, content: "" },
-      noteEffect: false,
-      noteSettings: NOTE_SETTINGS_DEFAULTS,
-      overlayLocked: appStoreDefaults.overlayLocked,
+
+    windowRegistry.broadcast("keys:changed", nextKeys);
+    windowRegistry.broadcast("positions:changed", nextPositions);
+    windowRegistry.broadcast("customTabs:changed", {
+      customTabs: [],
+      selectedKeyType: DEFAULT_SELECTED_MODE,
     });
+    windowRegistry.broadcast("keys:mode-changed", { mode: DEFAULT_SELECTED_MODE });
+
     return {
-      keys: DEFAULT_KEYS,
-      positions: DEFAULT_POSITIONS,
+      keys: nextKeys,
+      positions: nextPositions,
+      customTabs: [] as CustomTab[],
+      selectedKeyType: DEFAULT_SELECTED_MODE,
     };
   });
 

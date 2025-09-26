@@ -91,7 +91,12 @@ function createApi() {
       setMode(mode: string): Promise<{ success: boolean; mode: string }> {
         return ipcRenderer.invoke("keys:set-mode", { mode });
       },
-      resetAll(): Promise<{ keys: KeyMappings; positions: KeyPositions }> {
+      resetAll(): Promise<{
+        keys: KeyMappings;
+        positions: KeyPositions;
+        customTabs: CustomTab[];
+        selectedKeyType: string;
+      }> {
         return ipcRenderer.invoke("keys:reset-all");
       },
       resetMode(mode: string): Promise<{ success: boolean; mode: string }> {

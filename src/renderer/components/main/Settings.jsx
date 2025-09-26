@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "@stores/useSettingsStore";
+import { useKeyStore } from "@stores/useKeyStore";
 import Checkbox from "@components/main/common/Checkbox";
 import Dropdown from "@components/main/common/Dropdown";
 import FlaskIcon from "@assets/svgs/flask.svg";
@@ -177,7 +178,16 @@ export default function Settings({ showAlert, showConfirm }) {
   const handleResetAll = () => {
     const reset = async () => {
       try {
-        await window.api.keys.resetAll();
+        const result = await window.api.keys.resetAll();
+        if (result) {
+          // 리셋 직후 메모리 상태도 바로 초기값으로 맞춘다
+          useKeyStore.setState({
+            keyMappings: result.keys,
+            positions: result.positions,
+            customTabs: result.customTabs,
+            selectedKeyType: result.selectedKeyType,
+          });
+        }
       } catch (error) {
         console.error("Failed to reset presets", error);
       }

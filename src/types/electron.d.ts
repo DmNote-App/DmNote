@@ -42,7 +42,12 @@ declare global {
       getPositions(): Promise<KeyPositions>;
       updatePositions(positions: KeyPositions): Promise<KeyPositions>;
       setMode(mode: string): Promise<{ success: boolean; mode: string }>;
-      resetAll(): Promise<{ keys: KeyMappings; positions: KeyPositions }>;
+      resetAll(): Promise<{
+        keys: KeyMappings;
+        positions: KeyPositions;
+        customTabs: CustomTab[];
+        selectedKeyType: string;
+      }>;
       resetMode(mode: string): Promise<{ success: boolean; mode: string }>;
       onChanged(listener: (keys: KeyMappings) => void): Unsubscribe;
       onPositionsChanged(
