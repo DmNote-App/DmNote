@@ -54,16 +54,15 @@ export default function App() {
     noteSettings,
     setNoteSettings,
   } = useSettingsStore();
+  const { t } = useTranslation();
   const confirmCallbackRef = useRef(null);
-  const [alertState, setAlertState] = useState({
+  const [alertState, setAlertState] = useState(() => ({
     isOpen: false,
     message: "",
-    confirmText: "Ȯ��",
+    confirmText: t("common.confirm"),
     type: "alert",
-  });
-  const { t } = useTranslation();
+  }));
 
-  // Tab Ű�� �⺻ ��(4/5/6/8key) ��ȯ
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Tab" || e.shiftKey) return;
@@ -122,17 +121,7 @@ export default function App() {
       <div className="flex-1 bg-[#2A2A31] overflow-hidden">
         {isSettingsOpen ? (
           <div className="h-full overflow-y-auto">
-            <SettingTab
-              showAlert={(m) =>
-                setAlertState({
-                  isOpen: true,
-                  message: m,
-                  type: "alert",
-                  confirmText: "Ȯ��",
-                })
-              }
-              showConfirm={showConfirm}
-            />
+            <SettingTab showAlert={showAlert} showConfirm={showConfirm} />
           </div>
         ) : (
           <Grid
