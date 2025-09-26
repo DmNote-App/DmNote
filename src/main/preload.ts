@@ -39,15 +39,19 @@ function on<T>(channel: string, listener: Listener<T>): Unsubscribe {
   return () => ipcRenderer.removeListener(channel, handler);
 }
 
+// 렌더러에서 사용 가능한 단일 API 네임스페이스(window.api)
 function createApi() {
   return {
     app: {
+      // 초기 스냅샷(설정/키/포지션 등) 로드
       bootstrap(): Promise<BootstrapPayload> {
         return ipcRenderer.invoke("app:bootstrap");
       },
+      // 외부 링크 열기
       openExternal(url: string) {
         return ipcRenderer.invoke("app:open-external", { url });
       },
+      // 앱 재시작
       restart() {
         return ipcRenderer.invoke("app:restart");
       },

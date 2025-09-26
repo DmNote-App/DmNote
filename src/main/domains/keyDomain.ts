@@ -8,12 +8,14 @@ import { appStoreDefaults } from "@main/store/schema";
 import { NOTE_SETTINGS_DEFAULTS } from "@src/types/noteSettings";
 import { CustomTab, KeyMappings, KeyPositions } from "@src/types/keys";
 
+// 기본 제공 탭(모드)
 const DEFAULT_MODES = ["4key", "5key", "6key", "8key"];
 
 interface ModePayload {
   mode: string;
 }
 
+// 키 매핑/포지션/커스텀 탭 관련 IPC 라우팅
 export function registerKeyDomain(ctx: DomainContext) {
   ipcRouter.handle("keys:get", async () => ctx.store.getState().keys);
   ipcRouter.handle(
@@ -52,6 +54,7 @@ export function registerKeyDomain(ctx: DomainContext) {
     }
   );
 
+  // 전체 탭/설정 초기화 
   ipcRouter.handle("keys:reset-all", async () => {
     ctx.store.setState({
       keys: DEFAULT_KEYS,
@@ -80,6 +83,7 @@ export function registerKeyDomain(ctx: DomainContext) {
     };
   });
 
+  // 특정 모드(탭)만 기본값으로 초기화
   ipcRouter.handle<ModePayload, { success: boolean; mode: string }>(
     "keys:reset-mode",
     async ({ mode }) => {

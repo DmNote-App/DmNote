@@ -7,6 +7,8 @@ import {
 import type { SettingsDiff } from "@src/types/settings";
 import type { OverlayResizeAnchor } from "@src/types/settings";
 
+// 앱 초기 구동 시 메인 스냅샷을 가져오고,
+// 이후 변경 이벤트를 구독해 Zustand 스토어를 최신 상태로 유지
 export function useAppBootstrap() {
   useEffect(() => {
     let disposed = false;

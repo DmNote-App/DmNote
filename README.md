@@ -78,23 +78,31 @@ https://github.com/user-attachments/assets/20fb118d-3982-4925-9004-9ce0936590c2
 
 ```
 DmNote/
-├── src/                   # 소스 코드
-│   ├── main/              # Electron 메인 프로세스
-│   │   ├── config/        # 창 관련 설정
-│   │   ├── services/      # 백그라운드 서비스 (키보드 후킹, 설정 관리 등)
-│   │   └── windows/       # 창 생성 및 관리
-│   ├── renderer/          # React 렌더러 프로세스
-│   │   ├── assets/        # 정적 에셋
-│   │   ├── components/    # UI 컴포넌트
-│   │   ├── locales/       # 다국어 지원 (i18n)
-│   │   ├── stores/        # 전역 상태 관리 (Zustand)
-│   │   ├── utils/         # 유틸리티 함수
-│   │   └── windows/       # 각 창별 진입점
-│   └── types/             # TypeScript 타입 선언
-├── package.json           # 프로젝트 의존성 및 실행 스크립트
-├── tailwind.config.js     # Tailwind CSS 설정
-├── tsconfig.json          # TypeScript 설정
-├── vite.config.ts         # Vite 설정
+├─ src/                          # 소스 코드
+│  ├─ main/                      # Electron 메인 프로세스
+│  │  ├─ app/                    # Application 부트스트랩
+│  │  ├─ core/                   # ipcRouter, windowRegistry
+│  │  ├─ domains/                # 도메인 라우팅 (app, settings, keys, overlay, css, preset, system)
+│  │  │  ├─ keys/                # 키 매핑 기본값
+│  │  │  └─ positions/           # 키 포지션 기본값
+│  │  ├─ services/               # 서비스 (키보드 리스너 등)
+│  │  ├─ store/                  # electron-store + zod 스키마
+│  │  ├─ windows/                # BrowserWindow 래퍼 + config
+│  │  ├─ preload.ts              # contextBridge API 노출(window.api)
+│  │  └─ main.ts                 # 메인 진입점
+│  ├─ renderer/                  # React 렌더러
+│  │  ├─ components/             # UI 컴포넌트
+│  │  ├─ hooks/                  # 상태/동기화 훅
+│  │  ├─ stores/                 # Zustand 스토어
+│  │  ├─ windows/                # 렌더러 윈도우 (main/overlay)
+│  │  ├─ styles/                 # 전역/공통 스타일
+│  │  └─ assets/                 # 정적 리소스
+│  └─ types/                     # 공유 타입/스키마
+├─ package.json                  # 프로젝트 의존성 및 실행 스크립트 
+├─ tsconfig.json                 # TypeScript (렌더러/공용) 설정
+├─ tsconfig.main.json            # TypeScript (메인) 전용 설정
+├─ vite.config.ts                # Vite (렌더러) 설정
+└─ dist/                         # 빌드 결과물 
 ```
 
 ### 기본 설치 및 실행

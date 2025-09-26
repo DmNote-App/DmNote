@@ -2,6 +2,7 @@ import { BrowserWindow } from "electron";
 
 export type WindowIdentifier = "main" | "overlay" | string;
 
+// 열린 BrowserWindow를 ID로 관리하고 브로드캐스트를 단순화
 class WindowRegistry {
   private windows = new Map<WindowIdentifier, BrowserWindow>();
 

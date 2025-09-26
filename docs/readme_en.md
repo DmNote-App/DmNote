@@ -76,23 +76,31 @@ Set it up in minutes and visualize your keystrokes for streams or gameplay captu
 
 ```
 DmNote/
-├── src/                   # Source code
-│   ├── main/              # Electron main process
-│   │   ├── config/        # Window-related configuration
-│   │   ├── services/      # Background services (keyboard hook, settings, etc)
-│   │   └── windows/       # Window creation and management
-│   ├── renderer/          # React renderer process
-│   │   ├── assets/        # Static assets
-│   │   ├── components/    # UI components
-│   │   ├── locales/       # i18n files
-│   │   ├── stores/        # Global state (Zustand)
-│   │   ├── utils/         # Utility functions
-│   │   └── windows/       # Entry points per window
-│   └── types/             # TypeScript type definitions
-├── package.json           # Dependencies and scripts
-├── tailwind.config.js     # Tailwind CSS configuration
-├── tsconfig.json          # TypeScript configuration
-├── vite.config.ts         # Vite configuration
+├── src/                          # Source code
+│   ├── main/                     # Electron main process
+│   │   ├── app/                  # Application bootstrap
+│   │   ├── core/                 # ipcRouter, windowRegistry
+│   │   ├── domains/              # Domain routing (app, settings, keys, overlay, css, preset, system)
+│   │   │   ├── keys/             # Default key mappings
+│   │   │   └── positions/        # Default key positions
+│   │   ├── services/             # Services (keyboard listener, etc.)
+│   │   ├── store/                # electron-store + Zod schema
+│   │   ├── windows/              # BrowserWindow wrapper + config
+│   │   ├── preload.ts            # Expose contextBridge API (window.api)
+│   │   └── main.ts               # Main entry point
+│   ├── renderer/                 # React renderer
+│   │   ├── components/           # UI components
+│   │   ├── hooks/                # State/sync hooks
+│   │   ├── stores/               # Zustand stores
+│   │   ├── windows/              # Renderer windows (main/overlay)
+│   │   ├── styles/               # Global/common styles
+│   │   └── assets/               # Static assets
+│   └── types/                    # Shared types/schemas
+├── package.json                  # Project dependencies and scripts
+├── tsconfig.json                 # TypeScript (renderer/shared) config
+├── tsconfig.main.json            # TypeScript (main) config
+├── vite.config.ts                # Vite (renderer) config
+└── dist/                         # Build output
 ```
 
 ### Basic setup and run

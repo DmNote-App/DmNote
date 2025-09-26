@@ -21,6 +21,7 @@ interface OverlayResizePayload {
 const MIN_SIZE = 100;
 const MAX_SIZE = 2000;
 
+// 오버레이 보이기/잠금/앵커/리사이즈 관련 IPC 라우팅
 export function registerOverlayDomain(ctx: DomainContext) {
   ipcRouter.handle("overlay:get", async () => {
     const state = ctx.store.getState();

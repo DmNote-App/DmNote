@@ -11,6 +11,7 @@ export type EventHandler<TPayload = unknown> = (
   event: IpcMainEvent
 ) => void;
 
+// IPC 채널 등록/브로드캐스트 헬퍼
 class IpcRouter {
   handle<TRequest = unknown, TResponse = unknown>(
     channel: string,
