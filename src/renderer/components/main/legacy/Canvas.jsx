@@ -115,11 +115,11 @@ export function KeyMenu() {
 }
 
 export function SaveMenu({ showAlert, onOpenNoteSetting }) {
-  const ipcRenderer = window.electron.ipcRenderer;
   const { noteEffect } = useSettingsStore();
 
   const handleSavePreset = async () => {
-    const success = await ipcRenderer.invoke("save-preset");
+    const result = await window.api.presets.save();
+    const success = !!result?.success;
     if (success) {
       showAlert("프리셋이 저장되었습니다.");
     } else {
@@ -128,7 +128,8 @@ export function SaveMenu({ showAlert, onOpenNoteSetting }) {
   };
 
   const handleLoadPreset = async () => {
-    const success = await ipcRenderer.invoke("load-preset");
+    const result = await window.api.presets.load();
+    const success = !!result?.success;
     if (success) {
       showAlert("프리셋이 로드되었습니다.");
     } else {
@@ -161,3 +162,5 @@ export function SaveMenu({ showAlert, onOpenNoteSetting }) {
     </div>
   );
 }
+
+

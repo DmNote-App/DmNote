@@ -5,7 +5,7 @@ let MIN_NOTE_THRESHOLD_MS = DEFAULT_NOTE_SETTINGS.shortNoteThresholdMs;
 let MIN_NOTE_LENGTH_PX = DEFAULT_NOTE_SETTINGS.shortNoteMinLengthPx;
 let DELAY_FEATURE_ENABLED = false;
 
-export function useNoteSystem() {
+export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
   const notesRef = useRef({});
   const noteEffectEnabled = useRef(true);
   const activeNotes = useRef(new Map());
@@ -52,53 +52,27 @@ export function useNoteSystem() {
   );
 
   useEffect(() => {
-    const { ipcRenderer } = window.require("electron");
+    updateLabSettings(noteSettings || DEFAULT_NOTE_SETTINGS);
+  }, [noteSettings, updateLabSettings]);
 
-    ipcRenderer.send("get-note-effect");
+  useEffect(() => {
+    labEnabledRef.current = !!laboratoryEnabled;
+    applyDelayFlag();
+  }, [laboratoryEnabled, applyDelayFlag]);
 
-    const noteEffectListener = (_, enabled) => {
-      noteEffectEnabled.current = enabled;
-
-      if (!enabled) {
-        // 대기 중 타이머 정리
-        for (const pending of pendingPressesRef.current.values()) {
-          clearTimeout(pending.timeoutId);
-        }
-        pendingPressesRef.current.clear();
-        pendingByKeyRef.current.clear();
-        notesRef.current = {};
-        activeNotes.current.clear();
-        notifySubscribers({ type: "clear" });
+  useEffect(() => {
+    noteEffectEnabled.current = !!noteEffect;
+    if (!noteEffect) {
+      for (const pending of pendingPressesRef.current.values()) {
+        clearTimeout(pending.timeoutId);
       }
-    };
-
-    ipcRenderer.on("update-note-effect", noteEffectListener);
-
-    // 노트 설정(속도) 초기 로드 및 변경 반영
-    ipcRenderer
-      .invoke("get-note-settings")
-      .then((settings) => {
-        updateLabSettings(settings);
-      })
-      .catch(() => {});
-    const noteSettingsListener = (_, settings) => {
-      updateLabSettings(settings);
-    };
-    ipcRenderer.on("update-note-settings", noteSettingsListener);
-
-    const laboratoryListener = (_, enabled) => {
-      labEnabledRef.current = !!enabled;
-      applyDelayFlag();
-    };
-    ipcRenderer.on("update-laboratory-enabled", laboratoryListener);
-    ipcRenderer.send("get-laboratory-enabled");
-
-    return () => {
-      ipcRenderer.removeAllListeners("update-note-effect");
-      ipcRenderer.removeAllListeners("update-note-settings");
-      ipcRenderer.removeAllListeners("update-laboratory-enabled");
-    };
-  }, [notifySubscribers, updateLabSettings, applyDelayFlag]);
+      pendingPressesRef.current.clear();
+      pendingByKeyRef.current.clear();
+      notesRef.current = {};
+      activeNotes.current.clear();
+      notifySubscribers({ type: "clear" });
+    }
+  }, [noteEffect, notifySubscribers]);
 
   const createNote = useCallback(
     (keyName, startTimeOverride) => {
@@ -347,3 +321,4 @@ export function useNoteSystem() {
     handleKeyUp,
   };
 }
+

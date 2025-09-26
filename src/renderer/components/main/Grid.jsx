@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import DraggableKey from "@components/Key";
 import { getKeyInfoByGlobalKey } from "@utils/KeyMaps";
 import KeySettingModal from "./modal/content/KeySetting";
-import { useKeyStore } from "@stores/useKeyStore.js";
-import { useSettingsStore } from "@stores/useSettingsStore";
+import { useKeyStore } from "@stores/useKeyStore";
 
 export default function Grid({
   showConfirm,
@@ -20,68 +19,16 @@ export default function Grid({
   shouldSkipModalAnimation,
   onModalAnimationConsumed,
 }) {
-  const { selectedKeyType, setSelectedKeyType } = useKeyStore();
-  const { noteEffect, setNoteEffect } = useSettingsStore();
+  const { selectedKeyType } = useKeyStore();
   const { t } = useTranslation();
-  const ipcRenderer = window.electron.ipcRenderer;
-  const [initialLoaded, setInitialLoaded] = useState(false);
 
   useEffect(() => {
-    if (!initialLoaded) return;
-    ipcRenderer.send("setKeyMode", selectedKeyType);
-  }, [selectedKeyType, initialLoaded]);
+    if (!selectedKeyType) return;
+    window.api.keys.setMode(selectedKeyType).catch((error) => {
+      console.error("Failed to synchronise key mode", error);
+    });
+  }, [selectedKeyType]);
 
-  // 저장된 키 모드 로드
-  useEffect(() => {
-    ipcRenderer
-      .invoke("get-selected-key-type")
-      .then((mode) => {
-        if (typeof mode === "string" && mode.length > 0) {
-          setSelectedKeyType(mode);
-        }
-      })
-      .finally(() => setInitialLoaded(true));
-  }, []);
-
-  useEffect(() => {
-    ipcRenderer.send("get-note-effect");
-
-    const noteEffectHandler = (_, value) => {
-      setNoteEffect(value);
-    };
-
-    ipcRenderer.on("update-note-effect", noteEffectHandler);
-
-    return () => {
-      ipcRenderer.removeAllListeners("update-note-effect");
-    };
-  }, [setNoteEffect]);
-
-  useEffect(() => {
-    const handleReset = (e, data) => {
-      // if (data.positions) {
-
-      // }
-      if (data.color) {
-        // onColorChange(data.color); // 이제 App에서 처리
-      }
-    };
-
-    ipcRenderer.on("resetComplete", handleReset);
-
-    return () => {
-      ipcRenderer.removeAllListeners("resetComplete");
-    };
-  }, []);
-
-  // cleanup
-  useEffect(() => {
-    return () => {
-      // setPalette(false); // 이제 App에서 처리
-    };
-  }, []);
-
-  // Settings에서 돌아온 직후 Grid가 표시될 때 모달의 첫 진입 애니메이션을 건너뛰도록 플래그를 1회성으로 소비
   useEffect(() => {
     if (
       shouldSkipModalAnimation &&

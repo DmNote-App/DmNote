@@ -55,35 +55,16 @@ export default function KeySetting({
         if (e.key === "Shift") {
           code = e.location === 1 ? "ShiftLeft" : "ShiftRight";
         }
-        setKey(getKeyInfo(code, e.key).globalKey);
-        setDisplayKey(getKeyInfo(code, e.key).displayName);
+        const info = getKeyInfo(code, e.key);
+        setKey(info.globalKey);
+        setDisplayKey(info.displayName);
         setIsListening(false);
       }
     };
 
-    // Early CSS sync (모달이 SettingTab 방문 전에 열릴 경우)
-    const ipcRenderer = window.electron?.ipcRenderer;
-    if (ipcRenderer) {
-      ipcRenderer
-        .invoke("get-use-custom-css")
-        .then((enabled) => {
-          if (typeof enabled === "boolean") setUseCustomCSS(enabled);
-        })
-        .catch(() => {});
-      ipcRenderer
-        .invoke("get-custom-css")
-        .then((data) => {
-          if (data) {
-            if (data.content) setCustomCSSContent(data.content);
-            if (data.path) setCustomCSSPath(data.path);
-          }
-        })
-        .catch(() => {});
-    }
-
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [isListening, setUseCustomCSS, setCustomCSSContent, setCustomCSSPath]);
+  }, [isListening]);
 
   useEffect(() => {
     if (!isFocused) {
@@ -416,3 +397,4 @@ export default function KeySetting({
     </Modal>
   );
 }
+

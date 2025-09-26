@@ -4,11 +4,11 @@ import Minimize from "@assets/svgs/minimize.svg";
 
 export default function TitleBar() {
   const handleMinimize = () => {
-    window.electron.windowControl.minimize();
+    window.api.window.minimize();
   };
 
   const handleClose = () => {
-    window.electron.windowControl.close();
+    window.api.window.close();
   };
 
   return (

@@ -14,10 +14,12 @@ import { useSettingsStore } from "@stores/useSettingsStore";
 import FloatingPopup from "@components/main/modal/FloatingPopup";
 import Palette from "@components/main/modal/content/Palette";
 import { useKeyStore } from "@stores/useKeyStore";
+import { useAppBootstrap } from "@hooks/useAppBootstrap";
 
 export default function App() {
   const { selectedKeyType, setSelectedKeyType } = useKeyStore();
   useCustomCssInjection();
+  useAppBootstrap();
 
   const primaryButtonRef = useRef(null);
 
@@ -41,7 +43,6 @@ export default function App() {
   const [isLaboratoryOpen, setIsLaboratoryOpen] = useState(false);
   const [skipModalAnimationOnReturn, setSkipModalAnimationOnReturn] =
     useState(false);
-  const [noteSettings, setNoteSettings] = useState(null);
   const {
     noteEffect,
     angleMode,
@@ -50,88 +51,44 @@ export default function App() {
     setLanguage,
     laboratoryEnabled,
     setLaboratoryEnabled,
+    noteSettings,
+    setNoteSettings,
   } = useSettingsStore();
   const confirmCallbackRef = useRef(null);
   const [alertState, setAlertState] = useState({
     isOpen: false,
     message: "",
-    confirmText: "확인",
+    confirmText: "Ȯ��",
     type: "alert",
   });
   const { t } = useTranslation();
 
+  // Tab Ű�� �⺻ ��(4/5/6/8key) ��ȯ
   useEffect(() => {
-    const ipcRenderer = window.electron?.ipcRenderer;
-    if (!ipcRenderer) return;
-
-    ipcRenderer
-      .invoke("get-note-settings")
-      .then((settings) => {
-        setNoteSettings(settings);
-      })
-      .catch(() => {});
-
-    ipcRenderer.send("get-hardware-acceleration");
-    ipcRenderer.send("get-always-on-top");
-    ipcRenderer.send("get-overlay-lock");
-    ipcRenderer.send("get-note-effect");
-    ipcRenderer.send("get-laboratory-enabled");
-
-    ipcRenderer.invoke("get-angle-mode").then((mode) => {
-      if (mode && mode !== angleMode) {
-        setAngleMode(mode);
-      }
-    });
-    ipcRenderer.invoke("get-use-custom-css").then((enabled) => {});
-    ipcRenderer.invoke("get-custom-css").then((data) => {});
-    ipcRenderer.invoke("get-overlay-resize-anchor").then((val) => {});
-    ipcRenderer.invoke("get-language").then((lng) => {
-      if (lng && lng !== storeLanguage) {
-        setLanguage(lng);
-      }
-    });
-
-    const languageUpdateHandler = (_, lng) => {
-      if (lng && lng !== storeLanguage) setLanguage(lng);
-    };
-    const laboratoryUpdateHandler = (_, enabled) => {
-      setLaboratoryEnabled(!!enabled);
-    };
-    ipcRenderer.on("update-language", languageUpdateHandler);
-    ipcRenderer.on("update-laboratory-enabled", laboratoryUpdateHandler);
-
-    return () => {
-      ipcRenderer.removeListener("update-language", languageUpdateHandler);
-      ipcRenderer.removeListener(
-        "update-laboratory-enabled",
-        laboratoryUpdateHandler
-      );
-    };
-  }, []);
-
-  // Tab 키로 기본 탭(4/5/6/8key) 순환
-  useEffect(() => {
-    const handler = (e) => {
+    const handler = (e: KeyboardEvent) => {
       if (e.key !== "Tab" || e.shiftKey) return;
-      const active = document.activeElement;
+      const active = document.activeElement as HTMLElement | null;
       if (active) {
         const tag = (active.tagName || "").toLowerCase();
         const editable = active.isContentEditable;
         if (tag === "input" || tag === "textarea" || editable) return;
       }
       const defaults = ["4key", "5key", "6key", "8key"];
-      if (!defaults.includes(selectedKeyType)) return; // 커스텀 탭일 땐 미적용
+      if (!defaults.includes(selectedKeyType)) return;
       e.preventDefault();
       e.stopPropagation();
       const idx = defaults.indexOf(selectedKeyType);
       const next = defaults[(idx + 1) % defaults.length];
       setSelectedKeyType(next);
+      window.api.keys.setMode(next).catch((error) => {
+        console.error("Failed to set key mode", error);
+      });
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
   }, [selectedKeyType, setSelectedKeyType]);
 
-  const showAlert = (message) =>
+  const showAlert = (message: string) =>
     setAlertState({
       isOpen: true,
       message,
@@ -140,8 +97,8 @@ export default function App() {
     });
 
   const showConfirm = (
-    message,
-    onConfirm,
+    message: string,
+    onConfirm: () => void,
     confirmText = t("common.confirm")
   ) => {
     confirmCallbackRef.current =
@@ -171,7 +128,7 @@ export default function App() {
                   isOpen: true,
                   message: m,
                   type: "alert",
-                  confirmText: "확인",
+                  confirmText: "Ȯ��",
                 })
               }
               showConfirm={showConfirm}
@@ -203,7 +160,9 @@ export default function App() {
         onResetCurrentMode={() =>
           showConfirm(
             t("confirm.resetCurrentTab"),
-            handleResetCurrentMode,
+            async () => {
+              await handleResetCurrentMode();
+            },
             t("confirm.reset")
           )
         }
@@ -237,17 +196,11 @@ export default function App() {
           settings={noteSettings}
           onClose={() => setIsNoteSettingOpen(false)}
           onSave={async (normalized) => {
-            const ipcRenderer = window.electron?.ipcRenderer;
-            if (ipcRenderer) {
-              try {
-                const ok = await ipcRenderer.invoke(
-                  "update-note-settings",
-                  normalized
-                );
-                if (ok) {
-                  setNoteSettings((prev) => ({ ...prev, ...normalized }));
-                }
-              } catch (e) {}
+            try {
+              await window.api.settings.update({ noteSettings: normalized });
+              setNoteSettings(normalized);
+            } catch (error) {
+              console.error("Failed to update note settings", error);
             }
           }}
         />
@@ -258,17 +211,16 @@ export default function App() {
           thresholdMs={noteSettings.shortNoteThresholdMs}
           minLengthPx={noteSettings.shortNoteMinLengthPx}
           onSave={async (payload) => {
-            const ipcRenderer = window.electron?.ipcRenderer;
-            if (!ipcRenderer) return;
             try {
-              const ok = await ipcRenderer.invoke("update-note-settings", {
+              const updated = {
                 ...noteSettings,
                 ...payload,
-              });
-              if (ok) {
-                setNoteSettings((prev) => ({ ...prev, ...payload }));
-              }
-            } catch (e) {}
+              };
+              await window.api.settings.update({ noteSettings: updated });
+              setNoteSettings(updated);
+            } catch (error) {
+              console.error("Failed to update laboratory settings", error);
+            }
           }}
           onClose={() => setIsLaboratoryOpen(false)}
         />
@@ -284,7 +236,9 @@ export default function App() {
             confirmCallbackRef.current = null;
             try {
               cb();
-            } catch (_) {}
+            } catch (error) {
+              console.error(error);
+            }
           }
           closeAlert();
         }}

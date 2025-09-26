@@ -1,53 +1,116 @@
 import { create } from "zustand";
+import {
+  NOTE_SETTINGS_DEFAULTS,
+  type NoteSettings,
+} from "@src/types/noteSettings";
+import type { OverlayResizeAnchor } from "@src/types/settings";
 
 interface SettingsState {
   hardwareAcceleration: boolean;
   alwaysOnTop: boolean;
-  // showKeyCount: boolean;
   overlayLocked: boolean;
   angleMode: string;
   noteEffect: boolean;
-  // custom css
+  noteSettings: NoteSettings;
   useCustomCSS: boolean;
   customCSSContent: string;
-  customCSSPath: string;
+  customCSSPath: string | null;
+  backgroundColor: string;
   language: string;
   laboratoryEnabled: boolean;
+  overlayResizeAnchor: OverlayResizeAnchor;
+  setAll: (payload: SettingsStateSnapshot) => void;
+  merge: (payload: Partial<SettingsStateSnapshot>) => void;
   setLaboratoryEnabled: (value: boolean) => void;
   setHardwareAcceleration: (value: boolean) => void;
   setAlwaysOnTop: (value: boolean) => void;
   setUseCustomCSS: (value: boolean) => void;
   setCustomCSSContent: (value: string) => void;
-  setCustomCSSPath: (value: string) => void;
-  // setShowKeyCount: (value: boolean) => void;
+  setCustomCSSPath: (value: string | null) => void;
   setOverlayLocked: (value: boolean) => void;
   setAngleMode: (value: string) => void;
   setNoteEffect: (value: boolean) => void;
+  setNoteSettings: (value: NoteSettings) => void;
   setLanguage: (value: string) => void;
+  setBackgroundColor: (value: string) => void;
+  setOverlayResizeAnchor: (value: OverlayResizeAnchor) => void;
 }
 
-export const useSettingsStore = create<SettingsState>((set) => ({
+export type SettingsStateSnapshot = Omit<
+  SettingsState,
+  | "setAll"
+  | "merge"
+  | "setLaboratoryEnabled"
+  | "setHardwareAcceleration"
+  | "setAlwaysOnTop"
+  | "setUseCustomCSS"
+  | "setCustomCSSContent"
+  | "setCustomCSSPath"
+  | "setOverlayLocked"
+  | "setAngleMode"
+  | "setNoteEffect"
+  | "setNoteSettings"
+  | "setLanguage"
+  | "setBackgroundColor"
+  | "setOverlayResizeAnchor"
+>;
+
+const initialState: SettingsStateSnapshot = {
   hardwareAcceleration: true,
   alwaysOnTop: true,
-  // showKeyCount: false,
   overlayLocked: false,
   angleMode: "d3d11",
   noteEffect: false,
+  noteSettings: NOTE_SETTINGS_DEFAULTS,
   useCustomCSS: false,
   customCSSContent: "",
-  customCSSPath: "",
+  customCSSPath: null,
+  backgroundColor: "transparent",
   language: "ko",
   laboratoryEnabled: false,
-  setHardwareAcceleration: (value: boolean) =>
-    set({ hardwareAcceleration: value }),
-  setAlwaysOnTop: (value: boolean) => set({ alwaysOnTop: value }),
-  setUseCustomCSS: (value: boolean) => set({ useCustomCSS: value }),
-  setCustomCSSContent: (value: string) => set({ customCSSContent: value }),
-  setCustomCSSPath: (value: string) => set({ customCSSPath: value }),
-  // setShowKeyCount: (value: boolean) => set({ showKeyCount: value }),
-  setOverlayLocked: (value: boolean) => set({ overlayLocked: value }),
-  setAngleMode: (value: string) => set({ angleMode: value }),
-  setNoteEffect: (value: boolean) => set({ noteEffect: value }),
-  setLanguage: (value: string) => set({ language: value }),
-  setLaboratoryEnabled: (value: boolean) => set({ laboratoryEnabled: value }),
+  overlayResizeAnchor: "top-left",
+};
+
+function mergeSnapshot(
+  prev: SettingsStateSnapshot,
+  patch: Partial<SettingsStateSnapshot>
+): SettingsStateSnapshot {
+  const next: SettingsStateSnapshot = {
+    ...prev,
+    ...patch,
+  };
+
+  if (patch.noteSettings) {
+    next.noteSettings = {
+      ...prev.noteSettings,
+      ...patch.noteSettings,
+    };
+  }
+  if (
+    patch.customCSSContent !== undefined ||
+    patch.customCSSPath !== undefined
+  ) {
+    next.customCSSContent = patch.customCSSContent ?? prev.customCSSContent;
+    next.customCSSPath = patch.customCSSPath ?? prev.customCSSPath;
+  }
+  return next;
+}
+
+export const useSettingsStore = create<SettingsState>((set) => ({
+  ...initialState,
+  setAll: (payload) => set(() => mergeSnapshot(initialState, payload)),
+  merge: (payload) => set((state) => mergeSnapshot(state, payload)),
+  setHardwareAcceleration: (value) => set({ hardwareAcceleration: value }),
+  setAlwaysOnTop: (value) => set({ alwaysOnTop: value }),
+  setUseCustomCSS: (value) => set({ useCustomCSS: value }),
+  setCustomCSSContent: (value) => set({ customCSSContent: value }),
+  setCustomCSSPath: (value) => set({ customCSSPath: value }),
+  setOverlayLocked: (value) => set({ overlayLocked: value }),
+  setAngleMode: (value) => set({ angleMode: value }),
+  setNoteEffect: (value) => set({ noteEffect: value }),
+  setNoteSettings: (value) => set({ noteSettings: value }),
+  setLanguage: (value) => set({ language: value }),
+  setLaboratoryEnabled: (value) => set({ laboratoryEnabled: value }),
+  setBackgroundColor: (value) => set({ backgroundColor: value }),
+  setOverlayResizeAnchor: (value) => set({ overlayResizeAnchor: value }),
 }));

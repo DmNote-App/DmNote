@@ -1,24 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import PlusIcon from "@assets/svgs/plus2.svg";
 import MinusIcon from "@assets/svgs/minus.svg";
 import { useKeyStore } from "@stores/useKeyStore";
 import Alert from "./Alert.jsx";
 import TabNameModal from "./TabNameModal";
-import { useTranslation } from "react-i18next";
 
 type TabListProps = {
   onClose?: () => void;
 };
 
 const TabList = ({ onClose }: TabListProps) => {
-  const {
-    customTabs,
-    selectedKeyType,
-    setSelectedKeyType,
-    refreshCustomTabs,
-    addCustomTab,
-    deleteSelectedCustomTab,
-  } = useKeyStore();
+  const customTabs = useKeyStore((state) => state.customTabs);
+  const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
+  const setSelectedKeyType = useKeyStore((state) => state.setSelectedKeyType);
+  const setCustomTabs = useKeyStore((state) => state.setCustomTabs);
   const { t } = useTranslation();
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -26,26 +22,65 @@ const TabList = ({ onClose }: TabListProps) => {
   const [showNameModal, setShowNameModal] = useState(false);
 
   useEffect(() => {
-    refreshCustomTabs().finally(() => setIsLoaded(true));
-  }, [refreshCustomTabs]);
+    let disposed = false;
+    window.api.keys.customTabs
+      .list()
+      .then((tabs) => {
+        if (disposed || !Array.isArray(tabs)) return;
+        setCustomTabs(tabs);
+      })
+      .catch((error) => {
+        console.error("Failed to load custom tabs", error);
+      })
+      .finally(() => {
+        if (!disposed) {
+          setIsLoaded(true);
+        }
+      });
 
-  const isCustomSelected = useMemo(() => {
-    return !["4key", "5key", "6key", "8key"].includes(selectedKeyType);
-  }, [selectedKeyType]);
+    return () => {
+      disposed = true;
+    };
+  }, [setCustomTabs]);
+
+  const isCustomSelected = useMemo(
+    () => !["4key", "5key", "6key", "8key"].includes(selectedKeyType),
+    [selectedKeyType]
+  );
 
   const maxReached = customTabs.length >= 5;
 
   const handleCreate = async (name: string) => {
-    const res = await addCustomTab(name);
-    if (!res?.error) {
+    const result = await window.api.keys.customTabs.create(name);
+    if (!result?.error) {
       onClose?.();
     }
-    return res;
+    return result;
   };
 
   const handleSelect = async (id: string) => {
-    await setSelectedKeyType(id);
-    onClose?.();
+    try {
+      const result = await window.api.keys.customTabs.select(id);
+      if (result?.success) {
+        setSelectedKeyType(result.selected);
+        onClose?.();
+      }
+      return result;
+    } catch (error) {
+      console.error("Failed to select custom tab", error);
+      return { success: false };
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      const result = await window.api.keys.customTabs.delete(selectedKeyType);
+      if (!result?.success) {
+        console.warn("Failed to delete custom tab", result?.error);
+      }
+    } catch (error) {
+      console.error("Failed to delete custom tab", error);
+    }
   };
 
   return (
@@ -77,6 +112,7 @@ const TabList = ({ onClose }: TabListProps) => {
           <button
             className="flex flex-1 items-center justify-center max-w-[138px] h-[22px] rounded-[7px] bg-[#2A2A30] hover:bg-[#303036] active:bg-[#393941]"
             onClick={() => setShowNameModal(true)}
+            disabled={!isLoaded}
           >
             <PlusIcon />
           </button>
@@ -96,7 +132,6 @@ const TabList = ({ onClose }: TabListProps) => {
         )}
       </div>
 
-      {/* 이름 입력 모달 */}
       <TabNameModal
         isOpen={showNameModal}
         onClose={() => setShowNameModal(false)}
@@ -104,7 +139,6 @@ const TabList = ({ onClose }: TabListProps) => {
         existingNames={customTabs.map((t) => t.name)}
       />
 
-      {/* 삭제 확인 */}
       <Alert
         isOpen={askDelete}
         type="confirm"
@@ -114,7 +148,7 @@ const TabList = ({ onClose }: TabListProps) => {
         confirmText={t("tabs.delete")}
         onConfirm={async () => {
           setAskDelete(false);
-          await deleteSelectedCustomTab();
+          await handleDelete();
           onClose?.();
         }}
         onCancel={() => setAskDelete(false)}
@@ -124,3 +158,4 @@ const TabList = ({ onClose }: TabListProps) => {
 };
 
 export default TabList;
+

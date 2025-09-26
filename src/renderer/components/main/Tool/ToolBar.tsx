@@ -40,7 +40,7 @@ const ToolBar = ({
 }: Props) => {
   const { t } = useTranslation();
   const handleClick = (link: string) => {
-    window.electron.ipcRenderer.send("open-external", link);
+    window.api.app.openExternal(link);
   };
 
   return (

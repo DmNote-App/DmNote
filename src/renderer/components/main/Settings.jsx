@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "@stores/useSettingsStore";
 import Checkbox from "@components/main/common/Checkbox";
@@ -17,8 +17,6 @@ export default function Settings({ showAlert, showConfirm }) {
     setHardwareAcceleration,
     alwaysOnTop,
     setAlwaysOnTop,
-    // showKeyCount,
-    // setShowKeyCount,
     overlayLocked,
     setOverlayLocked,
     angleMode,
@@ -35,12 +33,11 @@ export default function Settings({ showAlert, showConfirm }) {
     setCustomCSSPath,
     language,
     setLanguage,
+    overlayResizeAnchor,
+    setOverlayResizeAnchor,
   } = useSettingsStore();
-  const ipcRenderer = window.electron.ipcRenderer;
 
-  const [overlayResizeAnchor, setOverlayResizeAnchor] =
-    React.useState("top-left");
-  const [hoveredKey, setHoveredKey] = React.useState(null);
+  const [hoveredKey, setHoveredKey] = useState(null);
 
   const VIDEO_SOURCES = {
     overlayLock: overlayLockVideo,
@@ -69,197 +66,140 @@ export default function Settings({ showAlert, showConfirm }) {
     { value: "en", label: "English" },
   ];
 
-  useEffect(() => {
-    const updateHandler = (_, value) => {
-      setHardwareAcceleration(value);
+  const handleHardwareAccelerationChange = () => {
+    const next = !hardwareAcceleration;
+
+    const apply = async () => {
+      setHardwareAcceleration(next);
+      try {
+        await window.api.settings.update({ hardwareAcceleration: next });
+        await window.api.app.restart();
+      } catch (error) {
+        console.error("Failed to toggle hardware acceleration", error);
+      }
     };
 
-    const alwaysOnTopHandler = (_, value) => {
-      setAlwaysOnTop(value);
-    };
-
-    // const showKeyCountHandler = (_, value) => {
-    //   setShowKeyCount(value);
-    // };
-
-    const overlayLockHandler = (_, value) => {
-      setOverlayLocked(value);
-    };
-
-    const noteEffectHandler = (_, value) => {
-      setNoteEffect(value);
-    };
-
-    // CSS 초기화 핸들러
-    const resetCompleteHandler = () => {
-      setUseCustomCSS(false);
-      setCustomCSSContent("");
-      setCustomCSSPath("");
-    };
-
-    ipcRenderer.on("update-hardware-acceleration", updateHandler);
-    ipcRenderer.on("update-always-on-top", alwaysOnTopHandler);
-    // ipcRenderer.send('get-show-key-count');
-    // ipcRenderer.on('update-show-key-count', showKeyCountHandler);
-    ipcRenderer.on("update-overlay-lock", overlayLockHandler);
-    ipcRenderer.on("update-note-effect", noteEffectHandler);
-    ipcRenderer.on("update-laboratory-enabled", (_, value) => {
-      setLaboratoryEnabled(value);
-    });
-    ipcRenderer.on("resetComplete", resetCompleteHandler);
-
-    // overlay resize anchor 초기값
-    ipcRenderer
-      .invoke("get-overlay-resize-anchor")
-      .then((val) => {
-        if (val) setOverlayResizeAnchor(val);
-      })
-      .catch(() => {});
-
-    ipcRenderer.send("get-laboratory-enabled");
-
-    return () => {
-      ipcRenderer.removeAllListeners("update-hardware-acceleration");
-      ipcRenderer.removeAllListeners("update-always-on-top");
-      // ipcRenderer.removeAllListeners('update-show-key-count');
-      ipcRenderer.removeAllListeners("update-overlay-lock");
-      ipcRenderer.removeAllListeners("update-note-effect");
-      ipcRenderer.removeAllListeners("update-laboratory-enabled");
-      ipcRenderer.removeAllListeners("resetComplete");
-    };
-  }, []);
-
-  const handleHardwareAccelerationChange = async () => {
-    const newState = !hardwareAcceleration;
-
-    showConfirm(t("settings.restartConfirm"), async () => {
-      setHardwareAcceleration(newState);
-      await ipcRenderer.invoke("toggle-hardware-acceleration", newState);
-      ipcRenderer.send("restart-app");
-    });
-  };
-
-  const handleOverlayResizeAnchorChange = async (e) => {
-    const val = e.target.value;
-    setOverlayResizeAnchor(val);
-    try {
-      await ipcRenderer.invoke("set-overlay-resize-anchor", val);
-    } catch (err) {
-      // ignore
+    if (showConfirm) {
+      showConfirm(t("settings.restartConfirm"), apply);
+    } else {
+      apply();
     }
   };
 
-  const handleAlwaysOnTopChange = () => {
-    const newState = !alwaysOnTop;
-    setAlwaysOnTop(newState);
-    ipcRenderer.send("toggle-always-on-top", newState);
+  const handleAlwaysOnTopChange = async () => {
+    const next = !alwaysOnTop;
+    setAlwaysOnTop(next);
+    try {
+      await window.api.settings.update({ alwaysOnTop: next });
+    } catch (error) {
+      console.error("Failed to toggle always-on-top", error);
+    }
   };
 
-  // 키 카운트 On/Off 핸들러
-  // const handleKeyCountToggle = () => {
-  //   const newState = !showKeyCount;
-  //   setShowKeyCount(newState);
-  //   ipcRenderer.send('toggle-show-key-count', newState);
-  // };
-
-  // 키 카운트 초기화 핸들러
-  // const handleResetKeyCount = () => {
-  //   ipcRenderer.send('reset-key-count');
-  // };
-
-  // 오버레이 창 고정 핸들러
-  const handleOverlayLockChange = () => {
-    const newState = !overlayLocked;
-    setOverlayLocked(newState);
-    ipcRenderer.send("toggle-overlay-lock", newState);
+  const handleOverlayLockChange = async () => {
+    const next = !overlayLocked;
+    setOverlayLocked(next);
+    try {
+      await window.api.overlay.setLock(next);
+    } catch (error) {
+      console.error("Failed to toggle overlay lock", error);
+    }
   };
 
-  // 커스텀 CSS 핸들러
-  const handleToggleCustomCSS = () => {
-    const newState = !useCustomCSS;
-    setUseCustomCSS(newState);
-    ipcRenderer.send("toggle-custom-css", newState);
-    // 경로/내용 비어있을 때 활성화하면 안내 유지
-    if (newState && (!customCSSPath || customCSSPath.length === 0)) {
-      // 내용이 없으면 초기 문자열 유지 (별도 처리 불필요)
+  const handleToggleCustomCSS = async () => {
+    const next = !useCustomCSS;
+    setUseCustomCSS(next);
+    try {
+      await window.api.css.toggle(next);
+    } catch (error) {
+      console.error("Failed to toggle custom CSS", error);
     }
   };
 
   const handleLoadCustomCSS = async () => {
-    if (!useCustomCSS) return; // 비활성화 상태면 동작하지 않도록 함
-    const result = await ipcRenderer.invoke("load-custom-css");
-    if (result && result.success && result.content) {
-      setCustomCSSContent(result.content);
-      if (result.path) setCustomCSSPath(result.path);
-      ipcRenderer.send("update-custom-css", result.content);
-      if (!useCustomCSS) handleToggleCustomCSS();
-      showAlert(t("settings.cssLoaded"));
-    } else if (result && result.error) {
-      showAlert(t("settings.cssLoadFailed") + result.error);
+    if (!useCustomCSS) return;
+    try {
+      const result = await window.api.css.load();
+      if (result?.success) {
+        if (result.content) setCustomCSSContent(result.content);
+        if (result.path) setCustomCSSPath(result.path);
+        showAlert?.(t("settings.cssLoaded"));
+      } else {
+        const message = result?.error
+          ? `${t("settings.cssLoadFailed")}${result.error}`
+          : t("settings.cssLoadFailed");
+        showAlert?.(message);
+      }
+    } catch (error) {
+      console.error("Failed to load custom CSS", error);
+      showAlert?.(`${t("settings.cssLoadFailed")}${error}`);
     }
   };
 
-  // 노트 효과 핸들러
-  const handleNoteEffectChange = () => {
-    const newState = !noteEffect;
-    setNoteEffect(newState);
-    ipcRenderer.send("toggle-note-effect", newState);
+  const handleNoteEffectChange = async () => {
+    const next = !noteEffect;
+    setNoteEffect(next);
+    try {
+      await window.api.settings.update({ noteEffect: next });
+    } catch (error) {
+      console.error("Failed to toggle note effect", error);
+    }
   };
 
-  // 그래픽 렌더링 모드 변경 핸들러
-  // const handleAngleModeChange = async (e) => {
-  //   const newMode = e.target.value;
-  //
-  //   showConfirm(
-  //     "렌더링 설정을 적용하려면 앱을 재시작해야 합니다. 지금 재시작하시겠습니까?",
-  //     () => {
-  //       setAngleMode(newMode);
-  //       ipcRenderer.send("set-angle-mode", newMode);
-  //       ipcRenderer.send("restart-app");
-  //     }
-  //   );
-  // };
-
-  // 그래픽 렌더링 모드 변경 핸들러
   const handleAngleModeChangeSelect = (val) => {
-    showConfirm(t("settings.restartConfirm"), () => {
+    const apply = async () => {
       setAngleMode(val);
-      ipcRenderer.send("set-angle-mode", val);
-      ipcRenderer.send("restart-app");
-    });
+      try {
+        await window.api.settings.update({ angleMode: val });
+        await window.api.app.restart();
+      } catch (error) {
+        console.error("Failed to change angle mode", error);
+      }
+    };
+
+    if (showConfirm) {
+      showConfirm(t("settings.restartConfirm"), apply);
+    } else {
+      apply();
+    }
   };
 
-  const handleLaboratoryToggle = () => {
-    const newState = !laboratoryEnabled;
-    setLaboratoryEnabled(newState);
-    ipcRenderer.send("set-laboratory-enabled", newState);
-  };
-
-  const handleClick = (link) => {
-    ipcRenderer.send("open-external", link);
+  const handleLaboratoryToggle = async () => {
+    const next = !laboratoryEnabled;
+    setLaboratoryEnabled(next);
+    try {
+      await window.api.settings.update({ laboratoryEnabled: next });
+    } catch (error) {
+      console.error("Failed to toggle laboratory mode", error);
+    }
   };
 
   const handleResetAll = () => {
+    const reset = async () => {
+      try {
+        await window.api.keys.resetAll();
+      } catch (error) {
+        console.error("Failed to reset presets", error);
+      }
+    };
+
     if (showConfirm) {
-      showConfirm(
-        t("settings.resetAllConfirm"),
-        () => {
-          ipcRenderer.send("reset-keys");
-        },
-        t("settings.initialize")
-      );
+      showConfirm(t("settings.resetAllConfirm"), reset, t("settings.initialize"));
     } else {
-      ipcRenderer.send("reset-keys");
+      reset();
     }
   };
 
   const handleLanguageChange = (val) => {
     setLanguage(val);
     i18n.changeLanguage(val);
-    try {
-      ipcRenderer.send("set-language", val);
-    } catch {}
+    window.api.settings.update({ language: val }).catch((error) => {
+      console.error("Failed to change language", error);
+    });
   };
+
+
+  
 
   return (
     <div className="relative w-full h-full">
@@ -384,11 +324,8 @@ export default function Settings({ showAlert, showConfirm }) {
                   onChange={async (val) => {
                     setOverlayResizeAnchor(val);
                     try {
-                      await ipcRenderer.invoke(
-                        "set-overlay-resize-anchor",
-                        val
-                      );
-                    } catch (err) {}
+                      await window.api.overlay.setAnchor(val);
+                    } catch (error) { console.error("Failed to set overlay anchor", error); }
                   }}
                   placeholder={t("settings.selectAnchor")}
                 />
@@ -457,3 +394,23 @@ export default function Settings({ showAlert, showConfirm }) {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
