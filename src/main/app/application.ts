@@ -107,10 +107,13 @@ export class Application {
   }
 
   private handleMainWindowClose() {
+    this.isAppQuitting = true;
     this.keyboard.stopListening();
     const overlay = this.overlayWindow.instance;
     if (overlay && !overlay.isDestroyed()) {
+      overlay.removeAllListeners("close");
       overlay.close();
     }
+    app.quit();
   }
 }
