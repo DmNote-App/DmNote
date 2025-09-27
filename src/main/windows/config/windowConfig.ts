@@ -36,9 +36,9 @@ const windowConfig: WindowConfig = {
       contextIsolation: true,
       enableBlinkFeatures: "CSSContainment",
       disableBlinkFeatures: "VSync",
+      backgroundThrottling: false, // 백그라운드 실행 제한 해제
     },
   },
 };
 
 export default windowConfig;
-
