@@ -4,7 +4,7 @@
   "description": "DM NOTE",
   "main": "dist/main/main/main.js",
   "scripts": {
-    "start": "npm run type-check && npm run build:main && cross-env NODE_ENV=development concurrently \"npm run dev\" \"npm run watch:main\" \"wait-on dist/main/main/main.js && electron .\"",
+    "start": "npm run ensure-main-built && cross-env NODE_ENV=development concurrently \"npm run dev\" \"npm run watch:main\" \"wait-on dist/main/main/main.js && electron .\"",
     "dev": "vite",
     "prebuild": "npm run type-check && npm run build:main && vite build",
     "build": "npm run build:main && electron-builder --win",
@@ -12,7 +12,8 @@
     "type-check:watch": "tsc --noEmit --watch",
     "postinstall": "electron-builder install-app-deps && npx electron-rebuild -f -w node-global-key-listener-extended",
     "watch:main": "tsc -p tsconfig.main.json --watch",
-    "build:main": "tsc -p tsconfig.main.json"
+    "build:main": "tsc -p tsconfig.main.json",
+    "ensure-main-built": "node ./scripts/ensure-main-built.js"
   },
   "build": {
     "appId": "com.dmnote.app",
