@@ -5,11 +5,6 @@ import { useKeyStore } from "@stores/useKeyStore";
 import Checkbox from "@components/main/common/Checkbox";
 import Dropdown from "@components/main/common/Dropdown";
 import FlaskIcon from "@assets/svgs/flask.svg";
-import overlayLockVideo from "@assets/mp4/overlay-lock.mp4";
-import alwaysOnTopVideo from "@assets/mp4/alwaysontop.mp4";
-import noteEffectVideo from "@assets/mp4/noteeffect.mp4";
-import customCSSVideo from "@assets/mp4/css.mp4";
-import resizeVideo from "@assets/mp4/resize.mp4";
 
 export default function Settings({ showAlert, showConfirm }) {
   const { t, i18n } = useTranslation();
@@ -41,11 +36,16 @@ export default function Settings({ showAlert, showConfirm }) {
   const [hoveredKey, setHoveredKey] = useState(null);
 
   const VIDEO_SOURCES = {
-    overlayLock: overlayLockVideo,
-    alwaysOnTop: alwaysOnTopVideo,
-    noteEffect: noteEffectVideo,
-    customCSS: customCSSVideo,
-    resizeAnchor: resizeVideo,
+    overlayLock:
+      "https://raw.githubusercontent.com/lee-sihun/DmNote/master/src/renderer/assets/mp4/overlay-lock.mp4",
+    alwaysOnTop:
+      "https://raw.githubusercontent.com/lee-sihun/DmNote/master/src/renderer/assets/mp4/alwaysontop.mp4",
+    noteEffect:
+      "https://raw.githubusercontent.com/lee-sihun/DmNote/master/src/renderer/assets/mp4/noteeffect.mp4",
+    customCSS:
+      "https://raw.githubusercontent.com/lee-sihun/DmNote/master/src/renderer/assets/mp4/css.mp4",
+    resizeAnchor:
+      "https://raw.githubusercontent.com/lee-sihun/DmNote/master/src/renderer/assets/mp4/resize.mp4",
   };
 
   const RESIZE_ANCHOR_OPTIONS = [
@@ -180,7 +180,7 @@ export default function Settings({ showAlert, showConfirm }) {
       try {
         const result = await window.api.keys.resetAll();
         if (result) {
-          // 리셋 직후 메모리 상태도 바로 초기값으로 맞춘다
+          // 리셋 직후 메모리 상태도 바로 초기값으로 변경
           useKeyStore.setState({
             keyMappings: result.keys,
             positions: result.positions,
@@ -194,7 +194,11 @@ export default function Settings({ showAlert, showConfirm }) {
     };
 
     if (showConfirm) {
-      showConfirm(t("settings.resetAllConfirm"), reset, t("settings.initialize"));
+      showConfirm(
+        t("settings.resetAllConfirm"),
+        reset,
+        t("settings.initialize")
+      );
     } else {
       reset();
     }
@@ -207,9 +211,6 @@ export default function Settings({ showAlert, showConfirm }) {
       console.error("Failed to change language", error);
     });
   };
-
-
-  
 
   return (
     <div className="relative w-full h-full">
@@ -335,7 +336,9 @@ export default function Settings({ showAlert, showConfirm }) {
                     setOverlayResizeAnchor(val);
                     try {
                       await window.api.overlay.setAnchor(val);
-                    } catch (error) { console.error("Failed to set overlay anchor", error); }
+                    } catch (error) {
+                      console.error("Failed to set overlay anchor", error);
+                    }
                   }}
                   placeholder={t("settings.selectAnchor")}
                 />
@@ -404,23 +407,3 @@ export default function Settings({ showAlert, showConfirm }) {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
