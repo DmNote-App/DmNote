@@ -85,6 +85,7 @@
     "i18next": "^25.5.2",
     "node-global-key-listener-extended": "github:lee-sihun/node-global-key-listener",
     "react": "^19.0.0",
+    "react-color": "^2.19.3",
     "react-dom": "^19.0.0",
     "react-i18next": "^15.7.3",
     "three": "^0.180.0",
