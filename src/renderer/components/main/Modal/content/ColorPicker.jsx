@@ -8,6 +8,7 @@ import React, {
 import { Saturation, Hue, useColor } from "react-color-palette";
 import "react-color-palette/css";
 import FloatingPopup from "../FloatingPopup";
+import { useTranslation } from "react-i18next";
 import {
   MODES,
   isGradientColor,
@@ -34,9 +35,7 @@ export default function ColorPickerWrapper({
       : selectedColor.hex.replace("#", "")
   );
   const [gradientBottom, setGradientBottom] = useState(() =>
-    isGradientColor(color)
-      ? color.bottom.replace("#", "")
-      : "FFFFFF"
+    isGradientColor(color) ? color.bottom.replace("#", "") : "FFFFFF"
   );
   const suppressGradientResetRef = useRef(false);
   // 한번이라도 그라디언트 모드에 진입(또는 그라디언트 값을 받은) 이후엔
@@ -81,7 +80,10 @@ export default function ColorPickerWrapper({
         // 아직 그라디언트로 한 번도 진입한 적이 없고(시드 안함),
         // 외부에서 넘어온 솔리드 색이면서, 내부 초기화 억제가 아닐 때만
         // 단 한 번 시드를 수행
-        if (!suppressGradientResetRef.current && !hasSeededGradientFromSolidRef.current) {
+        if (
+          !suppressGradientResetRef.current &&
+          !hasSeededGradientFromSolidRef.current
+        ) {
           setGradientTop(parsed.hex.replace("#", ""));
           setGradientBottom("FFFFFF");
         }
@@ -209,18 +211,18 @@ export default function ColorPickerWrapper({
     <FloatingPopup
       open={open}
       referenceRef={referenceRef}
-      placement="right"
+      placement="right-start"
       offset={32}
+      offsetY={-80}
       className="z-50"
       onClose={onClose}
       autoClose={false}
     >
-      <div className="flex flex-col p-[8px] gap-[8px] w-[145px] bg-[#1A191E] rounded-[13px]">
+      <div className="flex flex-col p-[8px] gap-[8px] w-[146px] bg-[#1A191E] rounded-[13px]">
         <ModeSwitch mode={mode} onChange={handleModeSwitch} />
 
         <Saturation height={92} color={selectedColor} onChange={handleChange} />
         <Hue color={selectedColor} onChange={handleChange} />
-
         {mode === MODES.solid ? (
           <Input
             value={inputValue}
@@ -252,16 +254,19 @@ export default function ColorPickerWrapper({
 }
 
 function ModeSwitch({ mode, onChange }) {
+  const { t } = useTranslation();
+  const solidLabel = t("colorPicker.solid");
+  const gradientLabel = t("colorPicker.gradient");
   return (
-    <div className="flex gap-[6px] w-full">
+    <div className="flex gap-[6px] max-w-full">
       {[
-        { key: MODES.solid, label: "Solid" },
-        { key: MODES.gradient, label: "Gradient" },
+        { key: MODES.solid, label: solidLabel },
+        { key: MODES.gradient, label: gradientLabel },
       ].map((item) => (
         <button
           key={item.key}
           type="button"
-          className={`flex-1 px-[9px] h-[23px] rounded-[7px] text-style-4 text-[#DBDEE8] transition-colors ${
+          className={`flex-1 whitespace-nowrap px-[9px] h-[23px] rounded-[7px] text-style-4 text-[#DBDEE8] transition-colors ${
             mode === item.key
               ? "bg-[#2E2D33] text-[#FFFFFF]"
               : "hover:bg-[#303036] text-[#6F6E7A]"
