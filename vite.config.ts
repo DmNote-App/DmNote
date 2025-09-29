@@ -1,19 +1,22 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import preact from "@preact/preset-vite";
 import svgr from "vite-plugin-svgr";
 import path from "path";
+import { visualizer } from "rollup-plugin-visualizer";
+import analyzer from "rollup-plugin-analyzer";
 
 export default defineConfig(() => {
   const projectRoot = __dirname;
   const rendererRoot = path.resolve(projectRoot, "src/renderer");
   const windowsRoot = path.resolve(rendererRoot, "windows");
+  const isAnalyze = process.env.ANALYZE === "true";
 
   return {
     // Vite 개발 서버 루트: /main/index.html, /overlay/index.html 경로로 접근 가능
     root: windowsRoot,
     base: "./",
     plugins: [
-      react(),
+      preact(),
       svgr({
         include: "**/*.svg",
         svgrOptions: {
@@ -21,7 +24,19 @@ export default defineConfig(() => {
           exportType: "default",
         },
       }),
-    ],
+      isAnalyze &&
+        analyzer({
+          summaryOnly: true,
+        }),
+      isAnalyze &&
+        visualizer({
+          filename: path.resolve(projectRoot, "dist", "stats.html"),
+          template: "treemap",
+          gzipSize: true,
+          brotliSize: true,
+          open: false,
+        }),
+    ].filter(Boolean),
     server: {
       port: 3000,
       strictPort: true,
@@ -33,6 +48,10 @@ export default defineConfig(() => {
     },
     resolve: {
       alias: {
+        react: "preact/compat",
+        "react-dom": "preact/compat",
+        "react-dom/test-utils": "preact/test-utils",
+        "react/jsx-runtime": "preact/jsx-runtime",
         "@components": path.resolve(rendererRoot, "components"),
         "@styles": path.resolve(rendererRoot, "styles"),
         "@windows": path.resolve(rendererRoot, "windows"),
@@ -58,4 +77,3 @@ export default defineConfig(() => {
     },
   };
 });
-
