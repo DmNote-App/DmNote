@@ -2,7 +2,7 @@ import React, { memo, useEffect, useRef } from "react";
 import * as THREE from "three";
 import { animationScheduler } from "../../utils/animationScheduler";
 
-const MAX_NOTES = 2048;  // 씬에서 동시에 렌더링할 수 있는 최대 노트 수
+const MAX_NOTES = 2048; // 씬에서 동시에 렌더링할 수 있는 최대 노트 수
 
 const extractColorStops = (color, fallback = "#FFFFFF") => {
   if (!color) {
@@ -264,10 +264,12 @@ const fragmentShader = `
 
 const buildColorAttributes = (color, opacity = 1) => {
   const { top, bottom } = extractColorStops(color);
+  const srgbTop = top.clone().convertLinearToSRGB();
+  const srgbBottom = bottom.clone().convertLinearToSRGB();
   const clampedOpacity = Math.min(Math.max(opacity, 0), 1);
   return {
-    top: [top.r, top.g, top.b, clampedOpacity],
-    bottom: [bottom.r, bottom.g, bottom.b, clampedOpacity],
+    top: [srgbTop.r, srgbTop.g, srgbTop.b, clampedOpacity],
+    bottom: [srgbBottom.r, srgbBottom.g, srgbBottom.b, clampedOpacity],
   };
 };
 

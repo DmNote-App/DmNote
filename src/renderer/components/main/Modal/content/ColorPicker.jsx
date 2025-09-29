@@ -218,7 +218,7 @@ export default function ColorPickerWrapper({
       onClose={onClose}
       autoClose={false}
     >
-      <div className="flex flex-col p-[8px] gap-[8px] w-[146px] bg-[#1A191E] rounded-[13px]">
+      <div className="flex flex-col p-[8px] gap-[8px] w-[146px] bg-[#1A191E] rounded-[13px] border-[1px] border-[#2A2A30]">
         <ModeSwitch mode={mode} onChange={handleModeSwitch} />
 
         <Saturation height={92} color={selectedColor} onChange={handleChange} />
