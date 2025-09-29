@@ -1,6 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Key } from "@components/Key";
-import { WebGLTracks } from "@components/overlay/WebGLTracks";
 import { DEFAULT_NOTE_SETTINGS } from "@constants/overlayConfig";
 import { useCustomCssInjection } from "@hooks/useCustomCssInjection";
 import { useNoteSystem } from "@hooks/useNoteSystem";
@@ -26,7 +25,12 @@ const FALLBACK_POSITION: KeyPosition = {
 const PADDING = 30;
 
 const OverlayKey = Key as React.ComponentType<any>;
-const Tracks = WebGLTracks as React.ComponentType<any>;
+
+// Tracks 레이지 로딩 
+const Tracks = lazy(async () => {
+  const mod = await import("@components/overlay/WebGLTracks.jsx");
+  return { default: mod.WebGLTracks as React.ComponentType<any> };
+});
 
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 
@@ -207,13 +211,15 @@ export default function App() {
       }}
     >
       {noteEffect && (
-        <Tracks
-          tracks={webglTracks}
-          notesRef={notesRef}
-          subscribe={subscribe}
-          noteSettings={noteSettings}
-          laboratoryEnabled={laboratoryEnabled}
-        />
+        <Suspense fallback={null}>
+          <Tracks
+            tracks={webglTracks}
+            notesRef={notesRef}
+            subscribe={subscribe}
+            noteSettings={noteSettings}
+            laboratoryEnabled={laboratoryEnabled}
+          />
+        </Suspense>
       )}
 
       {currentKeys.map((key, index) => {
