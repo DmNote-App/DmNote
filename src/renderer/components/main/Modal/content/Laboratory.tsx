@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import Modal from "../Modal";
 import Checkbox from "@components/main/common/Checkbox";
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "@contexts/I18nContext";
 
 interface LaboratoryProps {
   delayEnabled: boolean;

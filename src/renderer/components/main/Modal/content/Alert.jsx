@@ -1,5 +1,5 @@
 import React from "react";
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "@contexts/I18nContext";
 import Modal from "../Modal";
 
 export default function Alert({

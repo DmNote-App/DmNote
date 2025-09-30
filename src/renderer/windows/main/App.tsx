@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "@contexts/I18nContext";
 import TitleBar from "@components/main/TitleBar";
 import { useCustomCssInjection } from "@hooks/useCustomCssInjection";
 import ToolBar from "@components/main/tool/ToolBar";

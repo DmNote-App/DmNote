@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Modal from "../Modal";
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "@contexts/I18nContext";
 
 type Props = {
   isOpen: boolean;

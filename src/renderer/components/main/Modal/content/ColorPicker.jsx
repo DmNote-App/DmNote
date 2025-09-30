@@ -1,14 +1,13 @@
 import React, {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
+import { useTranslation } from "@contexts/I18nContext";
 import { Saturation, Hue, useColor } from "react-color-palette";
 import "react-color-palette/css";
 import FloatingPopup from "../FloatingPopup";
-import { useTranslation } from "react-i18next";
 import {
   MODES,
   isGradientColor,

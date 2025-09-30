@@ -4,7 +4,7 @@ import TabTool from "./TabTool";
 import Github from "@assets/svgs/github.svg";
 import Bug from "@assets/svgs/code.svg";
 import { TooltipGroup } from "../modal/TooltipGroup";
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "@contexts/I18nContext";
 import FloatingTooltip from "../modal/FloatingTooltip";
 
 type Props = {

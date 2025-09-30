@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "@contexts/I18nContext";
 import { useSettingsStore } from "@stores/useSettingsStore";
 import { useKeyStore } from "@stores/useKeyStore";
 import Checkbox from "@components/main/common/Checkbox";
@@ -207,9 +207,6 @@ export default function Settings({ showAlert, showConfirm }) {
   const handleLanguageChange = (val) => {
     setLanguage(val);
     i18n.changeLanguage(val);
-    window.api.settings.update({ language: val }).catch((error) => {
-      console.error("Failed to change language", error);
-    });
   };
 
   return (

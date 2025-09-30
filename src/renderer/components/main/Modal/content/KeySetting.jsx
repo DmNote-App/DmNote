@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useTranslation } from "@contexts/I18nContext";
 import { getKeyInfo, getKeyInfoByGlobalKey } from "@utils/KeyMaps";
 import { useSettingsStore } from "@stores/useSettingsStore";
 import ColorPicker from "./ColorPicker";
 import Modal from "../Modal";
-import { useTranslation } from "react-i18next";
 
 const COLOR_MODES = {
   solid: "solid",

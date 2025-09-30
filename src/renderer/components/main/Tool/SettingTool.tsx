@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "@contexts/I18nContext";
 import FolderIcon from "@assets/svgs/folder.svg";
 import SettingIcon from "@assets/svgs/setting.svg";
 import CloseEyeIcon from "@assets/svgs/close_eye.svg";
@@ -75,7 +75,9 @@ const SettingTool = ({
   const handlePresetSave = async () => {
     try {
       const result = await window.api.presets.save();
-      showAlert?.(result?.success ? t("preset.saveSuccess") : t("preset.saveFail"));
+      showAlert?.(
+        result?.success ? t("preset.saveSuccess") : t("preset.saveFail")
+      );
     } catch (error) {
       console.error("Failed to save preset", error);
       showAlert?.(t("preset.saveFail"));
@@ -85,7 +87,9 @@ const SettingTool = ({
   const handlePresetLoad = async () => {
     try {
       const result = await window.api.presets.load();
-      showAlert?.(result?.success ? t("preset.loadSuccess") : t("preset.loadFail"));
+      showAlert?.(
+        result?.success ? t("preset.loadSuccess") : t("preset.loadFail")
+      );
     } catch (error) {
       console.error("Failed to load preset", error);
       showAlert?.(t("preset.loadFail"));
@@ -137,7 +141,9 @@ const SettingTool = ({
         <div className="flex items-center h-[40px] p-[5px] bg-button-primary rounded-[7px] gap-[5px]">
           <FloatingTooltip
             content={
-              isOverlayVisible ? t("tooltip.overlayClose") : t("tooltip.overlayOpen")
+              isOverlayVisible
+                ? t("tooltip.overlayClose")
+                : t("tooltip.overlayOpen")
             }
           >
             <Button
@@ -147,7 +153,9 @@ const SettingTool = ({
           </FloatingTooltip>
           <div className="flex items-center">
             <FloatingTooltip
-              content={isSettingsOpen ? t("tooltip.back") : t("tooltip.settings")}
+              content={
+                isSettingsOpen ? t("tooltip.back") : t("tooltip.settings")
+              }
             >
               <Button
                 icon={isSettingsOpen ? <TurnIcon /> : <SettingIcon />}
@@ -238,10 +246,3 @@ const ChevronButton = React.forwardRef<HTMLButtonElement, ChevronButtonProps>(
 );
 
 export default SettingTool;
-
-
-
-
-
-
-

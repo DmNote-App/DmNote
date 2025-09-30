@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "@contexts/I18nContext";
 import MoveIcon from "@assets/svgs/move.svg";
 import EraserIcon from "@assets/svgs/eraser.svg";
 import LayerIcon from "@assets/svgs/layer.svg";

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "@contexts/I18nContext";
 import PlusIcon from "@assets/svgs/plus2.svg";
 import MinusIcon from "@assets/svgs/minus.svg";
 import { useKeyStore } from "@stores/useKeyStore";
@@ -158,4 +158,3 @@ const TabList = ({ onClose }: TabListProps) => {
 };
 
 export default TabList;
-

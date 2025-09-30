@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import Checkbox from "@components/main/common/Checkbox";
 import Dropdown from "@components/main/common/Dropdown";
 import Modal from "../Modal";
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "@contexts/I18nContext";
 
 export default function NoteSetting({ onClose, settings, onSave }) {
   const { t } = useTranslation();
