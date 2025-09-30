@@ -38,6 +38,7 @@ export default function ColorPickerWrapper({
     isGradientColor(color) ? color.bottom.replace("#", "") : "FFFFFF"
   );
   const suppressGradientResetRef = useRef(false);
+  const suppressGradientBroadcastRef = useRef(false);
   // 한번이라도 그라디언트 모드에 진입(또는 그라디언트 값을 받은) 이후엔
   // 솔리드 색상(prop)이 들어와도 그라디언트 편집 상태를 다시 시드하지 않음
   const hasSeededGradientFromSolidRef = useRef(isGradientColor(color));
@@ -57,6 +58,7 @@ export default function ColorPickerWrapper({
     if (isGradientNow) {
       const topHex = color.top.replace("#", "").toUpperCase();
       const bottomHex = color.bottom.replace("#", "").toUpperCase();
+      suppressGradientBroadcastRef.current = true;
       setGradientTop(topHex);
       setGradientBottom(bottomHex);
       hasSeededGradientFromSolidRef.current = true;
@@ -77,13 +79,11 @@ export default function ColorPickerWrapper({
       const parsed = parseHexColor(normalized);
       if (parsed) {
         setSelectedColor(parsed);
-        // 아직 그라디언트로 한 번도 진입한 적이 없고(시드 안함),
-        // 외부에서 넘어온 솔리드 색이면서, 내부 초기화 억제가 아닐 때만
-        // 단 한 번 시드를 수행
         if (
           !suppressGradientResetRef.current &&
           !hasSeededGradientFromSolidRef.current
         ) {
+          suppressGradientBroadcastRef.current = true;
           setGradientTop(parsed.hex.replace("#", ""));
           setGradientBottom("FFFFFF");
         }
@@ -105,12 +105,15 @@ export default function ColorPickerWrapper({
   }, [selectedColor.hex]);
 
   useEffect(() => {
-    if (mode === MODES.gradient) {
-      const top = `#${gradientTop}`;
-      const bottom = `#${gradientBottom}`;
-      onColorChange?.(buildGradient(top, bottom));
+    if (mode !== MODES.gradient) {
+      return;
     }
-  }, [mode, gradientTop, gradientBottom]);
+    if (suppressGradientBroadcastRef.current) {
+      suppressGradientBroadcastRef.current = false;
+      return;
+    }
+    onColorChange?.(buildGradient(`#${gradientTop}`, `#${gradientBottom}`));
+  }, [mode, gradientTop, gradientBottom, onColorChange]);
 
   const applyColor = useCallback(
     (next) => {
@@ -121,6 +124,7 @@ export default function ColorPickerWrapper({
         // when editing via Saturation/Hue in gradient mode, update the selected stop
         const newHex = parsed.hex.replace("#", "").toUpperCase();
 
+        suppressGradientBroadcastRef.current = true;
         if (gradientSelected === "top") {
           setGradientTop(newHex);
           onColorChange?.(buildGradient(parsed.hex, `#${gradientBottom}`));

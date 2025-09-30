@@ -26,10 +26,10 @@ const PADDING = 30;
 
 const OverlayKey = Key as React.ComponentType<any>;
 
-// Tracks 레이지 로딩 
+// Tracks 레이지 로딩
 const Tracks = lazy(async () => {
-  const mod = await import("@components/overlay/WebGLTracks.jsx");
-  return { default: mod.WebGLTracks as React.ComponentType<any> };
+  const mod = await import("@components/overlay/WebGLTracksOGL.jsx");
+  return { default: mod.WebGLTracksOGL as React.ComponentType<any> };
 });
 
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };

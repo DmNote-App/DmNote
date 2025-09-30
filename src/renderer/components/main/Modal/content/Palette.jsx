@@ -1,4 +1,9 @@
 import React from "react";
+import {
+  parseHexColor,
+  buildGradient,
+  isGradientColor,
+} from "@utils/colorUtils";
 
 export default function Palette({ color, onColorChange }) {
   const colors = [
@@ -14,8 +19,21 @@ export default function Palette({ color, onColorChange }) {
     "transparent",
   ];
 
-  const handleColorChange = (color) => {
-    onColorChange(color);
+  const handleColorChange = (next) => {
+    if (typeof next === "string") {
+      const parsed = parseHexColor(next);
+      if (!parsed) {
+        onColorChange(next);
+        return;
+      }
+      onColorChange(parsed.hex);
+      return;
+    }
+    if (isGradientColor(next)) {
+      onColorChange(buildGradient(next.top, next.bottom));
+      return;
+    }
+    onColorChange(next);
   };
 
   return (
@@ -24,11 +42,11 @@ export default function Palette({ color, onColorChange }) {
       onClick={(e) => e.stopPropagation()}
     >
       <div className="grid grid-cols-5 gap-x-[8px] gap-y-[8px]">
-        {colors.map((color) => (
+        {colors.map((colorItem) => (
           <Color
-            key={color}
-            color={color}
-            onClick={() => handleColorChange(color)}
+            key={colorItem}
+            color={colorItem}
+            onClick={() => handleColorChange(colorItem)}
           />
         ))}
       </div>
@@ -36,7 +54,7 @@ export default function Palette({ color, onColorChange }) {
         type="text"
         placeholder="#FFFFFF"
         value={color}
-        onChange={(e) => onColorChange(e.target.value)}
+        onChange={(e) => handleColorChange(e.target.value)}
         className="w-[142px] h-[22px] mt-[10px] rounded-[7px] bg-[#2A2A30] border-[#3A3943] border-[1px] px-[10px] flex items-center text-style-3 text-[#DBDEE8]"
       />
     </div>
