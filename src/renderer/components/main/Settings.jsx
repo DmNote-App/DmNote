@@ -367,7 +367,7 @@ export default function Settings({ showAlert, showConfirm }) {
               </div>
               {/* 버전 및 설정 초기화 */}
               <div className="flex justify-between items-center py-[14px] px-[12px] bg-[#101013] rounded-[7px]">
-                <p className="text-style-3 text-[#FFFFFF]">Ver 1.2.0</p>
+                <p className="text-style-3 text-[#FFFFFF]">Ver 1.2.1</p>
                 <button
                   className="bg-[#401C1D] rounded-[7px] py-[4px] px-[9px] text-style-2 text-[#E8DBDB]"
                   onClick={handleResetAll}
