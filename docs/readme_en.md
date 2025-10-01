@@ -13,7 +13,7 @@
   </p>
   
 [![GitHub release](https://img.shields.io/github/release/lee-sihun/DmNote.svg?logo=github)](https://github.com/lee-sihun/DmNote/releases)
-[![GitHub downloads](https://img.shields.io/github/downloads/lee-sihun/DmNote/total.svg?logo=github)](https://github.com/lee-sihun/DmNote/releases/download/1.2.0/DM.NOTE.v.1.2.0.zip)
+[![GitHub downloads](https://img.shields.io/github/downloads/lee-sihun/DmNote/total.svg?logo=github)](https://github.com/lee-sihun/DmNote/releases/download/1.2.1/DM.NOTE.v.1.2.1.zip)
 [![GitHub license](https://img.shields.io/github/license/lee-sihun/DmNote.svg?logo=github)](https://github.com/lee-sihun/DmNote/blob/master/LICENSE)
 </div>
 
@@ -24,7 +24,7 @@ https://github.com/user-attachments/assets/20fb118d-3982-4925-9004-9ce0936590c2
 **DM Note** is a key viewer built for DJMAX RESPECT V. Built with Electron and React, powered by [node-global-key-listener-extended](https://github.com/lee-sihun/node-global-key-listener) for global keyboard hooks.
 Set it up in minutes and visualize your keystrokes for streams or gameplay captures. Windows only for now, and it works with non-rhythm games too
 
-[Download DM NOTE v1.2.0](https://github.com/lee-sihun/DmNote/releases/download/1.2.0/DM.NOTE.v.1.2.0.zip)
+[Download DM NOTE v1.2.1](https://github.com/lee-sihun/DmNote/releases/download/1.2.1/DM.NOTE.v.1.2.1.zip)
 
 ## ✨ Features
 
