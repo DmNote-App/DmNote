@@ -157,7 +157,7 @@ const FloatingTooltip = ({
             position: strategy,
             top: y ?? 0,
             left: x ?? 0,
-            zIndex: 50,
+            zIndex: 90,
           }}
           className={
             shouldAnimateOpenRef.current ? "tooltip-fade-in" : undefined

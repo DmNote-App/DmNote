@@ -28,7 +28,7 @@ const ListPopup = ({
   offsetY = 0,
 }: ListPopupProps) => {
   const defaultClassName =
-    "z-30 bg-[#1A191E] rounded-[7px] p-[5px] flex flex-col gap-[5px]";
+    "z-30 bg-button-primary rounded-[7px] p-[5px] flex flex-col gap-[5px]";
   const effectiveClassName = `${defaultClassName} ${className}`.trim();
 
   return (
@@ -50,9 +50,9 @@ const ListPopup = ({
             onSelect(it.id);
             onClose?.();
           }}
-          className="min-w-[108px] h-[24px] px-[24px] rounded-[7px] hover:bg-[#26262C] active:bg-[#2A2A31] flex items-center justify-center"
+          className="min-w-[108px] h-[24px] px-[24px] rounded-[7px] hover:bg-button-hover active:bg-button-active flex items-center justify-center"
         >
-          <span className="text-style-2 text-[#DBDEE8]">{it.label}</span>
+          <span className="text-style-2 text-[#DBDEE8] whitespace-nowrap">{it.label}</span>
         </button>
       ))}
     </FloatingPopup>

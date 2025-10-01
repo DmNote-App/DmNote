@@ -75,9 +75,9 @@
     "overlayOpen": "Open Overlay",
     "back": "Back",
     "settings": "Settings",
-    "etcSettings": "Other Settings",
+    "etcSettings": "Etc",
     "noteSettings": "Note Settings",
-  "laboratory": "Experimental"
+    "laboratory": "Experimental"
   },
   "preset": {
     "import": "Import",
@@ -124,8 +124,7 @@
     "minLength": "Min short length",
     "save": "Apply",
     "cancel": "Cancel"
-  }
-  ,
+  },
   "colorPicker": {
     "solid": "Solid",
     "gradient": "Gradient"
