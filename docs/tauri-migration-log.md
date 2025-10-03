@@ -37,3 +37,8 @@
 - Electron 메인 프로세스/스크립트/빌드 리소스를 제거하고 npm 스크립트·의존성을 Tauri 중심으로 재구성.
 - `tauri.conf.json`을 npm build 파이프라인에 맞춰 갱신하고 번들 식별자를 `com.dmnote.desktop`으로 정정.
 - `npm run build` 및 `npm run tauri:build`를 실행해 프런트엔드와 Tauri 릴리스 빌드 파이프라인이 정상 동작함을 확인.
+
+## 2025-10-03 09:16 ? 타입 에러 정리 및 빌드 검증
+- Windows 파일시스템 대소문자 혼용으로 깨지던 Modal 경로 import를 모두 대문자 표기로 정리하여 `forceConsistentCasingInFileNames` 오류 해소.
+- `tsconfig.json`의 `module`/`moduleResolution`을 `ESNext`/`Node`로 전환해 `@tauri-apps/api` ESM import 경고를 제거.
+- `npm run type-check`, `npm run build`, `cargo check`, `npm run tauri:build` 순으로 검증 완료 (Browserslist 경고는 기존 TODO 유지).
