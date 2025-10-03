@@ -5,12 +5,12 @@ use crate::{
     models::{SettingsPatchInput, SettingsState},
 };
 
-#[tauri::command(rename = "settings:get", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn settings_get(state: State<'_, AppState>) -> Result<SettingsState, String> {
     Ok(state.settings.snapshot())
 }
 
-#[tauri::command(rename = "settings:update", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn settings_update(
     state: State<'_, AppState>,
     app: AppHandle,

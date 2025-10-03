@@ -26,7 +26,7 @@
 
 ## app
 
-- `app:bootstrap` (invoke)
+- `app_bootstrap` (invoke)
   - 요청: `void`
   - 응답: `BootstrapPayload` (설정/키/포지션/커스텀탭/선택 탭/오버레이 상태)
 

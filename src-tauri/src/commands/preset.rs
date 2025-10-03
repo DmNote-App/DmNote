@@ -34,7 +34,7 @@ struct PresetFile {
     custom_css: Option<CustomCss>,
 }
 
-#[tauri::command(rename = "preset:save", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn preset_save(state: State<'_, AppState>) -> Result<PresetOperationResult, String> {
     let preset_path = FileDialog::new()
         .set_file_name("preset.json")
@@ -70,7 +70,7 @@ pub fn preset_save(state: State<'_, AppState>) -> Result<PresetOperationResult, 
     })
 }
 
-#[tauri::command(rename = "preset:load", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn preset_load(
     state: State<'_, AppState>,
     app: AppHandle,

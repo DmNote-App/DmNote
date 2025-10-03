@@ -29,17 +29,17 @@ pub struct CssLoadResponse {
     pub path: Option<String>,
 }
 
-#[tauri::command(rename = "css:get", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn css_get(state: State<'_, AppState>) -> Result<CustomCss, String> {
     Ok(state.store.snapshot().custom_css)
 }
 
-#[tauri::command(rename = "css:get-use", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn css_get_use(state: State<'_, AppState>) -> Result<bool, String> {
     Ok(state.store.snapshot().use_custom_css)
 }
 
-#[tauri::command(rename = "css:toggle", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn css_toggle(
     state: State<'_, AppState>,
     app: AppHandle,
@@ -64,7 +64,7 @@ pub fn css_toggle(
     Ok(CssToggleResponse { enabled })
 }
 
-#[tauri::command(rename = "css:reset", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn css_reset(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
     state
         .store
@@ -81,7 +81,7 @@ pub fn css_reset(state: State<'_, AppState>, app: AppHandle) -> Result<(), Strin
     Ok(())
 }
 
-#[tauri::command(rename = "css:set-content", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn css_set_content(
     state: State<'_, AppState>,
     app: AppHandle,
@@ -106,7 +106,7 @@ pub fn css_set_content(
     })
 }
 
-#[tauri::command(rename = "css:load", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn css_load(state: State<'_, AppState>, app: AppHandle) -> Result<CssLoadResponse, String> {
     let picked = FileDialog::new().add_filter("CSS", &["css"]).pick_file();
 

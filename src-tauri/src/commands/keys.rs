@@ -54,17 +54,17 @@ pub struct CustomTabDeleteResult {
     pub error: Option<String>,
 }
 
-#[tauri::command(rename = "keys:get", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn keys_get(state: State<'_, AppState>) -> Result<KeyMappings, String> {
     Ok(state.store.snapshot().keys)
 }
 
-#[tauri::command(rename = "positions:get", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn positions_get(state: State<'_, AppState>) -> Result<KeyPositions, String> {
     Ok(state.store.snapshot().key_positions)
 }
 
-#[tauri::command(rename = "keys:update", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn keys_update(
     state: State<'_, AppState>,
     app: AppHandle,
@@ -80,7 +80,7 @@ pub fn keys_update(
     Ok(updated)
 }
 
-#[tauri::command(rename = "positions:update", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn positions_update(
     state: State<'_, AppState>,
     app: AppHandle,
@@ -95,7 +95,7 @@ pub fn positions_update(
     Ok(updated)
 }
 
-#[tauri::command(rename = "keys:set-mode", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn keys_set_mode(
     state: State<'_, AppState>,
     app: AppHandle,
@@ -124,7 +124,7 @@ pub fn keys_set_mode(
     })
 }
 
-#[tauri::command(rename = "keys:reset-all", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn keys_reset_all(
     state: State<'_, AppState>,
     app: AppHandle,
@@ -212,7 +212,7 @@ pub fn keys_reset_all(
     })
 }
 
-#[tauri::command(rename = "keys:reset-mode", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn keys_reset_mode(
     state: State<'_, AppState>,
     app: AppHandle,
@@ -258,12 +258,12 @@ pub fn keys_reset_mode(
     })
 }
 
-#[tauri::command(rename = "custom-tabs:list", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn custom_tabs_list(state: State<'_, AppState>) -> Result<Vec<CustomTab>, String> {
     Ok(state.store.snapshot().custom_tabs)
 }
 
-#[tauri::command(rename = "custom-tabs:create", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn custom_tabs_create(
     state: State<'_, AppState>,
     app: AppHandle,
@@ -339,7 +339,7 @@ pub fn custom_tabs_create(
     })
 }
 
-#[tauri::command(rename = "custom-tabs:delete", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn custom_tabs_delete(
     state: State<'_, AppState>,
     app: AppHandle,
@@ -431,7 +431,7 @@ pub struct CustomTabSelectResult {
     pub error: Option<String>,
 }
 
-#[tauri::command(rename = "custom-tabs:select", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn custom_tabs_select(
     state: State<'_, AppState>,
     app: AppHandle,

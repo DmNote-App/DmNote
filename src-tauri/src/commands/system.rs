@@ -2,7 +2,7 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::app_state::AppState;
 
-#[tauri::command(rename = "window:minimize", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn window_minimize(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
         window.minimize().map_err(|err| err.to_string())?;
@@ -10,7 +10,7 @@ pub fn window_minimize(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command(rename = "window:close", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn window_close(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
     state.shutdown();
     if let Some(main) = app.get_webview_window("main") {
@@ -23,7 +23,7 @@ pub fn window_close(state: State<'_, AppState>, app: AppHandle) -> Result<(), St
     Ok(())
 }
 
-#[tauri::command(rename = "app:open-external", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn app_open_external(_app: AppHandle, url: String) -> Result<(), String> {
     if url.is_empty() {
         return Ok(());
@@ -31,7 +31,7 @@ pub fn app_open_external(_app: AppHandle, url: String) -> Result<(), String> {
     open::that(url).map_err(|err| err.to_string())
 }
 
-#[tauri::command(rename = "app:restart", permission = "dmnote-allow-all")]
+#[tauri::command(permission = "dmnote-allow-all")]
 pub fn app_restart(app: AppHandle) -> Result<(), String> {
     app.request_restart();
     Ok(())
