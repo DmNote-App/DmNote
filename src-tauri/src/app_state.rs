@@ -16,7 +16,7 @@ use tauri::{
 };
 use tauri_runtime_wry::wry::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use willhook::{
-    hook::event::{InputEvent, KeyPress, KeyboardKey},
+    hook::event::{InputEvent, IsKeyboardEventInjected, KeyPress, KeyboardEvent, KeyboardKey},
     keyboard_hook,
 };
 
@@ -31,6 +31,8 @@ const OVERLAY_LABEL: &str = "overlay";
 const DEFAULT_OVERLAY_WIDTH: f64 = 860.0;
 const DEFAULT_OVERLAY_HEIGHT: f64 = 320.0;
 const OVERLAY_MARGIN: f64 = 40.0;
+
+const LLKHF_EXTENDED: u32 = 0x01;
 
 pub struct AppState {
     pub store: Arc<AppStore>,
@@ -257,35 +259,37 @@ impl AppState {
                 while running_flag.load(Ordering::SeqCst) {
                     match hook.try_recv() {
                         Ok(InputEvent::Keyboard(event)) => {
-                            if let Some(key) = event.key {
-                                let labels = keyboard_key_to_global(key);
-                                if labels.is_empty() {
-                                    continue;
-                                }
+                            if should_skip_keyboard_event(&event) {
+                                continue;
+                            }
 
-                                let Some(key_label) = keyboard
-                                    .match_candidate(labels.iter().map(|label| label.as_str()))
-                                else {
-                                    continue;
-                                };
+                            let labels = build_key_labels(&event);
+                            if labels.is_empty() {
+                                continue;
+                            }
 
-                                let state = match event.pressed {
-                                    KeyPress::Down(_) => "DOWN",
-                                    KeyPress::Up(_) => "UP",
-                                    _ => continue,
-                                };
+                            let Some(key_label) =
+                                keyboard.match_candidate(labels.iter().map(|label| label.as_str()))
+                            else {
+                                continue;
+                            };
 
-                                let mode = keyboard.current_mode();
-                                if let Err(err) = app.emit(
-                                    "keys:state",
-                                    &json!({
-                                        "key": key_label,
-                                        "state": state,
-                                        "mode": mode,
-                                    }),
-                                ) {
-                                    error!("failed to emit keys:state event: {err}");
-                                }
+                            let state = match event.pressed {
+                                KeyPress::Down(_) => "DOWN",
+                                KeyPress::Up(_) => "UP",
+                                _ => continue,
+                            };
+
+                            let mode = keyboard.current_mode();
+                            if let Err(err) = app.emit(
+                                "keys:state",
+                                &json!({
+                                    "key": key_label,
+                                    "state": state,
+                                    "mode": mode,
+                                }),
+                            ) {
+                                error!("failed to emit keys:state event: {err}");
                             }
                         }
                         Ok(_) => {}
@@ -495,6 +499,95 @@ impl Drop for KeyboardHookTask {
 struct OverlayPosition {
     x: f64,
     y: f64,
+}
+
+fn build_key_labels(event: &KeyboardEvent) -> Vec<String> {
+    let mut labels = Vec::new();
+
+    if let Some(label) = numpad_override_label(event) {
+        labels.push(label.to_string());
+    } else if let Some(key) = event.key {
+        extend_unique(&mut labels, keyboard_key_to_global(key));
+    }
+
+    if labels.is_empty() {
+        if let Some(vk_code) = event.vk_code {
+            labels.push(vk_code.to_string());
+        } else if let Some(scan_code) = event.scan_code {
+            labels.push(scan_code.to_string());
+        }
+    }
+
+    labels
+}
+
+fn extend_unique(target: &mut Vec<String>, items: Vec<String>) {
+    for item in items {
+        if !target.iter().any(|existing| existing == &item) {
+            target.push(item);
+        }
+    }
+}
+
+fn numpad_override_label(event: &KeyboardEvent) -> Option<&'static str> {
+    let scan_code = event.scan_code?;
+    let label = match scan_code {
+        82 => "NUMPAD 0",
+        79 => "NUMPAD 1",
+        80 => "NUMPAD 2",
+        81 => "NUMPAD 3",
+        75 => "NUMPAD 4",
+        76 => "NUMPAD 5",
+        77 => "NUMPAD 6",
+        71 => "NUMPAD 7",
+        72 => "NUMPAD 8",
+        73 => "NUMPAD 9",
+        28 => "NUMPAD RETURN",
+        83 => "NUMPAD DELETE",
+        _ => return None,
+    };
+
+    let flags = event.flags.unwrap_or(0);
+    let is_extended = (flags & LLKHF_EXTENDED) != 0;
+
+    match scan_code {
+        28 => {
+            if is_extended {
+                Some(label)
+            } else {
+                None
+            }
+        }
+        _ => {
+            if !is_extended {
+                Some(label)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn should_skip_keyboard_event(event: &KeyboardEvent) -> bool {
+    let is_shift = matches!(event.vk_code, Some(0x10) | Some(0xA0) | Some(0xA1))
+        || matches!(
+            event.key,
+            Some(KeyboardKey::LeftShift) | Some(KeyboardKey::RightShift)
+        );
+
+    if !is_shift {
+        return false;
+    }
+
+    if matches!(event.is_injected, Some(IsKeyboardEventInjected::Injected)) {
+        return true;
+    }
+
+    if matches!(event.scan_code, Some(554)) {
+        return true;
+    }
+
+    false
 }
 
 fn keyboard_key_to_global(key: KeyboardKey) -> Vec<String> {

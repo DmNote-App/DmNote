@@ -1,0 +1,30 @@
+[package]
+name = "willhook"
+description = "Capture all keyboard and mouse input regardless of application focus on the active windows desktop"
+license = "MIT"
+version = "0.3.0"
+edition = "2021"
+categories = ["api-bindings", "external-ffi-bindings", "os::windows-apis"]
+keywords = ["winapi", "user-input", "keyboard", "mouse", "hooks"]
+documentation = "https://docs.rs/willhook"
+repository = "https://github.com/myood/willhook-rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package.metadata.docs.rs]
+default-target = "x86_64-pc-windows-msvc"
+targets = ["x86_64-pc-windows-msvc", "i686-pc-windows-msvc"]
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winuser", "hidusage", "errhandlingapi", "libloaderapi", "minwindef", "processthreadsapi"] }
+
+[dependencies]
+once_cell = "1.17.0"
+
+[dev-dependencies]
+ctrlc = "3.2.0"
+quickcheck = "1.0.3"
+mki = "0.2.3"
+
+[[example]]
+name = "showcase"

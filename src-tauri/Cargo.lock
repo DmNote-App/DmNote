@@ -4723,8 +4723,6 @@ dependencies = [
 [[package]]
 name = "willhook"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a57e67c752d90a7b842f7fc51e76dc0a3fc6f20ac0016d8fb0cee12c28a2bec3"
 dependencies = [
  "once_cell",
  "winapi",
