@@ -23,12 +23,17 @@
         "transparent": false,
         "decorations": false,
         "shadow": true,
-        "url": "main/index.html"
+        "url": "main/index.html",
+        "visible": false,
+        "backgroundColor": "#1A191E"
       }
     ],
     "security": {
       "csp": null,
-      "capabilities": ["main", "dmnote-dev"]
+      "capabilities": [
+        "main",
+        "dmnote-dev"
+      ]
     }
   }
 }

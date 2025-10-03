@@ -297,7 +297,9 @@ pub struct SettingsPatchInput {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomCssPatch {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
 }
 
@@ -311,18 +313,30 @@ pub struct SettingsDiff {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsPatch {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hardware_acceleration: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub always_on_top: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub overlay_locked: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub note_effect: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub note_settings: Option<NoteSettings>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub angle_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub laboratory_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub background_color: Option<String>,
     #[serde(rename = "useCustomCSS")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub use_custom_css: Option<bool>,
     #[serde(rename = "customCSS")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_css: Option<CustomCss>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub overlay_resize_anchor: Option<OverlayResizeAnchor>,
 }

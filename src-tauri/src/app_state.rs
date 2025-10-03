@@ -337,7 +337,7 @@ impl AppState {
         .resizable(false)
         .transparent(true)
         .always_on_top(true)
-        .skip_taskbar(true)
+        .skip_taskbar(false)
         .visible(true)
         .inner_size(bounds.width, bounds.height)
         .position(bounds.x, bounds.y)
@@ -347,6 +347,9 @@ impl AppState {
 
         window.set_ignore_cursor_events(snapshot.overlay_locked)?;
         window.set_always_on_top(snapshot.always_on_top)?;
+        if let Err(err) = window.set_focus() {
+            log::debug!("failed to focus overlay window: {err}");
+        }
 
         *self.overlay_visible.write() = true;
 

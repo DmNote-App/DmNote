@@ -12,7 +12,7 @@ use anyhow::Result;
 use log::LevelFilter;
 use std::{thread, time::Duration};
 
-use tauri::{ipc::CapabilityBuilder, LogicalSize, Manager};
+use tauri::{ipc::CapabilityBuilder, LogicalSize, Manager, PhysicalPosition, Position};
 
 use app_state::AppState;
 use store::AppStore;
@@ -97,31 +97,19 @@ fn setup_logging() -> Result<()> {
 }
 
 fn configure_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        if let Err(err) = apply_main_window_configuration(app, window) {
+            log::warn!("failed to configure main window: {err}");
+        }
+        return;
+    }
+
     let handle = app.clone();
     thread::spawn(move || {
-        let size = LogicalSize::new(902.0, 488.0);
         for attempt in 0..15 {
             if let Some(window) = handle.get_webview_window("main") {
-                if let Err(err) = window.set_decorations(false) {
-                    log::warn!("failed to disable decorations: {err}");
-                }
-                if let Err(err) = window.set_resizable(false) {
-                    log::warn!("failed to disable resizing: {err}");
-                }
-                if let Err(err) = window.set_maximizable(false) {
-                    log::warn!("failed to disable maximize: {err}");
-                }
-                if let Err(err) = window.set_min_size(Some(tauri::Size::Logical(size))) {
-                    log::warn!("failed to set min size: {err}");
-                }
-                if let Err(err) = window.set_max_size(Some(tauri::Size::Logical(size))) {
-                    log::warn!("failed to set max size: {err}");
-                }
-                if let Err(err) = window.set_size(tauri::Size::Logical(size)) {
-                    log::warn!("failed to set size: {err}");
-                }
-                if let Err(err) = window.set_shadow(true) {
-                    log::warn!("failed to enable shadow: {err}");
+                if let Err(err) = apply_main_window_configuration(&handle, window) {
+                    log::warn!("failed to configure main window: {err}");
                 }
                 return;
             }
@@ -132,6 +120,81 @@ fn configure_main_window(app: &tauri::AppHandle) {
             }
         }
     });
+}
+
+fn apply_main_window_configuration(
+    app: &tauri::AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<()> {
+    let size = LogicalSize::new(902.0, 488.0);
+
+    if let Err(err) = window.hide() {
+        log::debug!("failed to hide main window before configuration: {err}");
+    }
+
+    if let Err(err) = window.set_decorations(false) {
+        log::warn!("failed to disable decorations: {err}");
+    }
+    if let Err(err) = window.set_resizable(false) {
+        log::warn!("failed to disable resizing: {err}");
+    }
+    if let Err(err) = window.set_maximizable(false) {
+        log::warn!("failed to disable maximize: {err}");
+    }
+    if let Err(err) = window.set_min_size(Some(tauri::Size::Logical(size))) {
+        log::warn!("failed to set min size: {err}");
+    }
+    if let Err(err) = window.set_max_size(Some(tauri::Size::Logical(size))) {
+        log::warn!("failed to set max size: {err}");
+    }
+    if let Err(err) = window.set_size(tauri::Size::Logical(size)) {
+        log::warn!("failed to set size: {err}");
+    }
+    if let Err(err) = window.set_shadow(true) {
+        log::warn!("failed to enable shadow: {err}");
+    }
+
+    let positioned = app.primary_monitor().ok().flatten().and_then(|monitor| {
+        let work_area = monitor.work_area();
+        window.outer_size().ok().map(|size| {
+            let width = size.width as f64;
+            let height = size.height as f64;
+            let origin_x = work_area.position.x as f64;
+            let origin_y = work_area.position.y as f64;
+            let available_width = work_area.size.width as f64;
+            let available_height = work_area.size.height as f64;
+
+            let desired_x = origin_x + (available_width - width) / 2.0;
+            let desired_y = origin_y + (available_height - height) / 2.0;
+
+            let max_x = origin_x + (available_width - width).max(0.0);
+            let max_y = origin_y + (available_height - height).max(0.0);
+
+            (
+                desired_x.clamp(origin_x, max_x),
+                desired_y.clamp(origin_y, max_y),
+            )
+        })
+    });
+
+    if let Some((x, y)) = positioned {
+        if let Err(err) = window.set_position(Position::Physical(PhysicalPosition::new(
+            x.round() as i32,
+            y.round() as i32,
+        ))) {
+            log::warn!("failed to set main window position: {err}");
+            if let Err(err) = window.center() {
+                log::warn!("failed to center window: {err}");
+            }
+        }
+    } else if let Err(err) = window.center() {
+        log::warn!("failed to center window: {err}");
+    }
+
+    if let Err(err) = window.show() {
+        log::warn!("failed to show main window after configuration: {err}");
+    }
+    Ok(())
 }
 
 fn register_dev_capability(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {

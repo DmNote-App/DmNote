@@ -36,8 +36,11 @@ export function useAppBootstrap() {
         });
       }
       const { noteSettings, customCSS, ...rest } = diff.changed;
-      if (Object.keys(rest).length > 0) {
-        merge(rest as Partial<SettingsStateSnapshot>);
+      const sanitized = Object.fromEntries(
+        Object.entries(rest).filter(([, value]) => value !== undefined && value !== null)
+      ) as Partial<SettingsStateSnapshot>;
+      if (Object.keys(sanitized).length > 0) {
+        merge(sanitized);
       }
     };
 
