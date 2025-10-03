@@ -220,7 +220,9 @@ pub struct SettingsState {
     pub language: String,
     pub laboratory_enabled: bool,
     pub background_color: String,
+    #[serde(rename = "useCustomCSS")]
     pub use_custom_css: bool,
+    #[serde(rename = "customCSS")]
     #[serde(default)]
     pub custom_css: CustomCss,
     pub overlay_resize_anchor: OverlayResizeAnchor,
@@ -285,7 +287,9 @@ pub struct SettingsPatchInput {
     pub language: Option<String>,
     pub laboratory_enabled: Option<bool>,
     pub background_color: Option<String>,
+    #[serde(rename = "useCustomCSS")]
     pub use_custom_css: Option<bool>,
+    #[serde(rename = "customCSS")]
     pub custom_css: Option<CustomCssPatch>,
     pub overlay_resize_anchor: Option<OverlayResizeAnchor>,
 }
@@ -316,7 +320,9 @@ pub struct SettingsPatch {
     pub language: Option<String>,
     pub laboratory_enabled: Option<bool>,
     pub background_color: Option<String>,
+    #[serde(rename = "useCustomCSS")]
     pub use_custom_css: Option<bool>,
+    #[serde(rename = "customCSS")]
     pub custom_css: Option<CustomCss>,
     pub overlay_resize_anchor: Option<OverlayResizeAnchor>,
 }

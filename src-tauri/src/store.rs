@@ -32,14 +32,18 @@ impl AppStore {
         fs::create_dir_all(&dir)
             .with_context(|| format!("failed to create data directory at {}", dir.display()))?;
 
-        let path = dir.join("store.json");
-        let (state, needs_persist) = if path.exists() {
-            (load_store_from_path(&path)?, false)
+        let default_path = dir.join("store.json");
+        let (path, state, needs_persist) = if default_path.exists() {
+            (
+                default_path.clone(),
+                load_store_from_path(&default_path)?,
+                false,
+            )
         } else if let Some(legacy_path) = find_legacy_store_file() {
             let legacy = load_store_from_path(&legacy_path)?;
-            (legacy, true)
+            (legacy_path, legacy, true)
         } else {
-            (initialize_default_state(), true)
+            (default_path, initialize_default_state(), true)
         };
 
         let store = Self {
@@ -159,14 +163,36 @@ fn normalize_state(mut data: AppStoreData) -> AppStoreData {
 }
 
 fn merge_default_modes(target: &mut KeyMappings, defaults: KeyMappings) {
+    use std::collections::hash_map::Entry;
+
     for (mode, value) in defaults.into_iter() {
-        target.entry(mode).or_insert(value);
+        match target.entry(mode) {
+            Entry::Vacant(entry) => {
+                entry.insert(value);
+            }
+            Entry::Occupied(mut entry) => {
+                if entry.get().is_empty() {
+                    *entry.get_mut() = value;
+                }
+            }
+        }
     }
 }
 
 fn merge_default_positions(target: &mut KeyPositions, defaults: KeyPositions) {
+    use std::collections::hash_map::Entry;
+
     for (mode, positions) in defaults.into_iter() {
-        target.entry(mode).or_insert(positions);
+        match target.entry(mode) {
+            Entry::Vacant(entry) => {
+                entry.insert(positions);
+            }
+            Entry::Occupied(mut entry) => {
+                if entry.get().is_empty() {
+                    *entry.get_mut() = positions;
+                }
+            }
+        }
     }
 }
 
@@ -244,9 +270,16 @@ fn repair_legacy_state(raw: &str) -> AppStoreData {
         }
         if let Some(v) = obj.get("useCustomCSS").and_then(Value::as_bool) {
             data.use_custom_css = v;
+        } else if let Some(v) = obj.get("useCustomCss").and_then(Value::as_bool) {
+            data.use_custom_css = v;
         }
         if let Some(v) = obj
             .get("customCSS")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            data.custom_css = v;
+        } else if let Some(v) = obj
+            .get("customCss")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
         {
             data.custom_css = v;
