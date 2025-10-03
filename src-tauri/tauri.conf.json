@@ -28,7 +28,7 @@
     ],
     "security": {
       "csp": null,
-      "capabilities": ["main"]
+      "capabilities": ["main", "dmnote-dev"]
     }
   }
 }

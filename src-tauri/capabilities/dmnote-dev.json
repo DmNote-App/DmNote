@@ -1,0 +1,17 @@
+{
+  "identifier": "dmnote-dev",
+  "description": "Dev server capability",
+  "local": true,
+  "windows": ["main", "overlay"],
+  "webviews": ["main", "overlay"],
+  "permissions": ["dmnote-allow-all", "core:default"],
+  "remote": {
+    "urls": [
+      "http://localhost:3400/**",
+      "http://127.0.0.1:3400/**",
+      "http://localhost:3000/**",
+      "http://127.0.0.1:3000/**",
+      "tauri://localhost/**"
+    ]
+  }
+}
