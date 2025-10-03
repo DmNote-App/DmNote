@@ -10,9 +10,11 @@
     "core:default",
     "dmnote-allow-all"
   ],
-  "urls": [
-    "http://127.0.0.1:3000/**",
-    "http://localhost:3000/**",
-    "tauri://localhost/**"
-  ]
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:3000/**",
+      "http://localhost:3000/**",
+      "tauri://localhost/**"
+    ]
+  }
 }
