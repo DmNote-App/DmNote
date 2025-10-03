@@ -6,7 +6,7 @@
   "build": {
     "beforeBuildCommand": "npm run build",
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:3000/main/index.html",
+    "devUrl": "http://localhost:3000",
     "frontendDist": "../dist/renderer"
   },
   "app": {
