@@ -2,6 +2,16 @@
   "identifier": "main",
   "description": "Main window capability granting DM Note access",
   "local": true,
-  "windows": ["main", "overlay"],
-  "permissions": ["core:default", "dmnote-allow-all"]
+  "windows": [
+    "main",
+    "overlay"
+  ],
+  "permissions": [
+    "core:default",
+    "dmnote-allow-all"
+  ],
+  "urls": [
+    "tauri://localhost/**",
+    "http://localhost:3000/**"
+  ]
 }
