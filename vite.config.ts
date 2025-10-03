@@ -38,7 +38,7 @@ export default defineConfig(() => {
         }),
     ].filter(Boolean),
     server: {
-      port: 3000,
+      port: 3400,
       strictPort: true,
       open: false,
       fs: {
