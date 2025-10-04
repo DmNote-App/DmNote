@@ -40,8 +40,9 @@ impl AppStore {
                 false,
             )
         } else if let Some(legacy_path) = find_legacy_store_file() {
+            // 레거시 파일은 읽어와서 새 포맷으로 현재 앱 데이터 경로(default_path)에 저장
             let legacy = load_store_from_path(&legacy_path)?;
-            (legacy_path, legacy, true)
+            (default_path.clone(), legacy, true)
         } else {
             (default_path, initialize_default_state(), true)
         };
@@ -103,7 +104,45 @@ impl AppStore {
     }
 
     fn persist_locked(&self, state: &AppStoreData) -> Result<()> {
-        let json = serde_json::to_string_pretty(state)?;
+        // JSON 출력 시 key 모드 순서를 4,5,6,8 순으로 고정하고 나머지는 사전순으로 정렬합니다.
+        use serde_json::{to_value, Map, Value};
+
+        let mut root = to_value(state)?;
+        if let Value::Object(ref mut obj) = root {
+            // 정렬 도우미
+            let reorder = |value: &mut Value| {
+                if let Value::Object(current) = value {
+                    let desired = ["4key", "5key", "6key", "8key"];
+                    let mut next = Map::new();
+                    // 우선순위 키들 먼저
+                    for k in desired.iter() {
+                        if let Some(v) = current.get(*k) {
+                            next.insert((*k).to_string(), v.clone());
+                        }
+                    }
+                    // 나머지 키들 알파벳 순
+                    let mut rest: Vec<(String, Value)> = current
+                        .iter()
+                        .filter(|(k, _)| !desired.contains(&k.as_str()))
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect();
+                    rest.sort_by(|a, b| a.0.cmp(&b.0));
+                    for (k, v) in rest.into_iter() {
+                        next.insert(k, v);
+                    }
+                    *value = Value::Object(next);
+                }
+            };
+
+            if let Some(v) = obj.get_mut("keys") {
+                reorder(v);
+            }
+            if let Some(v) = obj.get_mut("keyPositions") {
+                reorder(v);
+            }
+        }
+
+        let json = serde_json::to_string_pretty(&root)?;
         fs::write(&self.path, json)
             .with_context(|| format!("failed to write store file at {}", self.path.display()))
     }
@@ -120,19 +159,14 @@ fn load_store_from_path(path: &Path) -> Result<AppStoreData> {
 }
 
 fn find_legacy_store_file() -> Option<PathBuf> {
+    // 고정된 레거시 경로: %APPDATA%/dm-note/config.json
     let base = config_dir()?;
-    const LEGACY_DIRS: [&str; 5] = ["DM NOTE", "dm-note", "Dm Note", "dm_note", "com.dmnote.app"];
-    const LEGACY_FILES: [&str; 2] = ["config.json", "store.json"];
-
-    for dir in LEGACY_DIRS.iter() {
-        for file in LEGACY_FILES.iter() {
-            let candidate = base.join(dir).join(file);
-            if candidate.exists() {
-                return Some(candidate);
-            }
-        }
+    let candidate = base.join("dm-note").join("config.json");
+    if candidate.exists() {
+        Some(candidate)
+    } else {
+        None
     }
-    None
 }
 
 fn initialize_default_state() -> AppStoreData {
