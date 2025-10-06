@@ -1,9 +1,51 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { DEFAULT_NOTE_SETTINGS } from "@constants/overlayConfig";
+import { createNoteBuffer } from "@stores/noteBuffer";
 
 let MIN_NOTE_THRESHOLD_MS = DEFAULT_NOTE_SETTINGS.shortNoteThresholdMs;
 let MIN_NOTE_LENGTH_PX = DEFAULT_NOTE_SETTINGS.shortNoteMinLengthPx;
 let DELAY_FEATURE_ENABLED = false;
+
+const acquireNote = (pool) => {
+  const note = pool.pop();
+  if (note) {
+    return note;
+  }
+  return {
+    id: "",
+    keyName: "",
+    startTime: 0,
+    endTime: null,
+    isActive: false,
+  };
+};
+
+const releaseNote = (note, pool) => {
+  note.id = "";
+  note.keyName = "";
+  note.startTime = 0;
+  note.endTime = null;
+  note.isActive = false;
+  pool.push(note);
+};
+
+const releaseAllNotes = (notesByKey, pool, lookup) => {
+  const keys = Object.keys(notesByKey);
+  for (const keyName of keys) {
+    const keyNotes = notesByKey[keyName];
+    if (!keyNotes) {
+      delete notesByKey[keyName];
+      continue;
+    }
+    for (const note of keyNotes) {
+      if (!note) continue;
+      lookup.delete(note.id);
+      releaseNote(note, pool);
+    }
+    keyNotes.length = 0;
+    delete notesByKey[keyName];
+  }
+};
 
 export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
   const notesRef = useRef({});
@@ -17,14 +59,21 @@ export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
   const flowSpeedRef = useRef(DEFAULT_NOTE_SETTINGS.speed);
   const trackHeightRef = useRef(DEFAULT_NOTE_SETTINGS.trackHeight);
   const subscribers = useRef(new Set());
+  const notePoolRef = useRef([]);
+  const noteLookupRef = useRef(new Map());
+  const noteBufferRef = useRef(createNoteBuffer());
   const labEnabledRef = useRef(false);
   const delayedOptionRef = useRef(false);
+  // 이벤트 기반 클린업을 위한 refs
+  const cleanupTimerRef = useRef(null);
+  const nextCleanupTimeRef = useRef(Infinity);
 
   const applyDelayFlag = useCallback(() => {
     DELAY_FEATURE_ENABLED = labEnabledRef.current && delayedOptionRef.current;
   }, []);
 
   const notifySubscribers = useCallback((event) => {
+    if (subscribers.current.size === 0) return;
     subscribers.current.forEach((callback) => callback(event));
   }, []);
 
@@ -32,6 +81,147 @@ export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
     subscribers.current.add(callback);
     return () => subscribers.current.delete(callback);
   }, []);
+
+  // In-place 클린업 함수
+  const runCleanup = useCallback(() => {
+    const currentTime = performance.now();
+    const flowSpeed = flowSpeedRef.current;
+    const trackHeight =
+      trackHeightRef.current || DEFAULT_NOTE_SETTINGS.trackHeight;
+    const currentNotes = notesRef.current;
+    const removedNoteIds = [];
+    const removedNotes = [];
+    let hasChanges = false;
+
+    // 각 keyName에 대해 in-place로 배열 정리
+    for (const keyName in currentNotes) {
+      const keyNotes = currentNotes[keyName];
+      if (!keyNotes || keyNotes.length === 0) {
+        delete currentNotes[keyName];
+        hasChanges = true;
+        continue;
+      }
+
+      let writeIndex = 0; // 유지할 노트를 쓸 위치
+      for (let readIndex = 0; readIndex < keyNotes.length; readIndex++) {
+        const note = keyNotes[readIndex];
+        let shouldKeep = true;
+
+        // 활성화된 노트는 항상 유지
+        if (!note.isActive) {
+          // 완료된 노트가 화면 밖으로 나갔는지 확인
+          const timeSinceCompletion = currentTime - note.endTime;
+          const yPosition = (timeSinceCompletion * flowSpeed) / 1000;
+          shouldKeep = yPosition < trackHeight + 200;
+
+          if (!shouldKeep) {
+            const removedId = note.id;
+            removedNoteIds.push(removedId);
+            noteLookupRef.current.delete(removedId);
+            removedNotes.push(note);
+            hasChanges = true;
+          }
+        }
+
+        if (shouldKeep) {
+          if (writeIndex !== readIndex) {
+            keyNotes[writeIndex] = note;
+          }
+          writeIndex++;
+        }
+      }
+
+      // 배열 길이 조정
+      if (writeIndex < keyNotes.length) {
+        keyNotes.length = writeIndex;
+        hasChanges = true;
+      }
+
+      // 빈 배열이면 키 제거
+      if (keyNotes.length === 0) {
+        delete currentNotes[keyName];
+      }
+    }
+
+    // 클린업 상태 초기화
+    cleanupTimerRef.current = null;
+    nextCleanupTimeRef.current = Infinity;
+
+    // 구독자에게 알림
+    if (removedNoteIds.length > 0) {
+      const buffer = noteBufferRef.current;
+      for (const removedId of removedNoteIds) {
+        buffer.release(removedId);
+      }
+    }
+
+    if (hasChanges && removedNoteIds.length > 0) {
+      notifySubscribers({
+        type: "cleanup",
+        note: { ids: removedNoteIds },
+        activeCount: noteBufferRef.current.activeCount,
+        version: noteBufferRef.current.version,
+      });
+    }
+
+    if (removedNotes.length > 0) {
+      const pool = notePoolRef.current;
+      for (const note of removedNotes) {
+        releaseNote(note, pool);
+      }
+    }
+
+    // 다음 클린업 스케줄링: 남은 비활성 노트 중 가장 먼저 사라질 노트 찾기
+    let earliestCleanupTime = Infinity;
+    for (const keyName in currentNotes) {
+      const keyNotes = currentNotes[keyName];
+      if (!keyNotes) continue;
+
+      for (const note of keyNotes) {
+        if (!note.isActive && note.endTime != null) {
+          // 이 노트가 화면 밖으로 나갈 시간 계산
+          const travelTimeMs = ((trackHeight + 200) * 1000) / flowSpeed;
+          const cleanupTime = note.endTime + travelTimeMs;
+          if (cleanupTime < earliestCleanupTime) {
+            earliestCleanupTime = cleanupTime;
+          }
+        }
+      }
+    }
+
+    // 다음 클린업이 필요하면 스케줄
+    if (earliestCleanupTime < Infinity) {
+      const delay = Math.max(0, earliestCleanupTime - performance.now());
+      cleanupTimerRef.current = setTimeout(runCleanup, delay);
+      nextCleanupTimeRef.current = earliestCleanupTime;
+    }
+  }, [notifySubscribers]);
+
+  // 이벤트 기반 클린업 스케줄러
+  const scheduleCleanup = useCallback(
+    (finalizedNote) => {
+      if (!finalizedNote || !finalizedNote.endTime) return;
+
+      const flowSpeed = flowSpeedRef.current;
+      const trackHeight =
+        trackHeightRef.current || DEFAULT_NOTE_SETTINGS.trackHeight;
+
+      // 이 노트가 화면 밖으로 완전히 사라질 시간 계산
+      const travelTimeMs = ((trackHeight + 200) * 1000) / flowSpeed;
+      const newCleanupTime = finalizedNote.endTime + travelTimeMs;
+
+      // 현재 예약된 것보다 더 빨리 실행해야 하는 경우에만 재스케줄
+      if (newCleanupTime < nextCleanupTimeRef.current) {
+        if (cleanupTimerRef.current !== null) {
+          clearTimeout(cleanupTimerRef.current);
+        }
+        const delay = Math.max(0, newCleanupTime - performance.now());
+        cleanupTimerRef.current = setTimeout(runCleanup, delay);
+        nextCleanupTimeRef.current = newCleanupTime;
+      }
+    },
+    [runCleanup]
+  );
 
   const updateLabSettings = useCallback(
     (settings) => {
@@ -63,14 +253,31 @@ export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
   useEffect(() => {
     noteEffectEnabled.current = !!noteEffect;
     if (!noteEffect) {
+      // 클린업 타이머 취소
+      if (cleanupTimerRef.current !== null) {
+        clearTimeout(cleanupTimerRef.current);
+        cleanupTimerRef.current = null;
+        nextCleanupTimeRef.current = Infinity;
+      }
+      // 대기 중인 입력 정리
       for (const pending of pendingPressesRef.current.values()) {
         clearTimeout(pending.timeoutId);
       }
       pendingPressesRef.current.clear();
       pendingByKeyRef.current.clear();
-      notesRef.current = {};
+      releaseAllNotes(
+        notesRef.current,
+        notePoolRef.current,
+        noteLookupRef.current
+      );
+      noteLookupRef.current.clear();
       activeNotes.current.clear();
-      notifySubscribers({ type: "clear" });
+      noteBufferRef.current.clear();
+      notifySubscribers({
+        type: "clear",
+        activeCount: 0,
+        version: noteBufferRef.current.version,
+      });
     }
   }, [noteEffect, notifySubscribers]);
 
@@ -78,22 +285,35 @@ export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
     (keyName, startTimeOverride) => {
       const startTime = startTimeOverride ?? performance.now();
       const noteId = `${keyName}_${startTime}`;
-      const newNote = {
-        id: noteId,
-        keyName,
-        startTime,
-        endTime: null,
-        isActive: true,
-      };
-
       const currentNotes = notesRef.current;
-      const keyNotes = currentNotes[keyName] || [];
-      notesRef.current = {
-        ...currentNotes,
-        [keyName]: [...keyNotes, newNote],
-      };
+      let keyNotes = currentNotes[keyName];
+      if (!keyNotes) {
+        keyNotes = [];
+        currentNotes[keyName] = keyNotes;
+      }
 
-      notifySubscribers({ type: "add", note: newNote });
+      const newNote = acquireNote(notePoolRef.current);
+      newNote.id = noteId;
+      newNote.keyName = keyName;
+      newNote.startTime = startTime;
+      newNote.endTime = null;
+      newNote.isActive = true;
+
+      keyNotes.push(newNote);
+      noteLookupRef.current.set(noteId, newNote);
+
+      const slot = noteBufferRef.current.allocate(keyName, noteId, startTime);
+      if (slot >= 0) {
+        notifySubscribers({
+          type: "add",
+          note: newNote,
+          slot,
+          activeCount: noteBufferRef.current.activeCount,
+          version: noteBufferRef.current.version,
+        });
+      } else {
+        notifySubscribers({ type: "add", note: newNote });
+      }
       return noteId;
     },
     [notifySubscribers]
@@ -102,30 +322,23 @@ export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
   const finalizeNote = useCallback(
     (keyName, noteId, endTimeOverride) => {
       const endTime = endTimeOverride ?? performance.now();
-      const currentNotes = notesRef.current;
+      const note = noteLookupRef.current.get(noteId);
+      if (!note || note.keyName !== keyName || !note.isActive) return;
 
-      if (!currentNotes[keyName]) return;
-
-      let changed = false;
-      let finalizedNote = null;
-      const newKeyNotes = currentNotes[keyName].map((note) => {
-        if (note.id === noteId && note.isActive) {
-          changed = true;
-          finalizedNote = { ...note, endTime, isActive: false };
-          return finalizedNote;
-        }
-        return note;
+      note.endTime = endTime;
+      note.isActive = false;
+      const slot = noteBufferRef.current.finalize(noteId, endTime);
+      notifySubscribers({
+        type: "finalize",
+        note,
+        slot,
+        activeCount: noteBufferRef.current.activeCount,
+        version: noteBufferRef.current.version,
       });
-
-      if (changed) {
-        notesRef.current = {
-          ...currentNotes,
-          [keyName]: newKeyNotes,
-        };
-        notifySubscribers({ type: "finalize", note: finalizedNote });
-      }
+      // 이벤트 기반 클린업 스케줄링
+      scheduleCleanup(note);
     },
-    [notifySubscribers]
+    [notifySubscribers, scheduleCleanup]
   );
 
   // 노트 생성/완료 (딜레이 기반)
@@ -229,96 +442,34 @@ export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
     [finalizeNote]
   );
 
-  // 화면 밖으로 나간 노트 제거 (최적화된 버전)
+  // 화면 밖으로 나간 노트 제거 - 언마운트 시 타이머 정리
   useEffect(() => {
-    let cleanupTimeoutId = null;
-    let lastCleanupTime = 0;
-
-    const scheduleCleanup = () => {
-      const now = performance.now();
-      // 최소 1초 간격으로 cleanup 실행
-      if (now - lastCleanupTime < 1000) {
-        if (cleanupTimeoutId) clearTimeout(cleanupTimeoutId);
-        cleanupTimeoutId = setTimeout(
-          scheduleCleanup,
-          1000 - (now - lastCleanupTime)
-        );
-        return;
-      }
-
-      const currentTime = performance.now();
-      const flowSpeed = flowSpeedRef.current;
-      const trackHeight =
-        trackHeightRef.current || DEFAULT_NOTE_SETTINGS.trackHeight;
-
-      const currentNotes = notesRef.current;
-      let hasChanges = false;
-      const updated = {};
-      const removedNoteIds = [];
-
-      // 최적화: 빈 객체면 바로 스킵
-      const noteEntries = Object.entries(currentNotes);
-      if (noteEntries.length === 0) {
-        lastCleanupTime = currentTime;
-        cleanupTimeoutId = setTimeout(scheduleCleanup, 3000); // 노트가 없으면 더 긴 간격
-        return;
-      }
-
-      for (const [keyName, keyNotes] of noteEntries) {
-        if (!keyNotes || keyNotes.length === 0) continue;
-
-        const filtered = keyNotes.filter((note) => {
-          // 활성화된 노트는 항상 유지
-          if (note.isActive) return true;
-
-          // 완료된 노트가 화면 밖으로 나갔는지 확인 (여유분 포함)
-          const timeSinceCompletion = currentTime - note.endTime;
-          const yPosition = (timeSinceCompletion * flowSpeed) / 1000;
-          const shouldKeep = yPosition < trackHeight + 200; // 화면 밖으로 완전히 나갈 때까지 여유분
-          if (!shouldKeep) {
-            removedNoteIds.push(note.id);
-          }
-          return shouldKeep;
-        });
-
-        if (filtered.length !== keyNotes.length) {
-          hasChanges = true;
-        }
-
-        if (filtered.length > 0) {
-          updated[keyName] = filtered;
-        }
-      }
-
-      if (hasChanges) {
-        notesRef.current = updated;
-        notifySubscribers({ type: "cleanup", note: { ids: removedNoteIds } });
-      }
-
-      lastCleanupTime = currentTime;
-      // 적응형 간격: 노트가 많으면 더 자주, 적으면 덜 자주
-      const totalNotes = Object.values(updated).reduce(
-        (sum, notes) => sum + notes.length,
-        0
-      );
-      const nextInterval =
-        totalNotes > 10 ? 1500 : totalNotes > 0 ? 2500 : 4000;
-      cleanupTimeoutId = setTimeout(scheduleCleanup, nextInterval);
-    };
-
-    // 초기 cleanup 스케줄링
-    cleanupTimeoutId = setTimeout(scheduleCleanup, 2000);
-
     return () => {
-      if (cleanupTimeoutId) clearTimeout(cleanupTimeoutId);
+      if (cleanupTimerRef.current !== null) {
+        clearTimeout(cleanupTimerRef.current);
+      }
+      releaseAllNotes(
+        notesRef.current,
+        notePoolRef.current,
+        noteLookupRef.current
+      );
+      noteLookupRef.current.clear();
+      noteBufferRef.current.clear();
     };
-  }, [notifySubscribers]);
+  }, []);
+
+  // 노트 효과가 꺼져있으면 no-op 함수 반환하여 오버헤드 최소화
+  const noOpHandler = useCallback(() => {}, []);
+  const effectiveHandleKeyDown = noteEffect ? handleKeyDown : noOpHandler;
+  const effectiveHandleKeyUp = noteEffect ? handleKeyUp : noOpHandler;
 
   return {
     notesRef,
     subscribe,
-    handleKeyDown,
-    handleKeyUp,
+    handleKeyDown: effectiveHandleKeyDown,
+    handleKeyUp: effectiveHandleKeyUp,
+    noteBuffer: noteBufferRef.current,
+    updateTrackLayouts: (layouts) =>
+      noteBufferRef.current.updateTrackLayouts(layouts),
   };
 }
-

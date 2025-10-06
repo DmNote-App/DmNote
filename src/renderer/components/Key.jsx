@@ -161,12 +161,11 @@ export const Key = memo(
           active && !activeImage ? "#FFFFFF" : "rgba(121, 121, 121, 0.9)"
         })`,
         overflow: currentImage ? "visible" : "hidden",
-        // GPU 가속 최적화 강화
-        willChange: "transform, background-color",
+        // GPU 가속 최적화: active 상태 변경 시에만 willChange 적용
+        willChange: active ? "transform, background-color" : "transform",
         backfaceVisibility: "hidden",
         transformStyle: "preserve-3d",
         contain: "layout style paint",
-        // 이미지 렌더링 최적화
         imageRendering: "auto",
         isolation: "isolate",
         boxSizing: "border-box",

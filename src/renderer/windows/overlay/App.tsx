@@ -54,7 +54,14 @@ export default function App() {
   );
   const overlayAnchor = useSettingsStore((state) => state.overlayResizeAnchor);
 
-  const { notesRef, subscribe, handleKeyDown, handleKeyUp } = useNoteSystem({
+  const {
+    notesRef,
+    subscribe,
+    handleKeyDown,
+    handleKeyUp,
+    noteBuffer,
+    updateTrackLayouts,
+  } = useNoteSystem({
     noteEffect,
     noteSettings,
     laboratoryEnabled,
@@ -81,11 +88,13 @@ export default function App() {
       const isDown = state === "DOWN";
       // 개별 Key가 신호를 직접 구독
       setKeyActiveSignal(key, isDown);
-      // 노트 이펙트는 rAF 타이밍에서 실행
-      requestAnimationFrame(() => {
-        if (isDown) handleKeyDown(key);
-        else handleKeyUp(key);
-      });
+      // 노트 이펙트가 활성화된 경우에만 핸들러 호출
+      if (noteEffect) {
+        requestAnimationFrame(() => {
+          if (isDown) handleKeyDown(key);
+          else handleKeyUp(key);
+        });
+      }
     });
 
     return () => {
@@ -97,7 +106,7 @@ export default function App() {
       // 안전하게 모든 키 신호 초기화(선택적)
       resetAllKeySignals();
     };
-  }, [handleKeyDown, handleKeyUp]);
+  }, [handleKeyDown, handleKeyUp, noteEffect]);
 
   const currentKeys = useMemo(
     () => keyMappings[selectedKeyType] ?? [],
@@ -178,6 +187,10 @@ export default function App() {
   );
 
   useEffect(() => {
+    updateTrackLayouts(webglTracks);
+  }, [webglTracks, updateTrackLayouts]);
+
+  useEffect(() => {
     if (!bounds) return;
 
     const keyAreaWidth = bounds.maxX - bounds.minX;
@@ -216,6 +229,7 @@ export default function App() {
             subscribe={subscribe}
             noteSettings={noteSettings}
             laboratoryEnabled={laboratoryEnabled}
+            noteBuffer={noteBuffer}
           />
         </Suspense>
       )}

@@ -1,71 +1,8 @@
 import React, { memo, useEffect, useRef } from "react";
-import {
-  Renderer,
-  Camera,
-  Transform,
-  Program,
-  Mesh,
-  Geometry,
-  Vec3,
-} from "ogl";
+import { Renderer, Camera, Transform, Program, Geometry, Mesh } from "ogl";
 import { animationScheduler } from "../../utils/animationScheduler";
+import { MAX_NOTES } from "@stores/noteBuffer";
 
-const MAX_NOTES = 2048;
-
-// sRGB to Linear lookup table (0-255 범위, 미리 계산)
-const SRGB_TO_LINEAR = new Float32Array(256);
-for (let i = 0; i < 256; i++) {
-  const c = i / 255;
-  SRGB_TO_LINEAR[i] =
-    c < 0.04045
-      ? c * 0.0773993808
-      : Math.pow(c * 0.9478672986 + 0.0521327014, 2.4);
-}
-
-// Linear to sRGB (Three.js와 정확히 동일)
-const linearToSRGB = (c) => {
-  if (c <= 0.0031308) return c * 12.92;
-  return 1.055 * Math.pow(c, 1.0 / 2.4) - 0.055;
-};
-
-// Hex to Linear RGB (lookup table 사용)
-const parseColor = (hex) => {
-  const color = hex.replace("#", "");
-  const r = parseInt(color.substring(0, 2), 16);
-  const g = parseInt(color.substring(2, 4), 16);
-  const b = parseInt(color.substring(4, 6), 16);
-  return [SRGB_TO_LINEAR[r], SRGB_TO_LINEAR[g], SRGB_TO_LINEAR[b]];
-};
-
-const convertLinearToSRGB = (rgb) => {
-  return [linearToSRGB(rgb[0]), linearToSRGB(rgb[1]), linearToSRGB(rgb[2])];
-};
-
-const extractColorStops = (color, fallback = "#FFFFFF") => {
-  if (!color) {
-    const c = parseColor(fallback);
-    return {
-      top: c,
-      bottom: [...c],
-      isGradient: false,
-    };
-  }
-  if (typeof color === "string") {
-    const solid = parseColor(color);
-    return { top: solid, bottom: [...solid], isGradient: false };
-  }
-  if (typeof color === "object" && color.type === "gradient") {
-    return {
-      top: parseColor(color.top ?? fallback),
-      bottom: parseColor(color.bottom ?? fallback),
-      isGradient: true,
-    };
-  }
-  const parsed = parseColor(fallback);
-  return { top: parsed, bottom: [...parsed], isGradient: false };
-};
-
-// 버텍스 셰이더
 const vertexShader = `
   attribute vec3 position;
   attribute vec3 noteInfo; // x: startTime, y: endTime, z: trackX
@@ -113,25 +50,17 @@ const vertexShader = `
 
     bool isActive = endTime == 0.0;
     float rawNoteLength = 0.0;
-    float bottomCanvasY = 0.0;
 
     if (isActive) {
       rawNoteLength = max(0.0, (uTime - startTime) * uFlowSpeed / 1000.0);
-      bottomCanvasY = trackBottomY;
     } else {
       rawNoteLength = max(0.0, (endTime - startTime) * uFlowSpeed / 1000.0);
-      float travel = (uTime - endTime) * uFlowSpeed / 1000.0;
-      float trackTopY_local = trackBottomY - uTrackHeight;
-      if (uReverse < 0.5) {
-        bottomCanvasY = trackBottomY - travel;
-      } else {
-        bottomCanvasY = trackTopY_local + travel;
-      }
     }
 
     float noteLength = min(rawNoteLength, uTrackHeight);
-    float noteTopY, noteBottomY;
-    
+    float noteTopY;
+    float noteBottomY;
+
     if (isActive) {
       if (uReverse < 0.5) {
         noteBottomY = trackBottomY;
@@ -168,19 +97,12 @@ const vertexShader = `
         }
       }
     }
-    
+
     float trackTopY = trackBottomY - uTrackHeight;
     noteTopY = max(noteTopY, trackTopY);
     noteBottomY = min(noteBottomY, trackBottomY);
 
-    if (noteBottomY <= trackTopY) {
-      gl_Position = vec4(2.0, 2.0, 2.0, 0.0);
-      vColorTop = vec4(0.0);
-      vColorBottom = vec4(0.0);
-      return;
-    }
-    
-    if (noteBottomY < 0.0) {
+    if (noteBottomY <= trackTopY || noteBottomY < 0.0) {
       gl_Position = vec4(2.0, 2.0, 2.0, 0.0);
       vColorTop = vec4(0.0);
       vColorBottom = vec4(0.0);
@@ -213,13 +135,12 @@ const vertexShader = `
   }
 `;
 
-// 프래그먼트 셰이더
 const fragmentShader = `
   precision highp float;
 
   uniform float uScreenHeight;
   uniform float uFadePosition;
-  
+
   varying vec4 vColorTop;
   varying vec4 vColorBottom;
   varying vec2 vLocalPos;
@@ -269,52 +190,74 @@ const fragmentShader = `
       alpha *= clamp(trackRelativeY / fadeRatio, 0.0, 1.0);
     }
 
-    // Premultiplied alpha: RGB에 alpha를 곱해서 출력 (Three.js 기본 동작)
     gl_FragColor = vec4(baseColor.rgb * alpha, alpha);
   }
 `;
 
-const buildColorAttributes = (color, opacity = 1) => {
-  const { top, bottom } = extractColorStops(color);
-  const srgbTop = convertLinearToSRGB(top);
-  const srgbBottom = convertLinearToSRGB(bottom);
-  const clampedOpacity = Math.min(Math.max(opacity, 0), 1);
-  return {
-    top: [...srgbTop, clampedOpacity],
-    bottom: [...srgbBottom, clampedOpacity],
-  };
+const buildPlaneGeometry = (gl) =>
+  new Geometry(gl, {
+    position: {
+      size: 3,
+      data: new Float32Array([
+        -0.5, -0.5, 0, 0.5, -0.5, 0, -0.5, 0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0,
+        -0.5, 0.5, 0,
+      ]),
+    },
+  });
+
+const markAttributesDirty = (geometry, keys) => {
+  if (!geometry) return;
+  const attributes = geometry.attributes;
+  if (!attributes) return;
+  const targetKeys = keys ?? Object.keys(attributes);
+  targetKeys.forEach((key) => {
+    const attr = attributes[key];
+    if (attr) {
+      attr.needsUpdate = true;
+    }
+  });
+};
+
+const markAllAttributesDirty = (geometry, activeCount) => {
+  if (!geometry) return;
+  geometry.instancedCount = Math.min(activeCount, MAX_NOTES);
+  markAttributesDirty(geometry);
 };
 
 export const WebGLTracksOGL = memo(
-  ({ tracks, notesRef, subscribe, noteSettings, laboratoryEnabled }) => {
+  ({
+    tracks: _tracks,
+    notesRef: _notesRef,
+    subscribe,
+    noteSettings,
+    laboratoryEnabled,
+    noteBuffer,
+  }) => {
     const canvasRef = useRef();
     const rendererRef = useRef();
     const sceneRef = useRef();
     const cameraRef = useRef();
-    const geometryRef = useRef();
     const programRef = useRef();
-    const meshMapRef = useRef(new Map());
-    const trackMapRef = useRef(new Map());
-    const attributesMapRef = useRef(new Map());
-    const colorCacheRef = useRef(new Map());
+    const geometryRef = useRef();
     const isAnimating = useRef(false);
-    const noteTrackMapRef = useRef(new Map());
+    const lastVersionRef = useRef(noteBuffer?.version ?? 0);
+    const pendingUpdateRef = useRef({ dirty: false, dirtySinceFrame: false });
 
-    // 1. WebGL 씬 초기 설정
     useEffect(() => {
       const canvas = canvasRef.current;
+      if (!canvas || !noteBuffer) return;
+
       const renderer = new Renderer({
         canvas,
         alpha: true,
         antialias: true,
-        width: window.innerWidth,
-        height: window.innerHeight,
         dpr: window.devicePixelRatio,
-        premultipliedAlpha: true, // Three.js 기본값
+        premultipliedAlpha: true,
       });
+      renderer.setSize(window.innerWidth, window.innerHeight);
       rendererRef.current = renderer;
 
-      const gl = renderer.gl;
+      const { gl } = renderer;
       gl.clearColor(0, 0, 0, 0);
 
       const scene = new Transform();
@@ -331,22 +274,46 @@ export const WebGLTracksOGL = memo(
       camera.position.z = 5;
       cameraRef.current = camera;
 
-      // 공유 지오메트리 (Plane)
-      const geometry = new Geometry(gl, {
-        position: {
-          size: 3,
-          data: new Float32Array([
-            -0.5, -0.5, 0, 0.5, -0.5, 0, -0.5, 0.5, 0, 0.5, -0.5, 0, 0.5, 0.5,
-            0, -0.5, 0.5, 0,
-          ]),
-        },
+      const geometry = buildPlaneGeometry(gl);
+      geometry.addAttribute("noteInfo", {
+        instanced: 1,
+        size: 3,
+        data: noteBuffer.noteInfo,
       });
+      geometry.addAttribute("noteSize", {
+        instanced: 1,
+        size: 2,
+        data: noteBuffer.noteSize,
+      });
+      geometry.addAttribute("noteColorTop", {
+        instanced: 1,
+        size: 4,
+        data: noteBuffer.noteColorTop,
+      });
+      geometry.addAttribute("noteColorBottom", {
+        instanced: 1,
+        size: 4,
+        data: noteBuffer.noteColorBottom,
+      });
+      geometry.addAttribute("noteRadius", {
+        instanced: 1,
+        size: 1,
+        data: noteBuffer.noteRadius,
+      });
+      geometry.addAttribute("trackIndex", {
+        instanced: 1,
+        size: 1,
+        data: noteBuffer.trackIndex,
+      });
+      markAllAttributesDirty(geometry, noteBuffer.activeCount);
       geometryRef.current = geometry;
 
-      // 공유 프로그램
       const program = new Program(gl, {
         vertex: vertexShader,
         fragment: fragmentShader,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
         uniforms: {
           uTime: { value: 0 },
           uFlowSpeed: { value: noteSettings.speed || 180 },
@@ -370,135 +337,42 @@ export const WebGLTracksOGL = memo(
                 : 0.0,
           },
         },
-        transparent: true,
-        depthTest: false,
-        depthWrite: false,
       });
+      programRef.current = program;
 
-      // Three.js NormalBlending (premultipliedAlpha: true)
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
       gl.blendEquation(gl.FUNC_ADD);
-      programRef.current = program;
 
-      // 트랙 엔트리 생성기
-      const createTrackEntry = (track) => {
-        const geo = new Geometry(gl, {
-          position: {
-            size: 3,
-            data: new Float32Array([
-              -0.5, -0.5, 0, 0.5, -0.5, 0, -0.5, 0.5, 0, 0.5, -0.5, 0, 0.5, 0.5,
-              0, -0.5, 0.5, 0,
-            ]),
-          },
-        });
+      const mesh = new Mesh(gl, { geometry, program });
+      mesh.setParent(scene);
 
-        // 인스턴스 속성
-        const noteInfoArray = new Float32Array(MAX_NOTES * 3);
-        const noteSizeArray = new Float32Array(MAX_NOTES * 2);
-        const noteColorArrayTop = new Float32Array(MAX_NOTES * 4);
-        const noteColorArrayBottom = new Float32Array(MAX_NOTES * 4);
-        const noteRadiusArray = new Float32Array(MAX_NOTES);
-        const trackIndexArray = new Float32Array(MAX_NOTES);
-
-        geo.addAttribute("noteInfo", {
-          instanced: 1,
-          size: 3,
-          data: noteInfoArray,
-        });
-        geo.addAttribute("noteSize", {
-          instanced: 1,
-          size: 2,
-          data: noteSizeArray,
-        });
-        geo.addAttribute("noteColorTop", {
-          instanced: 1,
-          size: 4,
-          data: noteColorArrayTop,
-        });
-        geo.addAttribute("noteColorBottom", {
-          instanced: 1,
-          size: 4,
-          data: noteColorArrayBottom,
-        });
-        geo.addAttribute("noteRadius", {
-          instanced: 1,
-          size: 1,
-          data: noteRadiusArray,
-        });
-        geo.addAttribute("trackIndex", {
-          instanced: 1,
-          size: 1,
-          data: trackIndexArray,
-        });
-
-        const mesh = new Mesh(gl, {
-          geometry: geo,
-          program: programRef.current,
-        });
-        mesh.setParent(sceneRef.current);
-        mesh.renderOrder = track.trackIndex ?? 0;
-
-        attributesMapRef.current.set(track.trackKey, {
-          noteInfoArray,
-          noteSizeArray,
-          noteColorArrayTop,
-          noteColorArrayBottom,
-          noteRadiusArray,
-          trackIndexArray,
-          geometry: geo,
-        });
-
-        meshMapRef.current.set(track.trackKey, {
-          mesh,
-          noteIndexMap: new Map(),
-          freeIndices: [],
-          nextIndex: 0,
-          gradient: track.gradient,
-        });
-      };
-
-      const ensureTrackEntry = (trackKey) => {
-        if (meshMapRef.current.has(trackKey))
-          return meshMapRef.current.get(trackKey);
-        const track = trackMapRef.current.get(trackKey);
-        if (
-          !track ||
-          !geometryRef.current ||
-          !programRef.current ||
-          !sceneRef.current
-        )
-          return null;
-        createTrackEntry(track);
-        return meshMapRef.current.get(trackKey);
-      };
-
-      // 애니메이션 루프
       const animate = (currentTime) => {
         if (
           !rendererRef.current ||
           !sceneRef.current ||
           !cameraRef.current ||
           !programRef.current
-        )
+        ) {
           return;
+        }
 
-        const totalNotes = Object.values(notesRef.current).reduce(
-          (sum, notes) => sum + notes.length,
-          0
-        );
-        if (totalNotes === 0) {
-          for (const { mesh } of meshMapRef.current.values()) {
-            const geo = mesh.geometry;
-            if (geo.attributes.noteInfo) {
-              geo.attributes.noteInfo.count = 0;
-            }
+        if (noteBuffer.activeCount === 0) {
+          if (isAnimating.current) {
+            animationScheduler.remove(animate);
+            isAnimating.current = false;
           }
-          rendererRef.current.render({
-            scene: sceneRef.current,
-            camera: cameraRef.current,
-          });
           return;
+        }
+
+        // 프레임 시작 시 배치 업데이트 적용
+        if (pendingUpdateRef.current.dirtySinceFrame) {
+          const geometryTarget = geometryRef.current;
+          if (geometryTarget) {
+            markAllAttributesDirty(geometryTarget, noteBuffer.activeCount);
+          }
+          pendingUpdateRef.current.dirtySinceFrame = false;
+          pendingUpdateRef.current.dirty = false;
         }
 
         programRef.current.uniforms.uTime.value = currentTime;
@@ -508,247 +382,71 @@ export const WebGLTracksOGL = memo(
         });
       };
 
-      // 노트 이벤트 핸들러
       const handleNoteEvent = (event) => {
         if (!event) return;
+        const geometryTarget = geometryRef.current;
+        if (!geometryTarget) return;
 
-        const { type, note } = event;
-
-        if (type === "clear") {
-          for (const [, entry] of meshMapRef.current) {
-            entry.noteIndexMap.clear();
-            entry.freeIndices.length = 0;
-            entry.nextIndex = 0;
-            const geo = entry.mesh.geometry;
-            if (geo.attributes.noteInfo) {
-              geo.attributes.noteInfo.count = 0;
-            }
-          }
-          noteTrackMapRef.current.clear();
-          if (isAnimating.current) {
-            animationScheduler.remove(animate);
-            isAnimating.current = false;
-            requestAnimationFrame(() => {
-              if (rendererRef.current) {
-                rendererRef.current.gl.clear(
-                  rendererRef.current.gl.COLOR_BUFFER_BIT |
-                    rendererRef.current.gl.DEPTH_BUFFER_BIT
-                );
-              }
-            });
-          }
-          return;
+        if (event.activeCount !== undefined) {
+          geometryTarget.instancedCount = Math.min(
+            event.activeCount,
+            MAX_NOTES
+          );
         }
 
-        if (!note) return;
+        // Version 체크는 clear 이벤트만 적용 (전체 리셋 시)
+        if (event.type === "clear") {
+          lastVersionRef.current = event.version ?? lastVersionRef.current;
+        }
 
-        if (type === "add") {
-          const track = trackMapRef.current.get(note.keyName);
-          if (!track) return;
-
-          const entry = ensureTrackEntry(note.keyName);
-          if (!entry) return;
-
-          if (!isAnimating.current) {
-            animationScheduler.add(animate);
-            isAnimating.current = true;
-          }
-
-          const { mesh, noteIndexMap, freeIndices } = entry;
-          const attrs = attributesMapRef.current.get(note.keyName);
-          if (!attrs) return;
-
-          const opacity =
-            track.noteOpacity != null
-              ? Math.min(Math.max(track.noteOpacity / 100, 0), 1)
-              : 0.8;
-          const colorKey =
-            track.noteColor && typeof track.noteColor === "object"
-              ? JSON.stringify(track.noteColor)
-              : track.noteColor ?? "";
-          const cacheKey = `${colorKey}|${opacity}`;
-          let colorData = colorCacheRef.current.get(cacheKey);
-          if (!colorData) {
-            colorData = buildColorAttributes(track.noteColor, opacity);
-            colorCacheRef.current.set(cacheKey, colorData);
-          }
-
-          const index = freeIndices.pop() ?? entry.nextIndex++;
-          if (index >= MAX_NOTES) {
-            entry.nextIndex--;
-            return;
-          }
-          noteIndexMap.set(note.id, index);
-          noteTrackMapRef.current.set(note.id, note.keyName);
-
-          const base3 = index * 3;
-          const base2 = index * 2;
-          const base4 = index * 4;
-
-          attrs.noteInfoArray.set(
-            [note.startTime, 0, track.position.dx],
-            base3
-          );
-          attrs.noteSizeArray.set([track.width, track.position.dy], base2);
-          attrs.noteColorArrayTop.set(colorData.top, base4);
-          attrs.noteColorArrayBottom.set(colorData.bottom, base4);
-          attrs.noteRadiusArray.set([track.borderRadius || 0], index);
-          attrs.trackIndexArray.set([track.trackIndex], index);
-
-          attrs.geometry.attributes.noteInfo.needsUpdate = true;
-          attrs.geometry.attributes.noteSize.needsUpdate = true;
-          attrs.geometry.attributes.noteColorTop.needsUpdate = true;
-          attrs.geometry.attributes.noteColorBottom.needsUpdate = true;
-          attrs.geometry.attributes.noteRadius.needsUpdate = true;
-          attrs.geometry.attributes.trackIndex.needsUpdate = true;
-
-          attrs.geometry.attributes.noteInfo.count = Math.max(
-            attrs.geometry.attributes.noteInfo.count || 0,
-            index + 1
-          );
-        } else if (type === "finalize") {
-          const trackKey = noteTrackMapRef.current.get(note.id);
-          if (!trackKey) return;
-
-          const entry = meshMapRef.current.get(trackKey);
-          if (!entry) return;
-
-          const index = entry.noteIndexMap.get(note.id);
-          if (index === undefined) return;
-
-          const attrs = attributesMapRef.current.get(trackKey);
-          if (!attrs) return;
-
-          const base3 = index * 3;
-          attrs.noteInfoArray.set([note.endTime], base3 + 1);
-          attrs.geometry.attributes.noteInfo.needsUpdate = true;
-        } else if (type === "cleanup") {
-          for (const noteId of note.ids) {
-            const trackKey = noteTrackMapRef.current.get(noteId);
-            if (!trackKey) continue;
-
-            const entry = meshMapRef.current.get(trackKey);
-            if (!entry) {
-              noteTrackMapRef.current.delete(noteId);
-              continue;
+        switch (event.type) {
+          case "add":
+          case "finalize":
+            // 즉시 GPU 업로드하지 않고 다음 프레임에 배치 처리
+            if (!pendingUpdateRef.current.dirty) {
+              pendingUpdateRef.current.dirty = true;
+              pendingUpdateRef.current.dirtySinceFrame = true;
             }
-
-            const index = entry.noteIndexMap.get(noteId);
-            if (index !== undefined) {
-              const attrs = attributesMapRef.current.get(trackKey);
-              if (!attrs) continue;
-
-              const base3 = index * 3;
-              attrs.noteInfoArray.set([0, 0], base3);
-
-              entry.noteIndexMap.delete(noteId);
-              entry.freeIndices.push(index);
-              noteTrackMapRef.current.delete(noteId);
+            if (!isAnimating.current && noteBuffer.activeCount > 0) {
+              animationScheduler.add(animate);
+              isAnimating.current = true;
             }
-          }
-
-          for (const attrs of attributesMapRef.current.values()) {
-            attrs.geometry.attributes.noteInfo.needsUpdate = true;
-          }
-
-          if (noteTrackMapRef.current.size === 0 && isAnimating.current) {
-            animationScheduler.remove(animate);
-            isAnimating.current = false;
-            requestAnimationFrame(() => {
-              if (rendererRef.current) {
-                rendererRef.current.gl.clear(
-                  rendererRef.current.gl.COLOR_BUFFER_BIT |
-                    rendererRef.current.gl.DEPTH_BUFFER_BIT
+            break;
+          case "cleanup":
+          case "clear":
+            // cleanup/clear는 즉시 처리 (빈도가 낮음)
+            markAllAttributesDirty(geometryTarget, noteBuffer.activeCount);
+            pendingUpdateRef.current.dirty = false;
+            pendingUpdateRef.current.dirtySinceFrame = false;
+            if (noteBuffer.activeCount === 0 && isAnimating.current) {
+              animationScheduler.remove(animate);
+              isAnimating.current = false;
+              requestAnimationFrame(() => {
+                if (!rendererRef.current) return;
+                const { gl: context } = rendererRef.current;
+                context.clear(
+                  context.COLOR_BUFFER_BIT | context.DEPTH_BUFFER_BIT
                 );
-              }
-            });
-          }
+              });
+            }
+            break;
+          default:
+            break;
         }
       };
 
       const unsubscribe = subscribe(handleNoteEvent);
 
-      return () => {
-        unsubscribe();
-        if (isAnimating.current) {
-          animationScheduler.remove(animate);
-        }
-        for (const [, entry] of meshMapRef.current) {
-          entry.mesh.geometry.remove();
-        }
-        meshMapRef.current.clear();
-        attributesMapRef.current.clear();
-        geometryRef.current?.remove();
-      };
-    }, []);
-
-    // 2. 트랙 정보 업데이트
-    useEffect(() => {
-      const newTrackMap = new Map();
-      tracks.forEach((track) => {
-        newTrackMap.set(track.trackKey, track);
-      });
-      trackMapRef.current = newTrackMap;
-
-      tracks.forEach((track) => {
-        const entry = meshMapRef.current.get(track.trackKey);
-        if (entry) {
-          entry.mesh.renderOrder = track.trackIndex ?? 0;
-        }
-      });
-    }, [tracks]);
-
-    // 3. 노트 설정 업데이트
-    useEffect(() => {
-      if (programRef.current) {
-        programRef.current.uniforms.uFlowSpeed.value =
-          noteSettings.speed || 180;
-        programRef.current.uniforms.uTrackHeight.value =
-          noteSettings.trackHeight || 150;
-        programRef.current.uniforms.uReverse.value = noteSettings.reverse
-          ? 1.0
-          : 0.0;
-        programRef.current.uniforms.uShortThresholdMs.value =
-          noteSettings.shortNoteThresholdMs || 120;
-        programRef.current.uniforms.uShortMinLengthPx.value =
-          noteSettings.shortNoteMinLengthPx || 10;
-        programRef.current.uniforms.uDelayEnabled.value =
-          laboratoryEnabled && noteSettings.delayedNoteEnabled ? 1.0 : 0.0;
-        programRef.current.uniforms.uFadePosition.value =
-          noteSettings.fadePosition === "top"
-            ? 1.0
-            : noteSettings.fadePosition === "bottom"
-            ? 2.0
-            : 0.0;
-      }
-    }, [
-      noteSettings.speed,
-      noteSettings.trackHeight,
-      noteSettings.reverse,
-      noteSettings.shortNoteThresholdMs,
-      noteSettings.shortNoteMinLengthPx,
-      noteSettings.delayedNoteEnabled,
-      laboratoryEnabled,
-      noteSettings.fadePosition,
-    ]);
-
-    // 4. 윈도우 리사이즈 처리
-    useEffect(() => {
       const handleResize = () => {
         const width = window.innerWidth;
         const height = window.innerHeight;
-        if (rendererRef.current) {
-          rendererRef.current.setSize(width, height);
-        }
+        renderer.setSize(width, height);
         if (cameraRef.current) {
-          cameraRef.current.orthographic({
-            left: 0,
-            right: width,
-            top: height,
-            bottom: 0,
-            near: 1,
-            far: 1000,
-          });
+          cameraRef.current.left = 0;
+          cameraRef.current.right = width;
+          cameraRef.current.top = height;
+          cameraRef.current.bottom = 0;
+          cameraRef.current.updateProjectionMatrix();
         }
         if (programRef.current) {
           programRef.current.uniforms.uScreenHeight.value = height;
@@ -758,10 +456,48 @@ export const WebGLTracksOGL = memo(
       window.addEventListener("resize", handleResize);
       handleResize();
 
+      if (noteBuffer.activeCount > 0 && !isAnimating.current) {
+        animationScheduler.add(animate);
+        isAnimating.current = true;
+      }
+
       return () => {
+        unsubscribe();
         window.removeEventListener("resize", handleResize);
+        if (isAnimating.current) {
+          animationScheduler.remove(animate);
+        }
+        geometryRef.current?.remove();
+        rendererRef.current?.gl
+          ?.getExtension("WEBGL_lose_context")
+          ?.loseContext?.();
+        rendererRef.current = null;
+        programRef.current = null;
+        geometryRef.current = null;
+        cameraRef.current = null;
+        sceneRef.current = null;
       };
-    }, []);
+    }, [noteBuffer, subscribe]);
+
+    useEffect(() => {
+      if (!programRef.current) return;
+      const uniforms = programRef.current.uniforms;
+      uniforms.uFlowSpeed.value = noteSettings.speed || 180;
+      uniforms.uTrackHeight.value = noteSettings.trackHeight || 150;
+      uniforms.uReverse.value = noteSettings.reverse ? 1.0 : 0.0;
+      uniforms.uShortThresholdMs.value =
+        noteSettings.shortNoteThresholdMs || 120;
+      uniforms.uShortMinLengthPx.value =
+        noteSettings.shortNoteMinLengthPx || 10;
+      uniforms.uDelayEnabled.value =
+        laboratoryEnabled && noteSettings.delayedNoteEnabled ? 1.0 : 0.0;
+      uniforms.uFadePosition.value =
+        noteSettings.fadePosition === "top"
+          ? 1.0
+          : noteSettings.fadePosition === "bottom"
+          ? 2.0
+          : 0.0;
+    }, [laboratoryEnabled, noteSettings]);
 
     return (
       <canvas

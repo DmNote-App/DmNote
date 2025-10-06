@@ -4,6 +4,7 @@ import svgr from "vite-plugin-svgr";
 import path from "path";
 import { visualizer } from "rollup-plugin-visualizer";
 import analyzer from "rollup-plugin-analyzer";
+import removeConsole from "./vite-plugin-remove-console.js";
 
 export default defineConfig(() => {
   const projectRoot = __dirname;
@@ -24,6 +25,7 @@ export default defineConfig(() => {
           exportType: "default",
         },
       }),
+      removeConsole(),
       isAnalyze &&
         analyzer({
           summaryOnly: true,
