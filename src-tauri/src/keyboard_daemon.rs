@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io::Write;
 
 use anyhow::{anyhow, Result};
 use bincode::Options;
@@ -8,7 +8,7 @@ use willhook::{
 };
 
 use crate::{
-    ipc::{HookKeyState, HookMessage},
+    ipc::{pipe_client_connect, HookKeyState, HookMessage},
     keyboard_labels::{build_key_labels, should_skip_keyboard_event},
 };
 
@@ -17,8 +17,12 @@ pub fn run() -> Result<()> {
         return Err(anyhow!("failed to install global keyboard hook"));
     };
 
-    let mut stdout = io::BufWriter::with_capacity(4096, io::stdout());
-    let codec = bincode::DefaultOptions::new()
+    // Try to connect to named pipe; fall back to stdout if unavailable
+    let mut sink: Box<dyn Write + Send> = match pipe_client_connect("dmnote_keys_v1") {
+        Ok(file) => Box::new(file),
+        Err(_) => Box::new(std::io::stdout()),
+    };
+    let _codec = bincode::DefaultOptions::new()
         .with_fixint_encoding()
         .allow_trailing_bytes();
 
@@ -48,10 +52,13 @@ pub fn run() -> Result<()> {
                     flags: event.flags,
                 };
 
-                codec
-                    .serialize_into(&mut stdout, &message)
-                    .map_err(|err| anyhow!("failed to serialize keyboard event: {err}"))?;
-                stdout.flush()?;
+                // Compact payload: "D:<key>" or "U:<key>" (first matched label chosen by main)
+                // Keep bincode as fallback channel structure if needed later.
+                let s = match message.state {
+                    HookKeyState::Down => format!("D:{}\n", message.labels.get(0).cloned().unwrap_or_default()),
+                    HookKeyState::Up => format!("U:{}\n", message.labels.get(0).cloned().unwrap_or_default()),
+                };
+                sink.write_all(s.as_bytes())?;
             }
             Ok(_) => {}
             Err(_) => break,

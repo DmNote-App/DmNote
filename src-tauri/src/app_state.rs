@@ -1,5 +1,5 @@
 use std::{
-    io::BufReader,
+    io::{BufRead, BufReader},
     process::{Child, Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -9,10 +9,7 @@ use std::{
     time::Duration,
 };
 
-use std::io::BufRead;
-
 use anyhow::{anyhow, Context, Result};
-use bincode::Options;
 use log::{error, warn};
 use parking_lot::RwLock;
 use serde_json::json;
@@ -23,7 +20,7 @@ use tauri::{
 use tauri_runtime_wry::wry::dpi::{LogicalPosition, LogicalSize};
 
 use crate::{
-    ipc::{HookKeyState, HookMessage},
+    ipc,
     keyboard::KeyboardManager,
     models::{
         overlay_resize_anchor_from_str, BootstrapOverlayState, BootstrapPayload, OverlayBounds,
@@ -282,6 +279,22 @@ impl AppState {
         }
 
         let current_exe = std::env::current_exe().context("failed to locate dm-note executable")?;
+
+        // Prepare Named Pipe server asynchronously to avoid blocking before spawning the daemon.
+        #[cfg(target_os = "windows")]
+        let pipe_receiver: Option<std::sync::mpsc::Receiver<Option<std::fs::File>>> = {
+            use std::sync::mpsc;
+            let (tx, rx) = mpsc::channel();
+            std::thread::spawn(move || {
+                match ipc::pipe_server_create("dmnote_keys_v1") {
+                    Ok(f) => { let _ = tx.send(Some(f)); }
+                    Err(err) => { warn!("failed to create named pipe: {err}"); let _ = tx.send(None); }
+                }
+            });
+            Some(rx)
+        };
+        #[cfg(not(target_os = "windows"))]
+        let pipe_receiver: Option<std::sync::mpsc::Receiver<Option<std::fs::File>>> = None;
         let mut child = Command::new(current_exe)
             .arg("--keyboard-daemon")
             .stdin(Stdio::null())
@@ -304,86 +317,76 @@ impl AppState {
         let reader_handle = thread::Builder::new()
             .name("keyboard-daemon-reader".into())
             .spawn(move || {
-                let mut reader = BufReader::new(stdout);
+                // Prefer Named Pipe if available; otherwise, use stdout
+                #[allow(unused_mut)]
+                let mut reader: BufReader<Box<dyn std::io::Read + Send>> = {
+                    #[cfg(target_os = "windows")]
+                    {
+                        if let Some(rx) = pipe_receiver {
+                            // Wait a short time for the pipe to be ready; otherwise, fall back to stdout.
+                            match rx.recv_timeout(Duration::from_millis(1500)) {
+                                Ok(Some(f)) => BufReader::new(Box::new(f)),
+                                _ => BufReader::new(Box::new(stdout)),
+                            }
+                        } else {
+                            BufReader::new(Box::new(stdout))
+                        }
+                    }
+                    #[cfg(not(target_os = "windows"))]
+                    {
+                        BufReader::new(Box::new(stdout))
+                    }
+                };
                 let mut overlay_window = app_handle.get_webview_window(OVERLAY_LABEL);
-                let codec = bincode::DefaultOptions::new()
-                    .with_fixint_encoding()
-                    .allow_trailing_bytes();
+                // Elevate reader thread priority slightly on Windows
+                #[cfg(target_os = "windows")]
+                unsafe {
+                    use windows::Win32::System::Threading::{GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_ABOVE_NORMAL};
+                    let _ = SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+                }
 
                 while running_reader.load(Ordering::SeqCst) {
-                    match codec.deserialize_from::<_, HookMessage>(&mut reader) {
-                        Ok(message) => {
-                            if message.labels.is_empty() {
+                    let mut line = String::new();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => break,
+                        Ok(_) => {
+                            let s = line.trim();
+                            if s.len() < 3 || !s.as_bytes().get(1).map(|c| *c == b':').unwrap_or(false) {
                                 continue;
                             }
-
-                            let Some(key_label) = keyboard
-                                .match_candidate(
-                                    message.labels.iter().map(|label| label.as_str()),
-                                )
-                            else {
+                            let (state_ch, rest) = s.split_at(1);
+                            let key = &rest[1..];
+                            if key.is_empty() {
                                 continue;
-                            };
-
-                            let state = match message.state {
-                                HookKeyState::Down => "DOWN",
-                                HookKeyState::Up => "UP",
-                            };
-
+                            }
+                            let state = if state_ch == "D" { "DOWN" } else { "UP" };
+                            let Some(key_label) = keyboard.match_candidate(std::iter::once(key)) else { continue };
                             let mode = keyboard.current_mode();
-                            let payload = json!({
-                                "key": key_label,
-                                "state": state,
-                                "mode": mode,
-                            });
+                            let payload = json!({ "key": key_label, "state": state, "mode": mode });
 
                             let mut emitted = false;
-
                             if let Some(overlay) = overlay_window.as_ref() {
                                 match overlay.emit("keys:state", &payload) {
                                     Ok(_) => emitted = true,
-                                    Err(err) => {
-                                        error!("failed to emit keys:state to overlay: {err}");
-                                        overlay_window = None;
-                                    }
+                                    Err(err) => { error!("failed to emit keys:state to overlay: {err}"); overlay_window = None; }
                                 }
                             }
-
                             if !emitted {
                                 if overlay_window.is_none() {
                                     overlay_window = app_handle.get_webview_window(OVERLAY_LABEL);
                                     if let Some(overlay) = overlay_window.as_ref() {
-                                        match overlay.emit("keys:state", &payload) {
-                                            Ok(_) => emitted = true,
-                                            Err(err) => {
-                                                error!("failed to emit keys:state to overlay: {err}");
-                                                overlay_window = None;
-                                            }
-                                        }
+                                        if overlay.emit("keys:state", &payload).is_ok() { emitted = true; } else { overlay_window = None; }
                                     }
                                 }
-                            }
-
-                            if !emitted {
-                                if let Err(err) = app_handle.emit("keys:state", &payload) {
-                                    error!("failed to emit keys:state (fallback): {err}");
+                                if !emitted {
+                                    if let Err(err) = app_handle.emit("keys:state", &payload) {
+                                        error!("failed to emit keys:state (fallback): {err}");
+                                    }
                                 }
                             }
                         }
                         Err(err) => {
-                            if let bincode::ErrorKind::Io(io_err) = err.as_ref() {
-                                match io_err.kind() {
-                                    std::io::ErrorKind::UnexpectedEof => break,
-                                    std::io::ErrorKind::Interrupted
-                                    | std::io::ErrorKind::WouldBlock => continue,
-                                    _ => {}
-                                }
-                            }
-
-                            if running_reader.load(Ordering::SeqCst) {
-                                error!("failed to decode keyboard daemon message: {err}");
-                            }
-
+                            if err.kind() == std::io::ErrorKind::Interrupted || err.kind() == std::io::ErrorKind::WouldBlock { continue; }
                             break;
                         }
                     }
