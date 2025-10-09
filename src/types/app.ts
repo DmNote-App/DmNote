@@ -1,5 +1,10 @@
 import { SettingsState } from "@src/types/settings";
-import { CustomTab, KeyMappings, KeyPositions } from "@src/types/keys";
+import {
+  CustomTab,
+  KeyMappings,
+  KeyPositions,
+  KeyCounters,
+} from "@src/types/keys";
 
 export interface BootstrapPayload {
   settings: SettingsState;
@@ -13,4 +18,5 @@ export interface BootstrapPayload {
     locked: boolean;
     anchor: string;
   };
+  keyCounters: KeyCounters;
 }

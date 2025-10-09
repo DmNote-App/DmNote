@@ -4,6 +4,7 @@ import {
   useSettingsStore,
   type SettingsStateSnapshot,
 } from "@stores/useSettingsStore";
+import { applyCounterSnapshot, setKeyCounter } from "@stores/keyCounterSignals";
 import type { SettingsDiff } from "@src/types/settings";
 import type { OverlayResizeAnchor } from "@src/types/settings";
 
@@ -37,7 +38,9 @@ export function useAppBootstrap() {
       }
       const { noteSettings, customCSS, ...rest } = diff.changed;
       const sanitized = Object.fromEntries(
-        Object.entries(rest).filter(([, value]) => value !== undefined && value !== null)
+        Object.entries(rest).filter(
+          ([, value]) => value !== undefined && value !== null
+        )
       ) as Partial<SettingsStateSnapshot>;
       if (Object.keys(sanitized).length > 0) {
         merge(sanitized);
@@ -61,6 +64,7 @@ export function useAppBootstrap() {
         language: bootstrap.settings.language,
         laboratoryEnabled: bootstrap.settings.laboratoryEnabled,
         overlayResizeAnchor: bootstrap.settings.overlayResizeAnchor,
+        keyCounterEnabled: bootstrap.settings.keyCounterEnabled,
       });
       useKeyStore.setState((state) => ({
         ...state,
@@ -69,6 +73,7 @@ export function useAppBootstrap() {
         customTabs: bootstrap.customTabs,
         selectedKeyType: bootstrap.selectedKeyType,
       }));
+      applyCounterSnapshot(bootstrap.keyCounters);
       finalizeBootstrap();
     })();
 
@@ -85,6 +90,12 @@ export function useAppBootstrap() {
       }),
       window.api.keys.onModeChanged(({ mode }) => {
         useKeyStore.setState((state) => ({ ...state, selectedKeyType: mode }));
+      }),
+      window.api.keys.onCounterChanged(({ mode, key, count }) => {
+        setKeyCounter(mode, key, count);
+      }),
+      window.api.keys.onCountersChanged((snapshot) => {
+        applyCounterSnapshot(snapshot);
       }),
       window.api.keys.customTabs.onChanged(
         ({ customTabs, selectedKeyType }) => {

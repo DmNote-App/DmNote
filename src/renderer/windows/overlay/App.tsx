@@ -53,6 +53,9 @@ export default function App() {
     (state) => state.laboratoryEnabled
   );
   const overlayAnchor = useSettingsStore((state) => state.overlayResizeAnchor);
+  const keyCounterEnabled = useSettingsStore(
+    (state) => state.keyCounterEnabled
+  );
 
   const {
     notesRef,
@@ -247,6 +250,8 @@ export default function App() {
             keyName={displayName}
             globalKey={key}
             position={position}
+            mode={selectedKeyType}
+            showCounter={keyCounterEnabled}
           />
         );
       })}

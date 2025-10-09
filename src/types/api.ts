@@ -1,7 +1,16 @@
 import { BootstrapPayload } from "@src/types/app";
 import { CustomCss } from "@src/types/css";
-import { CustomTab, KeyMappings, KeyPositions } from "@src/types/keys";
-import { SettingsDiff, SettingsPatchInput, SettingsState } from "@src/types/settings";
+import {
+  CustomTab,
+  KeyMappings,
+  KeyPositions,
+  KeyCounters,
+} from "@src/types/keys";
+import {
+  SettingsDiff,
+  SettingsPatchInput,
+  SettingsState,
+} from "@src/types/settings";
 
 export type ModeChangePayload = { mode: string };
 export type CustomTabsChangePayload = {
@@ -9,7 +18,12 @@ export type CustomTabsChangePayload = {
   selectedKeyType: string;
 };
 export type KeyStatePayload = { key: string; state: string; mode: string };
-export type OverlayBounds = { x: number; y: number; width: number; height: number };
+export type OverlayBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 export type OverlayState = BootstrapPayload["overlay"];
 export type OverlayVisibilityPayload = { visible: boolean };
 export type OverlayLockPayload = { locked: boolean };
@@ -33,7 +47,12 @@ export type KeysResetAllResponse = {
   selectedKeyType: string;
 };
 export type CustomTabResult = { result?: CustomTab; error?: string };
-export type CustomTabDeleteResult = { success: boolean; selected: string; error?: string };
+export type CustomTabDeleteResult = {
+  success: boolean;
+  selected: string;
+  error?: string;
+};
+export type KeyCounterUpdate = { mode: string; key: string; count: number };
 
 export type PresetOperationResult = { success: boolean; error?: string };
 
@@ -63,15 +82,24 @@ export interface DMNoteAPI {
     resetAll(): Promise<KeysResetAllResponse>;
     resetMode(mode: string): Promise<KeysModeResponse>;
     onChanged(listener: (keys: KeyMappings) => void): Unsubscribe;
-    onPositionsChanged(listener: (positions: KeyPositions) => void): Unsubscribe;
+    onPositionsChanged(
+      listener: (positions: KeyPositions) => void
+    ): Unsubscribe;
     onModeChanged(listener: (payload: ModeChangePayload) => void): Unsubscribe;
     onKeyState(listener: (payload: KeyStatePayload) => void): Unsubscribe;
+    resetCounters(): Promise<KeyCounters>;
+    onCounterChanged(
+      listener: (payload: KeyCounterUpdate) => void
+    ): Unsubscribe;
+    onCountersChanged(listener: (payload: KeyCounters) => void): Unsubscribe;
     customTabs: {
       list(): Promise<CustomTab[]>;
       create(name: string): Promise<CustomTabResult>;
       delete(id: string): Promise<CustomTabDeleteResult>;
       select(id: string): Promise<CustomTabDeleteResult>;
-      onChanged(listener: (payload: CustomTabsChangePayload) => void): Unsubscribe;
+      onChanged(
+        listener: (payload: CustomTabsChangePayload) => void
+      ): Unsubscribe;
     };
   };
   overlay: {
@@ -85,7 +113,9 @@ export interface DMNoteAPI {
       anchor?: string;
       contentTopOffset?: number;
     }): Promise<OverlayBounds>;
-    onVisibility(listener: (payload: OverlayVisibilityPayload) => void): Unsubscribe;
+    onVisibility(
+      listener: (payload: OverlayVisibilityPayload) => void
+    ): Unsubscribe;
     onLock(listener: (payload: OverlayLockPayload) => void): Unsubscribe;
     onAnchor(listener: (payload: OverlayAnchorPayload) => void): Unsubscribe;
     onResized(listener: (payload: OverlayResizePayload) => void): Unsubscribe;

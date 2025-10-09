@@ -25,6 +25,7 @@ export interface SettingsState {
   useCustomCSS: boolean;
   customCSS: CustomCss;
   overlayResizeAnchor: OverlayResizeAnchor;
+  keyCounterEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS_STATE: SettingsState = {
@@ -40,6 +41,7 @@ export const DEFAULT_SETTINGS_STATE: SettingsState = {
   useCustomCSS: false,
   customCSS: { path: null, content: "" },
   overlayResizeAnchor: "top-left",
+  keyCounterEnabled: false,
 };
 
 export type SettingsPatchInput = Partial<

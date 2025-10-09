@@ -19,6 +19,7 @@ interface SettingsState {
   language: string;
   laboratoryEnabled: boolean;
   overlayResizeAnchor: OverlayResizeAnchor;
+  keyCounterEnabled: boolean;
   setAll: (payload: SettingsStateSnapshot) => void;
   merge: (payload: Partial<SettingsStateSnapshot>) => void;
   setLaboratoryEnabled: (value: boolean) => void;
@@ -34,6 +35,7 @@ interface SettingsState {
   setLanguage: (value: string) => void;
   setBackgroundColor: (value: string) => void;
   setOverlayResizeAnchor: (value: OverlayResizeAnchor) => void;
+  setKeyCounterEnabled: (value: boolean) => void;
 }
 
 export type SettingsStateSnapshot = Omit<
@@ -53,6 +55,7 @@ export type SettingsStateSnapshot = Omit<
   | "setLanguage"
   | "setBackgroundColor"
   | "setOverlayResizeAnchor"
+  | "setKeyCounterEnabled"
 >;
 
 const initialState: SettingsStateSnapshot = {
@@ -69,6 +72,7 @@ const initialState: SettingsStateSnapshot = {
   language: "ko",
   laboratoryEnabled: false,
   overlayResizeAnchor: "top-left",
+  keyCounterEnabled: false,
 };
 
 function mergeSnapshot(
@@ -113,4 +117,5 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setLaboratoryEnabled: (value) => set({ laboratoryEnabled: value }),
   setBackgroundColor: (value) => set({ backgroundColor: value }),
   setOverlayResizeAnchor: (value) => set({ overlayResizeAnchor: value }),
+  setKeyCounterEnabled: (value) => set({ keyCounterEnabled: value }),
 }));

@@ -40,6 +40,7 @@ impl SettingsService {
             state.use_custom_css = next.use_custom_css;
             state.custom_css = next.custom_css.clone();
             state.overlay_resize_anchor = next.overlay_resize_anchor.clone();
+            state.key_counter_enabled = next.key_counter_enabled;
         })?;
 
         Ok(SettingsDiff {
@@ -87,6 +88,9 @@ fn normalize_patch(patch: &SettingsPatchInput, current: &SettingsState) -> Setti
     if let Some(value) = patch.overlay_resize_anchor.as_ref() {
         normalized.overlay_resize_anchor = Some(value.clone());
     }
+    if let Some(value) = patch.key_counter_enabled {
+        normalized.key_counter_enabled = Some(value);
+    }
     normalized
 }
 
@@ -126,6 +130,9 @@ fn apply_changes(mut current: SettingsState, patch: &SettingsPatch) -> SettingsS
     }
     if let Some(value) = patch.overlay_resize_anchor.as_ref() {
         current.overlay_resize_anchor = value.clone();
+    }
+    if let Some(value) = patch.key_counter_enabled {
+        current.key_counter_enabled = value;
     }
     current
 }

@@ -39,8 +39,13 @@ export const keyPositionSchema = z.object({
 
 export type KeyPosition = z.infer<typeof keyPositionSchema>;
 
-export const keyPositionsSchema = z.record(z.string(), z.array(keyPositionSchema));
+export const keyPositionsSchema = z.record(
+  z.string(),
+  z.array(keyPositionSchema)
+);
 export type KeyPositions = Record<string, KeyPosition[]>;
+
+export type KeyCounters = Record<string, Record<string, number>>;
 
 export const customTabSchema = z.object({
   id: z.string(),

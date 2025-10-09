@@ -5,6 +5,7 @@ import { useKeyStore } from "@stores/useKeyStore";
 import Checkbox from "@components/main/common/Checkbox";
 import Dropdown from "@components/main/common/Dropdown";
 import FlaskIcon from "@assets/svgs/flask.svg";
+import { applyCounterSnapshot } from "@stores/keyCounterSignals";
 
 export default function Settings({ showAlert, showConfirm }) {
   const { t, i18n } = useTranslation();
@@ -31,6 +32,8 @@ export default function Settings({ showAlert, showConfirm }) {
     setLanguage,
     overlayResizeAnchor,
     setOverlayResizeAnchor,
+    keyCounterEnabled,
+    setKeyCounterEnabled,
   } = useSettingsStore();
 
   const [hoveredKey, setHoveredKey] = useState(null);
@@ -175,6 +178,28 @@ export default function Settings({ showAlert, showConfirm }) {
     }
   };
 
+  const handleKeyCounterToggle = async () => {
+    const next = !keyCounterEnabled;
+    setKeyCounterEnabled(next);
+    try {
+      await window.api.settings.update({ keyCounterEnabled: next });
+    } catch (error) {
+      console.error("Failed to toggle key counter", error);
+    }
+  };
+
+  const handleResetCounters = async (event) => {
+    event.stopPropagation();
+    try {
+      const snapshot = await window.api.keys.resetCounters();
+      applyCounterSnapshot(snapshot);
+      showAlert?.(t("settings.counterReset"));
+    } catch (error) {
+      console.error("Failed to reset key counters", error);
+      showAlert?.(t("settings.counterResetFailed"));
+    }
+  };
+
   const handleResetAll = () => {
     const reset = async () => {
       try {
@@ -314,6 +339,28 @@ export default function Settings({ showAlert, showConfirm }) {
                   checked={laboratoryEnabled}
                   onChange={handleLaboratoryToggle}
                 />
+              </div>
+              <div
+                className="flex flex-row justify-between items-center h-[40px] cursor-pointer"
+                onMouseEnter={() => setHoveredKey("keyCounter")}
+                onMouseLeave={() => setHoveredKey(null)}
+                onClick={handleKeyCounterToggle}
+              >
+                <p className="text-style-3 text-[#FFFFFF]">
+                  {t("settings.keyCounter")}
+                </p>
+                <div className="flex items-center gap-[8px]">
+                  <button
+                    onClick={handleResetCounters}
+                    className="py-[4px] px-[8px] bg-[#2A2A31] border-[1px] border-[#3A3944] rounded-[7px] text-style-2 text-[#DBDEE8] hover:bg-[#34343c]"
+                  >
+                    {t("settings.counterResetButton")}
+                  </button>
+                  <Checkbox
+                    checked={keyCounterEnabled}
+                    onChange={handleKeyCounterToggle}
+                  />
+                </div>
               </div>
               <div
                 className="flex flex-row justify-between items-center h-[40px]"
