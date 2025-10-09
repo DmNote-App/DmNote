@@ -7,11 +7,10 @@ use crate::{
     app_state::AppState,
     defaults::{default_keys, default_positions},
     models::{
-        CustomCssPatch, CustomTab, KeyMappings, KeyPositions, NoteSettings, NoteSettingsPatch,
-        SettingsPatchInput,
+        CustomCssPatch, CustomTab, KeyCounters, KeyMappings, KeyPositions, NoteSettings,
+        NoteSettingsPatch, SettingsPatchInput,
     },
 };
-
 #[derive(Serialize)]
 pub struct ModeResponse {
     pub success: bool,
@@ -77,6 +76,9 @@ pub fn keys_update(
     state.keyboard.update_mappings(updated.clone());
     app.emit("keys:changed", &updated)
         .map_err(|err| err.to_string())?;
+    state.sync_counters_with_keys(&updated);
+    app.emit("keys:counters", &state.snapshot_key_counters())
+        .map_err(|err| err.to_string())?;
     Ok(updated)
 }
 
@@ -123,7 +125,6 @@ pub fn keys_set_mode(
         mode: effective,
     })
 }
-
 #[tauri::command(permission = "dmnote-allow-all")]
 pub fn keys_reset_all(
     state: State<'_, AppState>,
@@ -146,6 +147,11 @@ pub fn keys_reset_all(
 
     state.keyboard.update_mappings(keys.clone());
     state.keyboard.set_mode(selected_key_type.clone());
+    state.sync_counters_with_keys(&keys);
+    let counters_snapshot = state.reset_key_counters();
+    state
+        .persist_key_counters()
+        .map_err(|err| err.to_string())?;
 
     let mut note_patch = NoteSettingsPatch::default();
     let defaults = NoteSettings::default();
@@ -203,6 +209,8 @@ pub fn keys_reset_all(
         &serde_json::json!({ "path": serde_json::Value::Null, "content": "" }),
     )
     .map_err(|err| err.to_string())?;
+    app.emit("keys:counters", &counters_snapshot)
+        .map_err(|err| err.to_string())?;
 
     Ok(ResetAllResponse {
         keys,
@@ -246,10 +254,17 @@ pub fn keys_reset_mode(
         .map_err(|err| err.to_string())?;
 
     state.keyboard.update_mappings(keys.clone());
+    state.sync_counters_with_keys(&keys);
+    state.reset_mode_counters(&mode);
+    state
+        .persist_key_counters()
+        .map_err(|err| err.to_string())?;
 
     app.emit("keys:changed", &keys)
         .map_err(|err| err.to_string())?;
     app.emit("positions:changed", &positions)
+        .map_err(|err| err.to_string())?;
+    app.emit("keys:counters", &state.snapshot_key_counters())
         .map_err(|err| err.to_string())?;
 
     Ok(ResetModeResponse {
@@ -317,6 +332,11 @@ pub fn custom_tabs_create(
 
     state.keyboard.update_mappings(keys.clone());
     state.keyboard.set_mode(id.clone());
+    state.sync_counters_with_keys(&keys);
+    state.reset_mode_counters(&id);
+    state
+        .persist_key_counters()
+        .map_err(|err| err.to_string())?;
 
     app.emit(
         "customTabs:changed",
@@ -331,6 +351,8 @@ pub fn custom_tabs_create(
     app.emit("positions:changed", &positions)
         .map_err(|err| err.to_string())?;
     app.emit("keys:mode-changed", &serde_json::json!({ "mode": &id }))
+        .map_err(|err| err.to_string())?;
+    app.emit("keys:counters", &state.snapshot_key_counters())
         .map_err(|err| err.to_string())?;
 
     Ok(CustomTabCreateResult {
@@ -397,6 +419,10 @@ pub fn custom_tabs_delete(
 
     state.keyboard.update_mappings(keys.clone());
     state.keyboard.set_mode(next_selected.clone());
+    state.sync_counters_with_keys(&keys);
+    state
+        .persist_key_counters()
+        .map_err(|err| err.to_string())?;
 
     app.emit(
         "customTabs:changed",
@@ -415,6 +441,8 @@ pub fn custom_tabs_delete(
         &serde_json::json!({ "mode": &next_selected }),
     )
     .map_err(|err| err.to_string())?;
+    app.emit("keys:counters", &state.snapshot_key_counters())
+        .map_err(|err| err.to_string())?;
 
     Ok(CustomTabDeleteResult {
         success: true,
@@ -462,6 +490,17 @@ pub fn custom_tabs_select(
         selected: id,
         error: None,
     })
+}
+
+#[tauri::command(permission = "dmnote-allow-all")]
+pub fn keys_reset_counters(state: State<'_, AppState>, app: AppHandle) -> Result<KeyCounters, String> {
+    let snapshot = state.reset_key_counters();
+    state
+        .persist_key_counters()
+        .map_err(|err| err.to_string())?;
+    app.emit("keys:counters", &snapshot)
+        .map_err(|err| err.to_string())?;
+    Ok(snapshot)
 }
 
 fn generate_custom_tab_id() -> String {

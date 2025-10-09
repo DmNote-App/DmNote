@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fs,
     path::{Path, PathBuf},
 };
@@ -13,7 +14,10 @@ use tauri::Runtime;
 
 use crate::{
     defaults::{default_keys, default_positions},
-    models::{AppStoreData, KeyMappings, KeyPositions, NoteSettings, OverlayBounds, SettingsState},
+    models::{
+        AppStoreData, KeyCounters, KeyMappings, KeyPositions, NoteSettings, OverlayBounds,
+        SettingsState,
+    },
 };
 
 const LEGACY_OVERLAY_WIDTH: f64 = 860.0;
@@ -94,6 +98,14 @@ impl AppStore {
         Ok(guard.key_positions.clone())
     }
 
+    pub fn set_key_counters(&self, counters: KeyCounters) -> Result<KeyCounters> {
+        let mut guard = self.state.write();
+        guard.key_counters = counters.clone();
+        *guard = normalize_state(guard.clone());
+        self.persist_locked(&guard)?;
+        Ok(guard.key_counters.clone())
+    }
+
     pub fn set_selected_key_type(&self, key: impl Into<String>) -> Result<String> {
         let key = key.into();
         let mut guard = self.state.write();
@@ -138,6 +150,9 @@ impl AppStore {
                 reorder(v);
             }
             if let Some(v) = obj.get_mut("keyPositions") {
+                reorder(v);
+            }
+            if let Some(v) = obj.get_mut("keyCounters") {
                 reorder(v);
             }
         }
@@ -189,6 +204,8 @@ fn normalize_state(mut data: AppStoreData) -> AppStoreData {
         merge_default_positions(&mut data.key_positions, default_positions());
     }
 
+    merge_default_counters(&mut data.key_counters, &data.keys);
+
     if !data.keys.contains_key(&data.selected_key_type) {
         data.selected_key_type = "4key".to_string();
     }
@@ -230,6 +247,19 @@ fn merge_default_positions(target: &mut KeyPositions, defaults: KeyPositions) {
     }
 }
 
+fn merge_default_counters(target: &mut KeyCounters, keys: &KeyMappings) {
+    for (mode, key_list) in keys.iter() {
+        let entry = target.entry(mode.clone()).or_default();
+        entry.retain(|key, _| key_list.contains(key));
+        for key in key_list.iter() {
+            entry.entry(key.clone()).or_insert(0);
+        }
+    }
+
+    let available_modes: HashSet<_> = keys.keys().cloned().collect();
+    target.retain(|mode, _| available_modes.contains(mode));
+}
+
 fn settings_from_store(store: &AppStoreData) -> SettingsState {
     SettingsState {
         hardware_acceleration: store.hardware_acceleration,
@@ -244,6 +274,7 @@ fn settings_from_store(store: &AppStoreData) -> SettingsState {
         use_custom_css: store.use_custom_css,
         custom_css: store.custom_css.clone(),
         overlay_resize_anchor: store.overlay_resize_anchor.clone(),
+        key_counter_enabled: store.key_counter_enabled,
     }
 }
 
@@ -353,6 +384,9 @@ fn repair_legacy_state(raw: &str) -> AppStoreData {
             .and_then(Value::as_f64)
         {
             data.overlay_last_content_top_offset = Some(v);
+        }
+        if let Some(v) = obj.get("keyCounterEnabled").and_then(Value::as_bool) {
+            data.key_counter_enabled = v;
         }
     }
     normalize_state(data)

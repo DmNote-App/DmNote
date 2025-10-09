@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     io::{BufRead, BufReader},
     process::{Child, Command, Stdio},
     sync::{
@@ -23,8 +24,8 @@ use crate::{
     ipc,
     keyboard::KeyboardManager,
     models::{
-        overlay_resize_anchor_from_str, BootstrapOverlayState, BootstrapPayload, OverlayBounds,
-        OverlayResizeAnchor, SettingsDiff, SettingsState,
+        overlay_resize_anchor_from_str, BootstrapOverlayState, BootstrapPayload, KeyCounters,
+        KeyMappings, OverlayBounds, OverlayResizeAnchor, SettingsDiff, SettingsState,
     },
     services::settings::SettingsService,
     store::AppStore,
@@ -42,6 +43,9 @@ pub struct AppState {
     overlay_visible: Arc<RwLock<bool>>,
     overlay_force_close: Arc<AtomicBool>,
     keyboard_task: RwLock<Option<KeyboardDaemonTask>>,
+    key_counters: Arc<RwLock<KeyCounters>>,
+    key_counter_enabled: Arc<AtomicBool>,
+    active_keys: Arc<RwLock<HashSet<String>>>,
 }
 
 impl AppState {
@@ -52,6 +56,11 @@ impl AppState {
             KeyboardManager::new(snapshot.keys.clone(), snapshot.selected_key_type.clone());
         let settings = SettingsService::new(store.clone());
 
+        let key_counters = Arc::new(RwLock::new(snapshot.key_counters.clone()));
+        Self::sync_counters_with_keys_impl(&key_counters, &snapshot.keys);
+        let key_counter_enabled = Arc::new(AtomicBool::new(snapshot.key_counter_enabled));
+        let active_keys = Arc::new(RwLock::new(HashSet::new()));
+
         Ok(Self {
             store,
             settings,
@@ -59,6 +68,9 @@ impl AppState {
             overlay_visible: Arc::new(RwLock::new(false)),
             overlay_force_close: Arc::new(AtomicBool::new(false)),
             keyboard_task: RwLock::new(None),
+            key_counters,
+            key_counter_enabled,
+            active_keys,
         })
     }
 
@@ -109,6 +121,7 @@ impl AppState {
                 use_custom_css: state.use_custom_css,
                 custom_css: state.custom_css.clone(),
                 overlay_resize_anchor: state.overlay_resize_anchor.clone(),
+                key_counter_enabled: state.key_counter_enabled,
             },
             keys: state.keys.clone(),
             positions: state.key_positions.clone(),
@@ -120,6 +133,7 @@ impl AppState {
                 locked: state.overlay_locked,
                 anchor: state.overlay_resize_anchor.as_str().to_string(),
             },
+            key_counters: self.key_counters.read().clone(),
         }
     }
 
@@ -134,6 +148,9 @@ impl AppState {
 
     pub fn emit_settings_changed(&self, diff: &SettingsDiff, app: &AppHandle) -> Result<()> {
         self.apply_settings_effects(diff, app)?;
+        if let Some(value) = diff.changed.key_counter_enabled {
+            self.key_counter_enabled.store(value, Ordering::SeqCst);
+        }
         app.emit("settings:changed", diff)?;
         Ok(())
     }
@@ -164,6 +181,9 @@ impl AppState {
     }
 
     pub fn shutdown(&self) {
+        if let Err(err) = self.persist_key_counters() {
+            log::warn!("failed to persist key counters during shutdown: {err}");
+        }
         if let Some(task) = self.keyboard_task.write().take() {
             drop(task);
         }
@@ -278,6 +298,8 @@ impl AppState {
             return Ok(());
         }
 
+        self.clear_active_keys();
+
         let current_exe = std::env::current_exe().context("failed to locate dm-note executable")?;
 
         // Prepare Named Pipe server asynchronously to avoid blocking before spawning the daemon.
@@ -362,6 +384,25 @@ impl AppState {
                             let state = if state_ch == "D" { "DOWN" } else { "UP" };
                             let Some(key_label) = keyboard.match_candidate(std::iter::once(key)) else { continue };
                             let mode = keyboard.current_mode();
+                            let app_state = app_handle.state::<AppState>();
+                            if state == "DOWN" {
+                                if app_state.register_key_down(&mode, &key_label) {
+                                    if let Some(count) = app_state.increment_key_counter(&mode, &key_label) {
+                                        if let Err(err) = app_handle.emit(
+                                            "keys:counter",
+                                            &json!({
+                                                "mode": mode.clone(),
+                                                "key": key_label.clone(),
+                                                "count": count,
+                                            }),
+                                        ) {
+                                            error!("failed to emit keys:counter event: {err}");
+                                        }
+                                    }
+                                }
+                            } else {
+                                app_state.register_key_up(&mode, &key_label);
+                            }
                             let payload = json!({ "key": key_label, "state": state, "mode": mode });
 
                             let mut emitted = false;
@@ -620,6 +661,80 @@ impl AppState {
         }
 
         Ok(())
+    }
+
+    pub fn increment_key_counter(&self, mode: &str, key: &str) -> Option<u32> {
+        if !self.key_counter_enabled.load(Ordering::Relaxed) {
+            return None;
+        }
+        let mut counters = self.key_counters.write();
+        let mode_entry = counters.entry(mode.to_string()).or_default();
+        let count = mode_entry.entry(key.to_string()).or_insert(0);
+        *count = count.saturating_add(1);
+        Some(*count)
+    }
+
+    pub fn snapshot_key_counters(&self) -> KeyCounters {
+        self.key_counters.read().clone()
+    }
+
+    pub fn reset_key_counters(&self) -> KeyCounters {
+        let mut counters = self.key_counters.write();
+        for mode_entry in counters.values_mut() {
+            for value in mode_entry.values_mut() {
+                *value = 0;
+            }
+        }
+        counters.clone()
+    }
+
+    pub fn reset_mode_counters(&self, mode: &str) {
+        let mut counters = self.key_counters.write();
+        if let Some(entry) = counters.get_mut(mode) {
+            for value in entry.values_mut() {
+                *value = 0;
+            }
+        }
+    }
+
+    pub fn register_key_down(&self, mode: &str, key: &str) -> bool {
+        let mut guard = self.active_keys.write();
+        guard.insert(Self::compose_active_key(mode, key))
+    }
+
+    pub fn register_key_up(&self, mode: &str, key: &str) {
+        let mut guard = self.active_keys.write();
+        guard.remove(&Self::compose_active_key(mode, key));
+    }
+
+    pub fn clear_active_keys(&self) {
+        self.active_keys.write().clear();
+    }
+
+    pub fn persist_key_counters(&self) -> Result<KeyCounters> {
+        let snapshot = self.key_counters.read().clone();
+        self.store.set_key_counters(snapshot.clone())?;
+        Ok(snapshot)
+    }
+
+    pub fn sync_counters_with_keys(&self, keys: &KeyMappings) {
+        Self::sync_counters_with_keys_impl(&self.key_counters, keys);
+    }
+
+    fn sync_counters_with_keys_impl(target: &Arc<RwLock<KeyCounters>>, keys: &KeyMappings) {
+        let mut guard = target.write();
+        guard.retain(|mode, _| keys.contains_key(mode));
+        for (mode, key_list) in keys.iter() {
+            let entry = guard.entry(mode.clone()).or_default();
+            entry.retain(|key, _| key_list.contains(key));
+            for key in key_list.iter() {
+                entry.entry(key.clone()).or_insert(0);
+            }
+        }
+    }
+
+    fn compose_active_key(mode: &str, key: &str) -> String {
+        format!("{}::{}", mode, key)
     }
 }
 

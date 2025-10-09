@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 pub type KeyMappings = HashMap<String, Vec<String>>;
 pub type KeyPositions = HashMap<String, Vec<KeyPosition>>;
+pub type KeyCounters = HashMap<String, HashMap<String, u32>>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum NoteColor {
@@ -208,6 +209,8 @@ pub struct AppStoreData {
     pub keys: KeyMappings,
     #[serde(default)]
     pub key_positions: KeyPositions,
+    #[serde(default)]
+    pub key_counters: KeyCounters,
     pub background_color: String,
     pub use_custom_css: bool,
     #[serde(default)]
@@ -217,6 +220,8 @@ pub struct AppStoreData {
     pub overlay_last_content_top_offset: Option<f64>,
     #[serde(default)]
     pub overlay_bounds_are_logical: bool,
+    #[serde(default)]
+    pub key_counter_enabled: bool,
 }
 
 impl Default for AppStoreData {
@@ -234,6 +239,7 @@ impl Default for AppStoreData {
             laboratory_enabled: false,
             keys: KeyMappings::new(),
             key_positions: KeyPositions::new(),
+            key_counters: KeyCounters::new(),
             background_color: "transparent".to_string(),
             use_custom_css: false,
             custom_css: CustomCss::default(),
@@ -241,6 +247,7 @@ impl Default for AppStoreData {
             overlay_bounds: None,
             overlay_last_content_top_offset: None,
             overlay_bounds_are_logical: false,
+            key_counter_enabled: false,
         }
     }
 }
@@ -263,6 +270,7 @@ pub struct BootstrapPayload {
     pub selected_key_type: String,
     pub current_mode: String,
     pub overlay: BootstrapOverlayState,
+    pub key_counters: KeyCounters,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -284,6 +292,8 @@ pub struct SettingsState {
     #[serde(default)]
     pub custom_css: CustomCss,
     pub overlay_resize_anchor: OverlayResizeAnchor,
+    #[serde(default)]
+    pub key_counter_enabled: bool,
 }
 
 impl Default for SettingsState {
@@ -301,6 +311,7 @@ impl Default for SettingsState {
             use_custom_css: false,
             custom_css: CustomCss::default(),
             overlay_resize_anchor: OverlayResizeAnchor::TopLeft,
+            key_counter_enabled: false,
         }
     }
 }
@@ -350,6 +361,7 @@ pub struct SettingsPatchInput {
     #[serde(rename = "customCSS")]
     pub custom_css: Option<CustomCssPatch>,
     pub overlay_resize_anchor: Option<OverlayResizeAnchor>,
+    pub key_counter_enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -397,4 +409,6 @@ pub struct SettingsPatch {
     pub custom_css: Option<CustomCss>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub overlay_resize_anchor: Option<OverlayResizeAnchor>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_counter_enabled: Option<bool>,
 }
