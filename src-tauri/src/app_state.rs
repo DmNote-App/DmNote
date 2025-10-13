@@ -520,6 +520,7 @@ impl AppState {
         .title("DM Note - Overlay")
         .decorations(false)
         .resizable(false)
+        .maximizable(false)
         .transparent(true)
         .always_on_top(true)
         .skip_taskbar(false)
@@ -532,6 +533,7 @@ impl AppState {
 
         window.set_ignore_cursor_events(snapshot.overlay_locked)?;
         window.set_always_on_top(snapshot.always_on_top)?;
+        let _ = window.set_maximizable(false);
 
         self.overlay_force_close.store(false, Ordering::SeqCst);
 

@@ -139,6 +139,46 @@ export function useKeyManager() {
     });
   };
 
+  const handleAddKeyAt = (dx: number, dy: number) => {
+    const mapping = keyMappings[selectedKeyType] || [];
+    const pos = positions[selectedKeyType] || [];
+
+    const updatedMappings: KeyMappings = {
+      ...keyMappings,
+      [selectedKeyType]: [...mapping, ""],
+    };
+
+    const updatedPositions: KeyPositions = {
+      ...positions,
+      [selectedKeyType]: [
+        ...pos,
+        {
+          dx,
+          dy,
+          width: 60,
+          height: 60,
+          activeImage: "",
+          inactiveImage: "",
+          count: 0,
+          noteColor: "#FFFFFF",
+          noteOpacity: 80,
+          className: "",
+          counter: createDefaultCounterSettings(),
+        },
+      ],
+    };
+
+    setKeyMappings(updatedMappings);
+    setPositions(updatedPositions);
+
+    Promise.all([
+      window.api.keys.update(updatedMappings),
+      window.api.keys.updatePositions(updatedPositions),
+    ]).catch((error) => {
+      console.error("Failed to persist new key at position", error);
+    });
+  };
+
   const handleCounterSettingsUpdate = (
     index: number,
     payload: CounterUpdatePayload
@@ -239,6 +279,7 @@ export function useKeyManager() {
     handleCounterSettingsUpdate,
     handleCounterSettingsPreview,
     handleAddKey,
+    handleAddKeyAt,
     handleDeleteKey,
     handleResetCurrentMode,
   };

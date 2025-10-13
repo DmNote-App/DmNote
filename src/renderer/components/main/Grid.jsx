@@ -18,6 +18,7 @@ export default function Grid({
   onCounterUpdate,
   onCounterPreview,
   onKeyDelete,
+  onAddKeyAt,
   color,
   activeTool,
   shouldSkipModalAnimation,
@@ -26,7 +27,7 @@ export default function Grid({
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   const { t } = useTranslation();
 
-  // 우클릭 컨텍스트 상태
+  // 키 컨텍스트 메뉴
   const [isContextOpen, setIsContextOpen] = useState(false);
   const [contextIndex, setContextIndex] = useState(null);
   const contextRef = useRef(null);
@@ -36,6 +37,11 @@ export default function Grid({
   const [counterTargetIndex, setCounterTargetIndex] = useState(null);
   const [counterOriginalSettings, setCounterOriginalSettings] = useState(null);
   const [counterApplied, setCounterApplied] = useState(false);
+
+  // 그리드 컨텍스트 메뉴 
+  const [isGridContextOpen, setIsGridContextOpen] = useState(false);
+  const [gridContextClientPos, setGridContextClientPos] = useState(null);
+  const [gridAddLocalPos, setGridAddLocalPos] = useState(null);
 
   useEffect(() => {
     if (
@@ -92,6 +98,16 @@ export default function Grid({
     <div
       className="grid-bg relative w-full h-full bg-[#3A3943] rounded-[0px]"
       style={{ backgroundColor: color === "transparent" ? "#3A3943" : color }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        const localX = e.clientX - rect.left;
+        const localY = e.clientY - rect.top;
+        setGridAddLocalPos({ dx: Math.round(localX), dy: Math.round(localY) });
+        setGridContextClientPos({ x: e.clientX, y: e.clientY });
+        setIsGridContextOpen(true);
+      }}
     >
       {renderKeys()}
       {/* 우클릭 리스트 팝업 */}
@@ -130,6 +146,27 @@ export default function Grid({
             }
             setIsContextOpen(false);
             setContextPosition(null);
+          }}
+        />
+      </div>
+      {/* 그리드 컨텍스트 메뉴 */}
+      <div className="relative">
+        <ListPopup
+          open={isGridContextOpen}
+          position={gridContextClientPos || undefined}
+          onClose={() => {
+            setIsGridContextOpen(false);
+            setGridContextClientPos(null);
+            setGridAddLocalPos(null);
+          }}
+          items={[{ id: "add", label: t("tooltip.addKey") }]}
+          onSelect={(id) => {
+            if (id === "add" && gridAddLocalPos && typeof onAddKeyAt === "function") {
+              onAddKeyAt(gridAddLocalPos.dx, gridAddLocalPos.dy);
+            }
+            setIsGridContextOpen(false);
+            setGridContextClientPos(null);
+            setGridAddLocalPos(null);
           }}
         />
       </div>

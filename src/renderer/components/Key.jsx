@@ -112,6 +112,7 @@ export default function DraggableKey({
       onClick={handleClick}
       onContextMenu={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         onContextMenu?.(e);
       }}
       onDragStart={(e) => e.preventDefault()}
