@@ -179,6 +179,63 @@ export function useKeyManager() {
     });
   };
 
+  const handleDuplicateKey = (sourceIndex: number, dx: number, dy: number) => {
+    const mapping = keyMappings[selectedKeyType] || [];
+    const pos = positions[selectedKeyType] || [];
+    const sourceKey = mapping[sourceIndex];
+    const sourcePosition = pos[sourceIndex];
+
+    if (typeof sourceKey === "undefined" || !sourcePosition) {
+      return;
+    }
+
+    const clonedNoteColor =
+      sourcePosition.noteColor &&
+      typeof sourcePosition.noteColor === "object" &&
+      sourcePosition.noteColor !== null
+        ? { ...sourcePosition.noteColor }
+        : sourcePosition.noteColor;
+
+    const clonedCounter = sourcePosition.counter
+      ? {
+          ...sourcePosition.counter,
+          fill: { ...sourcePosition.counter.fill },
+          stroke: { ...sourcePosition.counter.stroke },
+        }
+      : createDefaultCounterSettings();
+
+    const snappedDx = Math.round(dx);
+    const snappedDy = Math.round(dy);
+
+    const clonedPosition = {
+      ...sourcePosition,
+      dx: snappedDx,
+      dy: snappedDy,
+      counter: clonedCounter,
+      noteColor: clonedNoteColor,
+    };
+
+    const updatedMappings: KeyMappings = {
+      ...keyMappings,
+      [selectedKeyType]: [...mapping, sourceKey],
+    };
+
+    const updatedPositions: KeyPositions = {
+      ...positions,
+      [selectedKeyType]: [...pos, clonedPosition],
+    };
+
+    setKeyMappings(updatedMappings);
+    setPositions(updatedPositions);
+
+    Promise.all([
+      window.api.keys.update(updatedMappings),
+      window.api.keys.updatePositions(updatedPositions),
+    ]).catch((error) => {
+      console.error("Failed to duplicate key", error);
+    });
+  };
+
   const handleCounterSettingsUpdate = (
     index: number,
     payload: CounterUpdatePayload
@@ -280,6 +337,7 @@ export function useKeyManager() {
     handleCounterSettingsPreview,
     handleAddKey,
     handleAddKeyAt,
+    handleDuplicateKey,
     handleDeleteKey,
     handleResetCurrentMode,
   };

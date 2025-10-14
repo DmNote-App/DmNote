@@ -140,6 +140,7 @@
     "gradient": "그레디언트"
   },
   "contextMenu": {
+    "duplicateKey": "키 복제",
     "deleteKey": "키 삭제",
     "counterSetting": "카운터 설정"
   },

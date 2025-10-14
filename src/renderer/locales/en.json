@@ -140,6 +140,7 @@
     "gradient": "Gradient"
   },
   "contextMenu": {
+    "duplicateKey": "Duplicate Key",
     "deleteKey": "Delete Key",
     "counterSetting": "Counter Settings"
   },

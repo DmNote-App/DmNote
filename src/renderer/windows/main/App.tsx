@@ -34,6 +34,7 @@ export default function App() {
     handleCounterSettingsPreview,
     handleAddKey,
     handleAddKeyAt,
+    handleDuplicateKey,
     handleDeleteKey,
     handleResetCurrentMode,
   } = useKeyManager();
@@ -135,6 +136,7 @@ export default function App() {
             onCounterPreview={handleCounterSettingsPreview}
             onKeyDelete={handleDeleteKey}
             onAddKeyAt={handleAddKeyAt}
+            onKeyDuplicate={handleDuplicateKey}
             color={color}
             activeTool={activeTool}
             showConfirm={showConfirm}
