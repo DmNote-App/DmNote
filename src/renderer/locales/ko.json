@@ -142,7 +142,9 @@
   "contextMenu": {
     "duplicateKey": "키 복제",
     "deleteKey": "키 삭제",
-    "counterSetting": "카운터 설정"
+    "counterSetting": "카운터 설정",
+    "bringToFront": "맨 위로",
+    "sendToBack": "맨 아래로"
   },
   "counterSetting": {
     "placementArea": "배치 영역",

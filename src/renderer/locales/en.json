@@ -142,7 +142,9 @@
   "contextMenu": {
     "duplicateKey": "Duplicate Key",
     "deleteKey": "Delete Key",
-    "counterSetting": "Counter Settings"
+    "counterSetting": "Counter Setting",
+    "bringToFront": "Bring to Front",
+    "sendToBack": "Send to Back"
   },
   "counterSetting": {
     "placementArea": "Placement",

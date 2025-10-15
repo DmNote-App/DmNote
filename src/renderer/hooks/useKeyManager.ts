@@ -350,6 +350,68 @@ export function useKeyManager() {
     setSelectedKey(null);
   };
 
+  const handleMoveToFront = (index: number) => {
+    saveToHistory();
+
+    const mapping = keyMappings[selectedKeyType] || [];
+    const pos = positions[selectedKeyType] || [];
+
+    // 배열의 마지막으로 이동 (렌더링 순서상 맨 앞에 표시됨)
+    const keyToMove = mapping[index];
+    const posToMove = pos[index];
+
+    const updatedMappings: KeyMappings = {
+      ...keyMappings,
+      [selectedKeyType]: [...mapping.filter((_, i) => i !== index), keyToMove],
+    };
+
+    const updatedPositions: KeyPositions = {
+      ...positions,
+      [selectedKeyType]: [...pos.filter((_, i) => i !== index), posToMove],
+    };
+
+    setKeyMappings(updatedMappings);
+    setPositions(updatedPositions);
+
+    Promise.all([
+      window.api.keys.update(updatedMappings),
+      window.api.keys.updatePositions(updatedPositions),
+    ]).catch((error) => {
+      console.error("Failed to move key to front", error);
+    });
+  };
+
+  const handleMoveToBack = (index: number) => {
+    saveToHistory();
+
+    const mapping = keyMappings[selectedKeyType] || [];
+    const pos = positions[selectedKeyType] || [];
+
+    // 배열의 맨 처음으로 이동 (렌더링 순서상 맨 뒤에 표시됨)
+    const keyToMove = mapping[index];
+    const posToMove = pos[index];
+
+    const updatedMappings: KeyMappings = {
+      ...keyMappings,
+      [selectedKeyType]: [keyToMove, ...mapping.filter((_, i) => i !== index)],
+    };
+
+    const updatedPositions: KeyPositions = {
+      ...positions,
+      [selectedKeyType]: [posToMove, ...pos.filter((_, i) => i !== index)],
+    };
+
+    setKeyMappings(updatedMappings);
+    setPositions(updatedPositions);
+
+    Promise.all([
+      window.api.keys.update(updatedMappings),
+      window.api.keys.updatePositions(updatedPositions),
+    ]).catch((error) => {
+      console.error("Failed to move key to back", error);
+    });
+  };
+
   const handleResetCurrentMode = async () => {
     try {
       await window.api.keys.resetMode(selectedKeyType);
@@ -404,6 +466,8 @@ export function useKeyManager() {
     handleAddKeyAt,
     handleDuplicateKey,
     handleDeleteKey,
+    handleMoveToFront,
+    handleMoveToBack,
     handleResetCurrentMode,
     handleUndo,
     handleRedo,

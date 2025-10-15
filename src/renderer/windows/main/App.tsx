@@ -36,6 +36,8 @@ export default function App() {
     handleAddKeyAt,
     handleDuplicateKey,
     handleDeleteKey,
+    handleMoveToFront,
+    handleMoveToBack,
     handleResetCurrentMode,
     handleUndo,
     handleRedo,
@@ -141,6 +143,8 @@ export default function App() {
             onKeyDelete={handleDeleteKey}
             onAddKeyAt={handleAddKeyAt}
             onKeyDuplicate={handleDuplicateKey}
+            onMoveToFront={handleMoveToFront}
+            onMoveToBack={handleMoveToBack}
             color={color}
             activeTool={activeTool}
             showConfirm={showConfirm}

@@ -30,6 +30,8 @@ export default function Grid({
   onKeyDelete,
   onAddKeyAt,
   onKeyDuplicate,
+  onMoveToFront,
+  onMoveToBack,
   color,
   activeTool,
   shouldSkipModalAnimation,
@@ -282,6 +284,8 @@ export default function Grid({
             { id: "delete", label: t("contextMenu.deleteKey") },
             { id: "duplicate", label: t("contextMenu.duplicateKey") },
             { id: "counter", label: t("contextMenu.counterSetting") },
+            { id: "bringToFront", label: t("contextMenu.bringToFront") },
+            { id: "sendToBack", label: t("contextMenu.sendToBack") },
           ]}
           onSelect={(id) => {
             if (contextIndex == null) return;
@@ -339,6 +343,14 @@ export default function Grid({
               setCounterOriginalSettings(original || null);
               setCounterApplied(false);
               setCounterTargetIndex(contextIndex);
+            } else if (id === "bringToFront") {
+              if (typeof onMoveToFront === "function") {
+                onMoveToFront(contextIndex);
+              }
+            } else if (id === "sendToBack") {
+              if (typeof onMoveToBack === "function") {
+                onMoveToBack(contextIndex);
+              }
             }
             setIsContextOpen(false);
             setContextPosition(null);
