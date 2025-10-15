@@ -34,6 +34,10 @@ export default function Grid({
   activeTool,
   shouldSkipModalAnimation,
   onModalAnimationConsumed,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }) {
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   const { t } = useTranslation();
@@ -64,6 +68,39 @@ export default function Grid({
   const [isGridContextOpen, setIsGridContextOpen] = useState(false);
   const [gridContextClientPos, setGridContextClientPos] = useState(null);
   const [gridAddLocalPos, setGridAddLocalPos] = useState(null);
+
+  // Undo/Redo 단축키 핸들러
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // 입력 요소에서는 단축키 무시
+      const target = e.target;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      // Ctrl+Z: Undo
+      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (canUndo && typeof onUndo === "function") {
+          onUndo();
+        }
+      }
+      // Ctrl+Shift+Z: Redo
+      else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (canRedo && typeof onRedo === "function") {
+          onRedo();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [canUndo, canRedo, onUndo, onRedo]);
 
   useEffect(() => {
     if (

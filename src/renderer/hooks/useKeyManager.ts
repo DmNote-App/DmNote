@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useKeyStore } from "@stores/useKeyStore";
+import { useHistoryStore } from "@stores/useHistoryStore";
 import type {
   KeyMappings,
   KeyPositions,
@@ -33,10 +34,28 @@ export function useKeyManager() {
   const setKeyMappings = useKeyStore((state) => state.setKeyMappings);
   const setPositions = useKeyStore((state) => state.setPositions);
 
+  const pushState = useHistoryStore((state) => state.pushState);
+  const canUndo = useHistoryStore((state) => state.canUndo);
+  const canRedo = useHistoryStore((state) => state.canRedo);
+  const undo = useHistoryStore((state) => state.undo);
+  const redo = useHistoryStore((state) => state.redo);
+
   const [selectedKey, setSelectedKey] = useState<SelectedKey>(null);
+
+  // 히스토리에 현재 상태 저장
+  const saveToHistory = useCallback(() => {
+    pushState(keyMappings, positions);
+  }, [keyMappings, positions, pushState]);
 
   const handlePositionChange = (index: number, dx: number, dy: number) => {
     const current = positions[selectedKeyType] || [];
+    const oldPosition = current[index];
+
+    // 실제로 위치가 변경된 경우에만 히스토리에 저장
+    if (oldPosition && (oldPosition.dx !== dx || oldPosition.dy !== dy)) {
+      saveToHistory();
+    }
+
     const nextPositions: KeyPositions = {
       ...positions,
       [selectedKeyType]: current.map((pos, i) =>
@@ -56,6 +75,9 @@ export function useKeyManager() {
   };
 
   const handleKeyUpdate = (keyData: KeyUpdatePayload) => {
+    // 키 설정 모달에서 적용하기 클릭 시 호출됨
+    saveToHistory();
+
     const mapping = keyMappings[selectedKeyType] || [];
     const pos = positions[selectedKeyType] || [];
 
@@ -100,6 +122,8 @@ export function useKeyManager() {
   };
 
   const handleAddKey = () => {
+    saveToHistory();
+
     const mapping = keyMappings[selectedKeyType] || [];
     const pos = positions[selectedKeyType] || [];
 
@@ -140,6 +164,8 @@ export function useKeyManager() {
   };
 
   const handleAddKeyAt = (dx: number, dy: number) => {
+    saveToHistory();
+
     const mapping = keyMappings[selectedKeyType] || [];
     const pos = positions[selectedKeyType] || [];
 
@@ -180,6 +206,8 @@ export function useKeyManager() {
   };
 
   const handleDuplicateKey = (sourceIndex: number, dx: number, dy: number) => {
+    saveToHistory();
+
     const mapping = keyMappings[selectedKeyType] || [];
     const pos = positions[selectedKeyType] || [];
     const sourceKey = mapping[sourceIndex];
@@ -240,6 +268,9 @@ export function useKeyManager() {
     index: number,
     payload: CounterUpdatePayload
   ) => {
+    // 카운터 설정 모달에서 적용하기 클릭 시 호출됨
+    saveToHistory();
+
     const current = positions[selectedKeyType] || [];
     if (!current[index]) return;
 
@@ -291,6 +322,8 @@ export function useKeyManager() {
   };
 
   const handleDeleteKey = (indexToDelete: number) => {
+    saveToHistory();
+
     const mapping = keyMappings[selectedKeyType] || [];
     const pos = positions[selectedKeyType] || [];
 
@@ -326,6 +359,38 @@ export function useKeyManager() {
     }
   };
 
+  const handleUndo = useCallback(() => {
+    const previousState = undo();
+    if (previousState) {
+      setKeyMappings(previousState.keyMappings);
+      setPositions(previousState.positions);
+
+      // 백엔드에도 반영
+      Promise.all([
+        window.api.keys.update(previousState.keyMappings),
+        window.api.keys.updatePositions(previousState.positions),
+      ]).catch((error) => {
+        console.error("Failed to apply undo", error);
+      });
+    }
+  }, [undo, setKeyMappings, setPositions]);
+
+  const handleRedo = useCallback(() => {
+    const nextState = redo();
+    if (nextState) {
+      setKeyMappings(nextState.keyMappings);
+      setPositions(nextState.positions);
+
+      // 백엔드에도 반영
+      Promise.all([
+        window.api.keys.update(nextState.keyMappings),
+        window.api.keys.updatePositions(nextState.positions),
+      ]).catch((error) => {
+        console.error("Failed to apply redo", error);
+      });
+    }
+  }, [redo, setKeyMappings, setPositions]);
+
   return {
     selectedKey,
     setSelectedKey,
@@ -340,5 +405,9 @@ export function useKeyManager() {
     handleDuplicateKey,
     handleDeleteKey,
     handleResetCurrentMode,
+    handleUndo,
+    handleRedo,
+    canUndo: canUndo(),
+    canRedo: canRedo(),
   };
 }

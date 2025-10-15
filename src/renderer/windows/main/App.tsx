@@ -37,6 +37,10 @@ export default function App() {
     handleDuplicateKey,
     handleDeleteKey,
     handleResetCurrentMode,
+    handleUndo,
+    handleRedo,
+    canUndo,
+    canRedo,
   } = useKeyManager();
   const { color, palette, setPalette, handleColorChange, handlePaletteClose } =
     usePalette();
@@ -144,6 +148,10 @@ export default function App() {
             onModalAnimationConsumed={() =>
               setSkipModalAnimationOnReturn(false)
             }
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            canUndo={canUndo}
+            canRedo={canRedo}
           />
         )}
       </div>
