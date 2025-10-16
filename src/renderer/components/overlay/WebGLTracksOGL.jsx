@@ -19,9 +19,6 @@ const vertexShader = `
   uniform float uScreenHeight;
   uniform float uTrackHeight;
   uniform float uReverse;
-  uniform float uShortThresholdMs;
-  uniform float uShortMinLengthPx;
-  uniform float uDelayEnabled;
 
   varying vec4 vColorTop;
   varying vec4 vColorBottom;
@@ -80,21 +77,6 @@ const vertexShader = `
         float trackTopY_local = trackBottomY - uTrackHeight;
         noteTopY = trackTopY_local + travel;
         noteBottomY = noteTopY + noteLength;
-      }
-
-      if (uDelayEnabled > 0.5) {
-        float durationMs = max(0.0, endTime - startTime);
-        if (durationMs <= uShortThresholdMs) {
-          float desired = uShortMinLengthPx;
-          float current = noteBottomY - noteTopY;
-          if (current < desired) {
-            if (uReverse < 0.5) {
-              noteTopY = noteBottomY - desired;
-            } else {
-              noteBottomY = noteTopY + desired;
-            }
-          }
-        }
       }
     }
 
@@ -320,14 +302,6 @@ export const WebGLTracksOGL = memo(
           uScreenHeight: { value: window.innerHeight },
           uTrackHeight: { value: noteSettings.trackHeight || 150 },
           uReverse: { value: noteSettings.reverse ? 1.0 : 0.0 },
-          uShortThresholdMs: {
-            value: noteSettings.shortNoteThresholdMs || 120,
-          },
-          uShortMinLengthPx: { value: noteSettings.shortNoteMinLengthPx || 10 },
-          uDelayEnabled: {
-            value:
-              laboratoryEnabled && noteSettings.delayedNoteEnabled ? 1.0 : 0.0,
-          },
           uFadePosition: {
             value:
               noteSettings.fadePosition === "top"
@@ -485,19 +459,13 @@ export const WebGLTracksOGL = memo(
       uniforms.uFlowSpeed.value = noteSettings.speed || 180;
       uniforms.uTrackHeight.value = noteSettings.trackHeight || 150;
       uniforms.uReverse.value = noteSettings.reverse ? 1.0 : 0.0;
-      uniforms.uShortThresholdMs.value =
-        noteSettings.shortNoteThresholdMs || 120;
-      uniforms.uShortMinLengthPx.value =
-        noteSettings.shortNoteMinLengthPx || 10;
-      uniforms.uDelayEnabled.value =
-        laboratoryEnabled && noteSettings.delayedNoteEnabled ? 1.0 : 0.0;
       uniforms.uFadePosition.value =
         noteSettings.fadePosition === "top"
           ? 1.0
           : noteSettings.fadePosition === "bottom"
           ? 2.0
           : 0.0;
-    }, [laboratoryEnabled, noteSettings]);
+    }, [noteSettings]);
 
     return (
       <canvas

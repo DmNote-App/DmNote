@@ -1,10 +1,6 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import { DEFAULT_NOTE_SETTINGS } from "@constants/overlayConfig";
 import { createNoteBuffer } from "@stores/noteBuffer";
-
-let MIN_NOTE_THRESHOLD_MS = DEFAULT_NOTE_SETTINGS.shortNoteThresholdMs;
-let MIN_NOTE_LENGTH_PX = DEFAULT_NOTE_SETTINGS.shortNoteMinLengthPx;
-let DELAY_FEATURE_ENABLED = false;
 
 const acquireNote = (pool) => {
   const note = pool.pop();
@@ -51,26 +47,21 @@ export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
   const notesRef = useRef({});
   const noteEffectEnabled = useRef(true);
   const activeNotes = useRef(new Map());
-  // 딜레이 대기 중인 입력(아직 화면에 노트가 생성되지 않음)
-  // pressId -> { keyName, pressTime, timeoutId, released, releaseTime }
-  const pendingPressesRef = useRef(new Map());
-  // 키별 진행 중인 pressId (재입력을 막지 않기 위해 keyup 시 즉시 해제)
-  const pendingByKeyRef = useRef(new Map());
   const flowSpeedRef = useRef(DEFAULT_NOTE_SETTINGS.speed);
   const trackHeightRef = useRef(DEFAULT_NOTE_SETTINGS.trackHeight);
+  // 딜레이 기반 단노트 분리용 설정
+  const delayEnabledRef = useRef(false);
+  const delayMsRef = useRef(0);
+  const shortNoteMinLengthPxRef = useRef(0);
   const subscribers = useRef(new Set());
   const notePoolRef = useRef([]);
   const noteLookupRef = useRef(new Map());
   const noteBufferRef = useRef(createNoteBuffer());
   const labEnabledRef = useRef(false);
-  const delayedOptionRef = useRef(false);
+  const finalizeTimersRef = useRef(new Map());
   // 이벤트 기반 클린업을 위한 refs
   const cleanupTimerRef = useRef(null);
   const nextCleanupTimeRef = useRef(Infinity);
-
-  const applyDelayFlag = useCallback(() => {
-    DELAY_FEATURE_ENABLED = labEnabledRef.current && delayedOptionRef.current;
-  }, []);
 
   const notifySubscribers = useCallback((event) => {
     if (subscribers.current.size === 0) return;
@@ -223,23 +214,19 @@ export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
     [runCleanup]
   );
 
-  const updateLabSettings = useCallback(
-    (settings) => {
-      flowSpeedRef.current =
-        Number(settings?.speed) || DEFAULT_NOTE_SETTINGS.speed;
-      trackHeightRef.current =
-        Number(settings?.trackHeight) || DEFAULT_NOTE_SETTINGS.trackHeight;
-      delayedOptionRef.current = !!settings?.delayedNoteEnabled;
-      MIN_NOTE_THRESHOLD_MS =
-        Number(settings?.shortNoteThresholdMs) ||
-        DEFAULT_NOTE_SETTINGS.shortNoteThresholdMs;
-      MIN_NOTE_LENGTH_PX =
-        Number(settings?.shortNoteMinLengthPx) ||
-        DEFAULT_NOTE_SETTINGS.shortNoteMinLengthPx;
-      applyDelayFlag();
-    },
-    [applyDelayFlag]
-  );
+  const updateLabSettings = useCallback((settings) => {
+    flowSpeedRef.current =
+      Number(settings?.speed) || DEFAULT_NOTE_SETTINGS.speed;
+    trackHeightRef.current =
+      Number(settings?.trackHeight) || DEFAULT_NOTE_SETTINGS.trackHeight;
+    // 실험적 기능: delayed note
+    delayEnabledRef.current = !!settings?.delayedNoteEnabled;
+    // 설정에서 짧은 노트 분리 대기(ms) - 이름은 shortNoteThresholdMs로 사용됨
+    delayMsRef.current = Number(settings?.shortNoteThresholdMs) || 0;
+    // 단노트 최소 픽셀 길이
+    shortNoteMinLengthPxRef.current =
+      Number(settings?.shortNoteMinLengthPx) || 0;
+  }, []);
 
   useEffect(() => {
     updateLabSettings(noteSettings || DEFAULT_NOTE_SETTINGS);
@@ -247,8 +234,7 @@ export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
 
   useEffect(() => {
     labEnabledRef.current = !!laboratoryEnabled;
-    applyDelayFlag();
-  }, [laboratoryEnabled, applyDelayFlag]);
+  }, [laboratoryEnabled]);
 
   useEffect(() => {
     noteEffectEnabled.current = !!noteEffect;
@@ -259,19 +245,35 @@ export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
         cleanupTimerRef.current = null;
         nextCleanupTimeRef.current = Infinity;
       }
-      // 대기 중인 입력 정리
-      for (const pending of pendingPressesRef.current.values()) {
-        clearTimeout(pending.timeoutId);
-      }
-      pendingPressesRef.current.clear();
-      pendingByKeyRef.current.clear();
       releaseAllNotes(
         notesRef.current,
         notePoolRef.current,
         noteLookupRef.current
       );
       noteLookupRef.current.clear();
+      // activeNotes에 남아있는 타이머 정리
+      for (const [, stateList] of activeNotes.current.entries()) {
+        if (!Array.isArray(stateList)) continue;
+        for (const state of stateList) {
+          try {
+            if (state?.startTimer) {
+              clearTimeout(state.startTimer);
+              state.startTimer = null;
+            }
+            if (state?.finalizeTimer) {
+              clearTimeout(state.finalizeTimer);
+              state.finalizeTimer = null;
+            }
+          } catch (e) {}
+        }
+      }
       activeNotes.current.clear();
+      for (const timer of finalizeTimersRef.current.values()) {
+        try {
+          clearTimeout(timer);
+        } catch (e) {}
+      }
+      finalizeTimersRef.current.clear();
       noteBufferRef.current.clear();
       notifySubscribers({
         type: "clear",
@@ -341,105 +343,184 @@ export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
     [notifySubscribers, scheduleCleanup]
   );
 
-  // 노트 생성/완료 (딜레이 기반)
-  const handleKeyDown = useCallback(
-    (keyName) => {
-      if (!noteEffectEnabled.current) return;
-      if (!DELAY_FEATURE_ENABLED) {
-        // 원본 동작: 즉시 생성 후 keyup에서 종료
-        if (activeNotes.current.has(keyName)) return;
-        const noteId = createNote(keyName);
-        activeNotes.current.set(keyName, { noteId });
+  const removeState = useCallback((keyName, state) => {
+    const stateList = activeNotes.current.get(keyName);
+    if (!stateList) return;
+    const index = stateList.indexOf(state);
+    if (index === -1) return;
+    stateList.splice(index, 1);
+    if (stateList.length === 0) {
+      activeNotes.current.delete(keyName);
+    }
+  }, []);
+
+  const computeMinLengthMs = useCallback(() => {
+    const minPx = shortNoteMinLengthPxRef.current || 0;
+    const flowSpeed = flowSpeedRef.current || DEFAULT_NOTE_SETTINGS.speed;
+    if (minPx <= 0 || flowSpeed <= 0) return 0;
+    return Math.round((minPx * 1000) / flowSpeed);
+  }, []);
+
+  const scheduleNoteFinalization = useCallback(
+    (keyName, state, options = {}) => {
+      const { forceMinLength = false } = options;
+      if (!state?.noteId || state.startTime == null) return;
+
+      const releaseTime = state.releaseTime ?? performance.now();
+      const noteRef = state.noteId
+        ? noteLookupRef.current.get(state.noteId)
+        : null;
+      const baselineStart =
+        noteRef?.startTime ?? state.startTime ?? state.downTime ?? releaseTime;
+      const clampedStart = Math.min(releaseTime, baselineStart);
+      const holdDurationFromStart = Math.max(0, releaseTime - clampedStart);
+      const minLengthMs = computeMinLengthMs();
+      const desiredDuration = forceMinLength
+        ? minLengthMs
+        : Math.max(minLengthMs, holdDurationFromStart);
+      const safeDuration = Math.max(desiredDuration, 1);
+      const targetEndTime = state.startTime + safeDuration;
+
+      if (state.finalizeTimer) {
+        clearTimeout(state.finalizeTimer);
+        finalizeTimersRef.current.delete(state.noteId);
+        state.finalizeTimer = null;
+      }
+
+      const finalizeState = () => {
+        finalizeTimersRef.current.delete(state.noteId);
+        state.finalizeTimer = null;
+        finalizeNote(keyName, state.noteId, targetEndTime);
+        removeState(keyName, state);
+      };
+
+      const delay = Math.max(0, targetEndTime - performance.now());
+      if (delay <= 0) {
+        finalizeState();
         return;
       }
 
-      // 딜레이 기반 동작
-      if (
-        pendingByKeyRef.current.has(keyName) ||
-        activeNotes.current.has(keyName)
-      )
-        return;
-
-      const pressTime = performance.now();
-      const pressId = `${keyName}_${pressTime}`;
-
-      const timeoutId = setTimeout(() => {
-        const pending = pendingPressesRef.current.get(pressId);
-        if (!pending) return;
-        pendingPressesRef.current.delete(pressId);
-        if (pendingByKeyRef.current.get(keyName) === pressId) {
-          pendingByKeyRef.current.delete(keyName);
-        }
-
-        const startNow = performance.now();
-
-        if (pending.released) {
-          const noteId = createNote(keyName, startNow);
-          const flowSpeed = flowSpeedRef.current;
-          const growMs = (MIN_NOTE_LENGTH_PX * 1000) / flowSpeed;
-          setTimeout(() => {
-            finalizeNote(keyName, noteId, startNow + growMs);
-          }, growMs);
-        } else {
-          const noteId = createNote(keyName, startNow);
-          activeNotes.current.set(keyName, { noteId });
-        }
-      }, MIN_NOTE_THRESHOLD_MS);
-
-      pendingPressesRef.current.set(pressId, {
-        keyName,
-        pressTime,
-        timeoutId,
-        released: false,
-        releaseTime: null,
-      });
-      pendingByKeyRef.current.set(keyName, pressId);
+      const timer = setTimeout(finalizeState, delay);
+      state.finalizeTimer = timer;
+      finalizeTimersRef.current.set(state.noteId, timer);
     },
-    [createNote, finalizeNote]
+    [computeMinLengthMs, finalizeNote, removeState]
+  );
+
+  // 노트 생성/완료
+  const handleKeyDown = useCallback(
+    (keyName) => {
+      if (!noteEffectEnabled.current) return;
+
+      const useDelay = delayEnabledRef.current && delayMsRef.current > 0;
+      let stateList = activeNotes.current.get(keyName);
+      if (!stateList) {
+        stateList = [];
+        activeNotes.current.set(keyName, stateList);
+      }
+
+      if (stateList.some((state) => !state.released)) {
+        return;
+      }
+
+      if (useDelay) {
+        const delayMs = delayMsRef.current;
+        const downTime = performance.now();
+        const state = {
+          useDelay: true,
+          downTime,
+          releaseTime: null,
+          startTime: null,
+          startTimer: null,
+          finalizeTimer: null,
+          noteId: null,
+          created: false,
+          released: false,
+          delayMs,
+          releasedBeforeStart: false,
+        };
+
+        const startTimer = setTimeout(() => {
+          state.startTimer = null;
+          if (!noteEffectEnabled.current) {
+            removeState(keyName, state);
+            return;
+          }
+
+          const overrideStart = state.downTime + state.delayMs;
+          const noteId = createNote(keyName, overrideStart);
+          state.noteId = noteId;
+          state.created = true;
+          state.startTime = overrideStart;
+
+          if (state.released) {
+            const forceMinLength = !!state.releasedBeforeStart;
+            scheduleNoteFinalization(keyName, state, { forceMinLength });
+            state.releasedBeforeStart = false;
+          }
+        }, delayMs);
+
+        state.startTimer = startTimer;
+        stateList.push(state);
+        return;
+      }
+
+      const noteId = createNote(keyName);
+      const createdNote = noteLookupRef.current.get(noteId);
+      const noteStartTime = createdNote?.startTime ?? performance.now();
+      stateList.push({
+        useDelay: false,
+        noteId,
+        created: true,
+        released: false,
+        startTimer: null,
+        finalizeTimer: null,
+        startTime: noteStartTime,
+      });
+    },
+    [createNote, removeState, scheduleNoteFinalization]
   );
 
   const handleKeyUp = useCallback(
     (keyName) => {
       if (!noteEffectEnabled.current) return;
 
-      if (!DELAY_FEATURE_ENABLED) {
-        const activeNote = activeNotes.current.get(keyName);
-        if (activeNote) {
-          finalizeNote(keyName, activeNote.noteId);
-          activeNotes.current.delete(keyName);
+      const stateList = activeNotes.current.get(keyName);
+      if (!stateList || stateList.length === 0) return;
+
+      let state = null;
+      for (let i = stateList.length - 1; i >= 0; i -= 1) {
+        if (!stateList[i].released) {
+          state = stateList[i];
+          break;
         }
+      }
+
+      if (!state) return;
+
+      const now = performance.now();
+      state.released = true;
+      state.releaseTime = now;
+
+      if (!state.useDelay) {
+        if (state.created && state.noteId) {
+          finalizeNote(keyName, state.noteId);
+        }
+        removeState(keyName, state);
         return;
       }
 
-      // 롱노트 진행 중이라면 즉시 종료
-      const activeNote = activeNotes.current.get(keyName);
-      if (activeNote) {
-        finalizeNote(keyName, activeNote.noteId, performance.now());
-        activeNotes.current.delete(keyName);
-        const pressIdMaybe = pendingByKeyRef.current.get(keyName);
-        if (pressIdMaybe) {
-          const pending = pendingPressesRef.current.get(pressIdMaybe);
-          if (pending) {
-            clearTimeout(pending.timeoutId);
-            pendingPressesRef.current.delete(pressIdMaybe);
-          }
-          pendingByKeyRef.current.delete(keyName);
-        }
+      if (state.startTimer) {
+        state.releasedBeforeStart = true;
+        // 아직 노트가 생성되지 않았으므로 타이머가 실행되면 finalize를 스케줄링한다
         return;
       }
 
-      // 딜레이 대기 중인 입력에 대해 'released' 표시 (단노트 처리)
-      const pressId = pendingByKeyRef.current.get(keyName);
-      if (pressId) {
-        const pending = pendingPressesRef.current.get(pressId);
-        if (pending) {
-          pending.released = true;
-          pending.releaseTime = performance.now();
-        }
-        pendingByKeyRef.current.delete(keyName);
+      if (state.created && state.noteId) {
+        scheduleNoteFinalization(keyName, state);
       }
     },
-    [finalizeNote]
+    [finalizeNote, removeState, scheduleNoteFinalization]
   );
 
   // 화면 밖으로 나간 노트 제거 - 언마운트 시 타이머 정리
@@ -448,6 +529,29 @@ export function useNoteSystem({ noteEffect, noteSettings, laboratoryEnabled }) {
       if (cleanupTimerRef.current !== null) {
         clearTimeout(cleanupTimerRef.current);
       }
+      // activeNotes에 남아있는 타이머 정리
+      for (const [, stateList] of activeNotes.current.entries()) {
+        if (!Array.isArray(stateList)) continue;
+        for (const state of stateList) {
+          try {
+            if (state?.startTimer) {
+              clearTimeout(state.startTimer);
+              state.startTimer = null;
+            }
+            if (state?.finalizeTimer) {
+              clearTimeout(state.finalizeTimer);
+              state.finalizeTimer = null;
+            }
+          } catch (e) {}
+        }
+      }
+      for (const timer of finalizeTimersRef.current.values()) {
+        try {
+          clearTimeout(timer);
+        } catch (e) {}
+      }
+      finalizeTimersRef.current.clear();
+
       releaseAllNotes(
         notesRef.current,
         notePoolRef.current,
