@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   useFloating,
   offset as fuiOffset,
@@ -44,6 +44,12 @@ const FloatingPopup = ({
     whileElementsMounted: autoUpdate,
   });
 
+  const floatingRef = useRef<HTMLDivElement>(null);
+  const [adjustedPos, setAdjustedPos] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
   useEffect(() => {
     if (referenceRef && referenceRef.current)
       refs.setReference(referenceRef.current);
@@ -81,6 +87,58 @@ const FloatingPopup = ({
     if (open) update?.();
   }, [open, update]);
 
+  // 고정된 좌표(fixedX, fixedY)를 사용할 때 메뉴 위치를 조정합니다
+  useEffect(() => {
+    if (
+      !open ||
+      !floatingRef.current ||
+      typeof fixedX !== "number" ||
+      typeof fixedY !== "number"
+    ) {
+      setAdjustedPos(null);
+      return;
+    }
+
+    // 다음 프레임에서 DOM 크기를 읽어서 위치를 조정합니다
+    const timer = requestAnimationFrame(() => {
+      const rect = floatingRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      let adjustedX = fixedX + offsetX;
+      let adjustedY = fixedY + offsetY;
+
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const menuWidth = rect.width;
+      const menuHeight = rect.height;
+      const padding = 5; // 창 가장자리로부터의 패딩
+
+      // 오른쪽 경계를 벗어나면 왼쪽 정렬로 변경
+      if (adjustedX + menuWidth > viewportWidth - padding) {
+        adjustedX = fixedX - menuWidth + offsetX;
+      }
+
+      // 아래쪽 경계를 벗어나면 위쪽 정렬로 변경
+      if (adjustedY + menuHeight > viewportHeight - padding) {
+        adjustedY = fixedY - menuHeight + offsetY;
+      }
+
+      // 왼쪽 경계를 벗어나면 오른쪽 정렬로 변경
+      if (adjustedX < padding) {
+        adjustedX = padding;
+      }
+
+      // 위쪽 경계를 벗어나면 아래쪽 정렬로 변경
+      if (adjustedY < padding) {
+        adjustedY = padding;
+      }
+
+      setAdjustedPos({ x: adjustedX, y: adjustedY });
+    });
+
+    return () => cancelAnimationFrame(timer);
+  }, [open, fixedX, fixedY, offsetX, offsetY]);
+
   useEffect(() => {
     if (!open || autoClose) return;
 
@@ -106,7 +164,9 @@ const FloatingPopup = ({
 
       const isInsideFloating = floatingEl.contains(target);
       const isInsideReference = referenceEl?.contains(target) ?? false;
-      const isInsideInteractive = interactiveEls.some((el) => el.contains(target as Node));
+      const isInsideInteractive = interactiveEls.some((el) =>
+        el.contains(target as Node)
+      );
 
       if (isInsideFloating) {
         pointerCapturedInside = true;
@@ -148,12 +208,29 @@ const FloatingPopup = ({
   if (!open) return null;
 
   const isFixed = typeof fixedX === "number" && typeof fixedY === "number";
-  const left = (isFixed ? (fixedX as number) : x ?? 0) + offsetX;
-  const top = (isFixed ? (fixedY as number) : y ?? 0) + offsetY;
+
+  // 고정 좌표를 사용할 때는 조정된 위치를 사용하고, 아니면 기본 위치를 사용합니다
+  let left: number;
+  let top: number;
+
+  if (isFixed && adjustedPos) {
+    left = adjustedPos.x;
+    top = adjustedPos.y;
+  } else if (isFixed) {
+    // adjustedPos 계산 대기 중이면 기본 위치 사용
+    left = (fixedX as number) + offsetX;
+    top = (fixedY as number) + offsetY;
+  } else {
+    left = (x ?? 0) + offsetX;
+    top = (y ?? 0) + offsetY;
+  }
 
   return (
     <div
-      ref={refs.setFloating as any}
+      ref={(node) => {
+        refs.setFloating(node);
+        floatingRef.current = node;
+      }}
       style={{
         position: isFixed ? "fixed" : (strategy as any),
         left,
