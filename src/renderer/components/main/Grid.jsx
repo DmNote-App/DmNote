@@ -53,6 +53,7 @@ export default function Grid({
   const gridRef = useRef(null);
   const [duplicateState, setDuplicateState] = useState(null);
   const [duplicateCursor, setDuplicateCursor] = useState(null);
+  const lastMousePosRef = useRef({ x: 0, y: 0 });
 
   const computeSnappedCursorFromClient = (clientX, clientY) => {
     if (!gridRef.current) return null;
@@ -103,6 +104,15 @@ export default function Grid({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [canUndo, canRedo, onUndo, onRedo]);
+
+  // 전역 마우스 위치 추적
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
 
   useEffect(() => {
     if (
@@ -180,6 +190,10 @@ export default function Grid({
     const displayName =
       getKeyInfoByGlobalKey(keyName)?.displayName || keyName || "";
 
+    // 키의 중심이 마우스에 위치하도록 오프셋 계산
+    const offsetX = duplicateCursor.x - width / 2;
+    const offsetY = duplicateCursor.y - height / 2;
+
     return (
       <div
         className={`absolute pointer-events-none select-none ${
@@ -188,7 +202,7 @@ export default function Grid({
         style={{
           width: `${width}px`,
           height: `${height}px`,
-          transform: `translate3d(${duplicateCursor.x}px, ${duplicateCursor.y}px, 0)`,
+          transform: `translate3d(${offsetX}px, ${offsetY}px, 0)`,
           backgroundColor,
           borderRadius: inactiveImage ? "0" : "10px",
           border: borderStyle,
@@ -250,6 +264,7 @@ export default function Grid({
         if (!duplicateState) return;
         const snapped = computeSnappedCursorFromClient(e.clientX, e.clientY);
         if (snapped) {
+          console.log("onMouseMove snapped:", snapped);
           setDuplicateCursor(snapped);
         }
       }}
@@ -262,7 +277,14 @@ export default function Grid({
         e.stopPropagation();
         const snapped = computeSnappedCursorFromClient(e.clientX, e.clientY);
         if (snapped && typeof onKeyDuplicate === "function") {
-          onKeyDuplicate(duplicateState.sourceIndex, snapped.x, snapped.y);
+          // 마우스 위치에서 키의 중심이 배치되도록 조정
+          const width = duplicateState.position.width || 60;
+          const height = duplicateState.position.height || 60;
+          onKeyDuplicate(
+            duplicateState.sourceIndex,
+            snapped.x - width / 2,
+            snapped.y - height / 2
+          );
         }
         setDuplicateState(null);
         setDuplicateCursor(null);
@@ -319,12 +341,12 @@ export default function Grid({
                     }
                   : null;
                 let initialCursor = null;
-                if (contextPosition) {
-                  initialCursor = computeSnappedCursorFromClient(
-                    contextPosition.x,
-                    contextPosition.y
-                  );
-                }
+                // 현재 실제 마우스 위치를 사용 (메뉴를 클릭한 시점의 위치)
+                const currentMousePos = lastMousePosRef.current;
+                const snapped = computeSnappedCursorFromClient(
+                  currentMousePos.x,
+                  currentMousePos.y
+                );
                 setDuplicateState({
                   sourceIndex: contextIndex,
                   keyName: keyCode,

@@ -87,7 +87,7 @@ const FloatingPopup = ({
     if (open) update?.();
   }, [open, update]);
 
-  // 고정된 좌표(fixedX, fixedY)를 사용할 때 메뉴 위치를 조정합니다
+  // 고정 좌표 사용 시 메뉴 위치를 조정
   useEffect(() => {
     if (
       !open ||
@@ -99,7 +99,6 @@ const FloatingPopup = ({
       return;
     }
 
-    // 다음 프레임에서 DOM 크기를 읽어서 위치를 조정합니다
     const timer = requestAnimationFrame(() => {
       const rect = floatingRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -209,7 +208,7 @@ const FloatingPopup = ({
 
   const isFixed = typeof fixedX === "number" && typeof fixedY === "number";
 
-  // 고정 좌표를 사용할 때는 조정된 위치를 사용하고, 아니면 기본 위치를 사용합니다
+  // 고정 좌표를 사용할 때는 조정된 위치, 아니면 기본 위치를 사용합
   let left: number;
   let top: number;
 
