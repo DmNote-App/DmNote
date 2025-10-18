@@ -94,8 +94,6 @@ DmNote/
 │  └─ types/                     # 공유 타입/스키마
 ├─ src-tauri/                    # Tauri 백엔드
 │  ├─ src/                       # 커맨드, 서비스
-│  ├─ default_keys.json          # 키 매핑 기본값
-│  ├─ default_positions.json     # 키 포지션 기본값
 │  └─ vendor/                    # willhook 패치 버전
 ├─ package.json                  # 프로젝트 의존성 및 실행 스크립트
 ├─ tsconfig.json                 # TypeScript 설정
@@ -157,3 +155,4 @@ npm run tauri:dev
 - 동시 입력 간격 밀리초(ms) 표시
 - 입력 통계 분석 기능
  -->
+
