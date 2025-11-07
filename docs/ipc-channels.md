@@ -101,8 +101,22 @@
 - `css:use` → `{ enabled: boolean }`
 - `css:content` → `CustomCss`
 
+## js
+
+- `js:get` (invoke) → `CustomJs`
+- `js:get-use` (invoke) → `boolean`
+- `js:toggle` (invoke) → 요청: `{ enabled: boolean }`, 응답: `{ enabled: boolean }`
+- `js:load` (invoke) → `{ success: boolean; content?: string; path?: string; error?: string }`
+- `js:set-content` (invoke) → 요청: `{ content: string }`, 응답: `{ success?: true; error?: string }`
+- `js:reset` (invoke)
+
+브로드캐스트
+
+- `js:use` → `{ enabled: boolean }`
+- `js:content` → `CustomJs`
+
 ## preset
 
 - `preset:save` (invoke) → `{ success: boolean; error?: string }`
 - `preset:load` (invoke) → `{ success: boolean; error?: string }`
-  - 로드 성공 시 관련 상태 채널(`keys:*`, `positions:*`, `customTabs:changed`, `settings:changed`, `css:*`)이 일괄 브로드캐스트됩니다.
+  - 로드 성공 시 관련 상태 채널(`keys:*`, `positions:*`, `customTabs:changed`, `settings:changed`, `css:*`, `js:*`)이 일괄 브로드캐스트됩니다.

@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Key } from "@components/Key";
 import { DEFAULT_NOTE_SETTINGS } from "@constants/overlayConfig";
 import { useCustomCssInjection } from "@hooks/useCustomCssInjection";
+import { useCustomJsInjection } from "@hooks/useCustomJsInjection";
 import { useNoteSystem } from "@hooks/useNoteSystem";
 import { useAppBootstrap } from "@hooks/useAppBootstrap";
 import { useKeyStore } from "@stores/useKeyStore";
@@ -47,7 +48,24 @@ type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 
 export default function App() {
   useCustomCssInjection();
+  useCustomJsInjection();
   useAppBootstrap();
+
+  // 윈도우 타입
+  useEffect(() => {
+    try {
+      (window as any).__dmn_window_type = "overlay";
+    } catch (e) {
+      // ignore
+    }
+    return () => {
+      try {
+        delete (window as any).__dmn_window_type;
+      } catch (e) {
+        // ignore
+      }
+    };
+  }, []);
 
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   const keyMappings = useKeyStore((state) => state.keyMappings);

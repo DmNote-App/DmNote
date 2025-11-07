@@ -15,6 +15,9 @@ interface SettingsState {
   useCustomCSS: boolean;
   customCSSContent: string;
   customCSSPath: string | null;
+  useCustomJS: boolean;
+  customJSContent: string;
+  customJSPath: string | null;
   backgroundColor: string;
   language: string;
   laboratoryEnabled: boolean;
@@ -28,6 +31,9 @@ interface SettingsState {
   setUseCustomCSS: (value: boolean) => void;
   setCustomCSSContent: (value: string) => void;
   setCustomCSSPath: (value: string | null) => void;
+  setUseCustomJS: (value: boolean) => void;
+  setCustomJSContent: (value: string) => void;
+  setCustomJSPath: (value: string | null) => void;
   setOverlayLocked: (value: boolean) => void;
   setAngleMode: (value: string) => void;
   setNoteEffect: (value: boolean) => void;
@@ -48,6 +54,9 @@ export type SettingsStateSnapshot = Omit<
   | "setUseCustomCSS"
   | "setCustomCSSContent"
   | "setCustomCSSPath"
+  | "setUseCustomJS"
+  | "setCustomJSContent"
+  | "setCustomJSPath"
   | "setOverlayLocked"
   | "setAngleMode"
   | "setNoteEffect"
@@ -68,6 +77,9 @@ const initialState: SettingsStateSnapshot = {
   useCustomCSS: false,
   customCSSContent: "",
   customCSSPath: null,
+  useCustomJS: false,
+  customJSContent: "",
+  customJSPath: null,
   backgroundColor: "transparent",
   language: "ko",
   laboratoryEnabled: false,
@@ -97,6 +109,10 @@ function mergeSnapshot(
     next.customCSSContent = patch.customCSSContent ?? prev.customCSSContent;
     next.customCSSPath = patch.customCSSPath ?? prev.customCSSPath;
   }
+  if (patch.customJSContent !== undefined || patch.customJSPath !== undefined) {
+    next.customJSContent = patch.customJSContent ?? prev.customJSContent;
+    next.customJSPath = patch.customJSPath ?? prev.customJSPath;
+  }
   return next;
 }
 
@@ -109,6 +125,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setUseCustomCSS: (value) => set({ useCustomCSS: value }),
   setCustomCSSContent: (value) => set({ customCSSContent: value }),
   setCustomCSSPath: (value) => set({ customCSSPath: value }),
+  setUseCustomJS: (value) => set({ useCustomJS: value }),
+  setCustomJSContent: (value) => set({ customJSContent: value }),
+  setCustomJSPath: (value) => set({ customJSPath: value }),
   setOverlayLocked: (value) => set({ overlayLocked: value }),
   setAngleMode: (value) => set({ angleMode: value }),
   setNoteEffect: (value) => set({ noteEffect: value }),

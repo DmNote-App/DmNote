@@ -224,6 +224,22 @@ impl Default for CustomCss {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomJs {
+    pub path: Option<String>,
+    pub content: String,
+}
+
+impl Default for CustomJs {
+    fn default() -> Self {
+        Self {
+            path: None,
+            content: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub enum OverlayResizeAnchor {
     TopLeft,
@@ -301,6 +317,10 @@ pub struct AppStoreData {
     pub use_custom_css: bool,
     #[serde(default)]
     pub custom_css: CustomCss,
+    #[serde(default)]
+    pub use_custom_js: bool,
+    #[serde(default)]
+    pub custom_js: CustomJs,
     pub overlay_resize_anchor: OverlayResizeAnchor,
     pub overlay_bounds: Option<OverlayBounds>,
     pub overlay_last_content_top_offset: Option<f64>,
@@ -329,6 +349,8 @@ impl Default for AppStoreData {
             background_color: "transparent".to_string(),
             use_custom_css: false,
             custom_css: CustomCss::default(),
+            use_custom_js: false,
+            custom_js: CustomJs::default(),
             overlay_resize_anchor: OverlayResizeAnchor::TopLeft,
             overlay_bounds: None,
             overlay_last_content_top_offset: None,
@@ -377,6 +399,11 @@ pub struct SettingsState {
     #[serde(rename = "customCSS")]
     #[serde(default)]
     pub custom_css: CustomCss,
+    #[serde(rename = "useCustomJS")]
+    pub use_custom_js: bool,
+    #[serde(rename = "customJS")]
+    #[serde(default)]
+    pub custom_js: CustomJs,
     pub overlay_resize_anchor: OverlayResizeAnchor,
     #[serde(default)]
     pub key_counter_enabled: bool,
@@ -396,6 +423,8 @@ impl Default for SettingsState {
             background_color: "transparent".to_string(),
             use_custom_css: false,
             custom_css: CustomCss::default(),
+            use_custom_js: false,
+            custom_js: CustomJs::default(),
             overlay_resize_anchor: OverlayResizeAnchor::TopLeft,
             key_counter_enabled: false,
         }
@@ -446,6 +475,10 @@ pub struct SettingsPatchInput {
     pub use_custom_css: Option<bool>,
     #[serde(rename = "customCSS")]
     pub custom_css: Option<CustomCssPatch>,
+    #[serde(rename = "useCustomJS")]
+    pub use_custom_js: Option<bool>,
+    #[serde(rename = "customJS")]
+    pub custom_js: Option<CustomJsPatch>,
     pub overlay_resize_anchor: Option<OverlayResizeAnchor>,
     pub key_counter_enabled: Option<bool>,
 }
@@ -453,6 +486,15 @@ pub struct SettingsPatchInput {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomCssPatch {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomJsPatch {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<Option<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -493,6 +535,12 @@ pub struct SettingsPatch {
     #[serde(rename = "customCSS")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_css: Option<CustomCss>,
+    #[serde(rename = "useCustomJS")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub use_custom_js: Option<bool>,
+    #[serde(rename = "customJS")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_js: Option<CustomJs>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub overlay_resize_anchor: Option<OverlayResizeAnchor>,
     #[serde(skip_serializing_if = "Option::is_none")]

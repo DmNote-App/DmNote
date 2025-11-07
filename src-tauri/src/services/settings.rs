@@ -3,8 +3,8 @@ use std::sync::Arc;
 use anyhow::Result;
 
 use crate::models::{
-    CustomCss, CustomCssPatch, NoteSettings, NoteSettingsPatch, SettingsDiff, SettingsPatch,
-    SettingsPatchInput, SettingsState,
+    CustomCss, CustomCssPatch, CustomJs, CustomJsPatch, NoteSettings, NoteSettingsPatch,
+    SettingsDiff, SettingsPatch, SettingsPatchInput, SettingsState,
 };
 use crate::store::AppStore;
 
@@ -39,6 +39,8 @@ impl SettingsService {
             state.background_color = next.background_color.clone();
             state.use_custom_css = next.use_custom_css;
             state.custom_css = next.custom_css.clone();
+            state.use_custom_js = next.use_custom_js;
+            state.custom_js = next.custom_js.clone();
             state.overlay_resize_anchor = next.overlay_resize_anchor.clone();
             state.key_counter_enabled = next.key_counter_enabled;
         })?;
@@ -85,6 +87,12 @@ fn normalize_patch(patch: &SettingsPatchInput, current: &SettingsState) -> Setti
     if let Some(value) = patch.custom_css.as_ref() {
         normalized.custom_css = Some(apply_css_patch(current.custom_css.clone(), value));
     }
+    if let Some(value) = patch.use_custom_js {
+        normalized.use_custom_js = Some(value);
+    }
+    if let Some(value) = patch.custom_js.as_ref() {
+        normalized.custom_js = Some(apply_js_patch(current.custom_js.clone(), value));
+    }
     if let Some(value) = patch.overlay_resize_anchor.as_ref() {
         normalized.overlay_resize_anchor = Some(value.clone());
     }
@@ -127,6 +135,12 @@ fn apply_changes(mut current: SettingsState, patch: &SettingsPatch) -> SettingsS
     }
     if let Some(value) = patch.custom_css.as_ref() {
         current.custom_css = value.clone();
+    }
+    if let Some(value) = patch.use_custom_js {
+        current.use_custom_js = value;
+    }
+    if let Some(value) = patch.custom_js.as_ref() {
+        current.custom_js = value.clone();
     }
     if let Some(value) = patch.overlay_resize_anchor.as_ref() {
         current.overlay_resize_anchor = value.clone();
@@ -173,4 +187,14 @@ fn apply_css_patch(mut css: CustomCss, patch: &CustomCssPatch) -> CustomCss {
         css.content = content.clone();
     }
     css
+}
+
+fn apply_js_patch(mut script: CustomJs, patch: &CustomJsPatch) -> CustomJs {
+    if let Some(path) = patch.path.as_ref() {
+        script.path = path.clone();
+    }
+    if let Some(content) = patch.content.as_ref() {
+        script.content = content.clone();
+    }
+    script
 }

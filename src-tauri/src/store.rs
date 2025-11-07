@@ -273,6 +273,8 @@ fn settings_from_store(store: &AppStoreData) -> SettingsState {
         background_color: store.background_color.clone(),
         use_custom_css: store.use_custom_css,
         custom_css: store.custom_css.clone(),
+        use_custom_js: store.use_custom_js,
+        custom_js: store.custom_js.clone(),
         overlay_resize_anchor: store.overlay_resize_anchor.clone(),
         key_counter_enabled: store.key_counter_enabled,
     }
@@ -348,6 +350,22 @@ fn repair_legacy_state(raw: &str) -> AppStoreData {
             .and_then(|v| serde_json::from_value(v.clone()).ok())
         {
             data.custom_css = v;
+        }
+        if let Some(v) = obj.get("useCustomJS").and_then(Value::as_bool) {
+            data.use_custom_js = v;
+        } else if let Some(v) = obj.get("useCustomJs").and_then(Value::as_bool) {
+            data.use_custom_js = v;
+        }
+        if let Some(v) = obj
+            .get("customJS")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            data.custom_js = v;
+        } else if let Some(v) = obj
+            .get("customJs")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            data.custom_js = v;
         }
         if let Some(v) = obj
             .get("overlayResizeAnchor")

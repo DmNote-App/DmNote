@@ -4,6 +4,7 @@ import {
   normalizeNoteSettings,
 } from "@src/types/noteSettings";
 import { type CustomCss } from "@src/types/css";
+import { type CustomJs } from "@src/types/js";
 
 export type OverlayResizeAnchor =
   | "top-left"
@@ -24,6 +25,8 @@ export interface SettingsState {
   backgroundColor: string;
   useCustomCSS: boolean;
   customCSS: CustomCss;
+  useCustomJS: boolean;
+  customJS: CustomJs;
   overlayResizeAnchor: OverlayResizeAnchor;
   keyCounterEnabled: boolean;
 }
@@ -40,22 +43,26 @@ export const DEFAULT_SETTINGS_STATE: SettingsState = {
   backgroundColor: "transparent",
   useCustomCSS: false,
   customCSS: { path: null, content: "" },
+  useCustomJS: false,
+  customJS: { path: null, content: "" },
   overlayResizeAnchor: "top-left",
   keyCounterEnabled: false,
 };
 
 export type SettingsPatchInput = Partial<
-  Omit<SettingsState, "noteSettings" | "customCSS">
+  Omit<SettingsState, "noteSettings" | "customCSS" | "customJS">
 > & {
   noteSettings?: Partial<NoteSettings>;
   customCSS?: Partial<CustomCss>;
+  customJS?: Partial<CustomJs>;
 };
 
 export type SettingsPatch = Partial<
-  Omit<SettingsState, "noteSettings" | "customCSS">
+  Omit<SettingsState, "noteSettings" | "customCSS" | "customJS">
 > & {
   noteSettings?: NoteSettings;
   customCSS?: CustomCss;
+  customJS?: CustomJs;
 };
 
 export interface SettingsDiff {
@@ -86,6 +93,13 @@ export function normalizeSettingsPatch(
         ...current.customCSS,
         ...(value as Partial<CustomCss>),
       } as CustomCss;
+      continue;
+    }
+    if (key === "customJS") {
+      next.customJS = {
+        ...current.customJS,
+        ...(value as Partial<CustomJs>),
+      } as CustomJs;
       continue;
     }
     (next as Record<string, unknown>)[key as string] = value;

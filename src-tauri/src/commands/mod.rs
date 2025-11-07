@@ -1,5 +1,6 @@
 pub mod app;
 pub mod css;
+pub mod js;
 pub mod keys;
 pub mod overlay;
 pub mod preset;

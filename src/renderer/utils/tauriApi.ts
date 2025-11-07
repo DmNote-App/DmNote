@@ -22,9 +22,13 @@ import type {
   CustomTabsChangePayload,
   KeyStatePayload,
   PresetOperationResult,
+  JsLoadResult,
+  JsSetContentResult,
+  JsTogglePayload,
 } from "@src/types/api";
 import type { BootstrapPayload } from "@src/types/app";
 import type { CustomCss } from "@src/types/css";
+import type { CustomJs } from "@src/types/js";
 import type {
   CustomTab,
   KeyMappings,
@@ -138,6 +142,20 @@ const api: DMNoteAPI = {
       subscribe<CssTogglePayload>("css:use", listener),
     onContent: (listener: (payload: CustomCss) => void) =>
       subscribe<CustomCss>("css:content", listener),
+  },
+  js: {
+    get: () => invoke<CustomJs>("js_get"),
+    getUse: () => invoke<boolean>("js_get_use"),
+    toggle: (enabled: boolean) =>
+      invoke<JsTogglePayload>("js_toggle", { enabled }),
+    load: () => invoke<JsLoadResult>("js_load"),
+    setContent: (content: string) =>
+      invoke<JsSetContentResult>("js_set_content", { content }),
+    reset: () => invoke("js_reset"),
+    onUse: (listener: (payload: JsTogglePayload) => void) =>
+      subscribe<JsTogglePayload>("js:use", listener),
+    onContent: (listener: (payload: CustomJs) => void) =>
+      subscribe<CustomJs>("js:content", listener),
   },
   presets: {
     save: () => invoke<PresetOperationResult>("preset_save"),

@@ -28,6 +28,12 @@ export default function Settings({ showAlert, showConfirm }) {
     setCustomCSSContent,
     customCSSPath,
     setCustomCSSPath,
+    useCustomJS,
+    setUseCustomJS,
+    customJSContent,
+    setCustomJSContent,
+    customJSPath,
+    setCustomJSPath,
     language,
     setLanguage,
     overlayResizeAnchor,
@@ -48,6 +54,8 @@ export default function Settings({ showAlert, showConfirm }) {
     keyCounter:
       "https://raw.githubusercontent.com/lee-sihun/DmNote/master/src/renderer/assets/mp4/counter.mp4",
     customCSS:
+      "https://raw.githubusercontent.com/lee-sihun/DmNote/master/src/renderer/assets/mp4/css.mp4",
+    customJS:
       "https://raw.githubusercontent.com/lee-sihun/DmNote/master/src/renderer/assets/mp4/css.mp4",
     resizeAnchor:
       "https://raw.githubusercontent.com/lee-sihun/DmNote/master/src/renderer/assets/mp4/resize.mp4",
@@ -142,6 +150,36 @@ export default function Settings({ showAlert, showConfirm }) {
     } catch (error) {
       console.error("Failed to load custom CSS", error);
       showAlert?.(`${t("settings.cssLoadFailed")}${error}`);
+    }
+  };
+
+  const handleToggleCustomJS = async () => {
+    const next = !useCustomJS;
+    setUseCustomJS(next);
+    try {
+      await window.api.js.toggle(next);
+    } catch (error) {
+      console.error("Failed to toggle custom JS", error);
+    }
+  };
+
+  const handleLoadCustomJS = async () => {
+    if (!useCustomJS) return;
+    try {
+      const result = await window.api.js.load();
+      if (result?.success) {
+        if (result.content) setCustomJSContent(result.content);
+        if (result.path) setCustomJSPath(result.path);
+        showAlert?.(t("settings.jsLoaded"));
+      } else {
+        const message = result?.error
+          ? `${t("settings.jsLoadFailed")}${result.error}`
+          : t("settings.jsLoadFailed");
+        showAlert?.(message);
+      }
+    } catch (error) {
+      console.error("Failed to load custom JS", error);
+      showAlert?.(`${t("settings.jsLoadFailed")}${error}`);
     }
   };
 
@@ -350,6 +388,48 @@ export default function Settings({ showAlert, showConfirm }) {
                     }
                   >
                     {t("settings.loadCss")}
+                  </button>
+                </div>
+              </div>
+              <div
+                className="flex flex-col gap-[0px]"
+                onMouseEnter={() => setHoveredKey("customJS")}
+                onMouseLeave={() => setHoveredKey(null)}
+              >
+                <div
+                  className="flex flex-row justify-between items-center h-[40px] cursor-pointer"
+                  onClick={handleToggleCustomJS}
+                >
+                  <p className="text-style-3 text-[#FFFFFF]">
+                    {t("settings.customJS")}
+                  </p>
+                  <Checkbox
+                    checked={useCustomJS}
+                    onChange={handleToggleCustomJS}
+                  />
+                </div>
+                <div className="flex flex-row justify-between items-center h-[40px]">
+                  <p
+                    className={
+                      "text-[12px] truncate max-w-[150px] " +
+                      (useCustomJS ? "text-[#989BA6]" : "text-[#44464E]")
+                    }
+                  >
+                    {customJSPath && customJSPath.length > 0
+                      ? customJSPath
+                      : t("settings.noJsFile")}
+                  </p>
+                  <button
+                    onClick={handleLoadCustomJS}
+                    disabled={!useCustomJS}
+                    className={
+                      "py-[4px] px-[8px] bg-[#2A2A31] border-[1px] border-[#3A3944] rounded-[7px] text-style-2 " +
+                      (useCustomJS
+                        ? "text-[#DBDEE8]"
+                        : "text-[#44464E] cursor-not-allowed bg-[#222228] border-[#31303C]")
+                    }
+                  >
+                    {t("settings.loadJs")}
                   </button>
                 </div>
               </div>

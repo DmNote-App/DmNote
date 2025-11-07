@@ -1,5 +1,6 @@
 import { BootstrapPayload } from "@src/types/app";
 import { CustomCss } from "@src/types/css";
+import { CustomJs } from "@src/types/js";
 import {
   CustomTab,
   KeyMappings,
@@ -33,6 +34,15 @@ export type OverlayResizePayload = OverlayBounds;
 export type CssTogglePayload = { enabled: boolean };
 export type CssSetContentResult = { success: boolean; error?: string };
 export type CssLoadResult = {
+  success: boolean;
+  error?: string;
+  content?: string;
+  path?: string;
+};
+
+export type JsTogglePayload = { enabled: boolean };
+export type JsSetContentResult = { success: boolean; error?: string };
+export type JsLoadResult = {
   success: boolean;
   error?: string;
   content?: string;
@@ -130,6 +140,16 @@ export interface DMNoteAPI {
     reset(): Promise<void>;
     onUse(listener: (payload: CssTogglePayload) => void): Unsubscribe;
     onContent(listener: (payload: CustomCss) => void): Unsubscribe;
+  };
+  js: {
+    get(): Promise<CustomJs>;
+    getUse(): Promise<boolean>;
+    toggle(enabled: boolean): Promise<JsTogglePayload>;
+    load(): Promise<JsLoadResult>;
+    setContent(content: string): Promise<JsSetContentResult>;
+    reset(): Promise<void>;
+    onUse(listener: (payload: JsTogglePayload) => void): Unsubscribe;
+    onContent(listener: (payload: CustomJs) => void): Unsubscribe;
   };
   presets: {
     save(): Promise<PresetOperationResult>;

@@ -36,7 +36,13 @@ export function useAppBootstrap() {
           customCSSPath: diff.changed.customCSS.path ?? null,
         });
       }
-      const { noteSettings, customCSS, ...rest } = diff.changed;
+      if (diff.changed.customJS) {
+        useSettingsStore.setState({
+          customJSContent: diff.changed.customJS.content,
+          customJSPath: diff.changed.customJS.path ?? null,
+        });
+      }
+      const { noteSettings, customCSS, customJS, ...rest } = diff.changed;
       const sanitized = Object.fromEntries(
         Object.entries(rest).filter(
           ([, value]) => value !== undefined && value !== null
@@ -60,6 +66,9 @@ export function useAppBootstrap() {
         useCustomCSS: bootstrap.settings.useCustomCSS,
         customCSSContent: bootstrap.settings.customCSS.content,
         customCSSPath: bootstrap.settings.customCSS.path,
+        useCustomJS: bootstrap.settings.useCustomJS,
+        customJSContent: bootstrap.settings.customJS.content,
+        customJSPath: bootstrap.settings.customJS.path,
         backgroundColor: bootstrap.settings.backgroundColor,
         language: bootstrap.settings.language,
         laboratoryEnabled: bootstrap.settings.laboratoryEnabled,
@@ -121,6 +130,15 @@ export function useAppBootstrap() {
         useSettingsStore.setState({
           customCSSContent: css.content,
           customCSSPath: css.path,
+        });
+      }),
+      window.api.js.onUse(({ enabled }) => {
+        useSettingsStore.setState({ useCustomJS: enabled });
+      }),
+      window.api.js.onContent((script) => {
+        useSettingsStore.setState({
+          customJSContent: script.content,
+          customJSPath: script.path,
         });
       }),
     ];

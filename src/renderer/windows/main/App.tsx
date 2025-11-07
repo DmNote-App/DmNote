@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { useTranslation } from "@contexts/I18nContext";
 import TitleBar from "@components/main/TitleBar";
 import { useCustomCssInjection } from "@hooks/useCustomCssInjection";
+import { useCustomJsInjection } from "@hooks/useCustomJsInjection";
 import ToolBar from "@components/main/Tool/ToolBar";
 import Grid from "@components/main/Grid";
 import SettingTab from "@components/main/Settings";
@@ -19,7 +20,24 @@ import { useAppBootstrap } from "@hooks/useAppBootstrap";
 export default function App() {
   const { selectedKeyType, setSelectedKeyType, isBootstrapped } = useKeyStore();
   useCustomCssInjection();
+  useCustomJsInjection();
   useAppBootstrap();
+
+  // 윈도우 타입
+  useEffect(() => {
+    try {
+      (window as any).__dmn_window_type = "main";
+    } catch (e) {
+      // ignore
+    }
+    return () => {
+      try {
+        delete (window as any).__dmn_window_type;
+      } catch (e) {
+        // ignore
+      }
+    };
+  }, []);
 
   const primaryButtonRef = useRef(null);
 

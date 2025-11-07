@@ -8,8 +8,8 @@ use crate::{
     app_state::AppState,
     defaults::{default_keys, default_positions},
     models::{
-        CustomCss, CustomCssPatch, CustomTab, KeyMappings, KeyPositions, NoteSettings,
-        NoteSettingsPatch, SettingsPatchInput,
+        CustomCss, CustomCssPatch, CustomJs, CustomJsPatch, CustomTab, KeyMappings, KeyPositions,
+        NoteSettings, NoteSettingsPatch, SettingsPatchInput,
     },
 };
 
@@ -35,6 +35,10 @@ struct PresetFile {
     use_custom_css: Option<bool>,
     #[serde(rename = "customCSS")]
     custom_css: Option<CustomCss>,
+    #[serde(rename = "useCustomJS")]
+    use_custom_js: Option<bool>,
+    #[serde(rename = "customJS")]
+    custom_js: Option<CustomJs>,
 }
 
 #[tauri::command(permission = "dmnote-allow-all")]
@@ -63,6 +67,8 @@ pub fn preset_save(state: State<'_, AppState>) -> Result<PresetOperationResult, 
         selected_key_type: Some(snapshot.selected_key_type),
         use_custom_css: Some(snapshot.use_custom_css),
         custom_css: Some(snapshot.custom_css),
+        use_custom_js: Some(snapshot.use_custom_js),
+        custom_js: Some(snapshot.custom_js),
     };
 
     let json = serde_json::to_string_pretty(&preset).map_err(|err| err.to_string())?;
@@ -129,6 +135,8 @@ pub fn preset_load(
 
     let css_use = preset.use_custom_css.unwrap_or(false);
     let custom_css = preset.custom_css.unwrap_or_default();
+    let js_use = preset.use_custom_js.unwrap_or(false);
+    let custom_js = preset.custom_js.unwrap_or_default();
 
     let diff = state
         .settings
@@ -145,6 +153,11 @@ pub fn preset_load(
             custom_css: Some(CustomCssPatch {
                 path: Some(custom_css.path.clone()),
                 content: Some(custom_css.content.clone()),
+            }),
+            use_custom_js: Some(js_use),
+            custom_js: Some(CustomJsPatch {
+                path: Some(custom_js.path.clone()),
+                content: Some(custom_js.content.clone()),
             }),
             ..SettingsPatchInput::default()
         })
@@ -174,6 +187,10 @@ pub fn preset_load(
     app.emit("css:use", &serde_json::json!({ "enabled": css_use }))
         .map_err(|err| err.to_string())?;
     app.emit("css:content", &custom_css)
+        .map_err(|err| err.to_string())?;
+    app.emit("js:use", &serde_json::json!({ "enabled": js_use }))
+        .map_err(|err| err.to_string())?;
+    app.emit("js:content", &custom_js)
         .map_err(|err| err.to_string())?;
 
     Ok(PresetOperationResult {
