@@ -1,3 +1,5 @@
+<meta name="google-site-verification" content="tw5pjIDYKCrq1QKYBrD5iyV7DXIM4rsHN9d11WlJFe4" />
+
 **한국어** | [English](docs/readme_en.md)
 
 <div align="center">
@@ -155,6 +157,7 @@ npm run tauri:dev
 - 동시 입력 간격 밀리초(ms) 표시
 - 입력 통계 분석 기능
  -->
+
 
 
 
