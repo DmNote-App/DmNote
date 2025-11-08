@@ -371,6 +371,8 @@ pub struct AppStoreData {
     pub language: String,
     pub laboratory_enabled: bool,
     #[serde(default)]
+    pub developer_mode_enabled: bool,
+    #[serde(default)]
     pub keys: KeyMappings,
     #[serde(default)]
     pub key_positions: KeyPositions,
@@ -406,6 +408,7 @@ impl Default for AppStoreData {
             angle_mode: "d3d11".to_string(),
             language: "ko".to_string(),
             laboratory_enabled: false,
+            developer_mode_enabled: false,
             keys: KeyMappings::new(),
             key_positions: KeyPositions::new(),
             key_counters: KeyCounters::new(),
@@ -456,6 +459,8 @@ pub struct SettingsState {
     pub angle_mode: String,
     pub language: String,
     pub laboratory_enabled: bool,
+    #[serde(default)]
+    pub developer_mode_enabled: bool,
     pub background_color: String,
     #[serde(rename = "useCustomCSS")]
     pub use_custom_css: bool,
@@ -483,6 +488,7 @@ impl Default for SettingsState {
             angle_mode: "d3d11".to_string(),
             language: "ko".to_string(),
             laboratory_enabled: false,
+            developer_mode_enabled: false,
             background_color: "transparent".to_string(),
             use_custom_css: false,
             custom_css: CustomCss::default(),
@@ -533,6 +539,7 @@ pub struct SettingsPatchInput {
     pub angle_mode: Option<String>,
     pub language: Option<String>,
     pub laboratory_enabled: Option<bool>,
+    pub developer_mode_enabled: Option<bool>,
     pub background_color: Option<String>,
     #[serde(rename = "useCustomCSS")]
     pub use_custom_css: Option<bool>,
@@ -592,6 +599,8 @@ pub struct SettingsPatch {
     pub language: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub laboratory_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub developer_mode_enabled: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub background_color: Option<String>,
     #[serde(rename = "useCustomCSS")]

@@ -81,7 +81,28 @@ export default function App() {
     setLaboratoryEnabled,
     noteSettings,
     setNoteSettings,
+    developerModeEnabled,
   } = useSettingsStore();
+
+  // 개발자 모드 비활성 시 DevTools 단축키 차단
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!developerModeEnabled) {
+        const isCtrlShiftI =
+          (e.ctrlKey || e.metaKey) &&
+          e.shiftKey &&
+          (e.key === "I" || e.key === "i");
+        const isF12 = e.key === "F12";
+        if (isCtrlShiftI || isF12) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [developerModeEnabled]);
+
   const { t } = useTranslation();
   const confirmCallbackRef = useRef(null);
   const [alertState, setAlertState] = useState(() => ({

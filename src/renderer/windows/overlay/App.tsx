@@ -50,6 +50,26 @@ export default function App() {
   useCustomCssInjection();
   useCustomJsInjection();
   useAppBootstrap();
+  const developerModeEnabled = useSettingsStore(
+    (state) => state.developerModeEnabled
+  );
+
+  // 개발자 모드 비활성 시 DevTools 단축키 차단
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isDevtoolsCombo =
+        ((e.ctrlKey || e.metaKey) &&
+          e.shiftKey &&
+          e.key.toLowerCase() === "i") ||
+        e.key === "F12";
+      if (!developerModeEnabled && isDevtoolsCombo) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [developerModeEnabled]);
 
   // 윈도우 타입
   useEffect(() => {

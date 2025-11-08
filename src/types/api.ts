@@ -91,6 +91,7 @@ export interface DMNoteAPI {
   window: {
     minimize(): Promise<void>;
     close(): Promise<void>;
+    openDevtoolsAll?(): Promise<void>;
   };
   settings: {
     get(): Promise<SettingsState>;

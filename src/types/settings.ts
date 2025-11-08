@@ -22,6 +22,7 @@ export interface SettingsState {
   angleMode: string;
   language: string;
   laboratoryEnabled: boolean;
+  developerModeEnabled: boolean;
   backgroundColor: string;
   useCustomCSS: boolean;
   customCSS: CustomCss;
@@ -40,6 +41,7 @@ export const DEFAULT_SETTINGS_STATE: SettingsState = {
   angleMode: "d3d11",
   language: "ko",
   laboratoryEnabled: false,
+  developerModeEnabled: false,
   backgroundColor: "transparent",
   useCustomCSS: false,
   customCSS: { path: null, content: "" },

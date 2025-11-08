@@ -96,6 +96,8 @@ export function useAppBootstrap() {
         backgroundColor: bootstrap.settings.backgroundColor,
         language: bootstrap.settings.language,
         laboratoryEnabled: bootstrap.settings.laboratoryEnabled,
+        developerModeEnabled:
+          (bootstrap.settings as any).developerModeEnabled ?? false,
         overlayResizeAnchor: bootstrap.settings.overlayResizeAnchor,
         keyCounterEnabled: bootstrap.settings.keyCounterEnabled,
       });

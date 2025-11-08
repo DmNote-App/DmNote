@@ -275,6 +275,7 @@ fn settings_from_store(store: &AppStoreData) -> SettingsState {
         angle_mode: store.angle_mode.clone(),
         language: store.language.clone(),
         laboratory_enabled: store.laboratory_enabled,
+        developer_mode_enabled: store.developer_mode_enabled,
         background_color: store.background_color.clone(),
         use_custom_css: store.use_custom_css,
         custom_css: store.custom_css.clone(),
@@ -324,6 +325,9 @@ fn repair_legacy_state(raw: &str) -> AppStoreData {
         }
         if let Some(v) = obj.get("laboratoryEnabled").and_then(Value::as_bool) {
             data.laboratory_enabled = v;
+        }
+        if let Some(v) = obj.get("developerModeEnabled").and_then(Value::as_bool) {
+            data.developer_mode_enabled = v;
         }
         if let Some(v) = obj
             .get("keys")

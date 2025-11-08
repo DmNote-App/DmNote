@@ -36,3 +36,16 @@ pub fn app_restart(app: AppHandle) -> Result<(), String> {
     app.request_restart();
     Ok(())
 }
+
+#[tauri::command(permission = "dmnote-allow-all")]
+pub fn window_open_devtools_all(app: AppHandle) -> Result<(), String> {
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.open_devtools();
+        let _ = main.show();
+    }
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        let _ = overlay.open_devtools();
+        let _ = overlay.show();
+    }
+    Ok(())
+}

@@ -63,6 +63,7 @@ const api: DMNoteAPI = {
   window: {
     minimize: () => invoke("window_minimize"),
     close: () => invoke("window_close"),
+    openDevtoolsAll: () => invoke("window_open_devtools_all"),
   },
   settings: {
     get: () => invoke<SettingsState>("settings_get"),

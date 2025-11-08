@@ -36,6 +36,7 @@ impl SettingsService {
             state.angle_mode = next.angle_mode.clone();
             state.language = next.language.clone();
             state.laboratory_enabled = next.laboratory_enabled;
+            state.developer_mode_enabled = next.developer_mode_enabled;
             state.background_color = next.background_color.clone();
             state.use_custom_css = next.use_custom_css;
             state.custom_css = next.custom_css.clone();
@@ -77,6 +78,9 @@ fn normalize_patch(patch: &SettingsPatchInput, current: &SettingsState) -> Setti
     }
     if let Some(value) = patch.laboratory_enabled {
         normalized.laboratory_enabled = Some(value);
+    }
+    if let Some(value) = patch.developer_mode_enabled {
+        normalized.developer_mode_enabled = Some(value);
     }
     if let Some(value) = patch.background_color.as_ref() {
         normalized.background_color = Some(value.clone());
@@ -126,6 +130,9 @@ fn apply_changes(mut current: SettingsState, patch: &SettingsPatch) -> SettingsS
     }
     if let Some(value) = patch.laboratory_enabled {
         current.laboratory_enabled = value;
+    }
+    if let Some(value) = patch.developer_mode_enabled {
+        current.developer_mode_enabled = value;
     }
     if let Some(value) = patch.background_color.as_ref() {
         current.background_color = value.clone();

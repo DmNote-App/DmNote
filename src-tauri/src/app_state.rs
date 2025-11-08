@@ -77,6 +77,16 @@ impl AppState {
     pub fn initialize_runtime(&self, app: &AppHandle) -> Result<()> {
         self.attach_main_window_handlers(app);
         self.ensure_overlay_window(app)?;
+        // 개발자 모드가 켜져 있으면 시작 시 DevTools 오픈 허용 및 자동 오픈 시도
+        let snapshot = self.store.snapshot();
+        if snapshot.developer_mode_enabled {
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.open_devtools();
+            }
+            if let Some(overlay) = app.get_webview_window("overlay") {
+                let _ = overlay.open_devtools();
+            }
+        }
         self.start_keyboard_hook(app.clone())?;
         Ok(())
     }
@@ -119,6 +129,7 @@ impl AppState {
                 angle_mode: state.angle_mode.clone(),
                 language: state.language.clone(),
                 laboratory_enabled: state.laboratory_enabled,
+                developer_mode_enabled: state.developer_mode_enabled,
                 background_color: state.background_color.clone(),
                 use_custom_css: state.use_custom_css,
                 custom_css: state.custom_css.clone(),
@@ -532,6 +543,7 @@ impl AppState {
         .inner_size(bounds.width, bounds.height)
         .position(bounds.x, bounds.y)
         .shadow(false)
+        .devtools(true)
         .build()
         .context("failed to create overlay window")?;
 
@@ -664,6 +676,18 @@ impl AppState {
 
         if let Some(value) = diff.changed.overlay_locked {
             self.set_overlay_lock(app, value, false)?;
+        }
+
+        if let Some(enabled) = diff.changed.developer_mode_enabled {
+            // 활성화 시에만 DevTools 열기 
+            if enabled {
+                if let Some(main) = app.get_webview_window("main") {
+                    let _ = main.open_devtools();
+                }
+                if let Some(overlay) = app.get_webview_window(OVERLAY_LABEL) {
+                    let _ = overlay.open_devtools();
+                }
+            }
         }
 
         Ok(())

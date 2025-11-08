@@ -102,6 +102,7 @@ fn main() {
             commands::system::window_close,
             commands::system::app_open_external,
             commands::system::app_restart,
+            commands::system::window_open_devtools_all,
         ])
         .run(context)
         .expect("error while running tauri application");

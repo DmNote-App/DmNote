@@ -21,11 +21,13 @@ interface SettingsState {
   backgroundColor: string;
   language: string;
   laboratoryEnabled: boolean;
+  developerModeEnabled: boolean;
   overlayResizeAnchor: OverlayResizeAnchor;
   keyCounterEnabled: boolean;
   setAll: (payload: SettingsStateSnapshot) => void;
   merge: (payload: Partial<SettingsStateSnapshot>) => void;
   setLaboratoryEnabled: (value: boolean) => void;
+  setDeveloperModeEnabled: (value: boolean) => void;
   setHardwareAcceleration: (value: boolean) => void;
   setAlwaysOnTop: (value: boolean) => void;
   setUseCustomCSS: (value: boolean) => void;
@@ -63,6 +65,7 @@ export type SettingsStateSnapshot = Omit<
   | "setBackgroundColor"
   | "setOverlayResizeAnchor"
   | "setKeyCounterEnabled"
+  | "setDeveloperModeEnabled"
 >;
 
 const initialState: SettingsStateSnapshot = {
@@ -80,6 +83,7 @@ const initialState: SettingsStateSnapshot = {
   backgroundColor: "transparent",
   language: "ko",
   laboratoryEnabled: false,
+  developerModeEnabled: false,
   overlayResizeAnchor: "top-left",
   keyCounterEnabled: false,
 };
@@ -118,6 +122,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   ...initialState,
   setAll: (payload) => set(() => mergeSnapshot(initialState, payload)),
   merge: (payload) => set((state) => mergeSnapshot(state, payload)),
+  setDeveloperModeEnabled: (value) => set({ developerModeEnabled: value }),
   setHardwareAcceleration: (value) => set({ hardwareAcceleration: value }),
   setAlwaysOnTop: (value) => set({ alwaysOnTop: value }),
   setUseCustomCSS: (value) => set({ useCustomCSS: value }),

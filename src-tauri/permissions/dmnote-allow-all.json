@@ -11,6 +11,7 @@
           "app_restart",
           "window_minimize",
           "window_close",
+          "window_open_devtools_all",
           "settings_get",
           "settings_update",
           "overlay_get",
