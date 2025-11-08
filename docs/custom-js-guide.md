@@ -187,8 +187,113 @@ window.__dmn_custom_js_cleanup = function () {
 - **`window.api.overlay`** - 오버레이 제어 (표시/숨김, 잠금, 리사이즈)
 - **`window.api.css`** / **`window.api.js`** - CSS/JS 커스텀 코드 관리
 - **`window.api.presets`** - 프리셋 저장/로드
+- **`window.api.bridge`** - 윈도우 간 통신 (플러그인 간 메시지 전송)
 
 또한 IPC 채널 저수준 구현에 대해서는 [`docs/ipc-channels.md`](../ipc-channels.md)를 참조하세요.
+
+---
+
+## 윈도우 간 통신 (`window.api.bridge`)
+
+플러그인은 **브릿지 API**를 사용하여 메인 윈도우와 오버레이 윈도우 간에 메시지를 주고받을 수 있습니다.
+
+### 기본 사용법
+
+```javascript
+// 메시지 전송 (모든 윈도우에 브로드캐스트)
+await window.api.bridge.send("MY_EVENT", { data: "hello" });
+
+// 특정 윈도우에만 전송
+await window.api.bridge.sendTo("overlay", "OVERLAY_EVENT", { value: 123 });
+
+// 메시지 수신
+const unsub = window.api.bridge.on("MY_EVENT", (data) => {
+  console.log("받은 데이터:", data);
+});
+
+// 1회만 수신
+window.api.bridge.once("INIT_COMPLETE", (data) => {
+  console.log("초기화 완료");
+});
+
+// 모든 메시지 수신 (디버깅용)
+window.api.bridge.onAny((type, data) => {
+  console.log(`[Bridge] ${type}:`, data);
+});
+```
+
+### 실전 예제: 윈도우 간 KPS 공유
+
+```javascript
+// === 오버레이 플러그인 (kps-sender.js) ===
+(function () {
+  if (window.__dmn_custom_js_cleanup) window.__dmn_custom_js_cleanup();
+  if (window.__dmn_window_type !== "overlay") return;
+
+  let currentKPS = 0;
+
+  // KPS 계산 로직
+  setInterval(() => {
+    currentKPS = calculateKPS(); // 실제 계산 함수
+
+    // 메인 윈도우로 전송
+    window.api.bridge.sendTo("main", "KPS_UPDATE", {
+      kps: currentKPS,
+      timestamp: Date.now(),
+    });
+  }, 100);
+
+  window.__dmn_custom_js_cleanup = function () {
+    delete window.__dmn_custom_js_cleanup;
+  };
+})();
+
+// === 메인 플러그인 (kps-display.js) ===
+(function () {
+  if (window.__dmn_custom_js_cleanup) window.__dmn_custom_js_cleanup();
+  if (window.__dmn_window_type !== "main") return;
+
+  const display = document.createElement("div");
+  display.style.cssText =
+    "position: fixed; top: 10px; right: 10px; padding: 10px; background: black; color: white;";
+  display.textContent = "KPS: 0";
+  document.body.appendChild(display);
+
+  // 오버레이로부터 KPS 업데이트 수신
+  const unsub = window.api.bridge.on("KPS_UPDATE", ({ kps, timestamp }) => {
+    display.textContent = `KPS: ${kps}`;
+  });
+
+  window.__dmn_custom_js_cleanup = function () {
+    unsub();
+    display.remove();
+    delete window.__dmn_custom_js_cleanup;
+  };
+})();
+```
+
+### 양방향 통신 패턴
+
+```javascript
+// === 메인 윈도우: 데이터 요청 ===
+window.api.bridge.send("REQUEST_STATS", {});
+
+// === 오버레이: 요청 처리 및 응답 ===
+window.api.bridge.on("REQUEST_STATS", () => {
+  window.api.bridge.sendTo("main", "RESPONSE_STATS", {
+    kps: currentKPS,
+    totalKeys: totalKeyCount,
+    uptime: Date.now() - startTime,
+  });
+});
+
+// === 메인: 응답 수신 ===
+window.api.bridge.once("RESPONSE_STATS", (stats) => {
+  console.log("통계:", stats);
+});
+```
+
+더 자세한 내용은 **[`docs/api-reference.md#브릿지-bridge`](./api-reference.md#브릿지-bridge)** 를 참조하세요.
 
 ---
 

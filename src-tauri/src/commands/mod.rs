@@ -1,4 +1,5 @@
 pub mod app;
+pub mod bridge;
 pub mod css;
 pub mod js;
 pub mod keys;

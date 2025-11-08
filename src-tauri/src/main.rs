@@ -98,6 +98,8 @@ fn main() {
             commands::overlay::overlay_set_lock,
             commands::overlay::overlay_set_anchor,
             commands::overlay::overlay_resize,
+            commands::bridge::plugin_bridge_send,
+            commands::bridge::plugin_bridge_send_to,
             commands::system::window_minimize,
             commands::system::window_close,
             commands::system::app_open_external,

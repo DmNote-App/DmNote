@@ -14,6 +14,7 @@
 - [CSS (css)](#css-css)
 - [JavaScript (js)](#javascript-js)
 - [프리셋 (presets)](#프리셋-presets)
+- [브릿지 (bridge)](#브릿지-bridge)
 - [공통 타입](#공통-타입)
 
 ---
@@ -1321,6 +1322,242 @@ window.api.overlay.onVisibility(({ visible }) => {
 
 ---
 
+## 브릿지 (bridge)
+
+브릿지 API는 **윈도우 간 통신**을 위한 플러그인 전용 API입니다. 메인 윈도우와 오버레이 윈도우 간에 메시지를 주고받을 수 있습니다.
+
+### `window.api.bridge.send(type, data)`
+
+모든 윈도우에 메시지를 브로드캐스트합니다.
+
+**매개변수**:
+
+- `type: string` - 메시지 타입 (예: `'WPM_UPDATE'`, `'RECORDING_STATE'`)
+- `data?: any` - 전송할 데이터 (선택사항)
+
+**반환형**: `Promise<void>`
+
+**사용 예**:
+
+```javascript
+// 오버레이 윈도우에서
+await window.api.bridge.send("WPM_UPDATE", { value: 80, max: 200 });
+
+// 메인 윈도우에서
+await window.api.bridge.send("RECORDING_START", { timestamp: Date.now() });
+```
+
+---
+
+### `window.api.bridge.sendTo(target, type, data)`
+
+특정 윈도우에만 메시지를 전송합니다.
+
+**매개변수**:
+
+- `target: 'main' | 'overlay'` - 대상 윈도우
+- `type: string` - 메시지 타입
+- `data?: any` - 전송할 데이터 (선택사항)
+
+**반환형**: `Promise<void>`
+
+**사용 예**:
+
+```javascript
+// 오버레이 윈도우만 대상으로 전송
+await window.api.bridge.sendTo("overlay", "THEME_CHANGED", { theme: "dark" });
+
+// 메인 윈도우만 대상으로 전송
+await window.api.bridge.sendTo("main", "KEY_PRESSED", { key: "KeyD" });
+```
+
+---
+
+### `window.api.bridge.on(type, listener)`
+
+특정 타입의 메시지를 구독합니다.
+
+**매개변수**:
+
+- `type: string` - 구독할 메시지 타입
+- `listener: (data: any) => void` - 메시지 수신 시 호출될 콜백
+
+**반환형**: `Unsubscribe` - 구독 해제 함수
+
+**사용 예**:
+
+```javascript
+// 메인 윈도우에서 WPM 업데이트 수신
+const unsub = window.api.bridge.on("WPM_UPDATE", (data) => {
+  console.log("현재 WPM:", data.value);
+  console.log("최대 WPM:", data.max);
+  // UI 업데이트 로직
+});
+
+// 나중에 구독 해제
+unsub();
+```
+
+---
+
+### `window.api.bridge.once(type, listener)`
+
+특정 타입의 메시지를 **1회만** 수신합니다.
+
+**매개변수**:
+
+- `type: string` - 구독할 메시지 타입
+- `listener: (data: any) => void` - 메시지 수신 시 호출될 콜백 (1회 후 자동 해제)
+
+**반환형**: `Unsubscribe` - 구독 해제 함수
+
+**사용 예**:
+
+```javascript
+// 초기화 완료 메시지를 1회만 수신
+window.api.bridge.once("INIT_COMPLETE", (data) => {
+  console.log("플러그인 초기화 완료:", data);
+});
+```
+
+---
+
+### `window.api.bridge.onAny(listener)`
+
+모든 타입의 메시지를 수신합니다. 디버깅이나 로깅에 유용합니다.
+
+**매개변수**:
+
+- `listener: (type: string, data: any) => void` - 메시지 수신 시 호출될 콜백
+
+**반환형**: `Unsubscribe` - 구독 해제 함수
+
+**사용 예**:
+
+```javascript
+// 모든 브릿지 메시지 로깅
+const unsub = window.api.bridge.onAny((type, data) => {
+  console.log(`[Bridge Message] ${type}:`, data);
+});
+
+// 정리
+unsub();
+```
+
+---
+
+### `window.api.bridge.off(type, listener?)`
+
+메시지 구독을 해제합니다.
+
+**매개변수**:
+
+- `type: string` - 구독 해제할 메시지 타입
+- `listener?: (data: any) => void` - 특정 리스너만 해제 (선택사항, 생략 시 해당 타입의 모든 리스너 해제)
+
+**반환형**: `void`
+
+**사용 예**:
+
+```javascript
+const myListener = (data) => console.log(data);
+
+// 구독
+window.api.bridge.on("WPM_UPDATE", myListener);
+
+// 특정 리스너 해제
+window.api.bridge.off("WPM_UPDATE", myListener);
+
+// 또는 해당 타입의 모든 리스너 해제
+window.api.bridge.off("WPM_UPDATE");
+```
+
+---
+
+### 브릿지 사용 패턴
+
+#### 패턴 1: 단순 이벤트 알림
+
+```javascript
+// 오버레이에서 전송
+window.api.bridge.send("KEY_PRESSED", { key: "KeyD", timestamp: Date.now() });
+
+// 메인에서 수신
+window.api.bridge.on("KEY_PRESSED", ({ key, timestamp }) => {
+  console.log(`${key} pressed at ${timestamp}`);
+});
+```
+
+#### 패턴 2: 상태 동기화
+
+```javascript
+// 오버레이 플러그인 (KPS 계산)
+let currentKPS = 0;
+setInterval(() => {
+  currentKPS = calculateKPS();
+  window.api.bridge.send("KPS_UPDATE", { kps: currentKPS });
+}, 100);
+
+// 메인 플러그인 (KPS 표시)
+window.api.bridge.on("KPS_UPDATE", ({ kps }) => {
+  document.getElementById("kps-display").textContent = kps;
+});
+```
+
+#### 패턴 3: 양방향 통신
+
+```javascript
+// 메인 윈도우: 데이터 요청
+window.api.bridge.send("REQUEST_CURRENT_KPS", {});
+
+// 오버레이 윈도우: 요청 처리 및 응답
+window.api.bridge.on("REQUEST_CURRENT_KPS", () => {
+  window.api.bridge.sendTo("main", "RESPONSE_CURRENT_KPS", {
+    kps: currentKPS,
+    max: maxKPS,
+  });
+});
+
+// 메인 윈도우: 응답 수신
+window.api.bridge.once("RESPONSE_CURRENT_KPS", ({ kps, max }) => {
+  console.log("현재 KPS:", kps, "최대:", max);
+});
+```
+
+#### 패턴 4: 타입 안전성 (TypeScript)
+
+```typescript
+// 메시지 타입 정의
+type BridgeMessages = {
+  WPM_UPDATE: { value: number; max: number };
+  RECORDING_STATE: { isRecording: boolean };
+  KEY_PRESSED: { key: string; timestamp: number };
+};
+
+// 타입 안전한 헬퍼 함수
+function sendBridgeMessage<K extends keyof BridgeMessages>(
+  type: K,
+  data: BridgeMessages[K]
+) {
+  return window.api.bridge.send(type, data);
+}
+
+function onBridgeMessage<K extends keyof BridgeMessages>(
+  type: K,
+  listener: (data: BridgeMessages[K]) => void
+) {
+  return window.api.bridge.on(type, listener);
+}
+
+// 사용
+sendBridgeMessage("WPM_UPDATE", { value: 80, max: 200 }); // 타입 체크됨
+onBridgeMessage("WPM_UPDATE", (data) => {
+  console.log(data.value); // 자동완성 지원
+});
+```
+
+---
+
 ## 주의사항
 
 1. **비동기 작업**: 모든 API 메서드는 `async` 작업입니다. `await` 또는 `.then()`을 사용하세요.
@@ -1329,11 +1566,13 @@ window.api.overlay.onVisibility(({ visible }) => {
 
 3. **윈도우 타입**: `keys:state` 이벤트는 **오버레이 윈도우에서만** 수신 가능합니다.
 
-4. **오류 처리**: 파일 로드 등의 작업은 오류가 발생할 수 있으므로 반드시 처리하세요.
+4. **브릿지 메시지**: `window.api.bridge`는 윈도우 간 통신을 위한 것이며, 같은 윈도우 내에서도 동작하지만 주로 다른 윈도우와 통신할 때 사용합니다.
 
-5. **타입 안전성**: TypeScript 프로젝트에서는 타입 정의를 활용하세요.
+5. **오류 처리**: 파일 로드 등의 작업은 오류가 발생할 수 있으므로 반드시 처리하세요.
 
-6. **개발자 모드**: 개발자 모드가 비활성화된 상태에서는 DevTools 접근이 키보드 단축키(Ctrl+Shift+I, F12) 차단으로 제한됩니다. 프로덕션 빌드에서 디버깅이 필요한 경우 설정 패널에서 개발자 모드를 활성화하세요.
+6. **타입 안전성**: TypeScript 프로젝트에서는 타입 정의를 활용하세요.
+
+7. **개발자 모드**: 개발자 모드가 비활성화된 상태에서는 DevTools 접근이 키보드 단축키(Ctrl+Shift+I, F12) 차단으로 제한됩니다. 프로덕션 빌드에서 디버깅이 필요한 경우 설정 패널에서 개발자 모드를 활성화하세요.
 
 ---
 

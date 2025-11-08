@@ -332,3 +332,28 @@
     - `keys:changed`, `positions:changed`, `customTabs:changed`, `keys:mode-changed`
     - `settings:changed`, `css:use`, `css:content`, `js:use`, `js:content`
     - `keys:counters`
+
+## bridge (플러그인 간 윈도우 통신)
+
+### 커맨드 (invoke)
+
+- `plugin_bridge_send` (invoke)
+
+  - 기능: 모든 윈도우에 메시지를 브로드캐스트합니다.
+  - 요청: `{ message_type: string; data?: any }`
+  - 응답: `void`
+  - 부수효과: `plugin-bridge:message` 이벤트를 모든 윈도우에 전송
+
+- `plugin_bridge_send_to` (invoke)
+  - 기능: 특정 윈도우에만 메시지를 전송합니다.
+  - 요청: `{ target: 'main' | 'overlay'; message_type: string; data?: any }`
+  - 응답: `void`
+  - 에러: 존재하지 않는 윈도우 타겟이나 윈도우를 찾을 수 없는 경우
+  - 부수효과: 지정된 윈도우에만 `plugin-bridge:message` 이벤트 전송
+
+### 브로드캐스트 (emit)
+
+- `plugin-bridge:message` (emit)
+  - 페이로드: `{ type: string; data?: any }`
+  - 수신처: 전송 방식에 따라 모든 윈도우 또는 특정 윈도우
+  - 용도: 플러그인 간 커스텀 메시지 전달 (예: KPS 업데이트, 녹화 상태 등)

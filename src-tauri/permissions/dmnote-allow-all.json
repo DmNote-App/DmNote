@@ -48,7 +48,9 @@
           "custom_tabs_delete",
           "custom_tabs_select",
           "preset_save",
-          "preset_load"
+          "preset_load",
+          "plugin_bridge_send",
+          "plugin_bridge_send_to"
         ],
         "deny": []
       }

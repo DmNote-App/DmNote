@@ -80,6 +80,11 @@ export type KeyCounterUpdate = { mode: string; key: string; count: number };
 
 export type PresetOperationResult = { success: boolean; error?: string };
 
+export type BridgeMessage<T = any> = { type: string; data?: T };
+export type BridgeMessageListener<T = any> = (data: T) => void;
+export type BridgeAnyListener = (type: string, data: any) => void;
+export type WindowTarget = "main" | "overlay";
+
 export type Unsubscribe = () => void;
 
 export interface DMNoteAPI {
@@ -175,5 +180,16 @@ export interface DMNoteAPI {
   presets: {
     save(): Promise<PresetOperationResult>;
     load(): Promise<PresetOperationResult>;
+  };
+  bridge: {
+    send(type: string, data?: any): Promise<void>;
+    sendTo(target: WindowTarget, type: string, data?: any): Promise<void>;
+    on<T = any>(type: string, listener: BridgeMessageListener<T>): Unsubscribe;
+    once<T = any>(
+      type: string,
+      listener: BridgeMessageListener<T>
+    ): Unsubscribe;
+    onAny(listener: BridgeAnyListener): Unsubscribe;
+    off(type: string, listener?: BridgeMessageListener): void;
   };
 }
