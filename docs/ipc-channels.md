@@ -43,6 +43,13 @@
   - 기능: 애플리케이션을 종료합니다 (메인 및 오버레이 윈도우 모두 닫음).
   - 응답: `void`
 
+- `window_open_devtools_all` (invoke)
+
+  - 기능: 메인 윈도우와 오버레이 윈도우의 DevTools를 엽니다.
+  - 요청: `void`
+  - 응답: `void`
+  - 비고: 개발자 모드 활성화 시 자동으로 호출됩니다. DevTools는 항상 허용되지만 접근은 키보드 단축키(Ctrl+Shift+I, F12) 차단으로 제어됩니다.
+
 - `app:open-external` (invoke)
 
   - 기능: 외부 URL을 기본 브라우저에서 엽니다.
@@ -60,6 +67,7 @@
 - `settings:update` (invoke)
   - 요청: `Partial<SettingsState>` (중첩 필드는 필요한 부분만)
   - 응답: `SettingsState` (정규화된 전체 상태)
+  - 비고: `developerModeEnabled` 필드를 통해 개발자 모드를 제어할 수 있습니다. 활성화 시 DevTools가 자동으로 열립니다.
 - `settings:changed` (broadcast)
   - 페이로드: `SettingsState`
 

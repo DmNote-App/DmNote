@@ -111,6 +111,23 @@ await window.api.window.close();
 
 ---
 
+### `window.api.window.openDevtoolsAll()`
+
+개발자 모드가 활성화된 경우 메인 창과 오버레이 창의 DevTools를 엽니다.
+
+**반환형**: `Promise<void>`
+
+**사용 예**:
+
+```javascript
+// 개발자 모드 토글 시 자동으로 호출됨
+await window.api.window.openDevtoolsAll();
+```
+
+**참고**: 이 API는 개발자 모드가 비활성화된 경우에도 호출은 가능하지만, 실제 DevTools 접근은 키보드 단축키(Ctrl+Shift+I, F12)가 차단되어 있습니다.
+
+---
+
 ## 설정 (settings)
 
 ### `window.api.settings.get()`
@@ -129,6 +146,7 @@ interface SettingsState {
   angleMode: string; // 렌더링 모드 (예: "d3d11")
   language: string; // 언어 코드 (예: "ko", "en")
   laboratoryEnabled: boolean; // 실험실 기능 활성화
+  developerModeEnabled: boolean; // 개발자 모드 활성화 (DevTools 접근 허용)
   backgroundColor: string; // 배경 색상 (CSS 색상값)
   useCustomCSS: boolean; // 커스텀 CSS 활성화
   customCSS: { path: string | null; content: string };
@@ -1314,6 +1332,8 @@ window.api.overlay.onVisibility(({ visible }) => {
 4. **오류 처리**: 파일 로드 등의 작업은 오류가 발생할 수 있으므로 반드시 처리하세요.
 
 5. **타입 안전성**: TypeScript 프로젝트에서는 타입 정의를 활용하세요.
+
+6. **개발자 모드**: 개발자 모드가 비활성화된 상태에서는 DevTools 접근이 키보드 단축키(Ctrl+Shift+I, F12) 차단으로 제한됩니다. 프로덕션 빌드에서 디버깅이 필요한 경우 설정 패널에서 개발자 모드를 활성화하세요.
 
 ---
 
