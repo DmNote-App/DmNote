@@ -371,6 +371,60 @@ console.log("저장된 키:", keys); // ['settings', 'position']
 })();
 ```
 
+### ⚠️ 빈값 저장 주의사항
+
+스토리지에 저장할 때 **비어있거나 의미 없는 값은 저장하지 않도록 권장**합니다. 불필요한 데이터 저장은 설정 파일을 오염시키고 플러그인 삭제 시 완전한 정리를 방해할 수 있습니다.
+
+**피해야 할 패턴**:
+
+```javascript
+// ❌ 나쁜 예: 항상 저장 (초기 로드 시에도)
+async function saveHistory(data) {
+  await window.api.plugin.storage.set("history", data); // data가 빈 배열이어도 저장됨
+}
+
+// ❌ 나쁜 예: 기본값도 저장
+await window.api.plugin.storage.set("count", 0); // 0이어도 저장됨
+await window.api.plugin.storage.set("items", []); // 빈 배열도 저장됨
+```
+
+**권장 패턴**:
+
+```javascript
+// ✅ 좋은 예: 의미 있는 값만 저장
+async function saveHistory(data) {
+  if (data && data.length > 0) {
+    await window.api.plugin.storage.set("history", data);
+  }
+}
+
+// ✅ 좋은 예: 기본값이 아닐 때만 저장
+if (count > 0) {
+  await window.api.plugin.storage.set("count", count);
+}
+
+if (items.length > 0) {
+  await window.api.plugin.storage.set("items", items);
+}
+
+// ✅ 좋은 예: 초기 로드 시에는 저장하지 않기
+async function initializeSettings() {
+  const saved = await window.api.plugin.storage.get("settings");
+  if (saved) {
+    // 저장된 데이터 사용
+    return saved;
+  }
+  // 저장되지 않은 기본값만 반환 (저장하지 않음)
+  return getDefaultSettings();
+}
+```
+
+**이점**:
+
+- 설정 파일 크기 감소
+- 플러그인 삭제 후 완전히 깔끔한 정리
+- 스토리지 동작의 명확성 증가
+
 더 자세한 내용은 **[`docs/api-reference.md#플러그인-plugin`](./api-reference.md#플러그인-plugin)** 를 참조하세요.
 
 ---

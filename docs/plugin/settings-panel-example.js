@@ -210,8 +210,13 @@
   }
 
   async function saveHistory() {
-    await window.api.plugin.storage.set("history", keyHistory);
-    await window.api.plugin.storage.set("press-count", keyPressCount);
+    // 빈 값은 저장하지 않음 (불필요한 스토리지 키 생성 방지)
+    if (keyHistory.length > 0) {
+      await window.api.plugin.storage.set("history", keyHistory);
+    }
+    if (keyPressCount > 0) {
+      await window.api.plugin.storage.set("press-count", keyPressCount);
+    }
   }
 
   function applySettings() {
