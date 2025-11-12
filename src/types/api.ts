@@ -113,6 +113,39 @@ export type PluginMenuItemInternal<TContext = any> =
     fullId: string;
   };
 
+// UI Plugin Display Element types
+export type PluginDisplayElementContextMenu = {
+  enableDelete?: boolean;
+  deleteLabel?: string; // 삭제 메뉴 텍스트 (기본: "삭제")
+  customItems?: PluginMenuItem<{ element: PluginDisplayElement }>[];
+};
+
+export type PluginDisplayElement = {
+  id: string;
+  html: string;
+  position: {
+    x: number;
+    y: number;
+  };
+  anchor?: {
+    keyCode: string;
+    offset?: { x: number; y: number };
+  };
+  draggable?: boolean;
+  zIndex?: number;
+  scoped?: boolean;
+  className?: string;
+  style?: Record<string, string>;
+  estimatedSize?: { width: number; height: number };
+  contextMenu?: PluginDisplayElementContextMenu;
+};
+
+export type PluginDisplayElementInternal = PluginDisplayElement & {
+  pluginId: string;
+  fullId: string;
+  measuredSize?: { width: number; height: number };
+};
+
 export type Unsubscribe = () => void;
 
 export interface DMNoteAPI {
@@ -241,6 +274,12 @@ export interface DMNoteAPI {
         updates: Partial<PluginMenuItem<any>>
       ): void;
       clearMyMenuItems(): void;
+    };
+    displayElement: {
+      add(element: Omit<PluginDisplayElement, "id">): string;
+      update(fullId: string, updates: Partial<PluginDisplayElement>): void;
+      remove(fullId: string): void;
+      clearMyElements(): void;
     };
   };
 }

@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { usePluginMenuStore } from "@stores/usePluginMenuStore";
+import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementStore";
+import type { PluginDisplayElement } from "@src/types/api";
 
 import type {
   CssLoadResult,
@@ -368,6 +370,81 @@ const api: DMNoteAPI = {
         }
 
         usePluginMenuStore.getState().clearByPluginId(pluginId);
+      },
+    },
+    displayElement: {
+      add: (element: Omit<PluginDisplayElement, "id">) => {
+        // 메인 윈도우에서만 추가 가능
+        if ((window as any).__dmn_window_type !== "main") {
+          console.warn(
+            "[UI API] displayElement.add is only available in main window"
+          );
+          return "";
+        }
+
+        const pluginId = (window as any).__dmn_current_plugin_id;
+        if (!pluginId) {
+          console.warn(
+            "[UI API] displayElement.add called outside plugin context"
+          );
+          return "";
+        }
+
+        const id = `element-${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(7)}`;
+        const fullId = `${pluginId}::${id}`;
+
+        const internalElement = {
+          ...element,
+          id,
+          pluginId,
+          fullId,
+        };
+
+        usePluginDisplayElementStore.getState().addElement(internalElement);
+        return fullId;
+      },
+
+      update: (fullId: string, updates: Partial<PluginDisplayElement>) => {
+        if ((window as any).__dmn_window_type !== "main") {
+          console.warn(
+            "[UI API] displayElement.update is only available in main window"
+          );
+          return;
+        }
+
+        usePluginDisplayElementStore.getState().updateElement(fullId, updates);
+      },
+
+      remove: (fullId: string) => {
+        if ((window as any).__dmn_window_type !== "main") {
+          console.warn(
+            "[UI API] displayElement.remove is only available in main window"
+          );
+          return;
+        }
+
+        usePluginDisplayElementStore.getState().removeElement(fullId);
+      },
+
+      clearMyElements: () => {
+        if ((window as any).__dmn_window_type !== "main") {
+          console.warn(
+            "[UI API] displayElement.clearMyElements is only available in main window"
+          );
+          return;
+        }
+
+        const pluginId = (window as any).__dmn_current_plugin_id;
+        if (!pluginId) {
+          console.warn(
+            "[UI API] clearMyElements called outside plugin context"
+          );
+          return;
+        }
+
+        usePluginDisplayElementStore.getState().clearByPluginId(pluginId);
       },
     },
   },

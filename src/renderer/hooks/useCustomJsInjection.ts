@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { JsPlugin } from "@src/types/js";
 import { extractPluginId } from "@utils/pluginUtils";
 import { usePluginMenuStore } from "@stores/usePluginMenuStore";
+import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementStore";
 
 const SCRIPT_ID_PREFIX = "dmn-custom-js-";
 
@@ -14,7 +15,7 @@ export function useCustomJsInjection() {
     const anyWindow = window as unknown as CleanupAwareWindow;
     const activeElements = new Map<
       string,
-      { element: HTMLScriptElement; cleanup?: () => void }
+      { element: HTMLScriptElement; cleanup?: () => void; pluginId?: string }
     >();
     let enabled = false;
     let disposed = false;
@@ -31,8 +32,20 @@ export function useCustomJsInjection() {
     };
 
     const removeAll = () => {
-      for (const [id, { element, cleanup }] of activeElements.entries()) {
-        safeRun(cleanup, id);
+      for (const [
+        id,
+        { element, cleanup, pluginId },
+      ] of activeElements.entries()) {
+        // cleanup 함수 실행 시 플러그인 컨텍스트 설정
+        if (cleanup && pluginId) {
+          const previousPluginId = (window as any).__dmn_current_plugin_id;
+          (window as any).__dmn_current_plugin_id = pluginId;
+          safeRun(cleanup, id);
+          (window as any).__dmn_current_plugin_id = previousPluginId;
+        } else {
+          safeRun(cleanup, id);
+        }
+
         if (element && element.parentNode) {
           element.remove();
         }
@@ -43,8 +56,9 @@ export function useCustomJsInjection() {
       if ((window as any).__dmn_window_type === "main") {
         try {
           usePluginMenuStore.getState().clearAll();
+          usePluginDisplayElementStore.getState().elements = [];
         } catch (error) {
-          console.error("Failed to clear plugin menus", error);
+          console.error("Failed to clear plugin UI elements", error);
         }
       }
     };
@@ -72,9 +86,12 @@ export function useCustomJsInjection() {
             if ((window as any).__dmn_window_type === "main") {
               try {
                 usePluginMenuStore.getState().clearByPluginId(pluginId);
+                usePluginDisplayElementStore
+                  .getState()
+                  .clearByPluginId(pluginId);
               } catch (error) {
                 console.error(
-                  `Failed to clear menus for plugin '${pluginId}'`,
+                  `Failed to clear UI elements for plugin '${pluginId}'`,
                   error
                 );
               }
@@ -186,6 +203,7 @@ export function useCustomJsInjection() {
               element,
               cleanup:
                 typeof pluginCleanup === "function" ? pluginCleanup : undefined,
+              pluginId, // cleanup 시 컨텍스트 복원을 위해 저장
             });
           } catch (error) {
             console.error(`Failed to inject JS plugin '${plugin.name}'`, error);

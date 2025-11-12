@@ -17,6 +17,8 @@ import {
   type KeyPosition,
 } from "@src/types/keys";
 import KeyCounterLayer from "@components/overlay/KeyCounterLayer";
+import { PluginElementsRenderer } from "@components/PluginElementsRenderer";
+import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementStore";
 
 const FALLBACK_POSITION: KeyPosition = {
   dx: 0,
@@ -90,6 +92,9 @@ export default function App() {
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   const keyMappings = useKeyStore((state) => state.keyMappings);
   const positions = useKeyStore((state) => state.positions);
+  const pluginElements = usePluginDisplayElementStore(
+    (state) => state.elements
+  );
 
   const backgroundColor = useSettingsStore((state) => state.backgroundColor);
   const noteSettings = useSettingsStore((state) => state.noteSettings);
@@ -167,12 +172,53 @@ export default function App() {
   );
 
   const bounds = useMemo<Bounds | null>(() => {
-    if (!currentPositions.length) return null;
+    if (!currentPositions.length && !pluginElements.length) return null;
 
-    const xs = currentPositions.map((pos) => pos.dx);
-    const ys = currentPositions.map((pos) => pos.dy);
-    const widths = currentPositions.map((pos) => pos.dx + pos.width);
-    const heights = currentPositions.map((pos) => pos.dy + pos.height);
+    const xs: number[] = [];
+    const ys: number[] = [];
+    const widths: number[] = [];
+    const heights: number[] = [];
+
+    // 키 위치
+    currentPositions.forEach((pos) => {
+      xs.push(pos.dx);
+      ys.push(pos.dy);
+      widths.push(pos.dx + pos.width);
+      heights.push(pos.dy + pos.height);
+    });
+
+    // 플러그인 요소 위치 (앵커 기반 계산 포함)
+    pluginElements.forEach((element) => {
+      let x = element.position.x;
+      let y = element.position.y;
+
+      // 앵커 기반 위치 계산
+      if (element.anchor?.keyCode && selectedKeyType) {
+        const keyIndex = currentKeys.findIndex(
+          (key) => key === element.anchor?.keyCode
+        );
+        if (keyIndex >= 0 && currentPositions[keyIndex]) {
+          const keyPosition = currentPositions[keyIndex];
+          const offsetX = element.anchor.offset?.x ?? 0;
+          const offsetY = element.anchor.offset?.y ?? 0;
+          x = keyPosition.dx + offsetX;
+          y = keyPosition.dy + offsetY;
+        }
+      }
+
+      // 실제 측정된 크기 또는 추정 크기 사용
+      const width =
+        element.measuredSize?.width ?? element.estimatedSize?.width ?? 200;
+      const height =
+        element.measuredSize?.height ?? element.estimatedSize?.height ?? 150;
+
+      xs.push(x);
+      ys.push(y);
+      widths.push(x + width);
+      heights.push(y + height);
+    });
+
+    if (xs.length === 0) return null;
 
     return {
       minX: Math.min(...xs),
@@ -180,7 +226,7 @@ export default function App() {
       maxX: Math.max(...widths),
       maxY: Math.max(...heights),
     };
-  }, [currentPositions]);
+  }, [currentPositions, pluginElements, selectedKeyType, currentKeys]);
 
   const displayPositions = useMemo<KeyPosition[]>(() => {
     if (!bounds || !currentPositions.length) {
@@ -197,6 +243,16 @@ export default function App() {
       dy: position.dy + offsetY,
     }));
   }, [currentPositions, bounds, trackHeight, layoutVersion]);
+
+  // 오버레이의 위치 오프셋 계산
+  const positionOffset = useMemo(() => {
+    if (!bounds) return { x: 0, y: 0 };
+    const topOffset = trackHeight + PADDING;
+    return {
+      x: PADDING - bounds.minX,
+      y: topOffset - bounds.minY,
+    };
+  }, [bounds, trackHeight]);
 
   const topMostY = useMemo(() => {
     if (!displayPositions.length) return 0;
@@ -309,6 +365,10 @@ export default function App() {
           mode={selectedKeyType}
         />
       ) : null}
+      <PluginElementsRenderer
+        windowType="overlay"
+        positionOffset={positionOffset}
+      />
     </div>
   );
 }

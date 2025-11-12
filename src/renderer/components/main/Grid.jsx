@@ -7,6 +7,7 @@ import CounterSettingModal from "./Modal/content/CounterSetting";
 import ListPopup from "./Modal/ListPopup";
 import { useKeyStore } from "@stores/useKeyStore";
 import { usePluginMenuStore } from "@stores/usePluginMenuStore";
+import { PluginElementsRenderer } from "@components/PluginElementsRenderer";
 
 const GRID_SNAP = 5;
 const snapToGrid = (value) => {
@@ -393,6 +394,7 @@ export default function Grid({
     >
       {renderKeys()}
       {renderDuplicateGhost()}
+      <PluginElementsRenderer windowType="main" />
       {/* 우클릭 리스트 팝업 */}
       <div className="relative">
         <ListPopup
@@ -533,20 +535,34 @@ export default function Grid({
               };
 
               try {
+                // 플러그인 컨텍스트 설정
+                const previousPluginId = window.__dmn_current_plugin_id;
+                window.__dmn_current_plugin_id = pluginItem.pluginId;
+
                 const result = pluginItem.onClick(context);
                 if (result && typeof result.then === "function") {
-                  result.catch((error) => {
-                    console.error(
-                      `[Plugin Menu] Error in '${pluginItem.label}':`,
-                      error
-                    );
-                  });
+                  result
+                    .catch((error) => {
+                      console.error(
+                        `[Plugin Menu] Error in '${pluginItem.label}':`,
+                        error
+                      );
+                    })
+                    .finally(() => {
+                      // 비동기 작업 완료 후 컨텍스트 복원
+                      window.__dmn_current_plugin_id = previousPluginId;
+                    });
+                } else {
+                  // 동기 작업이면 즉시 복원
+                  window.__dmn_current_plugin_id = previousPluginId;
                 }
               } catch (error) {
                 console.error(
                   `[Plugin Menu] Error in '${pluginItem.label}':`,
                   error
                 );
+                // 에러 발생 시에도 컨텍스트 복원
+                window.__dmn_current_plugin_id = previousPluginId;
               }
 
               setIsGridContextOpen(false);

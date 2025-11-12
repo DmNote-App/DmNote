@@ -2124,6 +2124,401 @@ window.api.ui.contextMenu.addGridMenuItem({
 
 ---
 
+### Display Element (`window.api.ui.displayElement`)
+
+**Display Element**는 플러그인이 그리드와 오버레이에 커스텀 DOM 요소를 동적으로 추가할 수 있게 하는 API입니다.
+
+#### Display Element의 역할과 특성
+
+- **그리드-오버레이 통합**: 그리드(메인 윈도우)에서 추가한 요소가 자동으로 오버레이 윈도우에도 동기화됩니다
+- **Key 컴포넌트 유사**: Key 컴포넌트와 동일한 방식으로 두 윈도우에서 렌더링되며, 위치 정보가 공유됩니다
+- **위치 지정 방식**:
+  - **절대 위치**: `{ x: number, y: number }` 좌표로 직접 배치
+  - **앵커 기반**: 특정 키에 상대적으로 배치 (예: 키 옆에 통계 표시)
+- **드래그 지원**: 그리드에서 마우스로 드래그하여 위치 변경 가능
+- **HTML 기반**: HTML 문자열로 콘텐츠를 정의하며, React 컴포넌트가 아닌 순수 DOM 요소
+- **스타일 격리 옵션**: Shadow DOM을 활용한 CSS 스코핑 지원
+
+#### `window.api.ui.displayElement.add(element)`
+
+그리드와 오버레이에 표시될 DOM 요소를 추가합니다.
+
+**매개변수**:
+
+- `element: Omit<PluginDisplayElement, "id">`
+
+```typescript
+interface PluginDisplayElement {
+  html: string; // HTML 콘텐츠 (문자열)
+  position: { x: number; y: number }; // 절대 위치 (픽셀)
+  anchor?: {
+    // 선택적 앵커 기반 위치
+    keyCode: string; // 기준 키 코드 (예: "KeyD")
+    offset?: { x: number; y: number }; // 키로부터의 오프셋
+  };
+  draggable?: boolean; // 그리드에서 드래그 가능 여부 (기본: false)
+  zIndex?: number; // 레이어링 (기본: 50, 키 위/컨텍스트 메뉴 아래)
+  scoped?: boolean; // Shadow DOM 사용 여부 (기본: false)
+  className?: string; // CSS 클래스
+  style?: Record<string, string>; // 인라인 스타일
+  estimatedSize?: { width: number; height: number }; // 예상 크기 (오버레이 bounds 계산용, 선택적)
+  contextMenu?: {
+    // 우클릭 컨텍스트 메뉴 (선택적)
+    enableDelete?: boolean; // 삭제 메뉴 활성화 (기본: true)
+    deleteLabel?: string; // 삭제 메뉴 텍스트 (기본: "삭제")
+    customItems?: Array<{
+      id: string;
+      label: string;
+      onClick: (context: { element: PluginDisplayElement }) => void;
+    }>;
+  };
+}
+```
+
+**반환형**: `string` - 요소의 전역 고유 ID (`pluginId::elementId`)
+
+**참고**:
+
+- 요소의 실제 크기는 렌더링 후 자동으로 측정되어 오버레이 윈도우 크기에 반영됩니다
+- `estimatedSize`를 제공하면 초기 렌더링 전에도 더 정확한 크기 계산이 가능합니다
+
+**사용 예**:
+
+```javascript
+// 기본 사용 - 절대 위치 + 내장 컨텍스트 메뉴
+const elementId = window.api.ui.displayElement.add({
+  html: '<div style="padding: 10px; background: #333; color: white;">통계: 0</div>',
+  position: { x: 100, y: 100 },
+  draggable: true,
+  zIndex: 10,
+  estimatedSize: { width: 150, height: 50 },
+  contextMenu: {
+    enableDelete: true, // 우클릭 시 삭제 메뉴
+    enableDuplicate: true, // 우클릭 시 복제 메뉴
+  },
+});
+
+// 앵커 기반 - 키에 상대적 배치
+window.api.ui.displayElement.add({
+  html: '<div class="counter-badge">999+</div>',
+  position: { x: 0, y: 0 }, // 폴백 위치
+  anchor: {
+    keyCode: "KeyD", // D키에 앵커
+    offset: { x: 50, y: -20 }, // 키의 오른쪽 위
+  },
+  className: "plugin-badge",
+});
+
+// Shadow DOM 사용 - 스타일 격리
+window.api.ui.displayElement.add({
+  html: `
+    <style>
+      .widget { background: red; padding: 20px; }
+    </style>
+    <div class="widget">격리된 위젯</div>
+  `,
+  position: { x: 200, y: 200 },
+  scoped: true, // Shadow DOM 활성화
+});
+
+// 커스텀 컨텍스트 메뉴 아이템
+window.api.ui.displayElement.add({
+  html: "<div>설정 가능한 위젯</div>",
+  position: { x: 300, y: 300 },
+  contextMenu: {
+    enableDelete: true,
+    enableDuplicate: true,
+    customItems: [
+      {
+        id: "configure",
+        label: "⚙️ 설정",
+        onClick: ({ element }) => {
+          console.log("설정 열기", element);
+        },
+      },
+    ],
+  },
+});
+```
+
+---
+
+#### `window.api.ui.displayElement.update(fullId, updates)`
+
+기존 요소를 업데이트합니다.
+
+**매개변수**:
+
+- `fullId: string` - 요소 ID
+- `updates: Partial<PluginDisplayElement>` - 업데이트할 필드
+
+**반환형**: `void`
+
+**사용 예**:
+
+```javascript
+// HTML 콘텐츠 업데이트
+window.api.ui.displayElement.update(elementId, {
+  html: '<div style="padding: 10px; background: #333; color: white;">통계: 123</div>',
+});
+
+// 위치 변경
+window.api.ui.displayElement.update(elementId, {
+  position: { x: 150, y: 150 },
+  anchor: undefined, // 앵커 제거
+});
+
+// 앵커 변경
+window.api.ui.displayElement.update(elementId, {
+  anchor: { keyCode: "KeyF", offset: { x: 0, y: 60 } },
+});
+```
+
+---
+
+#### `window.api.ui.displayElement.remove(fullId)`
+
+특정 요소를 제거합니다.
+
+**매개변수**:
+
+- `fullId: string` - 요소 ID
+
+**반환형**: `void`
+
+**사용 예**:
+
+```javascript
+window.api.ui.displayElement.remove(elementId);
+```
+
+---
+
+#### `window.api.ui.displayElement.clearMyElements()`
+
+현재 플러그인이 추가한 모든 요소를 제거합니다.
+
+**반환형**: `void`
+
+**사용 예**:
+
+```javascript
+// 클린업 시 호출
+window.__dmn_custom_js_cleanup = function () {
+  window.api.ui.displayElement.clearMyElements();
+  delete window.__dmn_custom_js_cleanup;
+};
+```
+
+---
+
+### Display Element 사용 패턴
+
+#### 패턴 1: 키 통계 표시
+
+```javascript
+(function () {
+  if (window.__dmn_custom_js_cleanup) window.__dmn_custom_js_cleanup();
+  if (window.__dmn_window_type !== "main") return;
+
+  let statElement = null;
+
+  // 키 카운터 구독
+  const unsubscribe = window.api.keys.onCounterChanged((update) => {
+    if (update.key === "KeyD") {
+      if (!statElement) {
+        // 첫 업데이트 시 요소 생성
+        statElement = window.api.ui.displayElement.add({
+          html: `<div style="background: rgba(0,0,0,0.8); color: white; padding: 5px 10px; border-radius: 5px;">D: ${update.count}</div>`,
+          position: { x: 0, y: 0 },
+          anchor: { keyCode: "KeyD", offset: { x: 70, y: 0 } },
+          zIndex: 100,
+        });
+      } else {
+        // 기존 요소 업데이트
+        window.api.ui.displayElement.update(statElement, {
+          html: `<div style="background: rgba(0,0,0,0.8); color: white; padding: 5px 10px; border-radius: 5px;">D: ${update.count}</div>`,
+        });
+      }
+    }
+  });
+
+  window.__dmn_custom_js_cleanup = function () {
+    unsubscribe();
+    window.api.ui.displayElement.clearMyElements();
+    delete window.__dmn_custom_js_cleanup;
+  };
+})();
+```
+
+#### 패턴 2: 드래그 가능한 타이머
+
+```javascript
+(function () {
+  if (window.__dmn_custom_js_cleanup) window.__dmn_custom_js_cleanup();
+  if (window.__dmn_window_type !== "main") return;
+
+  let seconds = 0;
+  let timerId = null;
+
+  const elementId = window.api.ui.displayElement.add({
+    html: `
+      <div id="timer-widget" style="
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        font-size: 24px;
+        font-weight: bold;
+        text-align: center;
+        cursor: move;
+        user-select: none;
+      ">
+        00:00
+      </div>
+    `,
+    position: { x: 200, y: 100 },
+    draggable: true,
+    zIndex: 50,
+  });
+
+  // 타이머 시작
+  timerId = setInterval(() => {
+    seconds++;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    const timeStr = `${String(mins).padStart(2, "0")}:${String(secs).padStart(
+      2,
+      "0"
+    )}`;
+
+    window.api.ui.displayElement.update(elementId, {
+      html: `
+        <div id="timer-widget" style="
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 20px;
+          border-radius: 10px;
+          font-size: 24px;
+          font-weight: bold;
+          text-align: center;
+          cursor: move;
+          user-select: none;
+        ">
+          ${timeStr}
+        </div>
+      `,
+    });
+  }, 1000);
+
+  window.__dmn_custom_js_cleanup = function () {
+    if (timerId) clearInterval(timerId);
+    window.api.ui.displayElement.clearMyElements();
+    delete window.__dmn_custom_js_cleanup;
+  };
+})();
+```
+
+#### 패턴 3: Shadow DOM으로 스타일 격리
+
+```javascript
+window.api.ui.displayElement.add({
+  html: `
+    <style>
+      :host {
+        display: block;
+      }
+      .widget {
+        background: #ff6b6b;
+        padding: 15px;
+        border-radius: 8px;
+        color: white;
+        font-family: monospace;
+      }
+      .widget:hover {
+        background: #ee5a52;
+      }
+    </style>
+    <div class="widget">
+      <h3>격리된 위젯</h3>
+      <p>외부 CSS의 영향을 받지 않습니다</p>
+    </div>
+  `,
+  position: { x: 300, y: 200 },
+  scoped: true, // Shadow DOM 활성화
+  draggable: true,
+});
+```
+
+#### 패턴 4: 동적 앵커 변경
+
+```javascript
+let currentKeyCode = "KeyD";
+let elementId = null;
+
+// 초기 요소 생성
+elementId = window.api.ui.displayElement.add({
+  html: '<div style="background: yellow; padding: 10px;">→</div>',
+  position: { x: 0, y: 0 },
+  anchor: { keyCode: currentKeyCode, offset: { x: 70, y: 20 } },
+});
+
+// 키 이벤트 구독 - 활성 키에 따라 앵커 변경
+window.api.keys.onKeyState((event) => {
+  if (event.state === "DOWN") {
+    currentKeyCode = event.key;
+    window.api.ui.displayElement.update(elementId, {
+      anchor: { keyCode: currentKeyCode, offset: { x: 70, y: 20 } },
+    });
+  }
+});
+```
+
+#### 패턴 5: 여러 요소 관리
+
+```javascript
+(function () {
+  if (window.__dmn_custom_js_cleanup) window.__dmn_custom_js_cleanup();
+  if (window.__dmn_window_type !== "main") return;
+
+  const elements = [];
+
+  // 여러 요소 추가
+  elements.push(
+    window.api.ui.displayElement.add({
+      html: '<div style="background: red; padding: 10px;">Element 1</div>',
+      position: { x: 50, y: 50 },
+    })
+  );
+
+  elements.push(
+    window.api.ui.displayElement.add({
+      html: '<div style="background: blue; padding: 10px;">Element 2</div>',
+      position: { x: 150, y: 50 },
+    })
+  );
+
+  elements.push(
+    window.api.ui.displayElement.add({
+      html: '<div style="background: green; padding: 10px;">Element 3</div>',
+      position: { x: 250, y: 50 },
+    })
+  );
+
+  window.__dmn_custom_js_cleanup = function () {
+    // 방법 1: 개별 제거
+    elements.forEach((id) => window.api.ui.displayElement.remove(id));
+
+    // 방법 2: 일괄 제거 (더 간단)
+    // window.api.ui.displayElement.clearMyElements();
+
+    delete window.__dmn_custom_js_cleanup;
+  };
+})();
+```
+
+---
+
 ## 주의사항
 
 1. **비동기 작업**: 모든 API 메서드는 `async` 작업입니다. `await` 또는 `.then()`을 사용하세요.
