@@ -141,6 +141,12 @@ export default function App() {
         const editable = active.isContentEditable;
         if (tag === "input" || tag === "textarea" || editable) return;
       }
+      // 모달이 열려있으면 탭 전환 차단
+      const hasModal = document.querySelector(
+        ".fixed.top-\\[31px\\].left-\\[1px\\]"
+      );
+      if (hasModal) return;
+
       const defaults = ["4key", "5key", "6key", "8key"];
       if (!isBootstrapped || !defaults.includes(selectedKeyType)) return;
       e.preventDefault();
