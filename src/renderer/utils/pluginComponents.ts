@@ -27,6 +27,9 @@ export interface InputOptions {
   onChange?: string;
   id?: string;
   width?: number;
+  min?: number;
+  max?: number;
+  step?: number;
 }
 
 export interface DropdownOption {
@@ -135,6 +138,9 @@ export function createInput(options: InputOptions = {}): string {
     onChange = "",
     id = "",
     width = 200,
+    min,
+    max,
+    step,
   } = options;
 
   const onInputAttr = onInput ? `data-plugin-handler-input="${onInput}"` : "";
@@ -142,8 +148,11 @@ export function createInput(options: InputOptions = {}): string {
     ? `data-plugin-handler-change="${onChange}"`
     : "";
   const idAttr = id ? `id="${id}"` : "";
+  const minAttr = min !== undefined ? `min="${min}"` : "";
+  const maxAttr = max !== undefined ? `max="${max}"` : "";
+  const stepAttr = step !== undefined ? `step="${step}"` : "";
 
-  return `<input ${idAttr} type="${type}" value="${value}" placeholder="${placeholder}" class="text-center px-[12px] h-[23px] bg-[#2A2A30] rounded-[7px] border-[1px] border-[#3A3943] focus:border-[#459BF8] text-style-4 text-[#DBDEE8] outline-none" style="width: ${width}px" ${
+  return `<input ${idAttr} type="${type}" value="${value}" placeholder="${placeholder}" class="text-center px-[12px] h-[23px] bg-[#2A2A30] rounded-[7px] border-[1px] border-[#3A3943] focus:border-[#459BF8] text-style-4 text-[#DBDEE8] outline-none" style="width: ${width}px" ${minAttr} ${maxAttr} ${stepAttr} ${
     disabled ? "disabled" : ""
   } ${onInputAttr} ${onChangeAttr} />`;
 }

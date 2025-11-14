@@ -3051,7 +3051,7 @@ document.body.appendChild(panel);
   - `size?: 'small' | 'medium' | 'large'` - 버튼 크기 (기본값: 'medium')
   - `disabled?: boolean` - 비활성화 여부 (기본값: false)
   - `fullWidth?: boolean` - 전체 너비 사용 (기본값: false)
-  - `onClick?: string` - 이벤트 핸들러 ID
+  - `onClick?: string | function` - 이벤트 핸들러 (ID 또는 함수)
   - `id?: string` - DOM ID
 
 **반환형**: `string` - HTML 문자열
@@ -3084,7 +3084,7 @@ const disabledBtn = window.api.ui.components.button("처리 중...", {
 
 - `options?: CheckboxOptions` - 선택적 설정
   - `checked?: boolean` - 체크 상태 (기본값: false)
-  - `onChange?: string` - 이벤트 핸들러 ID
+  - `onChange?: string | function` - 이벤트 핸들러 (ID 또는 함수)
   - `id?: string` - DOM ID (label과 input 모두에 설정됨)
 
 **반환형**: `string` - HTML 문자열
@@ -3123,10 +3123,13 @@ window.handleCheckboxChange = function (e) {
   - `placeholder?: string` - 플레이스홀더 텍스트
   - `value?: string | number` - 초기값
   - `disabled?: boolean` - 비활성화 여부
-  - `onInput?: string` - input 이벤트 핸들러 ID
-  - `onChange?: string` - change 이벤트 핸들러 ID
+  - `onInput?: string | function` - input 이벤트 핸들러 (ID 또는 함수)
+  - `onChange?: string | function` - change 이벤트 핸들러 (ID 또는 함수)
   - `id?: string` - DOM ID
   - `width?: number` - 너비 (픽셀, 기본값: 200)
+  - `min?: number` - 최소값 (type='number'일 때)
+  - `max?: number` - 최대값 (type='number'일 때)
+  - `step?: number` - 증감 단위 (type='number'일 때)
 
 **반환형**: `string` - HTML 문자열
 
@@ -3143,6 +3146,9 @@ const nameInput = window.api.ui.components.input({
 const numberInput = window.api.ui.components.input({
   type: "number",
   value: 10,
+  min: 0,
+  max: 100,
+  step: 5,
   width: 100,
 });
 ```
@@ -3158,9 +3164,9 @@ const numberInput = window.api.ui.components.input({
 - `options: DropdownOptions` - 필수 설정
   - `options: Array<{ label: string; value: string }>` - 옵션 목록
   - `selected?: string` - 선택된 값
-  - `placeholder?: string` - 플레이스홀더 (기본값: "선택")
+  - `placeholder?: string` - 플레이스홀더 (기본가: "선택")
   - `disabled?: boolean` - 비활성화 여부
-  - `onChange?: string` - 이벤트 핸들러 ID
+  - `onChange?: string | function` - 이벤트 핸들러 (ID 또는 함수)
   - `id?: string` - DOM ID
 
 **반환형**: `string` - HTML 문자열

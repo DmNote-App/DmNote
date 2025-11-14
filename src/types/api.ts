@@ -157,6 +157,55 @@ export type PluginDisplayElementInternal = PluginDisplayElement & {
 
 export type Unsubscribe = () => void;
 
+// UI Components Options
+export interface ButtonOptions {
+  variant?: "primary" | "danger" | "secondary";
+  size?: "small" | "medium" | "large";
+  disabled?: boolean;
+  fullWidth?: boolean;
+  onClick?: string | (() => void | Promise<void>);
+  id?: string;
+}
+
+export interface CheckboxOptions {
+  checked?: boolean;
+  onChange?: string | ((event: Event) => void | Promise<void>);
+  id?: string;
+}
+
+export interface InputOptions {
+  type?: "text" | "number";
+  placeholder?: string;
+  value?: string | number;
+  disabled?: boolean;
+  onInput?: string | ((event: Event) => void | Promise<void>);
+  onChange?: string | ((event: Event) => void | Promise<void>);
+  id?: string;
+  width?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+export interface DropdownOption {
+  label: string;
+  value: string;
+}
+
+export interface DropdownOptions {
+  options: DropdownOption[];
+  selected?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  onChange?: string | ((event: Event) => void | Promise<void>);
+  id?: string;
+}
+
+export interface PanelOptions {
+  title?: string;
+  width?: number;
+}
+
 export interface DMNoteAPI {
   app: {
     bootstrap(): Promise<BootstrapPayload>;
@@ -312,11 +361,11 @@ export interface DMNoteAPI {
       ): Promise<boolean>;
     };
     components: {
-      button(text: string, options?: any): string;
-      checkbox(options?: any): string;
-      input(options?: any): string;
-      dropdown(options: any): string;
-      panel(content: string, options?: any): string;
+      button(text: string, options?: ButtonOptions): string;
+      checkbox(options?: CheckboxOptions): string;
+      input(options?: InputOptions): string;
+      dropdown(options: DropdownOptions): string;
+      panel(content: string, options?: PanelOptions): string;
       formRow(label: string, component: string): string;
     };
   };
