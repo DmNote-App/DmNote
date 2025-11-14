@@ -81,6 +81,20 @@ export const PluginElement: React.FC<PluginElementProps> = ({
           position: { x: newX, y: newY },
           anchor: undefined, // 드래그하면 앵커 제거
         });
+
+        // onPositionChange 핸들러 호출
+        if (element.onPositionChange) {
+          const handler = (window as any)[element.onPositionChange];
+          if (typeof handler === "function") {
+            const prev = (window as any).__dmn_current_plugin_id;
+            (window as any).__dmn_current_plugin_id = element.pluginId;
+            try {
+              handler({ x: newX, y: newY });
+            } finally {
+              (window as any).__dmn_current_plugin_id = prev;
+            }
+          }
+        }
       }
     },
   });
@@ -292,7 +306,12 @@ export const PluginElement: React.FC<PluginElementProps> = ({
       top: 0,
       transform: `translate3d(${renderX}px, ${renderY}px, 0)`,
       zIndex: element.zIndex ?? 50, // 기본값: 키(0-1)보다 위, 컨텍스트 메뉴(1000)보다 아래
-      cursor: element.draggable && windowType === "main" ? "move" : "default",
+      cursor:
+        element.draggable && windowType === "main"
+          ? "move"
+          : element.onClick && windowType === "main"
+          ? "pointer"
+          : "default",
       willChange: "transform",
       pointerEvents: windowType === "main" ? "auto" : "none",
       ...element.style,
@@ -302,6 +321,7 @@ export const PluginElement: React.FC<PluginElementProps> = ({
       renderY,
       element.zIndex,
       element.draggable,
+      element.onClick,
       element.style,
       windowType,
     ]
@@ -337,6 +357,28 @@ export const PluginElement: React.FC<PluginElementProps> = ({
     setContextMenuOpen(true);
   };
 
+  // onClick 핸들러
+  const handleClick = (e: React.MouseEvent) => {
+    // onClick 핸들러가 있고, 메인 윈도우에서만
+    if (!element.onClick || windowType !== "main") return;
+
+    // 우클릭은 컨텍스트 메뉴용이므로 제외
+    if (e.button !== 0) return;
+
+    // 플러그인 컨텍스트 복원 후 핸들러 실행
+    const handler = (window as any)[element.onClick];
+    if (typeof handler === "function") {
+      const prev = (window as any).__dmn_current_plugin_id;
+      if (element.pluginId)
+        (window as any).__dmn_current_plugin_id = element.pluginId;
+      try {
+        handler(e);
+      } finally {
+        (window as any).__dmn_current_plugin_id = prev;
+      }
+    }
+  };
+
   // 컨텍스트 메뉴 항목 생성
   const contextMenuItems = useMemo<ListItem[]>(() => {
     if (!element.contextMenu) return [];
@@ -366,6 +408,20 @@ export const PluginElement: React.FC<PluginElementProps> = ({
   // 컨텍스트 메뉴 항목 선택
   const handleContextMenuSelect = (itemId: string) => {
     if (itemId === "delete") {
+      // onDelete 핸들러 호출
+      if (element.onDelete) {
+        const handler = (window as any)[element.onDelete];
+        if (typeof handler === "function") {
+          const prev = (window as any).__dmn_current_plugin_id;
+          (window as any).__dmn_current_plugin_id = element.pluginId;
+          try {
+            handler();
+          } finally {
+            (window as any).__dmn_current_plugin_id = prev;
+          }
+        }
+      }
+
       removeElement(element.fullId);
     } else if (itemId.startsWith("custom-")) {
       const index = parseInt(itemId.replace("custom-", ""), 10);
@@ -392,6 +448,7 @@ export const PluginElement: React.FC<PluginElementProps> = ({
         style={elementStyle}
         data-plugin-element={element.fullId}
         data-plugin-id={element.pluginId}
+        onClick={handleClick}
         onContextMenu={handleContextMenu}
       />
 

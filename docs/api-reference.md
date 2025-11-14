@@ -2392,6 +2392,9 @@ interface PluginDisplayElement {
   className?: string; // CSS 클래스
   style?: Record<string, string>; // 인라인 스타일
   estimatedSize?: { width: number; height: number }; // 예상 크기 (오버레이 bounds 계산용, 선택적)
+  onClick?: string; // 클릭 이벤트 핸들러 ID (메인 윈도우에서만)
+  onPositionChange?: string; // 위치 변경 핸들러 ID (메인 윈도우에서만, 드래그 시 호출)
+  onDelete?: string; // 삭제 핸들러 ID (메인 윈도우에서만, 컨텍스트 메뉴로 삭제 시 호출)
   contextMenu?: {
     // 우클릭 컨텍스트 메뉴 (선택적)
     enableDelete?: boolean; // 삭제 메뉴 활성화 (기본: true)
@@ -2424,8 +2427,39 @@ const elementId = window.api.ui.displayElement.add({
   estimatedSize: { width: 150, height: 50 },
   contextMenu: {
     enableDelete: true, // 우클릭 시 삭제 메뉴
-    enableDuplicate: true, // 우클릭 시 복제 메뉴
   },
+});
+
+// onClick 핸들러 - 클릭 시 모달 열기
+window.handlePanelClick = () => {
+  console.log("패널 클릭됨!");
+  // 모달 열기 등의 작업
+};
+
+window.api.ui.displayElement.add({
+  html: '<div style="padding: 10px; background: #333; color: white; cursor: pointer;">클릭하세요</div>',
+  position: { x: 100, y: 100 },
+  onClick: "handlePanelClick", // 핸들러 ID
+});
+
+// onPositionChange와 onDelete - 위치 및 삭제 감지
+window.handlePositionChange = (position) => {
+  console.log("새 위치:", position);
+  // 위치를 저장하거나 다른 작업 수행
+};
+
+window.handlePanelDelete = () => {
+  console.log("패널 삭제됨!");
+  // 상태 정리 등의 작업
+};
+
+window.api.ui.displayElement.add({
+  html: '<div style="padding: 10px; background: #333; color: white;">드래그 가능</div>',
+  position: { x: 100, y: 100 },
+  draggable: true,
+  onPositionChange: "handlePositionChange",
+  onDelete: "handlePanelDelete",
+  contextMenu: { enableDelete: true },
 });
 
 // 앵커 기반 - 키에 상대적 배치
@@ -2457,7 +2491,6 @@ window.api.ui.displayElement.add({
   position: { x: 300, y: 300 },
   contextMenu: {
     enableDelete: true,
-    enableDuplicate: true,
     customItems: [
       {
         id: "configure",
@@ -2680,7 +2713,45 @@ window.api.ui.displayElement.add({
 });
 ```
 
-#### 패턴 4: 동적 앵커 변경
+#### 패턴 4: onClick으로 상호작용 추가
+
+```javascript
+(function () {
+  if (window.__dmn_custom_js_cleanup) window.__dmn_custom_js_cleanup();
+  if (window.__dmn_window_type !== "main") return;
+
+  let count = 0;
+  let elementId = null;
+
+  // 클릭 핸들러 정의
+  window.handleCounterClick = () => {
+    count++;
+    window.api.ui.displayElement.update(elementId, {
+      html: `<div style="background: #333; color: white; padding: 15px; border-radius: 8px; cursor: pointer; user-select: none;">
+        클릭 횟수: ${count}
+      </div>`,
+    });
+  };
+
+  // Display Element 생성
+  elementId = window.api.ui.displayElement.add({
+    html: `<div style="background: #333; color: white; padding: 15px; border-radius: 8px; cursor: pointer; user-select: none;">
+      클릭 횟수: 0
+    </div>`,
+    position: { x: 100, y: 100 },
+    onClick: "handleCounterClick", // 핸들러 ID
+    draggable: true,
+  });
+
+  window.__dmn_custom_js_cleanup = function () {
+    delete window.handleCounterClick;
+    window.api.ui.displayElement.clearMyElements();
+    delete window.__dmn_custom_js_cleanup;
+  };
+})();
+```
+
+#### 패턴 5: 동적 앵커 변경
 
 ```javascript
 let currentKeyCode = "KeyD";
@@ -2704,7 +2775,7 @@ window.api.keys.onKeyState((event) => {
 });
 ```
 
-#### 패턴 5: 여러 요소 관리
+#### 패턴 6: 여러 요소 관리
 
 ```javascript
 (function () {
@@ -3014,9 +3085,14 @@ const disabledBtn = window.api.ui.components.button("처리 중...", {
 - `options?: CheckboxOptions` - 선택적 설정
   - `checked?: boolean` - 체크 상태 (기본값: false)
   - `onChange?: string` - 이벤트 핸들러 ID
-  - `id?: string` - DOM ID
+  - `id?: string` - DOM ID (label과 input 모두에 설정됨)
 
 **반환형**: `string` - HTML 문자열
+
+**참고**:
+
+- `id`를 지정하면 label에는 `id`, 내부 input에는 `id-input` 형식으로 설정됩니다
+- change 이벤트는 input에서 발생하므로, 핸들러에서 `e.target.id`는 `{id}-input` 형식입니다
 
 **사용 예**:
 
@@ -3025,6 +3101,13 @@ const enabledCheckbox = window.api.ui.components.checkbox({
   checked: true,
   id: "settings-enabled",
 });
+
+// 핸들러 예시
+window.handleCheckboxChange = function (e) {
+  // e.target.id는 "settings-enabled-input"
+  const checked = e.target.checked;
+  console.log("체크박스 상태:", checked);
+};
 ```
 
 ---

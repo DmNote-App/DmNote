@@ -110,13 +110,14 @@ export function createCheckbox(options: CheckboxOptions = {}): string {
     : "left-[2px] bg-[#989BA6]";
 
   const onChangeAttr = onChange ? `data-plugin-handler="${onChange}"` : "";
-  const idAttr = id ? `id="${id}"` : "";
+  const labelIdAttr = id ? `id="${id}"` : "";
+  const inputIdAttr = id ? `id="${id}-input"` : ""; // input에도 id 추가
 
   // 내부 input[type=checkbox] 추가 (실제 상태 유지)
-  return `<label ${idAttr} class="relative inline-block w-[27px] h-[16px] rounded-[75px] cursor-pointer transition-colors duration-75 ${bgClass}" data-checkbox-toggle ${onChangeAttr}>
-    <input type="checkbox" ${
-      checked ? "checked" : ""
-    } class="absolute opacity-0 w-0 h-0" />
+  return `<label ${labelIdAttr} class="relative inline-block w-[27px] h-[16px] rounded-[75px] cursor-pointer transition-colors duration-75 ${bgClass}" data-checkbox-toggle ${onChangeAttr}>
+    <input type="checkbox" ${inputIdAttr} ${
+    checked ? "checked" : ""
+  } class="absolute opacity-0 w-0 h-0" />
     <div class="absolute w-[12px] h-[12px] rounded-[75px] top-[2px] transition-all duration-75 ease-in-out ${knobClass}"></div>
   </label>`;
 }
