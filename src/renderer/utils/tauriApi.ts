@@ -63,6 +63,9 @@ class PluginHandlerRegistry {
       });
       this.pluginHandlers.delete(pluginId);
     }
+
+    // Components API 핸들러도 정리
+    clearComponentHandlers(pluginId);
   }
 
   /**
@@ -85,12 +88,8 @@ import {
   createDropdown,
   createPanel,
   createFormRow,
-  type ButtonOptions,
-  type CheckboxOptions,
-  type InputOptions,
-  type DropdownOptions,
-  type PanelOptions,
 } from "./pluginComponents";
+import { clearComponentHandlers } from "./pluginUtils";
 
 import type {
   CssLoadResult,
@@ -123,6 +122,11 @@ import type {
   BridgeMessageListener,
   BridgeAnyListener,
   WindowTarget,
+  ButtonOptions,
+  CheckboxOptions,
+  InputOptions,
+  DropdownOptions,
+  PanelOptions,
 } from "@src/types/api";
 import type { BootstrapPayload } from "@src/types/app";
 import type { CustomCss } from "@src/types/css";

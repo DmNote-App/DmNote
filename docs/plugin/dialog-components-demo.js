@@ -58,10 +58,13 @@
 
     // Components 예제 - 설정 패널 (Custom Dialog로 표시)
     async showSettingsPanel() {
+      // ✨ 개선된 방식: 함수 직접 전달
       const enabledCheckbox = window.api.ui.components.checkbox({
         checked: true,
         id: "demo-enabled",
-        onChange: "handleSettingsChange",
+        onChange: (checked) => {
+          console.log("[Demo] 활성화 상태 변경:", checked);
+        },
       });
 
       const themeDropdown = window.api.ui.components.dropdown({
@@ -72,7 +75,9 @@
         ],
         selected: "dark",
         id: "demo-theme",
-        onChange: "handleSettingsChange",
+        onChange: (value) => {
+          console.log("[Demo] 테마 변경:", value);
+        },
       });
 
       const volumeInput = window.api.ui.components.input({
@@ -80,7 +85,9 @@
         value: 50,
         width: 47,
         id: "demo-volume",
-        onInput: "handleSettingsChange",
+        onInput: (value) => {
+          console.log("[Demo] 볼륨 변경:", value);
+        },
       });
 
       const nameInput = window.api.ui.components.input({
@@ -167,18 +174,27 @@
       }
     },
 
-    // Components 예제 - 버튼 쇼케이스 (Custom Dialog로 표시)
+    // 버튼 쇼케이스 (Custom Dialog로 표시)
     async showButtonShowcase() {
       const primaryBtn = window.api.ui.components.button("Primary", {
         variant: "primary",
+        onClick: () => {
+          console.log("[Demo] Primary 버튼 클릭");
+        },
       });
 
       const dangerBtn = window.api.ui.components.button("Danger", {
         variant: "danger",
+        onClick: () => {
+          console.log("[Demo] Danger 버튼 클릭");
+        },
       });
 
       const secondaryBtn = window.api.ui.components.button("Secondary", {
         variant: "secondary",
+        onClick: () => {
+          console.log("[Demo] Secondary 버튼 클릭");
+        },
       });
 
       const disabledBtn = window.api.ui.components.button("비활성화", {
@@ -202,11 +218,6 @@
 
       // Custom Dialog로 표시 (모달 형태)
       await window.api.ui.dialog.custom(showcaseHtml);
-    },
-
-    // 설정 변경 핸들러
-    handleSettingsChange() {
-      console.log("[Demo] 설정 변경됨");
     },
 
     // 설정 저장 핸들러

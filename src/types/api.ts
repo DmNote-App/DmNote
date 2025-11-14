@@ -169,7 +169,7 @@ export interface ButtonOptions {
 
 export interface CheckboxOptions {
   checked?: boolean;
-  onChange?: string | ((event: Event) => void | Promise<void>);
+  onChange?: string | ((checked: boolean) => void | Promise<void>);
   id?: string;
 }
 
@@ -178,8 +178,8 @@ export interface InputOptions {
   placeholder?: string;
   value?: string | number;
   disabled?: boolean;
-  onInput?: string | ((event: Event) => void | Promise<void>);
-  onChange?: string | ((event: Event) => void | Promise<void>);
+  onInput?: string | ((value: string) => void | Promise<void>);
+  onChange?: string | ((value: string) => void | Promise<void>);
   id?: string;
   width?: number;
   min?: number;
@@ -197,7 +197,7 @@ export interface DropdownOptions {
   selected?: string;
   placeholder?: string;
   disabled?: boolean;
-  onChange?: string | ((event: Event) => void | Promise<void>);
+  onChange?: string | ((value: string) => void | Promise<void>);
   id?: string;
 }
 

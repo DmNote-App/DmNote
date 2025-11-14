@@ -390,65 +390,37 @@
       graphSpeed: graphSpeed !== undefined ? graphSpeed : 3000,
     };
 
-    // 체크박스 핸들러
-    function checkboxHandler(e) {
-      const id = e.target.id.replace("-input", "");
-      const checked = e.target.checked;
-
-      if (id === "kps-kps-checkbox") tempSettings.visibility.kps = checked;
-      else if (id === "kps-avg-checkbox") tempSettings.visibility.avg = checked;
-      else if (id === "kps-max-checkbox") tempSettings.visibility.max = checked;
-      else if (id === "kps-graph-checkbox") tempSettings.showGraph = checked;
-    }
-
-    // 드롭다운 핸들러
-    function dropdownHandler(e) {
-      const dropdown = e.target.closest(".plugin-dropdown");
-      if (dropdown) {
-        tempSettings.graphType = dropdown.getAttribute("data-selected");
-      }
-    }
-
-    // Input 핸들러
-    function inputHandler(e) {
-      const targetId = e.target.id;
-      if (targetId === "kps-speed-input") {
-        const value = parseInt(e.target.value, 10);
-        if (!isNaN(value) && value > 0) {
-          tempSettings.graphSpeed = value;
-        }
-      }
-    }
-
-    window.__kpsCheckboxHandler = checkboxHandler;
-    window.__kpsDropdownHandler = dropdownHandler;
-    window.__kpsInputHandler = inputHandler;
-
-    const addChangeHandler = (html, id) => {
-      return html.replace(
-        `id="${id}"`,
-        `id="${id}" data-plugin-handler-change="__kpsCheckboxHandler"`
-      );
-    };
-
+    // ✨ 개선된 방식: 함수 직접 전달
     const kpsCheckbox = window.api.ui.components.checkbox({
       checked: visibility.kps,
       id: "kps-kps-checkbox",
+      onChange: (checked) => {
+        tempSettings.visibility.kps = checked;
+      },
     });
 
     const avgCheckbox = window.api.ui.components.checkbox({
       checked: visibility.avg,
       id: "kps-avg-checkbox",
+      onChange: (checked) => {
+        tempSettings.visibility.avg = checked;
+      },
     });
 
     const maxCheckbox = window.api.ui.components.checkbox({
       checked: visibility.max,
       id: "kps-max-checkbox",
+      onChange: (checked) => {
+        tempSettings.visibility.max = checked;
+      },
     });
 
     const graphCheckbox = window.api.ui.components.checkbox({
       checked: showGraph,
       id: "kps-graph-checkbox",
+      onChange: (checked) => {
+        tempSettings.showGraph = checked;
+      },
     });
 
     const graphTypeDropdown = window.api.ui.components.dropdown({
@@ -458,6 +430,9 @@
       ],
       selected: tempSettings.graphType,
       id: "kps-graph-type",
+      onChange: (value) => {
+        tempSettings.graphType = value;
+      },
     });
 
     const graphSpeedInput = window.api.ui.components.input({
@@ -468,48 +443,28 @@
       step: 100,
       width: 60,
       id: "kps-speed-input",
+      onInput: (value) => {
+        const num = parseInt(value, 10);
+        if (!isNaN(num) && num > 0) {
+          tempSettings.graphSpeed = num;
+        }
+      },
+      onChange: (value) => {
+        const num = parseInt(value, 10);
+        if (!isNaN(num) && num > 0) {
+          tempSettings.graphSpeed = num;
+        }
+      },
     });
-
-    const addDropdownHandler = (html, id) => {
-      return html.replace(
-        `id="${id}"`,
-        `id="${id}" data-plugin-handler-change="__kpsDropdownHandler"`
-      );
-    };
-
-    const addInputHandler = (html, id) => {
-      return html.replace(
-        `id="${id}"`,
-        `id="${id}" data-plugin-handler-input="__kpsInputHandler" data-plugin-handler-change="__kpsInputHandler"`
-      );
-    };
 
     const formHtml = `
       <div class="flex flex-col gap-[16px] w-full">
-        ${window.api.ui.components.formRow(
-          "KPS 표시",
-          addChangeHandler(kpsCheckbox, "kps-kps-checkbox")
-        )}
-        ${window.api.ui.components.formRow(
-          "AVG 표시",
-          addChangeHandler(avgCheckbox, "kps-avg-checkbox")
-        )}
-        ${window.api.ui.components.formRow(
-          "MAX 표시",
-          addChangeHandler(maxCheckbox, "kps-max-checkbox")
-        )}
-        ${window.api.ui.components.formRow(
-          "그래프 표시",
-          addChangeHandler(graphCheckbox, "kps-graph-checkbox")
-        )}
-        ${window.api.ui.components.formRow(
-          "그래프 형태",
-          addDropdownHandler(graphTypeDropdown, "kps-graph-type")
-        )}
-        ${window.api.ui.components.formRow(
-          "그래프 속도 (ms)",
-          addInputHandler(graphSpeedInput, "kps-speed-input")
-        )}
+        ${window.api.ui.components.formRow("KPS 표시", kpsCheckbox)}
+        ${window.api.ui.components.formRow("AVG 표시", avgCheckbox)}
+        ${window.api.ui.components.formRow("MAX 표시", maxCheckbox)}
+        ${window.api.ui.components.formRow("그래프 표시", graphCheckbox)}
+        ${window.api.ui.components.formRow("그래프 형태", graphTypeDropdown)}
+        ${window.api.ui.components.formRow("그래프 속도 (ms)", graphSpeedInput)}
       </div>
     `;
 
@@ -518,10 +473,6 @@
       confirmText: "저장",
       showCancel: true,
     });
-
-    delete window.__kpsCheckboxHandler;
-    delete window.__kpsDropdownHandler;
-    delete window.__kpsInputHandler;
 
     if (confirmed) {
       panel.settings.visibility = { ...tempSettings.visibility };

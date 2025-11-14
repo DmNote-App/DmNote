@@ -1044,6 +1044,271 @@ window.api.bridge.once("RESPONSE_STATS", (stats) => {
 
 ---
 
+## UI Components API ✨
+
+플러그인에서 다이얼로그 내부에 사용할 수 있는 **UI 컴포넌트**를 제공합니다. `window.api.ui.dialog.custom()`과 함께 사용하여 풍부한 입력 폼을 만들 수 있습니다.
+
+### 🎉 함수 직접 전달 방식 (권장)
+
+**이벤트 핸들러를 함수로 직접 전달**하면 시스템이 자동으로 등록하고 관리합니다.
+
+```javascript
+// ✅ 권장: 함수 직접 전달
+const checkbox = window.api.ui.components.checkbox({
+  checked: true,
+  onChange: (checked) => {
+    console.log("체크박스 상태:", checked);
+    // 클로저로 로컬 변수에 자유롭게 접근 가능
+    updateSettings({ enabled: checked });
+  },
+});
+
+const dropdown = window.api.ui.components.dropdown({
+  options: [
+    { label: "옵션 1", value: "opt1" },
+    { label: "옵션 2", value: "opt2" },
+  ],
+  selected: "opt1",
+  onChange: (value) => {
+    console.log("선택된 값:", value);
+    updateSettings({ theme: value });
+  },
+});
+
+const input = window.api.ui.components.input({
+  type: "number",
+  value: 50,
+  min: 0,
+  max: 100,
+  onInput: (value) => {
+    console.log("입력 중:", value);
+  },
+  onChange: (value) => {
+    console.log("입력 완료:", value);
+    updateSettings({ volume: parseInt(value) });
+  },
+});
+```
+
+### 장점
+
+- ✅ **전역 네임스페이스 오염 없음** - `window` 객체에 핸들러 등록 불필요
+- ✅ **이름 충돌 걱정 없음** - 시스템이 고유 ID 자동 생성
+- ✅ **자동 클린업** - 다이얼로그 닫을 때 핸들러도 자동으로 정리
+- ✅ **타입 안정성** - 함수 시그니처 검증 가능
+- ✅ **클로저 활용** - 로컬 변수에 자유롭게 접근 가능
+
+### 컴포넌트 종류
+
+#### Button
+
+```javascript
+const button = window.api.ui.components.button("클릭하세요", {
+  variant: "primary", // "primary" | "danger" | "secondary"
+  size: "medium", // "small" | "medium" | "large"
+  onClick: () => {
+    console.log("버튼 클릭됨");
+  },
+});
+```
+
+#### Checkbox (토글)
+
+```javascript
+const checkbox = window.api.ui.components.checkbox({
+  checked: false,
+  id: "my-checkbox",
+  onChange: (checked) => {
+    console.log("체크박스 상태:", checked);
+  },
+});
+```
+
+**핸들러 시그니처**: `(checked: boolean) => void`
+
+#### Input
+
+```javascript
+const input = window.api.ui.components.input({
+  type: "text", // "text" | "number"
+  placeholder: "입력하세요",
+  value: "",
+  width: 200,
+  min: 0, // type="number"일 때
+  max: 100,
+  step: 1,
+  onInput: (value) => {
+    console.log("입력 중:", value);
+  },
+  onChange: (value) => {
+    console.log("입력 완료:", value);
+  },
+});
+```
+
+**핸들러 시그니처**: `(value: string) => void`
+
+**자동 기능**:
+
+- `type="number"`이고 `min`/`max`가 설정된 경우, blur 시 자동으로 범위 내로 정규화됩니다.
+
+#### Dropdown
+
+```javascript
+const dropdown = window.api.ui.components.dropdown({
+  options: [
+    { label: "다크 모드", value: "dark" },
+    { label: "라이트 모드", value: "light" },
+  ],
+  selected: "dark",
+  placeholder: "선택하세요",
+  onChange: (value) => {
+    console.log("선택된 값:", value);
+  },
+});
+```
+
+**핸들러 시그니처**: `(value: string) => void`
+
+#### FormRow (라벨 + 컴포넌트)
+
+```javascript
+const formRow = window.api.ui.components.formRow("볼륨", volumeInput);
+```
+
+라벨과 컴포넌트를 수평으로 배치한 행을 생성합니다.
+
+#### Panel (컨테이너)
+
+```javascript
+const panel = window.api.ui.components.panel(content, {
+  title: "설정",
+  width: 300,
+});
+```
+
+컨텐츠를 감싸는 패널 컨테이너를 생성합니다.
+
+### 실전 예제: 설정 다이얼로그
+
+```javascript
+async function openSettings() {
+  // 현재 설정 불러오기
+  const settings = (await window.api.plugin.storage.get("settings")) || {
+    enabled: true,
+    theme: "dark",
+    volume: 50,
+  };
+
+  // 임시 설정 객체 (다이얼로그 내에서 수정됨)
+  const tempSettings = { ...settings };
+
+  // ✨ 컴포넌트 생성 - 함수로 핸들러 전달
+  const enabledCheckbox = window.api.ui.components.checkbox({
+    checked: settings.enabled,
+    onChange: (checked) => {
+      tempSettings.enabled = checked;
+    },
+  });
+
+  const themeDropdown = window.api.ui.components.dropdown({
+    options: [
+      { label: "다크 모드", value: "dark" },
+      { label: "라이트 모드", value: "light" },
+      { label: "자동", value: "auto" },
+    ],
+    selected: settings.theme,
+    onChange: (value) => {
+      tempSettings.theme = value;
+    },
+  });
+
+  const volumeInput = window.api.ui.components.input({
+    type: "number",
+    value: settings.volume,
+    min: 0,
+    max: 100,
+    width: 60,
+    onChange: (value) => {
+      tempSettings.volume = parseInt(value);
+    },
+  });
+
+  // 폼 HTML 구성
+  const formHtml = `
+    <div class="flex flex-col gap-[16px] w-full">
+      ${window.api.ui.components.formRow("활성화", enabledCheckbox)}
+      ${window.api.ui.components.formRow("테마", themeDropdown)}
+      ${window.api.ui.components.formRow("볼륨", volumeInput)}
+    </div>
+  `;
+
+  // 다이얼로그 표시
+  const confirmed = await window.api.ui.dialog.custom(formHtml, {
+    title: "설정",
+    confirmText: "저장",
+    showCancel: true,
+  });
+
+  // 저장 처리
+  if (confirmed) {
+    await window.api.plugin.storage.set("settings", tempSettings);
+    console.log("설정 저장됨:", tempSettings);
+  }
+}
+```
+
+### 마이그레이션 가이드
+
+**Before (레거시 방식):**
+
+```javascript
+// ❌ 이전 방식: 전역 핸들러 수동 관리
+window.__myCheckboxHandler = (e) => {
+  const checked = e.target.checked;
+  tempSettings.enabled = checked;
+};
+
+const checkbox = window.api.ui.components.checkbox({
+  checked: true,
+  onChange: "__myCheckboxHandler", // 문자열 ID
+});
+
+const html = checkbox.replace(
+  'id="my-checkbox"',
+  'id="my-checkbox" data-plugin-handler-change="__myCheckboxHandler"'
+);
+
+// 수동 클린업 필요
+window.api.plugin.registerCleanup(() => {
+  delete window.__myCheckboxHandler;
+});
+```
+
+**After (개선된 방식):**
+
+```javascript
+// ✅ 새로운 방식: 함수 직접 전달
+const checkbox = window.api.ui.components.checkbox({
+  checked: true,
+  onChange: (checked) => {
+    tempSettings.enabled = checked;
+  },
+});
+
+// HTML 조작 불필요, 클린업 자동 처리
+```
+
+### 주의사항
+
+1. **다이얼로그 내부에서만 사용**: Components API는 `window.api.ui.dialog.custom()`과 함께 사용하도록 설계되었습니다.
+2. **ID 충돌 방지**: 같은 다이얼로그 내에서 컴포넌트 `id`가 중복되지 않도록 하세요.
+3. **값 접근**: 다이얼로그 확인 후 `document.getElementById()`로 값을 가져오거나, 핸들러 내에서 임시 객체에 저장하세요.
+
+더 자세한 내용은 **[`docs/api-reference.md#UI-ui`](./api-reference.md#UI-ui)** 를 참조하세요.
+
+---
+
 ## 예제 1: CPS(Characters Per Second) 패널
 
 오버레이에 초당 키 입력 횟수를 표시하는 패널을 추가합니다.

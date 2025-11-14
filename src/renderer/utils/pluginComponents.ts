@@ -3,18 +3,27 @@
  * 플러그인에서 사용할 수 있는 UI 컴포넌트 HTML 생성 함수들
  */
 
+import { registerComponentHandler } from "./pluginUtils";
+
+/**
+ * 현재 실행 중인 플러그인 ID를 가져옵니다.
+ */
+function getCurrentPluginId(): string {
+  return (window as any).__dmn_current_plugin_id || "unknown";
+}
+
 export interface ButtonOptions {
   variant?: "primary" | "danger" | "secondary";
   size?: "small" | "medium" | "large";
   disabled?: boolean;
   fullWidth?: boolean;
-  onClick?: string; // 이벤트 핸들러 ID
+  onClick?: string | (() => void | Promise<void>);
   id?: string;
 }
 
 export interface CheckboxOptions {
   checked?: boolean;
-  onChange?: string;
+  onChange?: string | ((checked: boolean) => void | Promise<void>);
   id?: string;
 }
 
@@ -23,8 +32,8 @@ export interface InputOptions {
   placeholder?: string;
   value?: string | number;
   disabled?: boolean;
-  onInput?: string;
-  onChange?: string;
+  onInput?: string | ((value: string) => void | Promise<void>);
+  onChange?: string | ((value: string) => void | Promise<void>);
   id?: string;
   width?: number;
   min?: number;
@@ -42,7 +51,7 @@ export interface DropdownOptions {
   selected?: string;
   placeholder?: string;
   disabled?: boolean;
-  onChange?: string;
+  onChange?: string | ((value: string) => void | Promise<void>);
   id?: string;
 }
 
@@ -63,7 +72,7 @@ export function createButton(
     size = "medium",
     disabled = false,
     fullWidth = false,
-    onClick = "",
+    onClick,
     id = "",
   } = options;
 
@@ -93,7 +102,19 @@ export function createButton(
   const disabledClass = disabled
     ? "opacity-50 cursor-not-allowed pointer-events-none"
     : "";
-  const onClickAttr = onClick ? `data-plugin-handler="${onClick}"` : "";
+
+  // 핸들러 처리: 함수면 등록, 문자열이면 레거시 방식
+  let onClickAttr = "";
+  if (onClick) {
+    if (typeof onClick === "function") {
+      const pluginId = getCurrentPluginId();
+      const handlerId = registerComponentHandler(pluginId, onClick);
+      onClickAttr = `data-plugin-handler="${handlerId}"`;
+    } else {
+      onClickAttr = `data-plugin-handler="${onClick}"`;
+    }
+  }
+
   const idAttr = id ? `id="${id}"` : "";
 
   return `<button type="button" class="${baseClass} ${variantClass} ${sizeClass} ${widthClass} ${disabledClass}" ${onClickAttr} ${idAttr} ${
@@ -105,14 +126,30 @@ export function createButton(
  * 체크박스 (토글) HTML 생성
  */
 export function createCheckbox(options: CheckboxOptions = {}): string {
-  const { checked = false, onChange = "", id = "" } = options;
+  const { checked = false, onChange, id = "" } = options;
 
   const bgClass = checked ? "bg-[#493C1D]" : "bg-[#3B4049]";
   const knobClass = checked
     ? "left-[13px] bg-[#FFB400]"
     : "left-[2px] bg-[#989BA6]";
 
-  const onChangeAttr = onChange ? `data-plugin-handler="${onChange}"` : "";
+  // 핸들러 처리: 함수면 등록, 문자열이면 레거시 방식
+  let onChangeAttr = "";
+  if (onChange) {
+    if (typeof onChange === "function") {
+      const pluginId = getCurrentPluginId();
+      // 체크박스는 checked 상태를 전달
+      const wrappedHandler = (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        onChange(target.checked);
+      };
+      const handlerId = registerComponentHandler(pluginId, wrappedHandler);
+      onChangeAttr = `data-plugin-handler="${handlerId}"`;
+    } else {
+      onChangeAttr = `data-plugin-handler="${onChange}"`;
+    }
+  }
+
   const labelIdAttr = id ? `id="${id}"` : "";
   const inputIdAttr = id ? `id="${id}-input"` : ""; // input에도 id 추가
 
@@ -134,8 +171,8 @@ export function createInput(options: InputOptions = {}): string {
     placeholder = "",
     value = "",
     disabled = false,
-    onInput = "",
-    onChange = "",
+    onInput,
+    onChange,
     id = "",
     width = 200,
     min,
@@ -143,10 +180,38 @@ export function createInput(options: InputOptions = {}): string {
     step,
   } = options;
 
-  const onInputAttr = onInput ? `data-plugin-handler-input="${onInput}"` : "";
-  const onChangeAttr = onChange
-    ? `data-plugin-handler-change="${onChange}"`
-    : "";
+  // onInput 핸들러 처리
+  let onInputAttr = "";
+  if (onInput) {
+    if (typeof onInput === "function") {
+      const pluginId = getCurrentPluginId();
+      const wrappedHandler = (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        onInput(target.value);
+      };
+      const handlerId = registerComponentHandler(pluginId, wrappedHandler);
+      onInputAttr = `data-plugin-handler-input="${handlerId}"`;
+    } else {
+      onInputAttr = `data-plugin-handler-input="${onInput}"`;
+    }
+  }
+
+  // onChange 핸들러 처리
+  let onChangeAttr = "";
+  if (onChange) {
+    if (typeof onChange === "function") {
+      const pluginId = getCurrentPluginId();
+      const wrappedHandler = (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        onChange(target.value);
+      };
+      const handlerId = registerComponentHandler(pluginId, wrappedHandler);
+      onChangeAttr = `data-plugin-handler-change="${handlerId}"`;
+    } else {
+      onChangeAttr = `data-plugin-handler-change="${onChange}"`;
+    }
+  }
+
   const idAttr = id ? `id="${id}"` : "";
   const minAttr = min !== undefined ? `min="${min}"` : "";
   const maxAttr = max !== undefined ? `max="${max}"` : "";
@@ -174,7 +239,7 @@ export function createDropdown(options: DropdownOptions): string {
     selected = "",
     placeholder = "선택",
     disabled = false,
-    onChange = "",
+    onChange,
     id = "",
   } = options;
 
@@ -182,7 +247,24 @@ export function createDropdown(options: DropdownOptions): string {
   const displayText = selectedItem ? selectedItem.label : placeholder;
 
   const idAttr = id ? `id="${id}"` : "";
-  const onChangeAttr = onChange ? `data-plugin-handler="${onChange}"` : "";
+
+  // 핸들러 처리: 함수면 등록, 문자열이면 레거시 방식
+  let onChangeAttr = "";
+  if (onChange) {
+    if (typeof onChange === "function") {
+      const pluginId = getCurrentPluginId();
+      // 드롭다운은 선택된 value를 전달
+      const wrappedHandler = (e: Event) => {
+        const target = e.target as HTMLElement;
+        const value = target.getAttribute("data-selected") || "";
+        onChange(value);
+      };
+      const handlerId = registerComponentHandler(pluginId, wrappedHandler);
+      onChangeAttr = `data-plugin-handler="${handlerId}"`;
+    } else {
+      onChangeAttr = `data-plugin-handler="${onChange}"`;
+    }
+  }
 
   const itemsHtml = items
     .map(
