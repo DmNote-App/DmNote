@@ -82,17 +82,11 @@ export const PluginElement: React.FC<PluginElementProps> = ({
           anchor: undefined, // 드래그하면 앵커 제거
         });
 
-        // onPositionChange 핸들러 호출
+        // onPositionChange 핸들러 호출 (자동 래핑되어 있음)
         if (element.onPositionChange) {
           const handler = (window as any)[element.onPositionChange];
           if (typeof handler === "function") {
-            const prev = (window as any).__dmn_current_plugin_id;
-            (window as any).__dmn_current_plugin_id = element.pluginId;
-            try {
-              handler({ x: newX, y: newY });
-            } finally {
-              (window as any).__dmn_current_plugin_id = prev;
-            }
+            handler({ x: newX, y: newY });
           }
         }
       }
@@ -256,17 +250,10 @@ export const PluginElement: React.FC<PluginElementProps> = ({
 
           if (!handlerName) return;
 
-          // 플러그인 컨텍스트 복원 후 핸들러 실행
+          // 핸들러 실행 (자동 래핑되어 있음)
           const handler = (window as any)[handlerName];
           if (typeof handler === "function") {
-            const prev = (window as any).__dmn_current_plugin_id;
-            if (element.pluginId)
-              (window as any).__dmn_current_plugin_id = element.pluginId;
-            try {
-              handler(e);
-            } finally {
-              (window as any).__dmn_current_plugin_id = prev;
-            }
+            handler(e);
           }
         };
 
@@ -365,17 +352,10 @@ export const PluginElement: React.FC<PluginElementProps> = ({
     // 우클릭은 컨텍스트 메뉴용이므로 제외
     if (e.button !== 0) return;
 
-    // 플러그인 컨텍스트 복원 후 핸들러 실행
+    // onClick 핸들러 실행 (자동 래핑되어 있음)
     const handler = (window as any)[element.onClick];
     if (typeof handler === "function") {
-      const prev = (window as any).__dmn_current_plugin_id;
-      if (element.pluginId)
-        (window as any).__dmn_current_plugin_id = element.pluginId;
-      try {
-        handler(e);
-      } finally {
-        (window as any).__dmn_current_plugin_id = prev;
-      }
+      handler(e);
     }
   };
 
@@ -408,17 +388,11 @@ export const PluginElement: React.FC<PluginElementProps> = ({
   // 컨텍스트 메뉴 항목 선택
   const handleContextMenuSelect = (itemId: string) => {
     if (itemId === "delete") {
-      // onDelete 핸들러 호출
+      // onDelete 핸들러 호출 (자동 래핑되어 있음)
       if (element.onDelete) {
         const handler = (window as any)[element.onDelete];
         if (typeof handler === "function") {
-          const prev = (window as any).__dmn_current_plugin_id;
-          (window as any).__dmn_current_plugin_id = element.pluginId;
-          try {
-            handler();
-          } finally {
-            (window as any).__dmn_current_plugin_id = prev;
-          }
+          handler();
         }
       }
 
@@ -427,15 +401,8 @@ export const PluginElement: React.FC<PluginElementProps> = ({
       const index = parseInt(itemId.replace("custom-", ""), 10);
       const customItem = element.contextMenu?.customItems?.[index];
       if (customItem) {
-        // 커스텀 메뉴 실행 시 플러그인 컨텍스트 설정
-        const previousPluginId = (window as any).__dmn_current_plugin_id;
-        (window as any).__dmn_current_plugin_id = element.pluginId;
-
-        try {
-          customItem.onClick({ element });
-        } finally {
-          (window as any).__dmn_current_plugin_id = previousPluginId;
-        }
+        // 커스텀 메뉴 실행 (자동 래핑되어 있음)
+        customItem.onClick({ element });
       }
     }
   };

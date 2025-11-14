@@ -187,16 +187,80 @@ export function useCustomJsInjection() {
               clearByPrefix: originalStorage.clearByPrefix,
             };
 
+            const wrapFunctionWithContext = (fn: any) => {
+              if (typeof fn !== "function") return fn;
+              if (fn.__dmn_plugin_wrapped__) return fn;
+
+              const wrapped = function (...args: any[]) {
+                const prev = (window as any).__dmn_current_plugin_id;
+                (window as any).__dmn_current_plugin_id = pluginId;
+                let result: any;
+                let threw = false;
+                try {
+                  result = fn.apply(this, args);
+                } catch (error) {
+                  threw = true;
+                  throw error;
+                } finally {
+                  if (threw || !result || typeof result.then !== "function") {
+                    (window as any).__dmn_current_plugin_id = prev;
+                  }
+                }
+
+                if (result && typeof result.then === "function") {
+                  return result.finally(() => {
+                    (window as any).__dmn_current_plugin_id = prev;
+                  });
+                }
+
+                return result;
+              };
+
+              try {
+                Object.defineProperty(wrapped, "name", {
+                  value: fn.name,
+                  configurable: true,
+                });
+              } catch {
+                // 이름 재정의 실패는 무시
+              }
+
+              Object.defineProperty(wrapped, "__dmn_plugin_wrapped__", {
+                value: true,
+                configurable: false,
+              });
+
+              return wrapped;
+            };
+
+            const wrapApiValue = (value: any): any => {
+              if (typeof value === "function") {
+                return wrapFunctionWithContext(value);
+              }
+
+              if (value && typeof value === "object") {
+                const clone: any = Array.isArray(value) ? [] : {};
+                Object.keys(value).forEach((key) => {
+                  clone[key] = wrapApiValue(value[key]);
+                });
+                return clone;
+              }
+
+              return value;
+            };
+
+            const wrappedApi = wrapApiValue(window.api);
+
             // 플러그인 전용 API가 주입된 window 프록시 생성
             const proxiedApi = {
-              ...window.api,
+              ...wrappedApi,
               window: {
-                ...window.api.window,
+                ...(wrappedApi.window || {}),
                 // window.type은 현재 윈도우 타입을 반환
                 type: (window as any).__dmn_window_type as "main" | "overlay",
               },
               plugin: {
-                ...window.api.plugin,
+                ...(wrappedApi.plugin || {}),
                 storage: namespacedStorage,
                 registerCleanup,
               },
@@ -216,10 +280,69 @@ export function useCustomJsInjection() {
             (anyWindow as any).__dmn_plugin_window_proxy = proxyWindow;
 
             // 플러그인 코드를 안전하게 래핑하여 실행 (window를 프록시로 바인딩)
+            // 비동기 함수에서도 플러그인 컨텍스트를 자동으로 유지
+            const wrappedContent = `
+            ;(function(window){
+              // 플러그인 ID를 클로저에 저장
+              const __PLUGIN_ID__ = "${pluginId}";
+              
+              // 비동기 함수 자동 래핑 헬퍼 (개선됨)
+              const __autoWrapAsync__ = () => {
+                const globalWindow = typeof window !== 'undefined' ? window : globalThis;
+                const snapshot = Object.getOwnPropertyNames(globalWindow);
+                
+                snapshot.forEach(key => {
+                  try {
+                    const value = globalWindow[key];
+                    
+                    // 함수가 아니거나 이미 래핑되었으면 건너뛰기
+                    if (typeof value !== 'function') return;
+                    if (value.__dmn_wrapped__ || value.__dmn_plugin_wrapped__) return;
+                    
+                    // 특정 내장 함수 패턴 제외
+                    if (key.startsWith('__dmn') || key === 'eval' || key === 'Function') return;
+                    
+                    // 비동기 함수 또는 Promise 반환 함수 감지
+                    const isAsync = value.constructor.name === 'AsyncFunction';
+                    
+                    // 비동기 함수만 래핑 (일반 함수는 window.api 래핑으로 충분)
+                    if (isAsync) {
+                      const wrapped = async function(...args) {
+                        const prev = globalWindow.__dmn_current_plugin_id;
+                        globalWindow.__dmn_current_plugin_id = __PLUGIN_ID__;
+                        try {
+                          return await value.apply(this, args);
+                        } finally {
+                          globalWindow.__dmn_current_plugin_id = prev;
+                        }
+                      };
+                      wrapped.__dmn_wrapped__ = true;
+                      try {
+                        Object.defineProperty(wrapped, 'name', { value: key, configurable: true });
+                      } catch {}
+                      globalWindow[key] = wrapped;
+                    }
+                  } catch (e) {
+                    // 접근할 수 없는 속성은 무시
+                  }
+                });
+              };
+              
+              try {
+            ${plugin.content}
+              } catch (e) {
+                console.error('Failed to run JS plugin: ${plugin.name}', e);
+              }
+              
+              // 플러그인 코드 실행 직후 즉시 래핑 (동기적으로)
+              __autoWrapAsync__();
+            })(window.__dmn_plugin_window_proxy);
+            `;
+
             const element = document.createElement("script");
             element.id = `${SCRIPT_ID_PREFIX}${plugin.id}`;
             element.type = "text/javascript";
-            element.textContent = `;(function(window){\ntry {\n${plugin.content}\n} catch (e) {\n  console.error('Failed to run JS plugin: ${plugin.name}', e);\n}\n})(window.__dmn_plugin_window_proxy);`;
+            element.textContent = wrappedContent;
             document.head.appendChild(element);
 
             const pluginCleanup = anyWindow.__dmn_custom_js_cleanup;

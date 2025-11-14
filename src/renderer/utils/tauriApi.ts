@@ -81,6 +81,7 @@ const api: DMNoteAPI = {
     restart: () => invoke("app_restart"),
   },
   window: {
+    type: (window as any).__dmn_window_type as "main" | "overlay",
     minimize: () => invoke("window_minimize"),
     close: () => invoke("window_close"),
     openDevtoolsAll: () => invoke("window_open_devtools_all"),
@@ -327,6 +328,11 @@ const api: DMNoteAPI = {
 
       clearByPrefix: (prefix: string) =>
         invoke<number>("plugin_storage_clear_by_prefix", { prefix }),
+    },
+    registerCleanup: () => {
+      console.warn(
+        "[Plugin API] registerCleanup is managed by useCustomJsInjection and should not be called directly from tauriApi"
+      );
     },
   },
   ui: {
@@ -654,17 +660,10 @@ const api: DMNoteAPI = {
 
               if (!handlerName) return;
 
-              // 플러그인 컨텍스트 복원 후 핸들러 실행
+              // 핸들러 실행 (자동 래핑되어 있음)
               const handler = (window as any)[handlerName];
               if (typeof handler === "function") {
-                const prev = (window as any).__dmn_current_plugin_id;
-                if (pluginId)
-                  (window as any).__dmn_current_plugin_id = pluginId;
-                try {
-                  handler(e);
-                } finally {
-                  (window as any).__dmn_current_plugin_id = prev;
-                }
+                handler(e);
               }
             };
 

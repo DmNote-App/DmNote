@@ -549,6 +549,165 @@ async function initializeSettings() {
 
 ---
 
+## 비동기 함수와 플러그인 컨텍스트 ✨
+
+플러그인에서 `async/await`를 사용할 때 **모든 `window.api` 호출에서 플러그인 컨텍스트가 자동으로 유지**됩니다.
+
+### 자동 처리 원리
+
+플러그인 시스템이 내부적으로 **모든 `window.api` 함수를 자동 래핑**하여:
+
+1. API 호출 전에 현재 플러그인 ID를 저장
+2. 비동기 작업 완료 후 플러그인 ID를 자동 복원
+3. 중첩된 API 호출에서도 컨텍스트 유지
+
+이제 **IIFE 내부의 로컬 함수에서도** 자유롭게 비동기 작업을 수행할 수 있습니다!
+
+### 사용 예제
+
+```javascript
+// @id my-plugin
+
+(function () {
+  if (window.api.window.type !== "main") return;
+
+  let panelId = null;
+
+  // ✅ IIFE 내부 로컬 함수 - 자동으로 처리됨!
+  async function initialize() {
+    // 저장된 설정 로드
+    const settings = await window.api.plugin.storage.get("settings");
+    const deployed = await window.api.plugin.storage.get("deployed");
+
+    // Display Element 생성 - 정상 동작!
+    if (deployed) {
+      panelId = window.api.ui.displayElement.add({
+        html: "<div>My Panel</div>",
+        position: settings?.position || { x: 100, y: 100 },
+        draggable: true,
+      });
+    }
+  }
+
+  // ✅ 비동기 저장 함수 - 자동으로 처리됨!
+  async function saveSettings(settings) {
+    await window.api.plugin.storage.set("settings", settings);
+  }
+
+  // 초기화 실행
+  initialize();
+
+  // 클린업
+  window.api.plugin.registerCleanup(() => {
+    if (panelId) {
+      window.api.ui.displayElement.remove(panelId);
+    }
+  });
+})();
+```
+
+### 이벤트 핸들러에서도 자동 처리
+
+Display Element의 이벤트 핸들러나 컨텍스트 메뉴 콜백에서도 자동으로 처리됩니다:
+
+```javascript
+// ✅ 비동기 이벤트 핸들러 - 자동으로 처리됨!
+window.handlePanelClick = async function() {
+  const result = await window.api.ui.dialog.confirm("계속하시겠습니까?");
+  if (result) {
+    const elementId = window.api.ui.displayElement.add({...});
+  }
+};
+
+// Display Element에 연결
+window.api.ui.displayElement.add({
+  html: '<div>클릭하세요</div>',
+  onClick: "handlePanelClick",
+});
+```
+
+### 주요 포인트
+
+- ✅ **전역 할당 불필요** - IIFE 내부 로컬 함수도 정상 동작
+- ✅ **자동 컨텍스트 복원** - `await` 이후에도 API 정상 동작
+- ✅ **Promise 체이닝 지원** - `then/catch` 사용 가능
+- ✅ **중첩 호출 지원** - API 내부에서 다른 API 호출 가능
+- ✅ **이벤트 핸들러 지원** - 콜백 함수에서도 자동 처리
+
+### 실전 예제: 패널 상태 복원
+
+```javascript
+// @id status-panel
+
+(function () {
+  if (window.api.window.type !== "main") return;
+
+  let panelId = null;
+
+  // ✅ 로컬 비동기 함수 - 전역 할당 불필요!
+  async function loadAndCreatePanel() {
+    const deployed = await window.api.plugin.storage.get("deployed");
+
+    if (deployed) {
+      const settings = await window.api.plugin.storage.get("settings");
+
+      // await 이후에도 플러그인 컨텍스트 유지됨
+      panelId = window.api.ui.displayElement.add({
+        html: "<div>Status Panel</div>",
+        position: settings?.position || { x: 100, y: 100 },
+        draggable: true,
+        onDelete: "handlePanelDelete",
+      });
+    }
+  }
+
+  // ✅ 삭제 핸들러도 로컬 함수로 작성 가능
+  async function handlePanelDelete() {
+    await window.api.plugin.storage.remove("deployed");
+    panelId = null;
+  }
+
+  // 전역에 할당 (Display Element 콜백용)
+  window.handlePanelDelete = handlePanelDelete;
+
+  // 초기화
+  loadAndCreatePanel();
+
+  // 클린업
+  window.api.plugin.registerCleanup(() => {
+    if (panelId) {
+      window.api.ui.displayElement.remove(panelId);
+    }
+    delete window.handlePanelDelete;
+  });
+})();
+```
+
+### 이전 방식과의 비교
+
+**이전 (수동 관리 필요)**:
+
+```javascript
+// ❌ 전역 함수로 내보내야 했음
+window.__myPluginInit = async function () {
+  const settings = await window.api.plugin.storage.get("settings");
+  createPanel();
+};
+```
+
+**현재 (자동 처리)**:
+
+```javascript
+// ✅ 로컬 함수로 작성 가능
+async function init() {
+  const settings = await window.api.plugin.storage.get("settings");
+  createPanel();
+}
+init();
+```
+
+---
+
 ## 윈도우 간 통신 (`window.api.bridge`)
 
 플러그인은 **브릿지 API**를 사용하여 메인 윈도우와 오버레이 윈도우 간에 메시지를 주고받을 수 있습니다.
