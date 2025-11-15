@@ -13,6 +13,8 @@ import {
   SettingsState,
 } from "@src/types/settings";
 
+export const TEMPLATE_RESULT_FLAG = Symbol("dmn.template.result");
+
 export type ModeChangePayload = { mode: string };
 export type CustomTabsChangePayload = {
   customTabs: CustomTab[];
@@ -113,6 +115,22 @@ export type PluginMenuItemInternal<TContext = any> =
     fullId: string;
   };
 
+export interface DisplayElementInstance {
+  readonly id: string;
+  setState(updates: Record<string, any>): void;
+  setData(updates: Record<string, any>): void;
+  getState(): Record<string, any>;
+  setText(selector: string, text: string): void;
+  setHTML(selector: string, html: string): void;
+  setStyle(selector: string, styles: Record<string, string>): void;
+  addClass(selector: string, ...classNames: string[]): void;
+  removeClass(selector: string, ...classNames: string[]): void;
+  toggleClass(selector: string, className: string): void;
+  query(selector: string): Element | ShadowRoot | null;
+  update(updates: Partial<PluginDisplayElement>): void;
+  remove(): void;
+}
+
 // UI Plugin Display Element types
 export type PluginDisplayElementContextMenu = {
   enableDelete?: boolean;
@@ -153,6 +171,52 @@ export type PluginDisplayElementInternal = PluginDisplayElement & {
   _onClickId?: string;
   _onPositionChangeId?: string;
   _onDeleteId?: string;
+};
+
+export interface DisplayElementTemplateResult {
+  readonly strings: TemplateStringsArray;
+  readonly values: unknown[];
+  readonly [TEMPLATE_RESULT_FLAG]: true;
+}
+
+export interface DisplayElementTemplateHelpers {
+  html(
+    strings: TemplateStringsArray,
+    ...values: unknown[]
+  ): DisplayElementTemplateResult;
+}
+
+export type DisplayElementTemplateFunction = (
+  state: Record<string, any>,
+  helpers?: DisplayElementTemplateHelpers
+) => string | DisplayElementTemplateResult;
+
+export type DisplayElementTemplateValueResolver = (
+  state: Record<string, any>,
+  helpers: DisplayElementTemplateHelpers
+) => unknown;
+
+export type DisplayElementTemplateFactoryValue =
+  | DisplayElementTemplateValueResolver
+  | DisplayElementTemplateResult
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | Record<string, any>
+  | Array<any>;
+
+export type DisplayElementTemplateFactory = (
+  strings: TemplateStringsArray,
+  ...values: DisplayElementTemplateFactoryValue[]
+) => DisplayElementTemplateFunction;
+
+export type DisplayElementTemplate = DisplayElementTemplateFunction;
+
+export type PluginDisplayElementConfig = Omit<PluginDisplayElement, "id"> & {
+  state?: Record<string, any>;
+  template?: DisplayElementTemplateFunction;
 };
 
 export type Unsubscribe = () => void;
@@ -336,9 +400,60 @@ export interface DMNoteAPI {
       clearMyMenuItems(): void;
     };
     displayElement: {
-      add(element: Omit<PluginDisplayElement, "id">): string;
-      update(fullId: string, updates: Partial<PluginDisplayElement>): void;
-      remove(fullId: string): void;
+      html(
+        strings: TemplateStringsArray,
+        ...values: unknown[]
+      ): DisplayElementTemplateResult;
+      template: DisplayElementTemplateFactory;
+      add(element: PluginDisplayElementConfig): DisplayElementInstance;
+      get(fullId: string): DisplayElementInstance | undefined;
+      setState(
+        target: string | DisplayElementInstance,
+        updates: Record<string, any>
+      ): void;
+      setData(
+        target: string | DisplayElementInstance,
+        updates: Record<string, any>
+      ): void;
+      setText(
+        target: string | DisplayElementInstance,
+        selector: string,
+        text: string
+      ): void;
+      setHTML(
+        target: string | DisplayElementInstance,
+        selector: string,
+        html: string
+      ): void;
+      setStyle(
+        target: string | DisplayElementInstance,
+        selector: string,
+        styles: Record<string, string>
+      ): void;
+      addClass(
+        target: string | DisplayElementInstance,
+        selector: string,
+        ...classNames: string[]
+      ): void;
+      removeClass(
+        target: string | DisplayElementInstance,
+        selector: string,
+        ...classNames: string[]
+      ): void;
+      toggleClass(
+        target: string | DisplayElementInstance,
+        selector: string,
+        className: string
+      ): void;
+      query(
+        target: string | DisplayElementInstance,
+        selector: string
+      ): Element | ShadowRoot | null;
+      update(
+        target: string | DisplayElementInstance,
+        updates: Partial<PluginDisplayElement>
+      ): void;
+      remove(target: string | DisplayElementInstance): void;
       clearMyElements(): void;
     };
     dialog: {

@@ -549,6 +549,146 @@ async function initializeSettings() {
 
 ---
 
+## Display Element 템플릿 & 인스턴스 ✨
+
+`window.api.ui.displayElement.add()`가 반환하는 값은 이제 **DisplayElementInstance**이며, `state`/`template` 조합을 활용하면 React 없이도 DOM 패널을 상태 기반으로 렌더링할 수 있습니다.
+
+### 언제 사용하나요?
+
+- 동일한 패널을 메인/오버레이 모두에서 일관되게 렌더링하고 싶을 때
+- 가벼운 상태 업데이트(숫자, 그래프, 토글 등)를 DOM 조작 없이 적용하고 싶을 때
+- 기존 문자열 ID 기반 플러그인을 간단히 마이그레이션하고 싶을 때
+
+### 기본 사용법
+
+```javascript
+const panel = window.api.ui.displayElement.add({
+  position: { x: 140, y: 90 },
+  draggable: true,
+  zIndex: 110,
+  contextMenu: { enableDelete: true },
+  state: { value: 0, history: [] },
+  template: (state) => `
+    <style>
+      .meter { padding: 16px; border-radius: 12px; background: rgba(9,9,12,0.9); color: #fff; }
+      .bars { margin-top: 12px; display: flex; gap: 3px; height: 40px; align-items: flex-end; }
+      .bars span { flex: 1; border-radius: 999px 999px 0 0; background: linear-gradient(180deg,#8B5CF6,#6366F1); opacity: 0.35; }
+      .bars span:last-child { opacity: 1; box-shadow: 0 0 12px rgba(99,102,241,0.4); }
+    </style>
+    <div class="meter">
+      <div class="text-[12px] uppercase tracking-[0.3em] text-slate-300">Live KPS</div>
+      <div class="text-[42px] font-semibold leading-none">${state.value.toFixed(
+        1
+      )}</div>
+      <div class="bars">
+        ${state.history
+          .map((value) => {
+            const ratio = state.peak ? Math.min(value / state.peak, 1) : 0;
+            return `<span style="height:${Math.round(ratio * 100)}%"></span>`;
+          })
+          .join("")}
+      </div>
+    </div>
+  `,
+});
+
+const unsubscribe = window.api.bridge.on("KPS_UPDATE", ({ kps }) => {
+  const snapshot = panel.getState();
+  const history = [...snapshot.history, kps].slice(-24);
+  panel.setState({
+    value: kps,
+    history,
+    peak: Math.max(snapshot.peak || 0, kps),
+  });
+});
+
+window.api.plugin.registerCleanup(() => {
+  unsubscribe();
+  panel.remove();
+});
+```
+
+### 템플릿 헬퍼 (태그드 템플릿)
+
+`window.api.ui.displayElement.template` 태그를 사용하면 `const { html } = ...`를 매번 꺼내지 않아도 되고, `${(state) => state.value}`처럼 상태 기반 값을 깔끔하게 표현할 수 있습니다.
+
+```javascript
+const meterTemplate = window.api.ui.displayElement.template`
+  <div class="meter">
+    <strong>${(state) => state.value.toFixed(1)}</strong>
+    <div class="history">
+      ${(state) =>
+        state.history
+          .map((value) => {
+            const peak = state.peak || 1;
+            const ratio = peak > 0 ? value / peak : 0;
+            return `<span style="height:${Math.round(ratio * 100)}%"></span>`;
+          })
+          .join("")}
+    </div>
+  </div>
+`;
+
+window.api.ui.displayElement.add({
+  position: { x: 120, y: 80 },
+  state: { value: 0, history: [] },
+  template: meterTemplate,
+});
+```
+
+템플릿 리터럴 안에서는 두 번째 인자로 전달되는 `helpers`를 활용해 `${(state, helpers) => helpers.html`<span>강조</span>`}`처럼 부분적으로 `html` helper를 호출할 수도 있습니다.
+
+### 인스턴스 메서드 주요 정리
+
+#### 상태 관리
+
+- `setState(updates)` / `setData(updates)` : 상태 병합 후 템플릿 재렌더
+- `getState()` : 현재 상태 복제본을 반환 (직접 수정 금지)
+
+```javascript
+panel.setState({ value: 42, active: true });
+const state = panel.getState();
+console.log(state.value); // 42
+```
+
+#### DOM 조작
+
+- `setText(selector, text)` : 선택자로 지정한 요소의 텍스트 설정
+- `setHTML(selector, html)` : 선택자로 지정한 요소의 HTML 설정
+- `setStyle(selector, styles)` : 선택자로 지정한 요소에 스타일 적용
+- `addClass(selector, ...classNames)` : CSS 클래스 추가
+- `removeClass(selector, ...classNames)` : CSS 클래스 제거
+- `toggleClass(selector, className)` : CSS 클래스 토글
+- `query(selector)` : Shadow DOM 안쪽까지 요소 검색
+
+```javascript
+// 텍스트 변경
+panel.setText(".counter", "42");
+
+// 스타일 적용
+panel.setStyle(":root", { background: "#1a1a1a", padding: "16px" });
+
+// 클래스 토글
+panel.toggleClass(".status", "active");
+
+// 요소 검색
+const graph = panel.query(".graph");
+```
+
+#### 기타
+
+- `update(partialConfig)` : position, draggable 등 메타데이터 변경
+- `remove()` : 요소 제거 및 인스턴스 폐기
+
+```javascript
+panel.update({ draggable: false, zIndex: 200 });
+panel.remove();
+```
+
+> 기존처럼 문자열 ID를 저장했다면 `window.api.ui.displayElement.get(id)` 또는 `window.api.ui.displayElement.setState(id, updates)`로도 동일하게 조작할 수 있습니다.
+
+---
+
 ## Display Element 이벤트 핸들러 ✨ 개선됨
 
 Display Element에 이벤트 핸들러를 등록하는 방식이 크게 개선되었습니다!

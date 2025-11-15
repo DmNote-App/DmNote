@@ -2,7 +2,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { usePluginMenuStore } from "@stores/usePluginMenuStore";
 import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementStore";
-import type { PluginDisplayElement } from "@src/types/api";
+import { DisplayElementInstance } from "@utils/displayElementInstance";
+import { html } from "@utils/templateEngine";
+import type {
+  DisplayElementTemplate,
+  DisplayElementTemplateFactoryValue,
+  DisplayElementTemplateHelpers,
+  DisplayElementTemplateValueResolver,
+  PluginDisplayElement,
+} from "@src/types/api";
 
 // ===== 플러그인 핸들러 레지스트리 =====
 // 플러그인별로 이벤트 핸들러를 자동 관리하는 시스템
@@ -90,6 +98,140 @@ import {
   createFormRow,
 } from "./pluginComponents";
 import { clearComponentHandlers } from "./pluginUtils";
+import type { DisplayElementInstance as DisplayElementInstanceType } from "@src/types/api";
+
+type DisplayElementTarget =
+  | string
+  | DisplayElementInstance
+  | DisplayElementInstanceType
+  | null
+  | undefined;
+
+const displayElementInstances = new Map<string, DisplayElementInstance>();
+const displayElementInstancesByPlugin = new Map<string, Set<string>>();
+
+const registerDisplayElementInstance = (instance: DisplayElementInstance) => {
+  displayElementInstances.set(instance.id, instance);
+  if (!displayElementInstancesByPlugin.has(instance.pluginId)) {
+    displayElementInstancesByPlugin.set(instance.pluginId, new Set());
+  }
+  displayElementInstancesByPlugin.get(instance.pluginId)!.add(instance.id);
+};
+
+const unregisterDisplayElementInstance = (fullId: string) => {
+  const instance = displayElementInstances.get(fullId);
+  if (!instance) return;
+  instance.dispose();
+  displayElementInstances.delete(fullId);
+  const pluginSet = displayElementInstancesByPlugin.get(instance.pluginId);
+  if (pluginSet) {
+    pluginSet.delete(fullId);
+    if (pluginSet.size === 0) {
+      displayElementInstancesByPlugin.delete(instance.pluginId);
+    }
+  }
+};
+
+const resolveFullId = (target: DisplayElementTarget): string | null => {
+  if (!target) return null;
+  if (typeof target === "string") return target;
+  if (target instanceof DisplayElementInstance) return target.id;
+  if (
+    typeof target === "object" &&
+    typeof (target as DisplayElementInstanceType).id === "string"
+  ) {
+    return (target as DisplayElementInstanceType).id;
+  }
+  if (typeof target === "object" && "toString" in target) {
+    return String(target);
+  }
+  return null;
+};
+
+const resolveInstance = (
+  target: DisplayElementTarget
+): DisplayElementInstance | undefined => {
+  if (target instanceof DisplayElementInstance) {
+    return target;
+  }
+  const fullId = resolveFullId(target);
+  if (!fullId) return undefined;
+  return displayElementInstances.get(fullId);
+};
+
+const createNoopDisplayElementInstance = () =>
+  new DisplayElementInstance({
+    fullId: "",
+    pluginId: "",
+    updateElement: () => undefined,
+    removeElement: () => undefined,
+  });
+
+const clearInstancesByPlugin = (pluginId: string) => {
+  const ids = displayElementInstancesByPlugin.get(pluginId);
+  if (!ids) return;
+  Array.from(ids).forEach((id) => unregisterDisplayElementInstance(id));
+};
+
+const clearAllInstances = () => {
+  Array.from(displayElementInstances.keys()).forEach((id) =>
+    unregisterDisplayElementInstance(id)
+  );
+  displayElementInstancesByPlugin.clear();
+};
+
+type CompiledTemplateChunk =
+  | { type: "fn"; fn: DisplayElementTemplateValueResolver }
+  | { type: "value"; value: DisplayElementTemplateFactoryValue };
+
+const displayElementTemplateHelpers: DisplayElementTemplateHelpers = {
+  html,
+};
+
+const buildDisplayElementTemplate = (
+  strings: TemplateStringsArray,
+  ...values: DisplayElementTemplateFactoryValue[]
+): DisplayElementTemplate => {
+  const compiledChunks: CompiledTemplateChunk[] = values.map((value) =>
+    typeof value === "function"
+      ? { type: "fn", fn: value as DisplayElementTemplateValueResolver }
+      : { type: "value", value }
+  );
+
+  return (state, helpers = displayElementTemplateHelpers) => {
+    const resolvedValues = compiledChunks.map((chunk) => {
+      if (chunk.type === "fn") {
+        try {
+          return chunk.fn(state, helpers);
+        } catch (error) {
+          console.error(
+            "[UI API] displayElement.template value resolver failed",
+            error
+          );
+          return "";
+        }
+      }
+      return chunk.value;
+    });
+
+    return helpers.html(strings, ...resolvedValues);
+  };
+};
+
+const removeDisplayElementInternal = (fullId: string) => {
+  const store = usePluginDisplayElementStore.getState();
+  const element = store.elements.find((el) => el.fullId === fullId);
+  if (element) {
+    if (element._onClickId) handlerRegistry.unregister(element._onClickId);
+    if (element._onPositionChangeId)
+      handlerRegistry.unregister(element._onPositionChangeId);
+    if (element._onDeleteId) handlerRegistry.unregister(element._onDeleteId);
+  }
+
+  store.removeElement(fullId);
+
+  unregisterDisplayElementInstance(fullId);
+};
 
 import type {
   CssLoadResult,
@@ -127,6 +269,8 @@ import type {
   InputOptions,
   DropdownOptions,
   PanelOptions,
+  PluginDisplayElementConfig,
+  PluginDisplayElementInternal,
 } from "@src/types/api";
 import type { BootstrapPayload } from "@src/types/app";
 import type { CustomCss } from "@src/types/css";
@@ -471,13 +615,14 @@ const api: DMNoteAPI = {
       },
     },
     displayElement: {
-      add: (element: Omit<PluginDisplayElement, "id">) => {
-        // 메인 윈도우에서만 추가 가능
+      html,
+      template: buildDisplayElementTemplate,
+      add: (element: PluginDisplayElementConfig) => {
         if ((window as any).__dmn_window_type !== "main") {
           console.warn(
             "[UI API] displayElement.add is only available in main window"
           );
-          return "";
+          return createNoopDisplayElementInstance();
         }
 
         const pluginId = (window as any).__dmn_current_plugin_id;
@@ -485,7 +630,7 @@ const api: DMNoteAPI = {
           console.warn(
             "[UI API] displayElement.add called outside plugin context"
           );
-          return "";
+          return createNoopDisplayElementInstance();
         }
 
         const id = `element-${Date.now()}-${Math.random()
@@ -493,91 +638,186 @@ const api: DMNoteAPI = {
           .substring(7)}`;
         const fullId = `${pluginId}::${id}`;
 
-        // 핸들러 자동 등록 처리
+        const {
+          template,
+          state: initialState,
+          html: initialHtml,
+          ...elementOptions
+        } = element as PluginDisplayElementConfig;
+
+        const templateFn =
+          typeof template === "function" ? template : undefined;
+        const stateSnapshot = initialState
+          ? { ...initialState }
+          : templateFn
+          ? {}
+          : undefined;
+
+        const html = typeof initialHtml === "string" ? initialHtml : "";
+
+        if (!html && !templateFn) {
+          console.warn(
+            `[UI API] displayElement '${fullId}' has no HTML content. The panel will be empty until setState/setHTML is called.`
+          );
+        }
+
         let onClickId: string | undefined;
         let onPositionChangeId: string | undefined;
         let onDeleteId: string | undefined;
 
-        // onClick 핸들러 처리
-        if (typeof element.onClick === "function") {
-          onClickId = handlerRegistry.register(pluginId, element.onClick);
+        if (typeof elementOptions.onClick === "function") {
+          onClickId = handlerRegistry.register(
+            pluginId,
+            elementOptions.onClick
+          );
         }
-
-        // onPositionChange 핸들러 처리
-        if (typeof element.onPositionChange === "function") {
+        if (typeof elementOptions.onPositionChange === "function") {
           onPositionChangeId = handlerRegistry.register(
             pluginId,
-            element.onPositionChange
+            elementOptions.onPositionChange
+          );
+        }
+        if (typeof elementOptions.onDelete === "function") {
+          onDeleteId = handlerRegistry.register(
+            pluginId,
+            elementOptions.onDelete
           );
         }
 
-        // onDelete 핸들러 처리
-        if (typeof element.onDelete === "function") {
-          onDeleteId = handlerRegistry.register(pluginId, element.onDelete);
-        }
-
-        const internalElement = {
-          ...element,
+        const internalElement: PluginDisplayElementInternal = {
+          ...elementOptions,
+          html,
           id,
           pluginId,
           fullId,
-          // 함수가 전달된 경우 자동 생성된 ID로 변경
           onClick:
             onClickId ||
-            (typeof element.onClick === "string" ? element.onClick : undefined),
+            (typeof elementOptions.onClick === "string"
+              ? elementOptions.onClick
+              : undefined),
           onPositionChange:
             onPositionChangeId ||
-            (typeof element.onPositionChange === "string"
-              ? element.onPositionChange
+            (typeof elementOptions.onPositionChange === "string"
+              ? elementOptions.onPositionChange
               : undefined),
           onDelete:
             onDeleteId ||
-            (typeof element.onDelete === "string"
-              ? element.onDelete
+            (typeof elementOptions.onDelete === "string"
+              ? elementOptions.onDelete
               : undefined),
-          // 자동 생성된 핸들러 ID 저장 (클린업용)
           _onClickId: onClickId,
           _onPositionChangeId: onPositionChangeId,
           _onDeleteId: onDeleteId,
         };
 
         usePluginDisplayElementStore.getState().addElement(internalElement);
-        return fullId;
+
+        const instance = new DisplayElementInstance({
+          fullId,
+          pluginId,
+          scoped: Boolean(elementOptions.scoped),
+          initialState: stateSnapshot,
+          template: templateFn,
+          updateElement: (targetId, updates) => {
+            usePluginDisplayElementStore
+              .getState()
+              .updateElement(targetId, updates);
+          },
+          removeElement: (targetId) => {
+            removeDisplayElementInternal(targetId);
+          },
+        });
+
+        registerDisplayElementInstance(instance);
+
+        if (templateFn) {
+          instance.setState({});
+        }
+
+        return instance;
       },
 
-      update: (fullId: string, updates: Partial<PluginDisplayElement>) => {
+      get: (fullId: string) => resolveInstance(fullId),
+
+      setState: (target, updates) => {
+        const instance = resolveInstance(target);
+        if (!instance) return;
+        instance.setState(updates || {});
+      },
+
+      setData: (target, updates) => {
+        const instance = resolveInstance(target);
+        if (!instance) return;
+        instance.setData(updates || {});
+      },
+
+      setText: (target, selector, text) => {
+        const instance = resolveInstance(target);
+        if (!instance) return;
+        instance.setText(selector, text);
+      },
+
+      setHTML: (target, selector, htmlContent) => {
+        const instance = resolveInstance(target);
+        if (!instance) return;
+        instance.setHTML(selector, htmlContent);
+      },
+
+      setStyle: (target, selector, styles) => {
+        const instance = resolveInstance(target);
+        if (!instance) return;
+        instance.setStyle(selector, styles);
+      },
+
+      addClass: (target, selector, ...classNames) => {
+        const instance = resolveInstance(target);
+        if (!instance) return;
+        instance.addClass(selector, ...classNames);
+      },
+
+      removeClass: (target, selector, ...classNames) => {
+        const instance = resolveInstance(target);
+        if (!instance) return;
+        instance.removeClass(selector, ...classNames);
+      },
+
+      toggleClass: (target, selector, className) => {
+        const instance = resolveInstance(target);
+        if (!instance || !className) return;
+        instance.toggleClass(selector, className);
+      },
+
+      query: (target, selector) => {
+        const instance = resolveInstance(target);
+        if (!instance) return null;
+        return instance.query(selector);
+      },
+
+      update: (
+        target: DisplayElementTarget,
+        updates: Partial<PluginDisplayElement>
+      ) => {
         if ((window as any).__dmn_window_type !== "main") {
           console.warn(
             "[UI API] displayElement.update is only available in main window"
           );
           return;
         }
-
+        const fullId = resolveFullId(target);
+        if (!fullId) return;
         usePluginDisplayElementStore.getState().updateElement(fullId, updates);
       },
 
-      remove: (fullId: string) => {
+      remove: (target: DisplayElementTarget) => {
         if ((window as any).__dmn_window_type !== "main") {
           console.warn(
             "[UI API] displayElement.remove is only available in main window"
           );
           return;
         }
-
-        // Element 삭제 전에 자동 등록된 핸들러 정리
-        const element = usePluginDisplayElementStore
-          .getState()
-          .elements.find((el) => el.fullId === fullId);
-        if (element) {
-          if (element._onClickId)
-            handlerRegistry.unregister(element._onClickId);
-          if (element._onPositionChangeId)
-            handlerRegistry.unregister(element._onPositionChangeId);
-          if (element._onDeleteId)
-            handlerRegistry.unregister(element._onDeleteId);
-        }
-
-        usePluginDisplayElementStore.getState().removeElement(fullId);
+        const fullId = resolveFullId(target);
+        if (!fullId) return;
+        removeDisplayElementInternal(fullId);
       },
 
       clearMyElements: () => {
@@ -596,20 +836,12 @@ const api: DMNoteAPI = {
           return;
         }
 
-        // 플러그인의 모든 Element에 대한 핸들러 정리
         const elements = usePluginDisplayElementStore
           .getState()
           .elements.filter((el) => el.pluginId === pluginId);
         elements.forEach((element) => {
-          if (element._onClickId)
-            handlerRegistry.unregister(element._onClickId);
-          if (element._onPositionChangeId)
-            handlerRegistry.unregister(element._onPositionChangeId);
-          if (element._onDeleteId)
-            handlerRegistry.unregister(element._onDeleteId);
+          removeDisplayElementInternal(element.fullId);
         });
-
-        usePluginDisplayElementStore.getState().clearByPluginId(pluginId);
       },
     },
 
@@ -888,6 +1120,18 @@ if (typeof window !== "undefined" && !window.api) {
 }
 
 // 핸들러 레지스트리를 외부에서 사용할 수 있도록 export
+export const displayElementInstanceRegistry = {
+  get(fullId: string) {
+    return displayElementInstances.get(fullId);
+  },
+  clearByPluginId(pluginId: string) {
+    clearInstancesByPlugin(pluginId);
+  },
+  clearAll() {
+    clearAllInstances();
+  },
+};
+
 export { handlerRegistry };
 
 export default api;

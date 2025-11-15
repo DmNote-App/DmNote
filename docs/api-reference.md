@@ -2356,221 +2356,279 @@ window.api.ui.contextMenu.addGridMenuItem({
 
 ### Display Element (`window.api.ui.displayElement`)
 
-**Display Element**는 플러그인이 그리드와 오버레이에 커스텀 DOM 요소를 동적으로 추가할 수 있게 하는 API입니다.
+Display Element는 메인 그리드에서 만든 패널을 오버레이와 동기화하고, 플러그인별로 상태를 갖는 미니 UI를 렌더링할 때 사용하는 저수준 DOM API입니다.
 
-#### Display Element의 역할과 특성
+#### 핵심 특징
 
-- **그리드-오버레이 통합**: 그리드(메인 윈도우)에서 추가한 요소가 자동으로 오버레이 윈도우에도 동기화됩니다
-- **Key 컴포넌트 유사**: Key 컴포넌트와 동일한 방식으로 두 윈도우에서 렌더링되며, 위치 정보가 공유됩니다
-- **위치 지정 방식**:
-  - **절대 위치**: `{ x: number, y: number }` 좌표로 직접 배치
-  - **앵커 기반**: 특정 키에 상대적으로 배치 (예: 키 옆에 통계 표시)
-- **드래그 지원**: 그리드에서 마우스로 드래그하여 위치 변경 가능
-- **HTML 기반**: HTML 문자열로 콘텐츠를 정의하며, React 컴포넌트가 아닌 순수 DOM 요소
-- **스타일 격리 옵션**: Shadow DOM을 활용한 CSS 스코핑 지원
+- **인스턴스 기반**: `displayElement.add()`는 이제 `DisplayElementInstance`를 반환하며, 이 인스턴스를 통해 상태/DOM 조작을 수행합니다.
+- **템플릿 + 상태**: `state`와 `template` 옵션을 전달하면 React 없이도 간단한 상태 기반 렌더링을 구현할 수 있습니다.
+- **양방향 조작**: 인스턴스 메서드 외에도 `window.api.ui.displayElement.setState(instance, updates)`처럼 전역 헬퍼도 계속 사용할 수 있습니다.
+- **양 창 동기화**: 메인에서 작성한 HTML은 자동으로 오버레이로 복제되며, 위치 변경도 실시간 반영됩니다.
+- **드래그 & 컨텍스트 메뉴**: 기존과 동일하게 드래그, 앵커, 우클릭 메뉴, Shadow DOM 스코핑을 지원합니다.
 
-#### `window.api.ui.displayElement.add(element)`
+#### 인스턴스 & 템플릿 빠른 예제
 
-그리드와 오버레이에 표시될 DOM 요소를 추가합니다.
+```javascript
+const panel = window.api.ui.displayElement.add({
+  position: { x: 140, y: 90 },
+  draggable: true,
+  state: { kps: 0, history: [] },
+  template: (state) => `
+    <style>
+      .card { padding: 16px; border-radius: 12px; background: #111827; color: white; }
+      .bars { display: flex; gap: 4px; align-items: flex-end; height: 40px; }
+      .bars span { flex: 1; background: #6366f1; border-radius: 4px 4px 0 0; }
+    </style>
+    <div class="card">
+      <strong>${state.kps.toFixed(1)} KPS</strong>
+      <div class="bars">
+        ${state.history
+          .map(
+            (value) =>
+              `<span style="height:${
+                state.max ? Math.round((value / state.max) * 100) : 0
+              }%"></span>`
+          )
+          .join("")}
+      </div>
+    </div>
+  `,
+});
 
-**매개변수**:
+window.api.bridge.on("KPS_UPDATE", ({ kps, max }) => {
+  const history = [...panel.getState().history, kps].slice(-24);
+  panel.setState({ kps, max, history });
+});
 
-- `element: Omit<PluginDisplayElement, "id">`
+window.api.plugin.registerCleanup(() => panel.remove());
+```
+
+#### `window.api.ui.displayElement.add(config)`
+
+그리드/오버레이 모두에 표시될 요소를 생성하고 `DisplayElementInstance`를 반환합니다.
 
 ```typescript
-interface PluginDisplayElement {
-  html: string; // HTML 콘텐츠 (문자열)
-  position: { x: number; y: number }; // 절대 위치 (픽셀)
-  anchor?: {
-    // 선택적 앵커 기반 위치
-    keyCode: string; // 기준 키 코드 (예: "KeyD")
-    offset?: { x: number; y: number }; // 키로부터의 오프셋
-  };
-  draggable?: boolean; // 그리드에서 드래그 가능 여부 (기본: false)
-  zIndex?: number; // 레이어링 (기본: 50, 키 위/컨텍스트 메뉴 아래)
-  scoped?: boolean; // Shadow DOM 사용 여부 (기본: false)
-  className?: string; // CSS 클래스
-  style?: Record<string, string>; // 인라인 스타일
-  estimatedSize?: { width: number; height: number }; // 예상 크기 (오버레이 bounds 계산용, 선택적)
-  onClick?: string; // 클릭 이벤트 핸들러 ID (메인 윈도우에서만)
-  onPositionChange?: string; // 위치 변경 핸들러 ID (메인 윈도우에서만, 드래그 시 호출)
-  onDelete?: string; // 삭제 핸들러 ID (메인 윈도우에서만, 컨텍스트 메뉴로 삭제 시 호출)
-  contextMenu?: {
-    // 우클릭 컨텍스트 메뉴 (선택적)
-    enableDelete?: boolean; // 삭제 메뉴 활성화 (기본: true)
-    deleteLabel?: string; // 삭제 메뉴 텍스트 (기본: "삭제")
-    customItems?: Array<{
-      id: string;
-      label: string;
-      onClick: (context: { element: PluginDisplayElement }) => void;
-    }>;
-  };
+type PluginDisplayElementConfig = {
+  html: string; // 기본 HTML (template이 있다면 초기 렌더링 후 template 출력으로 대체)
+  position: { x: number; y: number };
+  anchor?: { keyCode: string; offset?: { x: number; y: number } };
+  draggable?: boolean;
+  zIndex?: number;
+  scoped?: boolean;
+  className?: string;
+  style?: Record<string, string>;
+  estimatedSize?: { width: number; height: number };
+  onClick?: string | (() => void | Promise<void>);
+  onPositionChange?:
+    | string
+    | ((pos: { x: number; y: number }) => void | Promise<void>);
+  onDelete?: string | (() => void | Promise<void>);
+  contextMenu?: PluginDisplayElementContextMenu;
+  state?: Record<string, any>;
+  template?: (
+    state: Record<string, any>,
+    helpers?: {
+      html(
+        strings: TemplateStringsArray,
+        ...values: unknown[]
+      ): DisplayElementTemplateResult;
+    }
+  ) => string | DisplayElementTemplateResult;
+};
+```
+
+- `state`가 있으면 내부적으로 얕은 복사본을 유지하며, `template`은 `setState()` 호출 시마다 다시 실행됩니다.
+- `window.api.ui.displayElement.template` 태그를 사용하면 `const { html } = window.api.ui.displayElement` 없이도 템플릿을 작성할 수 있습니다.
+- 템플릿 리터럴 내부에서는 `${(state) => state.value}` 혹은 `${(state, helpers) => helpers.html`...`}`과 같이 상태/헬퍼를 직접 활용할 수 있습니다.
+- 기존처럼 `(state) => html\`...\``함수를 수동 정의해도 되며, 이때 두 번째 인자로 제공되는`helpers`객체에서`html` helper를 사용할 수 있습니다.
+- 반환된 인스턴스는 문자열처럼 사용할 수 있으며(`String` 상속), 다른 API에 그대로 전달 가능합니다.
+
+#### `window.api.ui.displayElement.template\`...\``
+
+템플릿을 보다 선언적으로 작성할 수 있는 **태그드 템플릿 헬퍼**입니다. 내부적으로 `html` helper를 자동 주입하므로 별도 임포트가 필요 없습니다.
+
+```javascript
+const panelTemplate = window.api.ui.displayElement.template`
+  <div class="panel">
+    <strong>${(state) => state.value}</strong>
+    <div class="history">${(state) =>
+      state.history.map((v) => `<span style="height:${v}%"></span>`).join("")}
+    </div>
+  </div>
+`;
+
+window.api.ui.displayElement.add({
+  position: { x: 80, y: 60 },
+  state: { value: 0, history: [] },
+  template: panelTemplate,
+});
+```
+
+- `${(state) => state.value}`처럼 **상태 기반 값**을 직접 기입할 수 있으며, 함수 리턴값은 자동으로 문자열화됩니다.
+- `${(state, helpers) => helpers.html`<span>HTML</span>`}`처럼 **일부 구간만 `html` helper**로 감쌀 수도 있습니다.
+- 함수 대신 문자열/숫자 literal을 그대로 넣을 수도 있고, 필요한 경우 일반 템플릿 함수(`(state) => html\`...\``)도 계속 지원됩니다.
+
+#### DisplayElementInstance 메서드
+
+`add()`의 반환값은 아래 메서드를 제공합니다.
+
+- `setState(updates)` / `setData(updates)` : 상태 병합 후 템플릿 재렌더
+- `getState()` : 현재 상태 스냅샷을 반환
+- `setText(selector, text)` / `setHTML(selector, html)`
+- `setStyle(selector, styles)`
+- `addClass` / `removeClass` / `toggleClass`
+- `query(selector)` : Shadow DOM 안쪽까지 탐색
+- `update(partialConfig)` : 저수준 `displayElement.update`에 위임
+- `remove()` : 요소 제거 및 인스턴스 폐기
+
+> `selector`에 `":root"`를 넘기면 루트 컨테이너를 대상으로 하며, Shadow DOM을 켰을 때도 스코프 안쪽 DOM만 변형됩니다.
+
+#### `window.api.ui.displayElement.get(fullId)`
+
+문자열 ID로 인스턴스를 다시 가져옵니다. 이미 받은 인스턴스를 캐시하고 싶지 않은 경우에 유용합니다.
+
+```javascript
+const savedId = await window.api.plugin.storage.get("panelId");
+const panel = savedId && window.api.ui.displayElement.get(savedId);
+panel?.setText(":root", "Hello");
+```
+
+#### 전역 헬퍼 함수
+
+모든 DOM 조작 헬퍼는 `string` ID 또는 `DisplayElementInstance` 어느 쪽이든 받습니다.
+
+##### `window.api.ui.displayElement.setState(target, updates)`
+
+상태를 병합하고 템플릿을 다시 렌더링합니다.
+
+```javascript
+window.api.ui.displayElement.setState(panel, { count: 5 });
+// panel.setState({ count: 5 })와 동일
+```
+
+##### `window.api.ui.displayElement.setData(target, updates)`
+
+`setState`의 별칭입니다.
+
+```javascript
+window.api.ui.displayElement.setData(panel, { value: 10 });
+```
+
+##### `window.api.ui.displayElement.setText(target, selector, text)`
+
+선택자로 지정한 요소의 텍스트를 설정합니다.
+
+```javascript
+// 루트 요소의 텍스트 변경
+window.api.ui.displayElement.setText(panel, ":root", "Hello World");
+
+// 특정 클래스의 텍스트 변경
+window.api.ui.displayElement.setText(panel, ".counter", "42");
+```
+
+##### `window.api.ui.displayElement.setHTML(target, selector, html)`
+
+선택자로 지정한 요소의 innerHTML을 설정합니다.
+
+```javascript
+window.api.ui.displayElement.setHTML(
+  panel,
+  ".content",
+  "<strong>Bold</strong> text"
+);
+```
+
+##### `window.api.ui.displayElement.setStyle(target, selector, styles)`
+
+선택자로 지정한 요소에 스타일을 적용합니다.
+
+```javascript
+window.api.ui.displayElement.setStyle(panel, ":root", {
+  background: "#1a1a1a",
+  color: "#fff",
+  padding: "20px",
+});
+
+// 특정 요소 스타일링
+window.api.ui.displayElement.setStyle(panel, ".graph", {
+  height: "60px",
+  opacity: "0.8",
+});
+```
+
+##### `window.api.ui.displayElement.addClass(target, selector, ...classNames)`
+
+선택자로 지정한 요소에 CSS 클래스를 추가합니다.
+
+```javascript
+window.api.ui.displayElement.addClass(panel, ":root", "active", "highlighted");
+
+// 인스턴스 메서드도 동일
+panel.addClass(".status", "online");
+```
+
+##### `window.api.ui.displayElement.removeClass(target, selector, ...classNames)`
+
+선택자로 지정한 요소에서 CSS 클래스를 제거합니다.
+
+```javascript
+window.api.ui.displayElement.removeClass(panel, ":root", "loading");
+```
+
+##### `window.api.ui.displayElement.toggleClass(target, selector, className)`
+
+선택자로 지정한 요소의 CSS 클래스를 토글합니다.
+
+```javascript
+window.api.ui.displayElement.toggleClass(panel, ".icon", "spinning");
+```
+
+##### `window.api.ui.displayElement.query(target, selector)`
+
+선택자로 요소를 검색합니다. Shadow DOM을 사용해도 안전하게 탐색합니다.
+
+```javascript
+const element = window.api.ui.displayElement.query(panel, ".graph");
+if (element) {
+  console.log("Found element:", element);
 }
+
+// 루트 요소 가져오기
+const root = window.api.ui.displayElement.query(panel, ":root");
 ```
 
-**반환형**: `string` - 요소의 전역 고유 ID (`pluginId::elementId`)
+**참고**: 인스턴스 메서드를 바로 호출하는 편이 간결하지만, 저장된 문자열 ID만 있는 기존 플러그인을 위해 전역 헬퍼 역시 유지됩니다.
 
-**참고**:
+#### `window.api.ui.displayElement.update(target, updates)`
 
-- 요소의 실제 크기는 렌더링 후 자동으로 측정되어 오버레이 윈도우 크기에 반영됩니다
-- `estimatedSize`를 제공하면 초기 렌더링 전에도 더 정확한 크기 계산이 가능합니다
-
-**사용 예**:
+드래그 가능 여부, 앵커, 위치, 컨텍스트 메뉴 등의 메타데이터를 수정합니다.
 
 ```javascript
-// 기본 사용 - 절대 위치 + 내장 컨텍스트 메뉴
-const elementId = window.api.ui.displayElement.add({
-  html: '<div style="padding: 10px; background: #333; color: white;">통계: 0</div>',
-  position: { x: 100, y: 100 },
-  draggable: true,
-  zIndex: 10,
-  estimatedSize: { width: 150, height: 50 },
-  contextMenu: {
-    enableDelete: true, // 우클릭 시 삭제 메뉴
-  },
-});
+panel.update({ draggable: false });
 
-// onClick 핸들러 - 클릭 시 모달 열기
-window.handlePanelClick = () => {
-  console.log("패널 클릭됨!");
-  // 모달 열기 등의 작업
-};
-
-window.api.ui.displayElement.add({
-  html: '<div style="padding: 10px; background: #333; color: white; cursor: pointer;">클릭하세요</div>',
-  position: { x: 100, y: 100 },
-  onClick: "handlePanelClick", // 핸들러 ID
-});
-
-// onPositionChange와 onDelete - 위치 및 삭제 감지
-window.handlePositionChange = (position) => {
-  console.log("새 위치:", position);
-  // 위치를 저장하거나 다른 작업 수행
-};
-
-window.handlePanelDelete = () => {
-  console.log("패널 삭제됨!");
-  // 상태 정리 등의 작업
-};
-
-window.api.ui.displayElement.add({
-  html: '<div style="padding: 10px; background: #333; color: white;">드래그 가능</div>',
-  position: { x: 100, y: 100 },
-  draggable: true,
-  onPositionChange: "handlePositionChange",
-  onDelete: "handlePanelDelete",
-  contextMenu: { enableDelete: true },
-});
-
-// 앵커 기반 - 키에 상대적 배치
-window.api.ui.displayElement.add({
-  html: '<div class="counter-badge">999+</div>',
-  position: { x: 0, y: 0 }, // 폴백 위치
-  anchor: {
-    keyCode: "KeyD", // D키에 앵커
-    offset: { x: 50, y: -20 }, // 키의 오른쪽 위
-  },
-  className: "plugin-badge",
-});
-
-// Shadow DOM 사용 - 스타일 격리
-window.api.ui.displayElement.add({
-  html: `
-    <style>
-      .widget { background: red; padding: 20px; }
-    </style>
-    <div class="widget">격리된 위젯</div>
-  `,
-  position: { x: 200, y: 200 },
-  scoped: true, // Shadow DOM 활성화
-});
-
-// 커스텀 컨텍스트 메뉴 아이템
-window.api.ui.displayElement.add({
-  html: "<div>설정 가능한 위젯</div>",
-  position: { x: 300, y: 300 },
-  contextMenu: {
-    enableDelete: true,
-    customItems: [
-      {
-        id: "configure",
-        label: "⚙️ 설정",
-        onClick: ({ element }) => {
-          console.log("설정 열기", element);
-        },
-      },
-    ],
-  },
+// 또는 전역 헬퍼
+window.api.ui.displayElement.update(panel, {
+  anchor: { keyCode: "KeyF", offset: { x: 0, y: 32 } },
 });
 ```
 
----
+#### `window.api.ui.displayElement.remove(target)`
 
-#### `window.api.ui.displayElement.update(fullId, updates)`
-
-기존 요소를 업데이트합니다.
-
-**매개변수**:
-
-- `fullId: string` - 요소 ID
-- `updates: Partial<PluginDisplayElement>` - 업데이트할 필드
-
-**반환형**: `void`
-
-**사용 예**:
+문자열 ID나 인스턴스를 넘겨 요소를 제거합니다.
 
 ```javascript
-// HTML 콘텐츠 업데이트
-window.api.ui.displayElement.update(elementId, {
-  html: '<div style="padding: 10px; background: #333; color: white;">통계: 123</div>',
-});
-
-// 위치 변경
-window.api.ui.displayElement.update(elementId, {
-  position: { x: 150, y: 150 },
-  anchor: undefined, // 앵커 제거
-});
-
-// 앵커 변경
-window.api.ui.displayElement.update(elementId, {
-  anchor: { keyCode: "KeyF", offset: { x: 0, y: 60 } },
-});
+window.api.ui.displayElement.remove(panel);
+// panel.remove()와 동일
 ```
-
----
-
-#### `window.api.ui.displayElement.remove(fullId)`
-
-특정 요소를 제거합니다.
-
-**매개변수**:
-
-- `fullId: string` - 요소 ID
-
-**반환형**: `void`
-
-**사용 예**:
-
-```javascript
-window.api.ui.displayElement.remove(elementId);
-```
-
----
 
 #### `window.api.ui.displayElement.clearMyElements()`
 
-현재 플러그인이 추가한 모든 요소를 제거합니다.
-
-**반환형**: `void`
-
-**사용 예**:
+현재 플러그인이 추가한 모든 Display Element를 제거합니다. 클린업 시 가장 간단한 정리 방법입니다.
 
 ```javascript
-// 클린업 시 호출
-window.__dmn_custom_js_cleanup = function () {
+window.api.plugin.registerCleanup(() => {
   window.api.ui.displayElement.clearMyElements();
-  delete window.__dmn_custom_js_cleanup;
-};
+});
 ```
 
 ---

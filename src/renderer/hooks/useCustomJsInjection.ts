@@ -3,7 +3,10 @@ import type { JsPlugin } from "@src/types/js";
 import { extractPluginId } from "@utils/pluginUtils";
 import { usePluginMenuStore } from "@stores/usePluginMenuStore";
 import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementStore";
-import { handlerRegistry } from "@utils/tauriApi";
+import {
+  handlerRegistry,
+  displayElementInstanceRegistry,
+} from "@utils/tauriApi";
 
 const SCRIPT_ID_PREFIX = "dmn-custom-js-";
 
@@ -80,6 +83,7 @@ export function useCustomJsInjection() {
         try {
           usePluginMenuStore.getState().clearAll();
           usePluginDisplayElementStore.getState().elements = [];
+          displayElementInstanceRegistry.clearAll();
         } catch (error) {
           console.error("Failed to clear plugin UI elements", error);
         }
@@ -112,6 +116,7 @@ export function useCustomJsInjection() {
                 usePluginDisplayElementStore
                   .getState()
                   .clearByPluginId(pluginId);
+                displayElementInstanceRegistry.clearByPluginId(pluginId);
               } catch (error) {
                 console.error(
                   `Failed to clear UI elements for plugin '${pluginId}'`,

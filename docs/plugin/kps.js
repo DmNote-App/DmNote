@@ -5,32 +5,25 @@
  *
  * 주요 기능:
  * 1. 그리드 컨텍스트 메뉴에서 KPS 패널 추가 (다중 패널 지원)
- * 2. Display Element로 드래그 가능한 패널 구현
+ * 2. DisplayElement 템플릿/상태 기반 렌더링
  * 3. 패널 클릭 시 KPS/AVG/MAX 표시 및 그래프 설정 모달
  * 4. 오버레이에서 계산된 KPS 데이터를 브릿지로 수신
- * 5. 실시간 그래프 표시 (Chart.js)
+ * 5. 실시간 그래프 표시 (바/선 그래프)
  * 6. 패널별 위치 및 설정값 영속성 보장
  */
 (function () {
-  // 메인 윈도우 전용
-  if (window.api.window.type !== "main") {
-    return;
-  }
+  if (window.api.window.type !== "main") return;
 
   // ===== 상태 관리 =====
-  const panels = new Map(); // panelId => { elementId, settings, chartData, maxval }
-  let currentKpsData = { kps: 0, avg: 0, max: 0 }; // 오버레이로부터 수신한 KPS 데이터
+  const panels = new Map(); // panelId => { instance, settings }
+  let currentKpsData = { kps: 0, avg: 0, max: 0 }; // 오버레이로부터 수신된 KPS 데이터
   let nextPanelId = 1;
   const GRAPH_UPDATE_MS = 100; // 그래프 업데이트 주기
 
   // 기본 설정
   const DEFAULT_PANEL_SETTINGS = {
     position: { x: 100, y: 100 },
-    visibility: {
-      kps: true,
-      avg: true,
-      max: true,
-    },
+    visibility: { kps: true, avg: true, max: true },
     showGraph: true,
     graphType: "line", // "bar" 또는 "line"
     graphSpeed: 1000, // backlog (밀리초) - 그래프에 표시될 데이터 기간
@@ -39,10 +32,7 @@
   // ===== 스토리지 초기화 =====
   async function loadPanels() {
     const saved = await window.api.plugin.storage.get("panels");
-    if (saved && Array.isArray(saved)) {
-      return saved;
-    }
-    return [];
+    return Array.isArray(saved) ? saved : [];
   }
 
   async function savePanels() {
@@ -50,152 +40,97 @@
       id,
       settings: panel.settings,
     }));
-    await window.api.plugin.storage.set("panels", panelsData);
+    if (panelsData.length > 0) {
+      await window.api.plugin.storage.set("panels", panelsData);
+    }
+  }
+
+  async function loadNextPanelId() {
+    return (await window.api.plugin.storage.get("nextPanelId")) || 1;
   }
 
   async function saveNextPanelId() {
     await window.api.plugin.storage.set("nextPanelId", nextPanelId);
   }
 
-  async function loadNextPanelId() {
-    const saved = await window.api.plugin.storage.get("nextPanelId");
-    return saved || 1;
-  }
+  // ===== KPS 패널 HTML 생성 (템플릿 함수) =====
+  function generateTemplate(panelId) {
+    const renderRowClass = (key) => (state) => {
+      const visibility = state.visibility || {};
+      return `kps-row ${visibility[key] ? "" : "kps-row--hidden"}`;
+    };
 
-  // ===== KPS 패널 HTML 생성 =====
-  function generatePanelHtml(panelId) {
-    const panel = panels.get(panelId);
-    if (!panel) return "";
+    const renderNoDataClass = (state) => {
+      const visibility = state.visibility || {};
+      const hasStats = visibility.kps || visibility.avg || visibility.max;
+      return `kps-row ${hasStats ? "kps-row--hidden" : ""}`;
+    };
 
-    const { kps, avg, max } = currentKpsData;
-    const { visibility, showGraph } = panel.settings;
+    const renderGraph = (state) => {
+      const { showGraph, history = [], graphType, maxval, avg } = state;
+      if (!showGraph || history.length === 0) return "";
 
-    let rows = "";
-    if (visibility.kps) {
-      rows += `
-        <div class="kps-key-${panelId}">KPS</div>
-        <div class="kps-val-${panelId}">${kps}</div>
-      `;
-    }
-    if (visibility.avg) {
-      rows += `
-        <div class="kps-key-${panelId}">AVG</div>
-        <div class="kps-val-${panelId}">${avg}</div>
-      `;
-    }
-    if (visibility.max) {
-      rows += `
-        <div class="kps-key-${panelId}">MAX</div>
-        <div class="kps-val-${panelId}">${max}</div>
-      `;
-    }
-
-    if (!rows) {
-      rows = `
-        <div class="kps-key-${panelId} kps-muted-${panelId}">No data</div>
-        <div class="kps-val-${panelId} kps-muted-${panelId}">-</div>
-      `;
-    }
-
-    // CSS 기반 그래프 생성 (KPS만 표시)
-    let graphHtml = "";
-    if (showGraph) {
-      const history = panel.chartData || [];
-      const graphType = panel.settings.graphType || "bar";
-      const maxval = panel.maxval || 1; // KeysPerSecond 스타일: 지금까지 본 최대값
-
+      const safeMax = maxval > 0 ? maxval : 1;
       if (graphType === "bar") {
         const bars = history
           .map((value, index) => {
-            const height =
-              maxval > 0 ? Math.min((value / maxval) * 100, 100) : 0;
+            const height = Math.min((value / safeMax) * 100, 100);
             const opacity = 0.3 + (index / history.length) * 0.7;
-            return `<div class="kps-bar-${panelId}" style="height: ${height}%; opacity: ${opacity};"></div>`;
+            return `<div class="kps-bar" style="height: ${height}%; opacity: ${opacity};"></div>`;
           })
           .join("");
-
-        graphHtml = `
-          <div class="kps-graph-${panelId}">
-            ${bars}
-          </div>
-        `;
-      } else {
-        // 선 그래프 + 평균선
-        if (history.length === 0) {
-          graphHtml = `<div class="kps-graph-${panelId}"></div>`;
-        } else {
-          // 라인 포인트 생성
-          const linePoints = history
-            .map((value, index) => {
-              const x = (index / (history.length - 1)) * 100;
-              const y = 100 - Math.min((value / maxval) * 100, 100);
-              return `${x},${y}`;
-            })
-            .join(" ");
-
-          // 면적 채우기용 polygon points (왼쪽 하단 → 라인 → 오른쪽 하단)
-          const fillPoints = [
-            "0,100", // 시작점 (왼쪽 하단)
-            ...history.map((value, index) => {
-              const x = (index / (history.length - 1)) * 100;
-              const y = 100 - Math.min((value / maxval) * 100, 100);
-              return `${x},${y}`;
-            }),
-            "100,100", // 끝점 (오른쪽 하단)
-          ].join(" ");
-
-          // 평균선 위치 계산
-          const avgY = 100 - Math.min((avg / maxval) * 100, 100);
-
-          graphHtml = `
-            <div class="kps-graph-${panelId}">
-              <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="lineGradient-${panelId}" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" style="stop-color:#86EFAC;stop-opacity:0.3" />
-                    <stop offset="100%" style="stop-color:#86EFAC;stop-opacity:1" />
-                  </linearGradient>
-                  <linearGradient id="fillGradient-${panelId}" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" style="stop-color:#86EFAC;stop-opacity:0.05" />
-                    <stop offset="100%" style="stop-color:#86EFAC;stop-opacity:0.15" />
-                  </linearGradient>
-                </defs>
-                <!-- 면적 채우기 -->
-                <polygon
-                  points="${fillPoints}"
-                  fill="url(#fillGradient-${panelId})"
-                />
-                <!-- 평균선 (KeysPerSecond 스타일) -->
-                <line
-                  x1="0" y1="${avgY}"
-                  x2="100" y2="${avgY}"
-                  stroke="#86EFAC"
-                  stroke-width="1"
-                  stroke-dasharray="2,2"
-                  opacity="0.5"
-                  vector-effect="non-scaling-stroke"
-                />
-                <!-- KPS 라인 -->
-                <polyline
-                  points="${linePoints}"
-                  fill="none"
-                  stroke="url(#lineGradient-${panelId})"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  vector-effect="non-scaling-stroke"
-                />
-              </svg>
-            </div>
-          `;
-        }
+        return `<div class="kps-graph">${bars}</div>`;
       }
-    }
 
-    return `
-      <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet" />
+      const denominator = Math.max(history.length - 1, 1);
+      const linePoints = history
+        .map((value, index) => {
+          const x = (index / denominator) * 100;
+          const y = 100 - Math.min((value / safeMax) * 100, 100);
+          return `${x},${y}`;
+        })
+        .join(" ");
+
+      const fillPoints = [
+        "0,100",
+        ...history.map((value, index) => {
+          const x = (index / denominator) * 100;
+          const y = 100 - Math.min((value / safeMax) * 100, 100);
+          return `${x},${y}`;
+        }),
+        "100,100",
+      ].join(" ");
+
+      const avgY = 100 - Math.min(((avg || 0) / safeMax) * 100, 100);
+
+      return `
+        <div class="kps-graph">
+          <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="lineGradient-${panelId}" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#86EFAC;stop-opacity:0.3" />
+                <stop offset="100%" style="stop-color:#86EFAC;stop-opacity:1" />
+              </linearGradient>
+              <linearGradient id="fillGradient-${panelId}" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#86EFAC;stop-opacity:0.05" />
+                <stop offset="100%" style="stop-color:#86EFAC;stop-opacity:0.15" />
+              </linearGradient>
+            </defs>
+            <polygon points="${fillPoints}" fill="url(#fillGradient-${panelId})" />
+            <line x1="0" y1="${avgY}" x2="100" y2="${avgY}" stroke="#86EFAC" stroke-width="1" stroke-dasharray="2,2" opacity="0.5" vector-effect="non-scaling-stroke" />
+            <polyline points="${linePoints}" fill="none" stroke="url(#lineGradient-${panelId})" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+          </svg>
+        </div>
+      `;
+    };
+
+    return window.api.ui.displayElement.template`
+      <link
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css"
+        rel="stylesheet"
+      />
       <style>
-        .kps-panel-${panelId} {
+        .kps-panel {
           background: rgba(17, 17, 20, 0.9);
           color: #fff;
           border: 1px solid rgba(255, 255, 255, 0.1);
@@ -207,9 +142,10 @@
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
           cursor: pointer;
           user-select: none;
-          font-family: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", sans-serif;
+          font-family: Pretendard, -apple-system, BlinkMacSystemFont,
+            system-ui, Roboto, "Helvetica Neue", sans-serif;
         }
-        .kps-body-${panelId} {
+        .kps-body {
           display: grid;
           width: 120px;
           grid-template-columns: 1fr auto;
@@ -217,19 +153,25 @@
           font-size: 12px;
           line-height: 1.3;
         }
-        .kps-key-${panelId} {
-          color: #CBD5E1;
+        .kps-row {
+          display: contents;
+        }
+        .kps-row--hidden {
+          display: none;
+        }
+        .kps-key {
+          color: #cbd5e1;
           white-space: nowrap;
         }
-        .kps-val-${panelId} {
-          color: #86EFAC;
+        .kps-val {
+          color: #86efac;
           text-align: right;
           font-weight: 700;
         }
-        .kps-muted-${panelId} {
-          color: #6B7280;
+        .kps-muted {
+          color: #6b7280;
         }
-        .kps-graph-${panelId} {
+        .kps-graph {
           display: flex;
           align-items: flex-end;
           justify-content: space-between;
@@ -241,14 +183,14 @@
           gap: 1px;
           position: relative;
         }
-        .kps-bar-${panelId} {
+        .kps-bar {
           flex: 1;
-          background: linear-gradient(to top, #86EFAC, #34D399);
+          background: linear-gradient(to top, #86efac, #34d399);
           border-radius: 2px 2px 0 0;
           min-height: 2px;
           transition: height 0.15s ease-out;
         }
-        .kps-graph-${panelId} svg {
+        .kps-graph svg {
           position: absolute;
           top: 4px;
           left: 4px;
@@ -258,11 +200,26 @@
           height: calc(100% - 8px);
         }
       </style>
-      <div class="kps-panel-${panelId}">
-        <div class="kps-body-${panelId}">
-          ${rows}
+      <div class="kps-panel">
+        <div class="kps-body">
+          <div class="${renderRowClass("kps")}">
+            <div class="kps-key">KPS</div>
+            <div class="kps-val">${(state) => state.kps}</div>
+          </div>
+          <div class="${renderRowClass("avg")}">
+            <div class="kps-key">AVG</div>
+            <div class="kps-val">${(state) => state.avg}</div>
+          </div>
+          <div class="${renderRowClass("max")}">
+            <div class="kps-key">MAX</div>
+            <div class="kps-val">${(state) => state.max}</div>
+          </div>
+          <div class="${renderNoDataClass}">
+            <div class="kps-key kps-muted">No data</div>
+            <div class="kps-val kps-muted">-</div>
+          </div>
         </div>
-        ${graphHtml}
+        ${renderGraph}
       </div>
     `;
   }
@@ -279,84 +236,78 @@
 
     // 그래프 데이터 초기화
     const dataPoints = Math.ceil(settings.graphSpeed / GRAPH_UPDATE_MS);
-    const chartData = Array(dataPoints).fill(0);
+    const initialState = {
+      kps: currentKpsData.kps,
+      avg: currentKpsData.avg,
+      max: currentKpsData.max,
+      visibility: settings.visibility,
+      showGraph: settings.showGraph,
+      graphType: settings.graphType,
+      history: Array(dataPoints).fill(0),
+      maxval: 1, // KeysPerSecond 평균값 지금까지 본 최댓값
+    };
 
-    // panels.set을 먼저 호출 (generatePanelHtml에서 panels.get 사용)
-    panels.set(panelId, {
-      elementId: null, // 임시로 null
-      settings,
-      chartData,
-      maxval: 1, // KeysPerSecond 스타일: 지금까지 본 최대값
-    });
-
-    // ✨ 개선: 함수를 직접 전달 (자동으로 핸들러 등록됨)
-    const elementId = window.api.ui.displayElement.add({
-      html: generatePanelHtml(panelId),
+    // 개선된 방식: 함수를 직접 전달 (자동으로 핸들러 등록됨)
+    const instance = window.api.ui.displayElement.add({
       position: settings.position,
       draggable: true,
       zIndex: 100,
       scoped: false,
-      onClick: async () => await handlePanelClick(panelId),
-      onPositionChange: async (pos) => await handlePositionChange(panelId, pos),
-      onDelete: async () => await handlePanelDelete(panelId),
       estimatedSize: { width: 250, height: 180 },
       contextMenu: {
         enableDelete: true,
         deleteLabel: "🗑️ KPS 패널 제거",
       },
+      state: initialState,
+      template: generateTemplate(panelId),
+      onClick: async () => await handlePanelClick(panelId),
+      onPositionChange: async (pos) => await handlePositionChange(panelId, pos),
+      onDelete: async () => await handlePanelDelete(panelId),
     });
 
-    // elementId 업데이트
-    panels.get(panelId).elementId = elementId;
-
+    panels.set(panelId, { instance, settings });
     await savePanels();
-
     return panelId;
   }
 
   // ===== KPS 패널 업데이트 =====
-  function updatePanel(panelId) {
-    const panel = panels.get(panelId);
-    if (!panel) return;
-
-    window.api.ui.displayElement.update(panel.elementId, {
-      html: generatePanelHtml(panelId),
-    });
-  }
-
-  // ===== 모든 패널 업데이트 =====
+  // 모든 패널 업데이트
   function updateAllPanels() {
     const { kps, avg, max } = currentKpsData;
 
     for (const [panelId, panel] of panels.entries()) {
-      // 그래프 데이터 업데이트 (좌→우 스크롤)
-      if (panel.settings.showGraph) {
-        // KeysPerSecond 스타일: maxval 추적 (지금까지 본 최대값)
-        if (kps > panel.maxval) {
-          panel.maxval = kps;
-        }
+      const state = panel.instance.getState();
 
-        panel.chartData.shift(); // 가장 오래된 데이터 제거
-        panel.chartData.push(kps); // 새 데이터 추가
+      // 그래프 데이터 업데이트 (좌측에서 스크롤)
+      if (state.showGraph) {
+        // KeysPerSecond 평균값 maxval 추적 (지금까지 본 최댓값)
+        const newMaxval = Math.max(state.maxval, kps);
+        let newHistory = [...state.history];
+        newHistory.shift(); // 가장 오래된 데이터 제거
+        newHistory.push(kps); // 새 데이터 추가
 
         // backlog 크기 조정
         const targetSize = Math.ceil(
           panel.settings.graphSpeed / GRAPH_UPDATE_MS
         );
-        while (panel.chartData.length > targetSize) {
-          panel.chartData.shift();
-        }
-        while (panel.chartData.length < targetSize) {
-          panel.chartData.unshift(0);
-        }
-      }
+        while (newHistory.length > targetSize) newHistory.shift();
+        while (newHistory.length < targetSize) newHistory.unshift(0);
 
-      // HTML 업데이트 (값 + 그래프 반영)
-      window.api.ui.displayElement.update(panel.elementId, {
-        html: generatePanelHtml(panelId),
-      });
+        // HTML 업데이트 (값 + 그래프 반영)
+        panel.instance.setState({
+          kps,
+          avg,
+          max,
+          history: newHistory,
+          maxval: newMaxval,
+        });
+      } else {
+        panel.instance.setState({ kps, avg, max });
+      }
     }
-  } // ===== 위치 변경 핸들러 =====
+  }
+
+  // ===== 위치 변경 핸들러 =====
   async function handlePositionChange(panelId, position) {
     const panel = panels.get(panelId);
     if (!panel) return;
@@ -370,7 +321,7 @@
     const panel = panels.get(panelId);
     if (!panel) return;
 
-    // ✨ 개선: 수동 delete 불필요 (자동으로 정리됨)
+    // 개선됨: 자동 delete 불필요 (자동으로 정리됨)
     panels.delete(panelId);
     await savePanels();
   }
@@ -380,19 +331,19 @@
     const panel = panels.get(panelId);
     if (!panel) return;
 
-    const { visibility, showGraph, graphType, graphSpeed } = panel.settings;
+    const state = panel.instance.getState();
 
     // 임시 설정값
     const tempSettings = {
-      visibility: { ...visibility },
-      showGraph,
-      graphType: graphType || "bar",
-      graphSpeed: graphSpeed !== undefined ? graphSpeed : 3000,
+      visibility: { ...state.visibility },
+      showGraph: state.showGraph,
+      graphType: state.graphType,
+      graphSpeed: panel.settings.graphSpeed,
     };
 
-    // ✨ 개선된 방식: 함수 직접 전달
+    // 개선된 방식: 함수 직접 전달
     const kpsCheckbox = window.api.ui.components.checkbox({
-      checked: visibility.kps,
+      checked: state.visibility.kps,
       id: "kps-kps-checkbox",
       onChange: (checked) => {
         tempSettings.visibility.kps = checked;
@@ -400,7 +351,7 @@
     });
 
     const avgCheckbox = window.api.ui.components.checkbox({
-      checked: visibility.avg,
+      checked: state.visibility.avg,
       id: "kps-avg-checkbox",
       onChange: (checked) => {
         tempSettings.visibility.avg = checked;
@@ -408,7 +359,7 @@
     });
 
     const maxCheckbox = window.api.ui.components.checkbox({
-      checked: visibility.max,
+      checked: state.visibility.max,
       id: "kps-max-checkbox",
       onChange: (checked) => {
         tempSettings.visibility.max = checked;
@@ -416,7 +367,7 @@
     });
 
     const graphCheckbox = window.api.ui.components.checkbox({
-      checked: showGraph,
+      checked: state.showGraph,
       id: "kps-graph-checkbox",
       onChange: (checked) => {
         tempSettings.showGraph = checked;
@@ -428,7 +379,7 @@
         { value: "bar", label: "바 그래프" },
         { value: "line", label: "선 그래프" },
       ],
-      selected: tempSettings.graphType,
+      selected: state.graphType,
       id: "kps-graph-type",
       onChange: (value) => {
         tempSettings.graphType = value;
@@ -443,17 +394,9 @@
       step: 100,
       width: 60,
       id: "kps-speed-input",
-      onInput: (value) => {
-        const num = parseInt(value, 10);
-        if (!isNaN(num) && num > 0) {
-          tempSettings.graphSpeed = num;
-        }
-      },
       onChange: (value) => {
         const num = parseInt(value, 10);
-        if (!isNaN(num) && num > 0) {
-          tempSettings.graphSpeed = num;
-        }
+        if (!isNaN(num) && num > 0) tempSettings.graphSpeed = num;
       },
     });
 
@@ -475,26 +418,32 @@
     });
 
     if (confirmed) {
-      panel.settings.visibility = { ...tempSettings.visibility };
+      panel.settings.visibility = tempSettings.visibility;
       panel.settings.showGraph = tempSettings.showGraph;
       panel.settings.graphType = tempSettings.graphType;
       panel.settings.graphSpeed = tempSettings.graphSpeed;
 
       // graphSpeed 변경 시 chartData 크기 조정
+      const currentState = panel.instance.getState();
       const newSize = Math.ceil(tempSettings.graphSpeed / GRAPH_UPDATE_MS);
-      if (panel.chartData.length !== newSize) {
-        const diff = newSize - panel.chartData.length;
-        if (diff > 0) {
-          // 크기 증가: 앞에 0 추가
-          panel.chartData = [...Array(diff).fill(0), ...panel.chartData];
-        } else {
-          // 크기 감소: 앞에서 제거
-          panel.chartData = panel.chartData.slice(-newSize);
-        }
+      let newHistory = [...currentState.history];
+      const diff = newSize - newHistory.length;
+      if (diff > 0) {
+        // 크기 증가: 왼쪽에 0 추가
+        newHistory = [...Array(diff).fill(0), ...newHistory];
+      } else if (diff < 0) {
+        // 크기 감소: 왼쪽에서 제거
+        newHistory = newHistory.slice(-newSize);
       }
 
+      panel.instance.setState({
+        visibility: tempSettings.visibility,
+        showGraph: tempSettings.showGraph,
+        graphType: tempSettings.graphType,
+        history: newHistory,
+      });
+
       await savePanels();
-      updatePanel(panelId);
     }
   }
 
@@ -534,39 +483,39 @@
       };
 
       const dataPoints = Math.ceil(settings.graphSpeed / GRAPH_UPDATE_MS);
-      const chartData = Array(dataPoints).fill(0);
-
-      // panels.set을 먼저 호출 (generatePanelHtml에서 panels.get 사용)
-      panels.set(panelId, {
-        elementId: null, // 임시로 null
-        settings,
-        chartData,
+      const initialState = {
+        kps: currentKpsData.kps,
+        avg: currentKpsData.avg,
+        max: currentKpsData.max,
+        visibility: settings.visibility,
+        showGraph: settings.showGraph,
+        graphType: settings.graphType,
+        history: Array(dataPoints).fill(0),
         maxval: 1,
-      });
+      };
 
-      // ✨ 개선: 함수를 직접 전달 (자동으로 핸들러 등록됨)
-      const elementId = window.api.ui.displayElement.add({
-        html: generatePanelHtml(panelId),
+      // 개선된 방식: 함수를 직접 전달 (자동으로 핸들러 등록됨)
+      const instance = window.api.ui.displayElement.add({
         position: settings.position,
         draggable: true,
         zIndex: 100,
         scoped: false,
-        onClick: async () => await handlePanelClick(panelId),
-        onPositionChange: async (pos) =>
-          await handlePositionChange(panelId, pos),
-        onDelete: async () => await handlePanelDelete(panelId),
         estimatedSize: { width: 250, height: 180 },
         contextMenu: {
           enableDelete: true,
           deleteLabel: "🗑️ KPS 패널 제거",
         },
+        state: initialState,
+        template: generateTemplate(panelId),
+        onClick: async () => await handlePanelClick(panelId),
+        onPositionChange: async (pos) =>
+          await handlePositionChange(panelId, pos),
+        onDelete: async () => await handlePanelDelete(panelId),
       });
 
-      // elementId 업데이트
-      panels.get(panelId).elementId = elementId;
+      panels.set(panelId, { instance, settings });
 
-      // ✨ 개선: 핸들러는 add() 호출 시 자동 등록되므로 별도 등록 불필요
-
+      // 개선됨: 핸들러는 add() 시점 시 자동 등록되므로 별도 등록 불필요
       if (panelId >= nextPanelId) {
         nextPanelId = panelId + 1;
       }
@@ -579,18 +528,15 @@
   window.api.plugin.registerCleanup(() => {
     unsubBridge();
     window.api.ui.contextMenu.removeMenuItem(menuId);
-    window.api.ui.displayElement.clearMyElements(); // ✨ 개선: 핸들러도 자동으로 정리됨
-
+    window.api.ui.displayElement.clearMyElements(); // 개선됨: 핸들러도 자동으로 정리됨
     delete window.__kpsCheckboxHandler;
   });
 })();
 
 // ===== 오버레이: KPS 계산 및 메인으로 전송 =====
 (function () {
-  // 오버레이 윈도우 전용
-  if (window.api.window.type !== "overlay") {
-    return;
-  }
+  // 오버레이 윈도우만 사용
+  if (window.api.window.type !== "overlay") return;
 
   // 설정값
   const WINDOW_MS = 1000; // 집계 윈도우
@@ -607,7 +553,7 @@
   let kpsHistory = [];
   let lastKps = 0;
 
-  // 유틸리티
+  // 옛날 타임스탬프 제거
   function pruneOld(now) {
     const cutoff = now - WINDOW_MS;
     for (const [k, arr] of buckets.entries()) {

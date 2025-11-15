@@ -260,9 +260,9 @@ export function createDropdown(options: DropdownOptions): string {
         onChange(value);
       };
       const handlerId = registerComponentHandler(pluginId, wrappedHandler);
-      onChangeAttr = `data-plugin-handler="${handlerId}"`;
+      onChangeAttr = `data-plugin-handler-change="${handlerId}"`;
     } else {
-      onChangeAttr = `data-plugin-handler="${onChange}"`;
+      onChangeAttr = `data-plugin-handler-change="${onChange}"`;
     }
   }
 
@@ -278,7 +278,9 @@ export function createDropdown(options: DropdownOptions): string {
     )
     .join("");
 
-  return `<div class="relative plugin-dropdown" ${idAttr} ${onChangeAttr} data-selected="${selected}">
+  return `<div class="relative plugin-dropdown" ${idAttr} ${onChangeAttr} data-selected="${
+    selected || ""
+  }">
     <button type="button" class="flex items-center justify-between py-[0px] px-[8px] bg-[#2A2A31] border-[1px] border-[#3A3944] rounded-[7px] text-[#DBDEE8] text-style-2 !leading-[23px] outline-none ${
       disabled ? "opacity-50 pointer-events-none" : ""
     }" data-dropdown-toggle>
