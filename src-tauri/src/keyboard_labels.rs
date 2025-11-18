@@ -226,6 +226,10 @@ fn other_key_labels(code: u32) -> Vec<String> {
     match code {
         187 => vec!["EQUALS".to_string(), "=".to_string()],
         189 => vec!["MINUS".to_string(), "-".to_string()],
+        // VK_END (0x23 / 35) is not mapped in KeyboardKey,
+        // so it comes through as Other(35); normalize to "END"
+        // to match frontend key map expectations.
+        35 => vec!["END".to_string()],
         _ => vec![code.to_string()],
     }
 }
