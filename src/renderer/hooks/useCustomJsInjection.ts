@@ -483,6 +483,19 @@ export function useCustomJsInjection() {
                           schema.type === "string" ||
                           schema.type === "number"
                         ) {
+                          // 초기값에 따른 동적 너비 계산
+                          let inputWidth = 200;
+                          const strVal = String(value);
+                          
+                          if (schema.type === "number") {
+                            inputWidth = 60; 
+                          } else {
+                            // 문자열 길이에 따른 가변 너비
+                            if (strVal.length <= 4) inputWidth = 60;
+                            else if (strVal.length <= 10) inputWidth = 100;
+                            else inputWidth = 200;
+                          }
+
                           componentHtml = window.api.ui.components.input({
                             type:
                               schema.type === "string"
@@ -494,6 +507,7 @@ export function useCustomJsInjection() {
                             max: schema.max,
                             step: schema.step,
                             placeholder: schema.placeholder,
+                            width: inputWidth,
                           });
                         } else if (schema.type === "select") {
                           componentHtml = window.api.ui.components.dropdown({

@@ -30,13 +30,13 @@ window.api.plugin.defineElement({
       step: 100,
       label: "그래프 속도 (ms)",
     },
-    textColor: { type: "color", default: "#FFFFFF", label: "텍스트 색상" },
     graphColor: { type: "color", default: "#86EFAC", label: "그래프 색상" },
   },
 
   template: (state, settings, { html }) => {
     const { kps = 0, avg = 0, max = 0, history = [], maxval = 1, uid = "" } = state;
     const safeMax = maxval > 0 ? maxval : 1;
+    const graphColor = settings.graphColor || "#86EFAC";
 
     // 그래프 렌더링
     const renderGraphContent = () => {
@@ -48,7 +48,7 @@ window.api.plugin.defineElement({
           .map((value, index) => {
             const height = Math.min((value / safeMax) * 100, 100);
             const opacity = 0.3 + (index / history.length) * 0.7;
-            return `<div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 2px; transition: height 0.15s ease-out; background: linear-gradient(to top, #86efac, #34d399); height: ${height}%; opacity: ${opacity};"></div>`;
+            return `<div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 2px; transition: height 0.15s ease-out; background: ${graphColor}; height: ${height}%; opacity: ${opacity};"></div>`;
           })
           .join("");
         return `<div style="display: flex; align-items: flex-end; justify-content: space-between; height: 60px; margin-top: 8px; padding: 4px; background: rgba(0, 0, 0, 0.3); border-radius: 4px; gap: 1px; position: relative;">${bars}</div>`;
@@ -80,16 +80,16 @@ window.api.plugin.defineElement({
             <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style="position: absolute; top: 4px; left: 4px; right: 4px; bottom: 4px; width: calc(100% - 8px); height: calc(100% - 8px);">
               <defs>
                 <linearGradient id="lineGradient-${uid}" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" style="stop-color:#86EFAC;stop-opacity:0.3" />
-                  <stop offset="100%" style="stop-color:#86EFAC;stop-opacity:1" />
+                  <stop offset="0%" style="stop-color:${graphColor};stop-opacity:0.3" />
+                  <stop offset="100%" style="stop-color:${graphColor};stop-opacity:1" />
                 </linearGradient>
                 <linearGradient id="fillGradient-${uid}" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" style="stop-color:#86EFAC;stop-opacity:0.05" />
-                  <stop offset="100%" style="stop-color:#86EFAC;stop-opacity:0.15" />
+                  <stop offset="0%" style="stop-color:${graphColor};stop-opacity:0.05" />
+                  <stop offset="100%" style="stop-color:${graphColor};stop-opacity:0.15" />
                 </linearGradient>
               </defs>
               <polygon points="${fillPoints}" fill="url(#fillGradient-${uid})" />
-              <line x1="0" y1="${avgY}" x2="100" y2="${avgY}" stroke="#86EFAC" stroke-width="1" stroke-dasharray="2,2" opacity="0.5" vector-effect="non-scaling-stroke" />
+              <line x1="0" y1="${avgY}" x2="100" y2="${avgY}" stroke="${graphColor}" stroke-width="1" stroke-dasharray="2,2" opacity="0.5" vector-effect="non-scaling-stroke" />
               <polyline points="${linePoints}" fill="none" stroke="url(#lineGradient-${uid})" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
             </svg>
           </div>
@@ -104,19 +104,19 @@ window.api.plugin.defineElement({
           ${settings.showKps ? html`
             <div style="display: contents;">
               <div style="color: #cbd5e1; white-space: nowrap;">KPS</div>
-              <div style="color: #86efac; text-align: right; font-weight: 700;">${kps}</div>
+              <div style="color: ${graphColor}; text-align: right; font-weight: 700;">${kps}</div>
             </div>
           ` : ""}
           ${settings.showAvg ? html`
             <div style="display: contents;">
               <div style="color: #cbd5e1; white-space: nowrap;">AVG</div>
-              <div style="color: #86efac; text-align: right; font-weight: 700;">${avg}</div>
+              <div style="color: ${graphColor}; text-align: right; font-weight: 700;">${avg}</div>
             </div>
           ` : ""}
           ${settings.showMax ? html`
             <div style="display: contents;">
               <div style="color: #cbd5e1; white-space: nowrap;">MAX</div>
-              <div style="color: #86efac; text-align: right; font-weight: 700;">${max}</div>
+              <div style="color: ${graphColor}; text-align: right; font-weight: 700;">${max}</div>
             </div>
           ` : ""}
         </div>
