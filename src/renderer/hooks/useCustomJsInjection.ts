@@ -342,8 +342,11 @@ export function useCustomJsInjection() {
                       ...initialSettings,
                       ...savedSettings,
                     };
+                    // 취소 시 복원을 위한 원본 저장
+                    const originalSettings = { ...currentSettings };
 
-                    let htmlContent = '<div class="flex flex-col gap-4 p-1">';
+                    let htmlContent =
+                      '<div class="flex flex-col gap-[19px] w-full text-left">';
 
                     if (definition.settings) {
                       for (const [key, schema] of Object.entries(
@@ -356,14 +359,12 @@ export function useCustomJsInjection() {
                         let componentHtml = "";
 
                         const handleChange = async (newValue: any) => {
-                          // 1. 설정값 업데이트
+                          // 1. 설정값 업데이트 (불변성 유지)
                           currentSettings[key] = newValue;
+                          const newSettings = { ...currentSettings };
 
                           // 2. 스토리지 저장
-                          await namespacedStorage.set(
-                            "settings",
-                            currentSettings
-                          );
+                          await namespacedStorage.set("settings", newSettings);
 
                           // 3. 활성화된 모든 인스턴스 업데이트
                           const elements = usePluginDisplayElementStore
@@ -372,7 +373,7 @@ export function useCustomJsInjection() {
 
                           elements.forEach((el) => {
                             window.api.ui.displayElement.update(el.fullId, {
-                              settings: currentSettings,
+                              settings: newSettings,
                             });
                           });
 
@@ -405,6 +406,7 @@ export function useCustomJsInjection() {
                             max: schema.max,
                             step: schema.step,
                             placeholder: schema.placeholder,
+                            width: schema.type === "color" ? 80 : undefined,
                           });
                         } else if (schema.type === "select") {
                           componentHtml = window.api.ui.components.dropdown({
@@ -414,22 +416,45 @@ export function useCustomJsInjection() {
                           });
                         }
 
-                        htmlContent += window.api.ui.components.formRow(
-                          schema.label,
-                          componentHtml
-                        );
+                        htmlContent += `
+                          <div class="flex justify-between w-full items-center">
+                            <p class="text-white text-style-2">${schema.label}</p>
+                            ${componentHtml}
+                          </div>
+                        `;
                       }
                     } else {
                       htmlContent +=
-                        '<div class="text-gray-400">설정할 항목이 없습니다.</div>';
+                        '<div class="text-gray-400 text-center">설정할 항목이 없습니다.</div>';
                     }
 
                     htmlContent += "</div>";
 
-                    await window.api.ui.dialog.custom(htmlContent, {
-                      showCancel: false,
-                      confirmText: "닫기",
-                    });
+                    const confirmed = await window.api.ui.dialog.custom(
+                      htmlContent,
+                      {
+                        showCancel: true,
+                        confirmText: "저장",
+                        cancelText: "취소",
+                      }
+                    );
+
+                    // 취소 시 원본 설정으로 복원
+                    if (!confirmed) {
+                      await namespacedStorage.set("settings", originalSettings);
+
+                      const elements = usePluginDisplayElementStore
+                        .getState()
+                        .elements.filter((el) => el.definitionId === defId);
+
+                      elements.forEach((el) => {
+                        window.api.ui.displayElement.update(el.fullId, {
+                          settings: originalSettings,
+                        });
+                      });
+
+                      saveInstances();
+                    }
                   };
 
                   // 메인 윈도우: 그리드 컨텍스트 메뉴 등록
