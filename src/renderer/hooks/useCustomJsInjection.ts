@@ -390,10 +390,78 @@ export function useCustomJsInjection() {
                             checked: !!value,
                             onChange: wrappedChange,
                           });
+                        } else if (schema.type === "color") {
+                          // Color Picker Button
+                          const handleColorClick = (e: any) => {
+                            const target = (e.target as HTMLElement).closest(
+                              "button"
+                            );
+                            if (!target) return;
+
+                            const pickerId = `plugin-${pluginId}-setting-${key}`;
+
+                            // 이미 이 버튼에 해당하는 픽커가 열려 있다면, 토글로 닫기만 수행
+                            if (
+                              (window as any).__dmn_showColorPicker &&
+                              (window as any).__dmn_getColorPickerState
+                            ) {
+                              const state = (
+                                window as any
+                              ).__dmn_getColorPickerState();
+                              if (state?.isOpen && state.id === pickerId) {
+                                (window as any).__dmn_showColorPicker({
+                                  initialColor: state.color,
+                                  id: pickerId,
+                                });
+                                return;
+                              }
+                            }
+
+                            // 스타일 적용 (파란색 테두리)
+                            target.classList.remove("border-[#3A3943]");
+                            target.classList.add("border-[#459BF8]");
+
+                            window.api.ui.pickColor({
+                              initialColor: currentSettings[key],
+                              id: pickerId,
+                              referenceElement: target as HTMLElement,
+                              onColorChange: (newColor) => {
+                                // 1. UI 미리보기 즉시 업데이트 (동기)
+                                const preview = target.querySelector("div");
+                                if (preview)
+                                  preview.style.backgroundColor = newColor;
+                              },
+                              onColorChangeComplete: (newColor) => {
+                                // 2. 실제 데이터 업데이트 및 저장은 드래그 완료 시 수행
+                                wrappedChange(newColor);
+                              },
+                              onClose: () => {
+                                // 스타일 복원
+                                target.classList.remove("border-[#459BF8]");
+                                target.classList.add("border-[#3A3943]");
+                              },
+                            });
+                          };
+
+                          // 핸들러 등록 (플러그인 ID 필요)
+                          // handlerRegistry는 tauriApi에서 가져옴
+                          const handlerId = handlerRegistry.register(
+                            pluginId,
+                            handleColorClick
+                          );
+
+                          componentHtml = `
+                            <button type="button" 
+                              class="relative w-[80px] h-[23px] bg-[#2A2A30] rounded-[7px] border-[1px] border-[#3A3943] flex items-center justify-center text-[#DBDEE8] text-style-2"
+                              data-plugin-handler="${handlerId}"
+                            >
+                              <div class="absolute left-[6px] top-[4.5px] w-[11px] h-[11px] rounded-[2px] border border-[#3A3943]" style="background-color: ${value}"></div>
+                              <span class="ml-[16px] text-left truncate w-[50px]">Linear</span>
+                            </button>
+                          `;
                         } else if (
                           schema.type === "string" ||
-                          schema.type === "number" ||
-                          schema.type === "color"
+                          schema.type === "number"
                         ) {
                           componentHtml = window.api.ui.components.input({
                             type:
@@ -406,7 +474,6 @@ export function useCustomJsInjection() {
                             max: schema.max,
                             step: schema.step,
                             placeholder: schema.placeholder,
-                            width: schema.type === "color" ? 80 : undefined,
                           });
                         } else if (schema.type === "select") {
                           componentHtml = window.api.ui.components.dropdown({

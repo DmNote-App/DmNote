@@ -532,5 +532,14 @@ export interface DMNoteAPI {
       panel(content: string, options?: PanelOptions): string;
       formRow(label: string, component: string): string;
     };
+    pickColor(options: {
+      initialColor: string;
+      onColorChange: (color: string) => void;
+      position?: { x: number; y: number };
+      id?: string;
+      referenceElement?: HTMLElement;
+      onClose?: () => void;
+      onColorChangeComplete?: (color: string) => void;
+    }): void;
   };
 }

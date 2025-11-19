@@ -28,7 +28,7 @@ export interface CheckboxOptions {
 }
 
 export interface InputOptions {
-  type?: "text" | "number";
+  type?: "text" | "number" | "color";
   placeholder?: string;
   value?: string | number;
   disabled?: boolean;

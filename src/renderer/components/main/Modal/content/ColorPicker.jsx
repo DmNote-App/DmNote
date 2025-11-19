@@ -38,9 +38,13 @@ export default function ColorPickerWrapper({
   referenceRef,
   color,
   onColorChange,
+  onColorChangeComplete,
   onClose,
   solidOnly = false,
   interactiveRefs = [],
+  position,
+  offsetY = -80,
+  placement = "right-start",
 }) {
   const initialMode = solidOnly
     ? MODES.solid
@@ -145,7 +149,7 @@ export default function ColorPickerWrapper({
   }, [mode, gradientTop, gradientBottom, onColorChange, solidOnly]);
 
   const applyColor = useCallback(
-    (next) => {
+    (next, isComplete = false) => {
       const parsed = toColorObject(next);
       if (!parsed) return;
       setSelectedColor(parsed);
@@ -156,10 +160,14 @@ export default function ColorPickerWrapper({
         suppressGradientBroadcastRef.current = true;
         if (gradientSelected === "top") {
           setGradientTop(newHex);
-          onColorChange?.(buildGradient(parsed.hex, `#${gradientBottom}`));
+          const gradient = buildGradient(parsed.hex, `#${gradientBottom}`);
+          onColorChange?.(gradient);
+          if (isComplete) onColorChangeComplete?.(gradient);
         } else {
           setGradientBottom(newHex);
-          onColorChange?.(buildGradient(`#${gradientTop}`, parsed.hex));
+          const gradient = buildGradient(`#${gradientTop}`, parsed.hex);
+          onColorChange?.(gradient);
+          if (isComplete) onColorChangeComplete?.(gradient);
         }
         return;
       }
@@ -173,13 +181,16 @@ export default function ColorPickerWrapper({
           16
         )}, ${alpha})`;
         onColorChange?.(rgbaValue);
+        if (isComplete) onColorChangeComplete?.(rgbaValue);
       } else {
         onColorChange?.(parsed.hex);
+        if (isComplete) onColorChangeComplete?.(parsed.hex);
       }
     },
     [
       mode,
       onColorChange,
+      onColorChangeComplete,
       gradientSelected,
       gradientTop,
       gradientBottom,
@@ -189,7 +200,11 @@ export default function ColorPickerWrapper({
   );
 
   const handleChange = (nextColor) => {
-    applyColor(nextColor);
+    applyColor(nextColor, false);
+  };
+
+  const handleChangeComplete = (nextColor) => {
+    applyColor(nextColor, true);
   };
 
   const handleInputChange = (raw) => {
@@ -264,9 +279,11 @@ export default function ColorPickerWrapper({
     <FloatingPopup
       open={open}
       referenceRef={referenceRef}
-      placement="right-start"
+      fixedX={position?.x}
+      fixedY={position?.y}
+      placement={placement}
       offset={32}
-      offsetY={-80}
+      offsetY={offsetY}
       className="z-50"
       interactiveRefs={interactiveRefs}
       onClose={onClose}
@@ -275,8 +292,17 @@ export default function ColorPickerWrapper({
       <div className="flex flex-col p-[8px] gap-[8px] w-[146px] bg-[#1A191E] rounded-[13px] border-[1px] border-[#2A2A30]">
         {!solidOnly && <ModeSwitch mode={mode} onChange={handleModeSwitch} />}
 
-        <Saturation height={92} color={selectedColor} onChange={handleChange} />
-        <Hue color={selectedColor} onChange={handleChange} />
+        <Saturation
+          height={92}
+          color={selectedColor}
+          onChange={handleChange}
+          onChangeComplete={handleChangeComplete}
+        />
+        <Hue
+          color={selectedColor}
+          onChange={handleChange}
+          onChangeComplete={handleChangeComplete}
+        />
         {solidOnly && (
           <Alpha
             color={selectedColor}
@@ -306,6 +332,7 @@ export default function ColorPickerWrapper({
                 16
               )}, ${color.rgb.a})`;
               onColorChange?.(rgbaValue);
+              onColorChangeComplete?.(rgbaValue);
             }}
           />
         )}

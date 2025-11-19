@@ -557,6 +557,11 @@ const api: DMNoteAPI = {
         "[Plugin API] registerCleanup is managed by useCustomJsInjection and should not be called directly from tauriApi"
       );
     },
+    defineElement: () => {
+      console.warn(
+        "[Plugin API] defineElement is managed by useCustomJsInjection and should not be called directly from tauriApi"
+      );
+    },
   },
   ui: {
     contextMenu: {
@@ -1112,10 +1117,28 @@ const api: DMNoteAPI = {
       formRow: (label: string, component: string) =>
         createFormRow(label, component),
     },
+
+    // Color Picker API
+    pickColor: (options: {
+      initialColor: string;
+      onColorChange: (color: string) => void;
+      position?: { x: number; y: number };
+      id?: string;
+      referenceElement?: HTMLElement;
+      onClose?: () => void;
+      onColorChangeComplete?: (color: string) => void;
+    }) => {
+      const showColorPicker = (window as any).__dmn_showColorPicker;
+      if (typeof showColorPicker === "function") {
+        showColorPicker(options);
+      } else {
+        console.warn("[UI API] pickColor function not available");
+      }
+    },
   },
 };
 
-if (typeof window !== "undefined" && !window.api) {
+if (typeof window !== "undefined") {
   window.api = api;
 }
 

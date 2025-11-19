@@ -14,6 +14,7 @@ import LaboratoryModal from "@components/main/Modal/content/Laboratory";
 import { useSettingsStore } from "@stores/useSettingsStore";
 import FloatingPopup from "@components/main/Modal/FloatingPopup";
 import Palette from "@components/main/Modal/content/Palette";
+import ColorPicker from "@components/main/Modal/content/ColorPicker";
 import { useKeyStore } from "@stores/useKeyStore";
 import { useAppBootstrap } from "@hooks/useAppBootstrap";
 
@@ -130,6 +131,26 @@ export default function App() {
     confirmText: undefined,
     cancelText: undefined,
     showCancel: false,
+  });
+
+  // Global Color Picker 상태
+  const colorPickerCallbackRef = useRef<((color: string) => void) | null>(null);
+  const colorPickerCompleteCallbackRef = useRef<
+    ((color: string) => void) | null
+  >(null);
+  const colorPickerCloseCallbackRef = useRef<(() => void) | null>(null);
+  const [colorPickerState, setColorPickerState] = useState<{
+    isOpen: boolean;
+    color: string;
+    position?: { x: number; y: number };
+    id?: string;
+    referenceElement?: HTMLElement;
+  }>({
+    isOpen: false,
+    color: "#FFFFFF",
+    position: undefined,
+    id: undefined,
+    referenceElement: undefined,
   });
 
   useEffect(() => {
@@ -255,18 +276,108 @@ export default function App() {
     closeCustomDialog();
   };
 
+  // Global Color Picker 핸들러
+  const showColorPicker = (options: {
+    initialColor: string;
+    onColorChange: (color: string) => void;
+    position?: { x: number; y: number };
+    id?: string;
+    referenceElement?: HTMLElement;
+    onClose?: () => void;
+    onColorChangeComplete?: (color: string) => void;
+  }) => {
+    // Toggle logic - 이미 열려있으면 닫기만 하고 종료
+    if (
+      options.id &&
+      colorPickerState.isOpen &&
+      colorPickerState.id === options.id
+    ) {
+      closeColorPicker();
+      return;
+    }
+
+    // 다른 컬러 픽커가 열려있으면 먼저 닫기
+    if (colorPickerState.isOpen) {
+      closeColorPicker();
+      // 약간의 지연 후 새 컬러 픽커 열기 (상태 갱신을 위해)
+      setTimeout(() => {
+        openColorPickerWithOptions(options);
+      }, 0);
+      return;
+    }
+
+    openColorPickerWithOptions(options);
+  };
+
+  const openColorPickerWithOptions = (options: {
+    initialColor: string;
+    onColorChange: (color: string) => void;
+    position?: { x: number; y: number };
+    id?: string;
+    referenceElement?: HTMLElement;
+    onClose?: () => void;
+    onColorChangeComplete?: (color: string) => void;
+  }) => {
+    colorPickerCallbackRef.current = options.onColorChange;
+    colorPickerCompleteCallbackRef.current =
+      options.onColorChangeComplete || null;
+    colorPickerCloseCallbackRef.current = options.onClose || null;
+    setColorPickerState({
+      isOpen: true,
+      color: options.initialColor,
+      position: options.position,
+      id: options.id,
+      referenceElement: options.referenceElement,
+    });
+  };
+
+  const closeColorPicker = () => {
+    if (colorPickerCloseCallbackRef.current) {
+      colorPickerCloseCallbackRef.current();
+    }
+    setColorPickerState((prev) => ({ ...prev, isOpen: false }));
+    colorPickerCallbackRef.current = null;
+    colorPickerCompleteCallbackRef.current = null;
+    colorPickerCloseCallbackRef.current = null;
+  };
+
+  const handleGlobalColorChange = (newColor: string) => {
+    setColorPickerState((prev) => ({ ...prev, color: newColor }));
+    if (colorPickerCallbackRef.current) {
+      colorPickerCallbackRef.current(newColor);
+    }
+  };
+
+  const handleGlobalColorChangeComplete = (newColor: string) => {
+    if (colorPickerCompleteCallbackRef.current) {
+      colorPickerCompleteCallbackRef.current(newColor);
+    }
+  };
+
+  const getColorPickerState = () => colorPickerState;
+
   // Dialog API를 전역으로 노출
   useEffect(() => {
     (window as any).__dmn_showAlert = showAlert;
     (window as any).__dmn_showConfirm = showConfirm;
     (window as any).__dmn_showCustomDialog = showCustomDialog;
+    (window as any).__dmn_showColorPicker = showColorPicker;
+    (window as any).__dmn_getColorPickerState = getColorPickerState;
 
     return () => {
       delete (window as any).__dmn_showAlert;
       delete (window as any).__dmn_showConfirm;
       delete (window as any).__dmn_showCustomDialog;
+      delete (window as any).__dmn_showColorPicker;
+      delete (window as any).__dmn_getColorPickerState;
     };
-  }, []);
+  }, [
+    showAlert,
+    showConfirm,
+    showCustomDialog,
+    showColorPicker,
+    getColorPickerState,
+  ]);
 
   return (
     <div className="bg-[#111012] w-full h-full flex flex-col overflow-hidden rounded-[7px] border border-[rgba(255,255,255,0.1)]">
@@ -408,6 +519,24 @@ export default function App() {
         onConfirm={handleCustomDialogConfirm}
         onCancel={handleCustomDialogCancel}
       />
+      {colorPickerState.isOpen && (
+        <ColorPicker
+          open={colorPickerState.isOpen}
+          color={colorPickerState.color}
+          onColorChange={handleGlobalColorChange}
+          onColorChangeComplete={handleGlobalColorChangeComplete}
+          onClose={closeColorPicker}
+          position={colorPickerState.position}
+          referenceRef={
+            colorPickerState.referenceElement
+              ? { current: colorPickerState.referenceElement }
+              : undefined
+          }
+          offsetY={colorPickerState.referenceElement ? 10 : -80}
+          placement="right"
+          solidOnly={true}
+        />
+      )}
     </div>
   );
 }
