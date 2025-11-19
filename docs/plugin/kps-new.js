@@ -9,71 +9,169 @@ window.api.plugin.defineElement({
   },
 
   settings: {
+    showKps: { type: "boolean", default: true, label: "KPS 표시" },
+    showAvg: { type: "boolean", default: true, label: "AVG 표시" },
+    showMax: { type: "boolean", default: true, label: "MAX 표시" },
     showGraph: { type: "boolean", default: true, label: "그래프 표시" },
+    graphType: {
+      type: "select",
+      options: [
+        { value: "line", label: "선 그래프" },
+        { value: "bar", label: "바 그래프" },
+      ],
+      default: "line",
+      label: "그래프 형태",
+    },
+    graphSpeed: {
+      type: "number",
+      default: 1000,
+      min: 500,
+      max: 5000,
+      step: 100,
+      label: "그래프 속도 (ms)",
+    },
     textColor: { type: "color", default: "#FFFFFF", label: "텍스트 색상" },
-    graphColor: { type: "color", default: "#00FF00", label: "그래프 색상" },
+    graphColor: { type: "color", default: "#86EFAC", label: "그래프 색상" },
   },
 
-  template: (state, settings, { html }) => html`
-    <div
-      style="
-      background: rgba(0, 0, 0, 0.7);
-      padding: 10px;
-      border-radius: 8px;
-      color: ${settings.textColor};
-      font-family: sans-serif;
-      min-width: 100px;
-      text-align: center;
-    "
-    >
-      <div style="font-size: 24px; font-weight: bold;">
-        ${state.kps || 0}
-        <span style="font-size: 12px; opacity: 0.7;">KPS</span>
-      </div>
-      ${settings.showGraph
-        ? html`
-            <div
-              style="
-          margin-top: 5px;
-          height: 4px;
-          background: #333;
-          border-radius: 2px;
-          overflow: hidden;
-        "
-            >
-              <div
-                style="
-            height: 100%;
-            width: ${Math.min(((state.kps || 0) / 20) * 100, 100)}%;
-            background: ${settings.graphColor};
-            transition: width 0.1s linear;
-          "
-              ></div>
+  template: (state, settings, { html }) => {
+    const { kps = 0, avg = 0, max = 0, history = [], maxval = 1, uid = "" } = state;
+    const safeMax = maxval > 0 ? maxval : 1;
+
+    // 그래프 렌더링
+    const renderGraphContent = () => {
+      if (!settings.showGraph) return "";
+
+      if (settings.graphType === "bar") {
+        // 바 그래프
+        const bars = history
+          .map((value, index) => {
+            const height = Math.min((value / safeMax) * 100, 100);
+            const opacity = 0.3 + (index / history.length) * 0.7;
+            return `<div style="flex: 1; border-radius: 2px 2px 0 0; min-height: 2px; transition: height 0.15s ease-out; background: linear-gradient(to top, #86efac, #34d399); height: ${height}%; opacity: ${opacity};"></div>`;
+          })
+          .join("");
+        return `<div style="display: flex; align-items: flex-end; justify-content: space-between; height: 60px; margin-top: 8px; padding: 4px; background: rgba(0, 0, 0, 0.3); border-radius: 4px; gap: 1px; position: relative;">${bars}</div>`;
+      } else {
+        // 선 그래프
+        const denominator = Math.max(history.length - 1, 1);
+        const linePoints = history
+          .map((value, index) => {
+            const x = (index / denominator) * 100;
+            const y = 100 - Math.min((value / safeMax) * 100, 100);
+            return `${x},${y}`;
+          })
+          .join(" ");
+
+        const fillPoints = [
+          "0,100",
+          ...history.map((value, index) => {
+            const x = (index / denominator) * 100;
+            const y = 100 - Math.min((value / safeMax) * 100, 100);
+            return `${x},${y}`;
+          }),
+          "100,100",
+        ].join(" ");
+
+        const avgY = 100 - Math.min((avg / safeMax) * 100, 100);
+
+        return `
+          <div style="display: flex; align-items: flex-end; justify-content: space-between; height: 60px; margin-top: 8px; padding: 4px; background: rgba(0, 0, 0, 0.3); border-radius: 4px; gap: 1px; position: relative;">
+            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style="position: absolute; top: 4px; left: 4px; right: 4px; bottom: 4px; width: calc(100% - 8px); height: calc(100% - 8px);">
+              <defs>
+                <linearGradient id="lineGradient-${uid}" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" style="stop-color:#86EFAC;stop-opacity:0.3" />
+                  <stop offset="100%" style="stop-color:#86EFAC;stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="fillGradient-${uid}" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" style="stop-color:#86EFAC;stop-opacity:0.05" />
+                  <stop offset="100%" style="stop-color:#86EFAC;stop-opacity:0.15" />
+                </linearGradient>
+              </defs>
+              <polygon points="${fillPoints}" fill="url(#fillGradient-${uid})" />
+              <line x1="0" y1="${avgY}" x2="100" y2="${avgY}" stroke="#86EFAC" stroke-width="1" stroke-dasharray="2,2" opacity="0.5" vector-effect="non-scaling-stroke" />
+              <polyline points="${linePoints}" fill="none" stroke="url(#lineGradient-${uid})" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+            </svg>
+          </div>
+        `;
+      }
+    };
+
+    return html`
+      <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet" />
+      <div style="background: rgba(17, 17, 20, 0.9); color: #fff; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 8px; min-width: 100px; max-width: 260px; backdrop-filter: blur(4px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); cursor: pointer; user-select: none; font-family: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', sans-serif;">
+        <div style="display: grid; width: 120px; grid-template-columns: 1fr auto; gap: 4px 8px; font-size: 12px; line-height: 1.3;">
+          ${settings.showKps ? html`
+            <div style="display: contents;">
+              <div style="color: #cbd5e1; white-space: nowrap;">KPS</div>
+              <div style="color: #86efac; text-align: right; font-weight: 700;">${kps}</div>
             </div>
-          `
-        : ""}
-    </div>
-  `,
+          ` : ""}
+          ${settings.showAvg ? html`
+            <div style="display: contents;">
+              <div style="color: #cbd5e1; white-space: nowrap;">AVG</div>
+              <div style="color: #86efac; text-align: right; font-weight: 700;">${avg}</div>
+            </div>
+          ` : ""}
+          ${settings.showMax ? html`
+            <div style="display: contents;">
+              <div style="color: #cbd5e1; white-space: nowrap;">MAX</div>
+              <div style="color: #86efac; text-align: right; font-weight: 700;">${max}</div>
+            </div>
+          ` : ""}
+        </div>
+        ${renderGraphContent()}
+      </div>
+    `;
+  },
 
   previewState: {
-    kps: 12,
+    kps: 14,
+    avg: 12,
+    max: 18,
+    history: [8, 10, 11, 13, 12, 14, 15, 16, 14, 13, 12, 14, 15, 14, 14],
+    maxval: 18,
+    uid: "preview",
   },
 
-  onMount: ({ setState, onHook }) => {
+  onMount: ({ setState, onHook, getSettings }) => {
     const timestamps = [];
-    console.log("[KPS Plugin] Mounted");
+    let max = 0;
+    let kpsSum = 0;
+    let kpsCount = 0;
+    let maxval = 1;
+    
+    // 초기 설정으로 historyBuffer 크기 결정
+    const initialSettings = getSettings();
+    const GRAPH_UPDATE_MS = 100; // 그래프 히스토리 업데이트 주기
+    const initialTargetSize = Math.ceil((initialSettings.graphSpeed || 1000) / GRAPH_UPDATE_MS);
+    let historyBuffer = new Array(initialTargetSize).fill(0);
+    
+    const uid = Math.random().toString(36).substr(2, 9);
+    setState({ uid, history: [...historyBuffer] });
+
+    // 현재 눌린 키를 추적하기 위한 Set
+    const pressedKeys = new Set();
 
     // 키 입력 감지
-    onHook("key", ({ state }) => {
-      // console.log("[KPS Plugin] Key event:", state);
-      // 대소문자 구분 없이 비교
-      if (typeof state === "string" && state.toLowerCase() === "down") {
-        const now = Date.now();
-        timestamps.push(now);
+    onHook("key", ({ key, state }) => {
+      if (typeof state === "string") {
+        const keyState = state.toLowerCase();
+        
+        if (keyState === "down") {
+          // 키가 이미 눌려있지 않은 경우에만 카운팅 (홀드 방지)
+          if (!pressedKeys.has(key)) {
+            pressedKeys.add(key);
+            const now = Date.now();
+            timestamps.push(now);
+          }
+        } else if (keyState === "up") {
+          pressedKeys.delete(key);
+        }
       }
     });
 
-    // KPS 계산 루프 (100ms 마다)
+    // KPS 계산 루프 (50ms마다)
     const interval = setInterval(() => {
       const now = Date.now();
       // 1초 지난 기록 제거
@@ -81,12 +179,42 @@ window.api.plugin.defineElement({
         timestamps.shift();
       }
 
-      // console.log("[KPS Plugin] Update KPS:", timestamps.length);
-      setState({ kps: timestamps.length });
-    }, 100);
+      const kps = timestamps.length;
+
+      // 최대값 업데이트
+      if (kps > max) max = kps;
+
+      // 평균값 업데이트
+      if (kps > 0) {
+        kpsSum += kps;
+        kpsCount++;
+      }
+      const avg = kpsCount > 0 ? Math.round(kpsSum / kpsCount) : 0;
+
+      // 그래프 스케일링용 최대값 업데이트
+      if (kps > maxval) maxval = kps;
+
+      // 히스토리 업데이트 (50ms마다)
+      historyBuffer.shift(); 
+      historyBuffer.push(kps); 
+
+      // targetSize로 배열 크기 조정
+      const settings = getSettings();
+      const targetSize = Math.ceil((settings.graphSpeed || 1000) / GRAPH_UPDATE_MS);
+      
+      while (historyBuffer.length > targetSize) historyBuffer.shift();
+      while (historyBuffer.length < targetSize) historyBuffer.unshift(0);
+
+      setState({ 
+        kps, 
+        max, 
+        avg, 
+        history: [...historyBuffer],
+        maxval 
+      });
+    }, 50);
 
     return () => {
-      console.log("[KPS Plugin] Unmounted");
       clearInterval(interval);
     };
   },
