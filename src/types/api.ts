@@ -161,7 +161,55 @@ export type PluginDisplayElement = {
     | ((position: { x: number; y: number }) => void | Promise<void>); // 위치 변경 핸들러 ID 또는 함수 (메인 윈도우에서만)
   onDelete?: string | (() => void | Promise<void>); // 삭제 핸들러 ID 또는 함수 (메인 윈도우에서만)
   contextMenu?: PluginDisplayElementContextMenu;
+  definitionId?: string;
+  settings?: Record<string, any>;
+  state?: Record<string, any>;
 };
+
+export type PluginSettingType =
+  | "boolean"
+  | "color"
+  | "number"
+  | "string"
+  | "select";
+
+export interface PluginSettingSchema {
+  type: PluginSettingType;
+  default: any;
+  label: string;
+  min?: number; // for number
+  max?: number; // for number
+  step?: number; // for number
+  options?: { label: string; value: any }[]; // for select
+  placeholder?: string; // for string/number
+}
+
+export interface PluginDefinitionHookContext {
+  setState: (updates: Record<string, any>) => void;
+  getSettings: () => Record<string, any>;
+  onHook: (event: string, callback: (...args: any[]) => void) => void;
+}
+
+export interface PluginDefinition {
+  name: string;
+  contextMenu?: {
+    create?: string; // 그리드 메뉴 라벨 (예: "KPS 패널 생성")
+    delete?: string; // 요소 메뉴 라벨 (예: "KPS 패널 삭제")
+  };
+  settings?: Record<string, PluginSettingSchema>;
+  template: (
+    state: Record<string, any>,
+    settings: Record<string, any>,
+    helpers: DisplayElementTemplateHelpers
+  ) => DisplayElementTemplateResult | string;
+  previewState?: Record<string, any>;
+  onMount?: (context: PluginDefinitionHookContext) => void | (() => void);
+}
+
+export interface PluginDefinitionInternal extends PluginDefinition {
+  id: string;
+  pluginId: string;
+}
 
 export type PluginDisplayElementInternal = PluginDisplayElement & {
   pluginId: string;
@@ -238,7 +286,7 @@ export interface CheckboxOptions {
 }
 
 export interface InputOptions {
-  type?: "text" | "number";
+  type?: "text" | "number" | "color";
   placeholder?: string;
   value?: string | number;
   disabled?: boolean;
@@ -387,6 +435,7 @@ export interface DMNoteAPI {
       clearByPrefix(prefix: string): Promise<number>;
     };
     registerCleanup(cleanup: () => void): void;
+    defineElement(definition: PluginDefinition): void;
   };
   ui: {
     contextMenu: {

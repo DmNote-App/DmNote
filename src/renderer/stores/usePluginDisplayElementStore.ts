@@ -1,8 +1,12 @@
 import { create } from "zustand";
-import { PluginDisplayElementInternal } from "@src/types/api";
+import {
+  PluginDisplayElementInternal,
+  PluginDefinitionInternal,
+} from "@src/types/api";
 
 interface PluginDisplayElementStore {
   elements: PluginDisplayElementInternal[];
+  definitions: Map<string, PluginDefinitionInternal>;
   addElement: (element: PluginDisplayElementInternal) => void;
   updateElement: (
     fullId: string,
@@ -11,11 +15,13 @@ interface PluginDisplayElementStore {
   removeElement: (fullId: string) => void;
   clearByPluginId: (pluginId: string) => void;
   setElements: (elements: PluginDisplayElementInternal[]) => void;
+  registerDefinition: (definition: PluginDefinitionInternal) => void;
 }
 
 export const usePluginDisplayElementStore = create<PluginDisplayElementStore>(
   (set) => ({
     elements: [],
+    definitions: new Map(),
 
     addElement: (element) =>
       set((state) => {
@@ -54,17 +60,30 @@ export const usePluginDisplayElementStore = create<PluginDisplayElementStore>(
         const newElements = state.elements.filter(
           (el) => el.pluginId !== pluginId
         );
+        const newDefinitions = new Map(state.definitions);
+        for (const [id, def] of newDefinitions.entries()) {
+          if (def.pluginId === pluginId) {
+            newDefinitions.delete(id);
+          }
+        }
         // 메인 윈도우에서만 오버레이로 동기화
         if ((window as any).__dmn_window_type === "main") {
           syncToOverlay(newElements);
         }
-        return { elements: newElements };
+        return { elements: newElements, definitions: newDefinitions };
       }),
 
     setElements: (elements) =>
       set(() => ({
         elements,
       })),
+
+    registerDefinition: (definition) =>
+      set((state) => {
+        const newDefinitions = new Map(state.definitions);
+        newDefinitions.set(definition.id, definition);
+        return { definitions: newDefinitions };
+      }),
   })
 );
 

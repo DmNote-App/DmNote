@@ -4,6 +4,8 @@ import { useDraggable } from "@hooks/useDraggable";
 import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementStore";
 import { useKeyStore } from "@stores/useKeyStore";
 import ListPopup, { ListItem } from "./main/Modal/ListPopup";
+import { renderTemplate } from "@utils/templateHelper";
+import { html } from "@utils/templateEngine";
 
 type PatchTarget = Element | ShadowRoot;
 
@@ -138,6 +140,13 @@ export const PluginElement: React.FC<PluginElementProps> = ({
   const updateElement = usePluginDisplayElementStore(
     (state) => state.updateElement
   );
+  const definitions = usePluginDisplayElementStore(
+    (state) => state.definitions
+  );
+  const definition = element.definitionId
+    ? definitions.get(element.definitionId)
+    : undefined;
+
   const positions = useKeyStore((state) => state.positions);
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
 
@@ -232,7 +241,27 @@ export const PluginElement: React.FC<PluginElementProps> = ({
       : containerRef.current;
     if (!target) return;
 
-    const nextHtml = element.html || "";
+    let nextHtml = element.html || "";
+
+    // Definition 기반 렌더링
+    if (definition && definition.template) {
+      const state = element.state || {};
+      const settings = element.settings || {};
+
+      const renderState =
+        windowType === "main" && definition.previewState
+          ? { ...state, ...definition.previewState }
+          : state;
+
+      // console.log(`[PluginElement] Rendering template for ${element.fullId}`, renderState);
+      const result = definition.template(renderState, settings, { html });
+      nextHtml = renderTemplate(result);
+      // console.log(`[PluginElement] Generated HTML:`, nextHtml);
+      // console.log(`[PluginElement] Generated HTML:`, nextHtml);
+    } else {
+      // console.warn(`[PluginElement] No definition or template for ${element.fullId}`);
+    }
+
     const htmlChanged = lastHtmlRef.current !== nextHtml;
 
     if (!hasRenderedHtmlRef.current) {
@@ -444,7 +473,72 @@ export const PluginElement: React.FC<PluginElementProps> = ({
     }
 
     return undefined;
-  }, [element.html, element.scoped, element.fullId, updateElement, windowType]);
+  }, [
+    element.html,
+    element.scoped,
+    element.fullId,
+    updateElement,
+    windowType,
+    definition,
+    element.state,
+    element.settings,
+  ]);
+
+  // Overlay Logic (onMount)
+  useEffect(() => {
+    if (windowType !== "overlay") return;
+
+    if (!definition) {
+      // definition이 아직 로드되지 않았을 수 있음.
+      // definitions가 업데이트되면 리렌더링되므로 그때 다시 시도됨.
+      return;
+    }
+
+    if (!definition.onMount) return;
+
+    const cleanups: (() => void)[] = [];
+
+    const context = {
+      setState: (updates: Record<string, any>) => {
+        // console.log(`[PluginElement] setState called for ${element.fullId}`, updates);
+        const currentElement = usePluginDisplayElementStore
+          .getState()
+          .elements.find((el) => el.fullId === element.fullId);
+        if (currentElement) {
+          updateElement(element.fullId, {
+            state: { ...currentElement.state, ...updates },
+          });
+        }
+      },
+      getSettings: () => {
+        const currentElement = usePluginDisplayElementStore
+          .getState()
+          .elements.find((el) => el.fullId === element.fullId);
+        return currentElement?.settings || {};
+      },
+      onHook: (event: string, callback: (...args: any[]) => void) => {
+        // console.log(`[PluginElement] onHook registered for ${event}`);
+        if (event === "key") {
+          const unsub = window.api.keys.onKeyState((...args) => {
+            // console.log(`[PluginElement] Key event received via hook`, args);
+            callback(...args);
+          });
+          cleanups.push(unsub);
+        }
+      },
+    };
+
+    console.log(`[PluginElement] Mounting ${element.fullId}`);
+
+    const mountCleanup = definition.onMount(context);
+    if (typeof mountCleanup === "function") {
+      cleanups.push(mountCleanup);
+    }
+
+    return () => {
+      cleanups.forEach((fn) => fn());
+    };
+  }, [windowType, definition?.id, element.fullId]);
 
   const renderX = draggable.dx;
   const renderY = draggable.dy;

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { JsPlugin } from "@src/types/js";
+import type { PluginDefinition } from "@src/types/api";
 import { extractPluginId } from "@utils/pluginUtils";
 import { usePluginMenuStore } from "@stores/usePluginMenuStore";
 import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementStore";
@@ -272,6 +273,269 @@ export function useCustomJsInjection() {
                 ...(wrappedApi.plugin || {}),
                 storage: namespacedStorage,
                 registerCleanup,
+                defineElement: (definition: PluginDefinition) => {
+                  const defId = pluginId; // 1 plugin = 1 element for now
+                  const internalDef = {
+                    ...definition,
+                    id: defId,
+                    pluginId: pluginId,
+                  };
+
+                  usePluginDisplayElementStore
+                    .getState()
+                    .registerDefinition(internalDef);
+
+                  // 인스턴스 저장/복원 관리
+                  const INSTANCES_KEY = "instances";
+
+                  const saveInstances = async () => {
+                    const elements = usePluginDisplayElementStore
+                      .getState()
+                      .elements.filter((el) => el.definitionId === defId);
+
+                    const instances = elements.map((el) => ({
+                      position: el.position,
+                      settings: el.settings,
+                      measuredSize: el.measuredSize,
+                    }));
+
+                    await namespacedStorage.set(INSTANCES_KEY, instances);
+                  };
+
+                  // Store 구독하여 변경 시 자동 저장 (메인 윈도우에서만)
+                  if ((window as any).__dmn_window_type === "main") {
+                    const unsubStore = usePluginDisplayElementStore.subscribe(
+                      (state, prevState) => {
+                        const currentElements = state.elements.filter(
+                          (el) => el.definitionId === defId
+                        );
+                        const prevElements = prevState.elements.filter(
+                          (el) => el.definitionId === defId
+                        );
+
+                        if (
+                          JSON.stringify(currentElements) !==
+                          JSON.stringify(prevElements)
+                        ) {
+                          saveInstances();
+                        }
+                      }
+                    );
+                    registerCleanup(unsubStore);
+                  }
+
+                  // 초기 설정값 구성
+                  const initialSettings: Record<string, any> = {};
+                  if (definition.settings) {
+                    Object.entries(definition.settings).forEach(
+                      ([key, schema]: [string, any]) => {
+                        initialSettings[key] = schema.default;
+                      }
+                    );
+                  }
+
+                  // 설정 다이얼로그 열기 함수
+                  const openSettings = async () => {
+                    const savedSettings =
+                      (await namespacedStorage.get("settings")) || {};
+                    const currentSettings = {
+                      ...initialSettings,
+                      ...savedSettings,
+                    };
+
+                    let htmlContent = '<div class="flex flex-col gap-4 p-1">';
+
+                    if (definition.settings) {
+                      for (const [key, schema] of Object.entries(
+                        definition.settings
+                      )) {
+                        const value =
+                          currentSettings[key] !== undefined
+                            ? currentSettings[key]
+                            : schema.default;
+                        let componentHtml = "";
+
+                        const handleChange = async (newValue: any) => {
+                          // 1. 설정값 업데이트
+                          currentSettings[key] = newValue;
+
+                          // 2. 스토리지 저장
+                          await namespacedStorage.set(
+                            "settings",
+                            currentSettings
+                          );
+
+                          // 3. 활성화된 모든 인스턴스 업데이트
+                          const elements = usePluginDisplayElementStore
+                            .getState()
+                            .elements.filter((el) => el.definitionId === defId);
+
+                          elements.forEach((el) => {
+                            window.api.ui.displayElement.update(el.fullId, {
+                              settings: currentSettings,
+                            });
+                          });
+
+                          // 인스턴스 정보도 업데이트 (settings가 포함되어 있으므로)
+                          saveInstances();
+                        };
+
+                        // 래핑된 핸들러 (플러그인 컨텍스트 유지)
+                        const wrappedChange =
+                          wrapFunctionWithContext(handleChange);
+
+                        if (schema.type === "boolean") {
+                          componentHtml = window.api.ui.components.checkbox({
+                            checked: !!value,
+                            onChange: wrappedChange,
+                          });
+                        } else if (
+                          schema.type === "string" ||
+                          schema.type === "number" ||
+                          schema.type === "color"
+                        ) {
+                          componentHtml = window.api.ui.components.input({
+                            type:
+                              schema.type === "string"
+                                ? "text"
+                                : (schema.type as any),
+                            value: value,
+                            onChange: wrappedChange,
+                            min: schema.min,
+                            max: schema.max,
+                            step: schema.step,
+                            placeholder: schema.placeholder,
+                          });
+                        } else if (schema.type === "select") {
+                          componentHtml = window.api.ui.components.dropdown({
+                            options: schema.options || [],
+                            selected: value,
+                            onChange: wrappedChange,
+                          });
+                        }
+
+                        htmlContent += window.api.ui.components.formRow(
+                          schema.label,
+                          componentHtml
+                        );
+                      }
+                    } else {
+                      htmlContent +=
+                        '<div class="text-gray-400">설정할 항목이 없습니다.</div>';
+                    }
+
+                    htmlContent += "</div>";
+
+                    await window.api.ui.dialog.custom(htmlContent, {
+                      showCancel: false,
+                      confirmText: "닫기",
+                    });
+                  };
+
+                  // 메인 윈도우: 그리드 컨텍스트 메뉴 등록
+                  if ((window as any).__dmn_window_type === "main") {
+                    const createLabel =
+                      definition.contextMenu?.create ||
+                      `${definition.name} 생성`;
+
+                    // 그리드 메뉴 아이템 등록
+                    const menuId = window.api.ui.contextMenu.addGridMenuItem({
+                      id: `create-${defId}`,
+                      label: createLabel,
+                      onClick: async (context) => {
+                        // 최신 설정 로드
+                        const savedSettings =
+                          (await namespacedStorage.get("settings")) || {};
+                        const settings = {
+                          ...initialSettings,
+                          ...savedSettings,
+                        };
+
+                        // 인스턴스 생성
+                        window.api.ui.displayElement.add({
+                          html: "<!-- plugin-element -->", // 템플릿 사용
+                          position: {
+                            x: context.position.dx,
+                            y: context.position.dy,
+                          },
+                          draggable: true,
+                          definitionId: defId,
+                          settings: settings,
+                          state: definition.previewState || {},
+                          // 설정 다이얼로그 연결
+                          onClick: wrapFunctionWithContext(openSettings),
+                          // 삭제 메뉴 연결
+                          contextMenu: {
+                            enableDelete: true,
+                            deleteLabel:
+                              definition.contextMenu?.delete || "삭제",
+                          },
+                        } as any);
+
+                        // 저장 (Store 구독에 의해 자동 처리되지만 명시적으로 호출해도 됨)
+                      },
+                    });
+
+                    // 클린업 시 메뉴 제거
+                    registerCleanup(() => {
+                      window.api.ui.contextMenu.removeMenuItem(menuId);
+                    });
+                  }
+
+                  // 기존 인스턴스 복원 (이미 로드된 요소가 있다면 설정/핸들러 연결)
+                  // 주의: 이 부분은 앱 초기화 시점에 이미 elements가 store에 있을 때 필요함
+                  // 하지만 defineElement가 호출되는 시점은 플러그인 로드 시점이므로,
+                  // store에 있는 요소들을 찾아서 definitionId가 일치하면 업데이트해줘야 함.
+                  setTimeout(async () => {
+                    // 플러그인 컨텍스트 복원
+                    const prevPluginId = (window as any)
+                      .__dmn_current_plugin_id;
+                    (window as any).__dmn_current_plugin_id = pluginId;
+
+                    try {
+                      // 1. 저장된 인스턴스 정보 로드 및 복원 (메인 윈도우에서만)
+                      if ((window as any).__dmn_window_type === "main") {
+                        const savedInstances = (await namespacedStorage.get(
+                          INSTANCES_KEY
+                        )) as any[];
+
+                        if (savedInstances && Array.isArray(savedInstances)) {
+                          const savedSettings =
+                            (await namespacedStorage.get("settings")) || {};
+                          const settings = {
+                            ...initialSettings,
+                            ...savedSettings,
+                          };
+
+                          savedInstances.forEach((inst) => {
+                            window.api.ui.displayElement.add({
+                              html: "<!-- plugin-element -->", // 빈 문자열 대신 주석 사용
+                              position: inst.position,
+                              draggable: true,
+                              definitionId: defId,
+                              settings: settings, // 전역 설정 사용
+                              state: definition.previewState || {},
+                              measuredSize: inst.measuredSize,
+                              onClick: wrapFunctionWithContext(openSettings),
+                              contextMenu: {
+                                enableDelete: true,
+                                deleteLabel:
+                                  definition.contextMenu?.delete || "삭제",
+                              },
+                            } as any);
+                          });
+                        }
+                      }
+                    } catch (err) {
+                      console.error(
+                        `[Plugin ${pluginId}] Failed to restore instances:`,
+                        err
+                      );
+                    } finally {
+                      (window as any).__dmn_current_plugin_id = prevPluginId;
+                    }
+                  }, 0);
+                },
               },
             } as typeof window.api;
 

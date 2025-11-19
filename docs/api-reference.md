@@ -1685,6 +1685,81 @@ onBridgeMessage("WPM_UPDATE", (data) => {
 
 플러그인 API는 커스텀 JS 플러그인에서 사용할 수 있는 추가 기능을 제공합니다.
 
+### `window.api.plugin.defineElement(definition)` ✨ 권장
+
+선언형 방식으로 플러그인 UI 요소를 정의합니다. 이 API를 사용하면 설정 UI, 컨텍스트 메뉴, 상태 동기화, 라이프사이클 관리가 자동으로 처리됩니다.
+
+**매개변수**:
+
+- `definition: PluginDefinition`
+
+```typescript
+interface PluginDefinition {
+  // 플러그인 이름 (컨텍스트 메뉴 등에 표시됨)
+  name: string;
+
+  // 설정 스키마 (자동으로 설정 다이얼로그 생성)
+  settings?: {
+    [key: string]: {
+      type: "string" | "number" | "boolean" | "color" | "select";
+      default: any;
+      label: string;
+      min?: number; // number 타입용
+      max?: number; // number 타입용
+      step?: number; // number 타입용
+      options?: { label: string; value: string }[]; // select 타입용
+    };
+  };
+
+  // 컨텍스트 메뉴 설정
+  contextMenu?: {
+    create?: string; // 생성 메뉴 라벨 (기본값: "{name} 생성")
+    delete?: string; // 삭제 메뉴 라벨 (기본값: "삭제")
+  };
+
+  // 메인 윈도우에서 보여줄 미리보기 상태
+  previewState?: Record<string, any>;
+
+  // HTML 템플릿 함수
+  // state: 현재 상태, settings: 현재 설정, helpers: { html }
+  template: (state: any, settings: any, helpers: any) => string;
+
+  // 오버레이 마운트 시 실행될 로직
+  onMount?: (context: PluginContext) => (() => void) | void;
+}
+
+interface PluginContext {
+  // 상태 업데이트 (템플릿 리렌더링 유발)
+  setState: (updates: Record<string, any>) => void;
+
+  // 현재 설정 조회
+  getSettings: () => Record<string, any>;
+
+  // 이벤트 훅 등록 (자동 클린업됨)
+  // 현재 지원되는 이벤트: "key"
+  onHook: (event: string, callback: Function) => void;
+}
+```
+
+**사용 예**:
+
+```javascript
+window.api.plugin.defineElement({
+  name: "My Panel",
+  settings: {
+    color: { type: "color", default: "#ff0000", label: "색상" },
+  },
+  template: (state, settings, { html }) => html`
+    <div style="color: ${settings.color}">Value: ${state.val}</div>
+  `,
+  onMount: ({ setState, onHook }) => {
+    onHook("key", () => setState({ val: Math.random() }));
+  },
+});
+```
+
+---
+
 ### 플러그인 ID (`@id`)
 
 각 플러그인은 고유한 ID를 가져야 데이터를 안정적으로 관리할 수 있습니다. 플러그인 파일의 상단에 `@id` 메타데이터를 추가하여 고유 ID를 지정할 수 있습니다.

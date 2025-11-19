@@ -7,7 +7,193 @@ DM Note는 사용자가 작성한 JavaScript를 런타임에 주입할 수 있�
 
 ---
 
-## 기본 사용법
+## ✨ 선언형 플러그인 API (권장)
+
+DM Note는 복잡한 DOM 조작이나 상태 관리를 직접 하지 않아도 되는 **선언형 플러그인 API (`defineElement`)**를 제공합니다. 이 방식을 사용하면 다음과 같은 이점이 있습니다:
+
+- **자동 설정 UI**: 설정 스키마만 정의하면 설정 팝업이 자동으로 생성됩니다.
+- **자동 상태 동기화**: 메인 윈도우(설정/미리보기)와 오버레이 윈도우(실제 동작) 간의 상태가 자동으로 동기화됩니다.
+- **컨텍스트 메뉴 통합**: 우클릭 메뉴가 자동으로 생성됩니다.
+- **라이프사이클 관리**: 마운트/언마운트 시점이 명확하게 관리됩니다.
+- **간결한 코드**: HTML 템플릿과 로직만 작성하면 됩니다.
+
+### 기본 구조
+
+```javascript
+// @id my-plugin-id
+
+window.api.plugin.defineElement({
+  name: "내 플러그인 이름",
+
+  // 1. 설정 정의 (자동으로 UI 생성됨)
+  settings: {
+    showGraph: { type: "boolean", default: true, label: "그래프 표시" },
+    textColor: { type: "color", default: "#FFFFFF", label: "텍스트 색상" },
+    fontSize: {
+      type: "number",
+      default: 24,
+      min: 10,
+      max: 100,
+      label: "폰트 크기",
+    },
+  },
+
+  // 2. 컨텍스트 메뉴 정의
+  contextMenu: {
+    create: "패널 생성",
+    delete: "패널 삭제",
+  },
+
+  // 3. 미리보기 상태 (메인 윈도우용)
+  previewState: {
+    value: 123,
+  },
+
+  // 4. HTML 템플릿 (상태와 설정에 따라 렌더링)
+  template: (state, settings, { html }) => html`
+    <div
+      style="
+      color: ${settings.textColor};
+      font-size: ${settings.fontSize}px;
+      background: rgba(0,0,0,0.5);
+      padding: 10px;
+      border-radius: 8px;
+    "
+    >
+      값: ${state.value || 0} ${settings.showGraph
+        ? html`<div class="graph">...</div>`
+        : ""}
+    </div>
+  `,
+
+  // 5. 로직 구현 (오버레이에서만 실행됨)
+  onMount: ({ setState, getSettings, onHook }) => {
+    console.log("플러그인 시작!");
+
+    // 키 입력 감지
+    onHook("key", ({ state, key }) => {
+      if (state === "DOWN") {
+        setState({ value: Math.random() * 100 });
+      }
+    });
+
+    // 주기적 작업
+    const interval = setInterval(() => {
+      // ...
+    }, 1000);
+
+    // 클린업 함수 반환
+    return () => {
+      clearInterval(interval);
+      console.log("플러그인 종료");
+    };
+  },
+});
+```
+
+### 실전 예제: KPS 측정기
+
+다음은 실제로 동작하는 KPS(초당 키 입력 수) 측정 플러그인 예제입니다.
+
+```javascript
+// @id simple-kps
+
+window.api.plugin.defineElement({
+  name: "Simple KPS",
+
+  contextMenu: {
+    create: "KPS 패널 생성",
+    delete: "KPS 패널 삭제",
+  },
+
+  settings: {
+    showGraph: { type: "boolean", default: true, label: "그래프 표시" },
+    textColor: { type: "color", default: "#FFFFFF", label: "텍스트 색상" },
+    graphColor: { type: "color", default: "#00FF00", label: "그래프 색상" },
+  },
+
+  // 템플릿: 상태(state)와 설정(settings)을 받아 HTML 문자열 반환
+  template: (state, settings, { html }) => html`
+    <div
+      style="
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 8px;
+      color: ${settings.textColor};
+      font-family: sans-serif;
+      min-width: 100px;
+      text-align: center;
+    "
+    >
+      <div style="font-size: 24px; font-weight: bold;">
+        ${state.kps || 0}
+        <span style="font-size: 12px; opacity: 0.7;">KPS</span>
+      </div>
+      ${settings.showGraph
+        ? html`
+            <div
+              style="
+          margin-top: 5px;
+          height: 4px;
+          background: #333;
+          border-radius: 2px;
+          overflow: hidden;
+        "
+            >
+              <div
+                style="
+            height: 100%;
+            width: ${Math.min(((state.kps || 0) / 20) * 100, 100)}%;
+            background: ${settings.graphColor};
+            transition: width 0.1s linear;
+          "
+              ></div>
+            </div>
+          `
+        : ""}
+    </div>
+  `,
+
+  // 메인 윈도우에서 보여줄 미리보기 상태
+  previewState: {
+    kps: 12,
+  },
+
+  // 오버레이 로직: 실제 동작 구현
+  onMount: ({ setState, onHook }) => {
+    const timestamps = [];
+
+    // 키 입력 이벤트 구독 (자동으로 해제됨)
+    onHook("key", ({ state }) => {
+      if (state.toLowerCase() === "down") {
+        timestamps.push(Date.now());
+      }
+    });
+
+    // 100ms마다 KPS 계산 및 UI 업데이트
+    const interval = setInterval(() => {
+      const now = Date.now();
+      // 1초 지난 기록 제거
+      while (timestamps.length > 0 && timestamps[0] < now - 1000) {
+        timestamps.shift();
+      }
+      // 상태 업데이트 -> 템플릿 자동 리렌더링
+      setState({ kps: timestamps.length });
+    }, 100);
+
+    // 클린업 함수
+    return () => clearInterval(interval);
+  },
+});
+```
+
+---
+
+## 고급 / 레거시 가이드
+
+아래 내용은 `defineElement`를 사용하지 않고 직접 DOM을 조작하거나 세밀한 제어가 필요한 경우를 위한 가이드입니다.
+
+### 기본 사용법
 
 ### 1. 설정에서 활성화
 
