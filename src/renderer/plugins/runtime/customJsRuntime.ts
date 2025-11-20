@@ -141,32 +141,7 @@ export function createCustomJsRuntime(): CustomJsRuntime {
       const namespacedStorage = {
         get: async <T = any>(key: string) => {
           const prefixedKey = `${pluginId}/${key}`;
-          const val = await originalStorage.get<T>(prefixedKey as string);
-          if (val !== null && val !== undefined) return val as T;
-
-          const legacyUuidKey = `${plugin.id}/${key}`;
-          const legacyUuid = await originalStorage.get<T>(legacyUuidKey);
-          if (legacyUuid !== null && legacyUuid !== undefined) {
-            try {
-              await originalStorage.set(prefixedKey, legacyUuid);
-              await originalStorage.remove(legacyUuidKey);
-            } catch {
-              // noop
-            }
-            return legacyUuid as T;
-          }
-
-          const legacy = await originalStorage.get<T>(key);
-          if (legacy !== null && legacy !== undefined) {
-            try {
-              await originalStorage.set(prefixedKey, legacy);
-              await originalStorage.remove(key);
-            } catch {
-              // noop
-            }
-            return legacy as T;
-          }
-          return null;
+          return await originalStorage.get<T>(prefixedKey as string);
         },
         set: (key: string, value: any) =>
           originalStorage.set(`${pluginId}/${key}`, value),
