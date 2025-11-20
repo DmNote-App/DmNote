@@ -12,6 +12,10 @@ import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementSto
 import { useKeyStore } from "@stores/useKeyStore";
 import ListPopup, { ListItem } from "./main/Modal/ListPopup";
 import { html, styleMap, css } from "@utils/templateEngine";
+import {
+  registerExposedActions,
+  clearExposedActions,
+} from "@utils/displayElementActions";
 
 interface PluginElementProps {
   element: PluginDisplayElementInternal;
@@ -38,6 +42,9 @@ export const PluginElement: React.FC<PluginElementProps> = ({
 
   const positions = useKeyStore((state) => state.positions);
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
+  const exposedActionsRef = useRef<Record<string, (...args: any[]) => any>>(
+    {}
+  );
 
   // 컨텍스트 메뉴 상태
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
@@ -376,6 +383,10 @@ export const PluginElement: React.FC<PluginElementProps> = ({
 
     if (!definition.onMount) return;
 
+    // reset previously exposed actions for this element
+    exposedActionsRef.current = {};
+    clearExposedActions(element.fullId);
+
     const cleanups: (() => void)[] = [];
 
     const context = {
@@ -406,6 +417,19 @@ export const PluginElement: React.FC<PluginElementProps> = ({
           cleanups.push(unsub);
         }
       },
+      expose: (actions: Record<string, (...args: any[]) => any>) => {
+        if (!actions || typeof actions !== "object") return;
+        const validEntries = Object.entries(actions).filter(
+          ([, fn]) => typeof fn === "function"
+        );
+        if (validEntries.length === 0) return;
+
+        exposedActionsRef.current = {
+          ...exposedActionsRef.current,
+          ...Object.fromEntries(validEntries),
+        };
+        registerExposedActions(element.fullId, exposedActionsRef.current);
+      },
     };
 
     console.log(`[PluginElement] Mounting ${element.fullId}`);
@@ -416,6 +440,8 @@ export const PluginElement: React.FC<PluginElementProps> = ({
     }
 
     return () => {
+      clearExposedActions(element.fullId);
+      exposedActionsRef.current = {};
       cleanups.forEach((fn) => fn());
     };
   }, [windowType, definition?.id, element.fullId]);
@@ -524,6 +550,37 @@ export const PluginElement: React.FC<PluginElementProps> = ({
     return items;
   }, [element.contextMenu]);
 
+  const createActionsProxy = useCallback(
+    (elementId: string) =>
+      new Proxy(
+        {},
+        {
+          get: (_target, prop: string | symbol) => {
+            if (typeof prop !== "string") return undefined;
+            return (...args: any[]) => {
+              try {
+                window.api?.bridge?.sendTo(
+                  "overlay",
+                  "plugin:displayElement:invokeAction",
+                  {
+                    elementId,
+                    action: prop,
+                    args,
+                  }
+                );
+              } catch (error) {
+                console.error(
+                  "[PluginElement] Failed to invoke exposed action",
+                  error
+                );
+              }
+            };
+          },
+        }
+      ),
+    []
+  );
+
   // 컨텍스트 메뉴 항목 선택
   const handleContextMenuSelect = (itemId: string) => {
     if (itemId === "delete") {
@@ -545,7 +602,10 @@ export const PluginElement: React.FC<PluginElementProps> = ({
       const customItem = element.contextMenu?.customItems?.[index];
       if (customItem) {
         // 커스텀 메뉴 실행 (자동 래핑되어 있음)
-        customItem.onClick({ element });
+        customItem.onClick({
+          element,
+          actions: createActionsProxy(element.fullId),
+        });
       }
     }
   };

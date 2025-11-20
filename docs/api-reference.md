@@ -1715,6 +1715,16 @@ interface PluginDefinition {
   contextMenu?: {
     create?: string; // 생성 메뉴 라벨 (기본값: "{name} 생성")
     delete?: string; // 삭제 메뉴 라벨 (기본값: "삭제")
+    items?: {
+      label: string;
+      action?: string; // name of the exposed action (actions[action])
+      onClick?: (ctx: { element: any; actions: Record<string, Function> }) =>
+        void |
+        Promise<void>;
+      visible?: boolean | ((ctx: { element: any; actions: Record<string, Function> }) => boolean);
+      disabled?: boolean | ((ctx: { element: any; actions: Record<string, Function> }) => boolean);
+      position?: "top" | "bottom";
+    }[];
   };
 
   // 메인 윈도우에서 보여줄 미리보기 상태
@@ -1740,8 +1750,12 @@ interface PluginContext {
   // 이벤트 훅 등록 (자동 클린업됨)
   // 현재 지원되는 이벤트: "key"
   onHook: (event: string, callback: Function) => void;
+
+  // Expose functions to be invoked from context menu/actions
+  expose: (actions: Record<string, (...args: any[]) => any>) => void;
 }
 ```
+
 
 **사용 예**:
 

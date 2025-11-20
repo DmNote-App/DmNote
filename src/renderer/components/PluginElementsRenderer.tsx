@@ -3,6 +3,7 @@ import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementSto
 import { useKeyStore } from "@stores/useKeyStore";
 import { PluginElement } from "./PluginElement";
 import type { PluginDisplayElementInternal } from "@src/types/api";
+import { invokeExposedAction } from "@utils/displayElementActions";
 
 interface PluginElementsRendererProps {
   windowType: "main" | "overlay";
@@ -48,6 +49,28 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
       unsubscribe();
     };
   }, [windowType, setElements]);
+
+  // overlay 창에서 expose 함수를 호출 할 수 있도록 브릿지 연결
+  useEffect(() => {
+    if (windowType !== "overlay") return;
+
+    const unsubscribe = window.api.bridge.on<{
+      elementId: string;
+      action: string;
+      args?: any[];
+    }>("plugin:displayElement:invokeAction", async (data) => {
+      if (!data?.elementId || !data?.action) return;
+      await invokeExposedAction(
+        data.elementId,
+        data.action,
+        Array.isArray(data.args) ? data.args : []
+      );
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [windowType]);
 
   // 메인 윈도우에서 오버레이의 상태 요청 처리
   useEffect(() => {

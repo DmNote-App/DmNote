@@ -96,7 +96,35 @@ window.api.plugin.defineElement({
 
 다음은 실제로 동작하는 KPS(초당 키 입력 수) 측정 플러그인 예제입니다.
 
+### 컨텍스트 메뉴 + expose 액션 예시
+
+패널을 우클릭했을 때 뜨는 컨텍스트 메뉴에 커스텀 항목을 추가하고, overlay에서 `expose`로 등록한 함수를 `actions`로 호출할 수 있습니다.
+
 ```javascript
+window.api.plugin.defineElement({
+  name: "My Panel",
+  contextMenu: {
+    create: "패널 추가",
+    delete: "패널 삭제",
+    items: [
+      {
+        label: "통계 초기화",
+        onClick: ({ actions }) => actions.reset(),
+      },
+    ],
+  },
+  onMount: ({ setState, expose }) => {
+    expose({
+      reset: () => setState({ count: 0 }),
+    });
+  },
+});
+```
+
+- `contextMenu.items`: 우클릭 메뉴에 원하는 항목을 추가합니다.
+- `actions`: `onMount`에서 `expose`로 공개한 함수를 여기서 호출합니다.
+- 실행은 overlay에서 일어나고, 메뉴 클릭은 main에서 overlay로 브릿지됩니다.
+
 // @id simple-kps
 
 window.api.plugin.defineElement({

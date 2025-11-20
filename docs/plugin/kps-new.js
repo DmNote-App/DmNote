@@ -4,8 +4,14 @@ window.api.plugin.defineElement({
   name: "Simple KPS",
 
   contextMenu: {
-    create: "KPS 패널 생성",
+    create: "KPS 패널 추가",
     delete: "KPS 패널 삭제",
+    items: [
+      {
+        label: "통계 초기화",
+        onClick: ({ actions }) => actions.reset(),
+      },
+    ],
   },
 
   settings: {
@@ -16,11 +22,11 @@ window.api.plugin.defineElement({
     graphType: {
       type: "select",
       options: [
-        { value: "line", label: "선 그래프" },
+        { value: "line", label: "라인 그래프" },
         { value: "bar", label: "바 그래프" },
       ],
       default: "line",
-      label: "그래프 형태",
+      label: "그래프 종류",
     },
     graphSpeed: {
       type: "number",
@@ -222,7 +228,7 @@ window.api.plugin.defineElement({
     uid: "preview",
   },
 
-  onMount: ({ setState, onHook, getSettings }) => {
+  onMount: ({ setState, onHook, getSettings, expose }) => {
     const timestamps = [];
     let max = 0;
     let kpsSum = 0;
@@ -239,6 +245,32 @@ window.api.plugin.defineElement({
 
     const uid = Math.random().toString(36).substr(2, 9);
     setState({ uid, history: [...historyBuffer] });
+
+    const resetStats = () => {
+      const currentSettings = getSettings();
+      const targetSize = Math.ceil(
+        (currentSettings.graphSpeed || 1000) / GRAPH_UPDATE_MS
+      );
+
+      timestamps.length = 0;
+      max = 0;
+      kpsSum = 0;
+      kpsCount = 0;
+      maxval = 1;
+      historyBuffer = new Array(targetSize).fill(0);
+
+      setState({
+        kps: 0,
+        max: 0,
+        avg: 0,
+        history: [...historyBuffer],
+        maxval,
+      });
+    };
+
+    expose({
+      reset: resetStats,
+    });
 
     // 현재 눌린 키를 추적하기 위한 Set
     const pressedKeys = new Set();

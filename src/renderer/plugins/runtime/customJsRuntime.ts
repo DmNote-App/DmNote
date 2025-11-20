@@ -294,6 +294,61 @@ export function createCustomJsRuntime(): CustomJsRuntime {
               );
             }
 
+            const buildActionsProxy = (elementId: string) =>
+              new Proxy(
+                {},
+                {
+                  get: (_target, prop: string | symbol) => {
+                    if (typeof prop !== "string") return undefined;
+                    return (...args: any[]) => {
+                      try {
+                        window.api?.bridge?.sendTo(
+                          "overlay",
+                          "plugin:displayElement:invokeAction",
+                          {
+                            elementId,
+                            action: prop,
+                            args,
+                          }
+                        );
+                      } catch (error) {
+                        console.error(
+                          `[Plugin ${pluginId}] Failed to invoke exposed action '${String(
+                            prop
+                          )}'`,
+                          error
+                        );
+                      }
+                    };
+                  },
+                }
+              );
+
+            const buildCustomContextMenuItems = () =>
+              (definition.contextMenu?.items || []).map((item, index) => ({
+                id: item.action || `custom-${index}`,
+                label: item.label,
+                position: item.position,
+                visible: item.visible,
+                disabled: item.disabled,
+                onClick: (ctx: any) => {
+                  const actions =
+                    ctx?.actions ||
+                    buildActionsProxy(ctx?.element?.fullId || "");
+
+                  if (typeof item.onClick === "function") {
+                    return item.onClick({ ...ctx, actions });
+                  }
+
+                  if (
+                    item.action &&
+                    typeof (actions as any)[item.action] === "function"
+                  ) {
+                    return (actions as any)[item.action]();
+                  }
+                },
+              }));
+
             const openInstanceSettings = async (instanceId: string) => {
               const element = usePluginDisplayElementStore
                 .getState()
@@ -494,6 +549,7 @@ export function createCustomJsRuntime(): CustomJsRuntime {
                     contextMenu: {
                       enableDelete: true,
                       deleteLabel: definition.contextMenu?.delete || "삭제",
+                      customItems: buildCustomContextMenuItems(),
                     },
                   } as any);
                 },
@@ -529,6 +585,7 @@ export function createCustomJsRuntime(): CustomJsRuntime {
                         contextMenu: {
                           enableDelete: true,
                           deleteLabel: definition.contextMenu?.delete || "삭제",
+                          customItems: buildCustomContextMenuItems(),
                         },
                       } as any);
                     });

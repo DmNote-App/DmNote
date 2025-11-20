@@ -130,10 +130,15 @@ export interface DisplayElementInstance {
 }
 
 // UI Plugin Display Element types
+export type PluginDisplayElementActionContext = {
+  element: PluginDisplayElement;
+  actions: Record<string, (...args: any[]) => any>;
+};
+
 export type PluginDisplayElementContextMenu = {
   enableDelete?: boolean;
   deleteLabel?: string; // 삭제 메뉴 텍스트 (기본: "삭제")
-  customItems?: PluginMenuItem<{ element: PluginDisplayElement }>[];
+  customItems?: PluginMenuItem<PluginDisplayElementActionContext>[];
 };
 
 export type PluginDisplayElement = {
@@ -165,6 +170,19 @@ export type PluginDisplayElement = {
   tabId?: string; // 탭 ID (4key, 5key, custom-tab-id 등)
 };
 
+export interface PluginDefinitionContextMenuItem {
+  label: string;
+  action?: string; // name of the exposed action to call
+  onClick?: (
+    context: PluginDisplayElementActionContext
+  ) => void | Promise<void>;
+  disabled?:
+    | boolean
+    | ((context: PluginDisplayElementActionContext) => boolean);
+  visible?: boolean | ((context: PluginDisplayElementActionContext) => boolean);
+  position?: "top" | "bottom";
+}
+
 export type PluginSettingType =
   | "boolean"
   | "color"
@@ -187,6 +205,7 @@ export interface PluginDefinitionHookContext {
   setState: (updates: Record<string, any>) => void;
   getSettings: () => Record<string, any>;
   onHook: (event: string, callback: (...args: any[]) => void) => void;
+  expose: (actions: Record<string, (...args: any[]) => any>) => void;
 }
 
 export interface PluginDefinition {
@@ -194,6 +213,7 @@ export interface PluginDefinition {
   contextMenu?: {
     create?: string; // 그리드 메뉴 라벨 (예: "KPS 패널 생성")
     delete?: string; // 요소 메뉴 라벨 (예: "KPS 패널 삭제")
+    items?: PluginDefinitionContextMenuItem[];
   };
   settings?: Record<string, PluginSettingSchema>;
   template: (
