@@ -458,11 +458,14 @@ export const PluginElement: React.FC<PluginElementProps> = ({
       onHook: (event: string, callback: (...args: any[]) => void) => {
         // console.log(`[PluginElement] onHook registered for ${event}`);
         if (event === "key") {
-          const unsub = window.api.keys.onKeyState((...args) => {
-            // console.log(`[PluginElement] Key event received via hook`, args);
-            callback(...args);
+          // 백엔드 재구독 대신 키 이벤트 버스 사용
+          import("@utils/keyEventBus").then(({ keyEventBus }) => {
+            const unsub = keyEventBus.subscribe((payload) => {
+              // console.log(`[PluginElement] Key event received via hook`, payload);
+              callback(payload);
+            });
+            cleanups.push(unsub);
           });
-          cleanups.push(unsub);
         }
       },
       expose: (actions: Record<string, (...args: any[]) => any>) => {

@@ -162,6 +162,7 @@ impl AppState {
     }
 
     pub fn emit_settings_changed(&self, diff: &SettingsDiff, app: &AppHandle) -> Result<()> {
+        log::debug!("[IPC] emit_settings_changed: {} fields changed", diff.changed_count());
         self.apply_settings_effects(diff, app)?;
         if let Some(value) = diff.changed.key_counter_enabled {
             self.key_counter_enabled.store(value, Ordering::SeqCst);
@@ -171,6 +172,7 @@ impl AppState {
     }
 
     pub fn set_overlay_visibility(&self, app: &AppHandle, visible: bool) -> Result<()> {
+        log::debug!("[IPC] set_overlay_visibility: visible={}", visible);
         let window = self.ensure_overlay_window(app)?;
         if visible {
             show_overlay_window(&window)?;
@@ -183,6 +185,7 @@ impl AppState {
     }
 
     pub fn set_overlay_lock(&self, app: &AppHandle, locked: bool, persist: bool) -> Result<()> {
+        log::debug!("[IPC] set_overlay_lock: locked={}, persist={}", locked, persist);
         if persist {
             let _ = self.store.update(|state| {
                 state.overlay_locked = locked;
@@ -294,6 +297,10 @@ impl AppState {
             state.overlay_bounds_are_logical = true;
         })?;
 
+        log::debug!(
+            "[IPC] resize_overlay: emit overlay:resized ({}x{} at {}, {})",
+            bounds.width, bounds.height, bounds.x, bounds.y
+        );
         app.emit(
             "overlay:resized",
             &json!({
@@ -354,6 +361,7 @@ impl AppState {
         let reader_handle = thread::Builder::new()
             .name("keyboard-daemon-reader".into())
             .spawn(move || {
+            let mut keys_state_emit_count: u64 = 0;
                 // Prefer Named Pipe if available; otherwise, use stdout
                 #[allow(unused_mut)]
                 let mut reader: BufReader<Box<dyn std::io::Read + Send>> = {
@@ -403,6 +411,10 @@ impl AppState {
                             if state == "DOWN" {
                                 if app_state.register_key_down(&mode, &key_label) {
                                     if let Some(count) = app_state.increment_key_counter(&mode, &key_label) {
+                                        log::trace!(
+                                            "[IPC] emit keys:counter: mode={}, key={}, count={}",
+                                            mode, key_label, count
+                                        );
                                         if let Err(err) = app_handle.emit(
                                             "keys:counter",
                                             &json!({
@@ -438,6 +450,18 @@ impl AppState {
                                     if let Err(err) = app_handle.emit("keys:state", &payload) {
                                         error!("failed to emit keys:state (fallback): {err}");
                                     }
+                                }
+                            }
+
+                            if emitted {
+                                keys_state_emit_count += 1;
+                                if keys_state_emit_count % 500 == 0 {
+                                    log::debug!(
+                                        "[AppState] emitted keys:state {} times (last key={}, state={})",
+                                        keys_state_emit_count,
+                                        key_label,
+                                        state
+                                    );
                                 }
                             }
                         }

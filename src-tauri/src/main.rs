@@ -138,6 +138,13 @@ fn apply_webview2_additional_args(arg: &str) {
 }
 
 fn setup_logging() -> Result<()> {
+    // 개발 모드에서는 Debug, 릴리즈에서는 Info
+    let level = if cfg!(debug_assertions) {
+        LevelFilter::Debug
+    } else {
+        LevelFilter::Info
+    };
+
     let _ = fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
@@ -147,7 +154,7 @@ fn setup_logging() -> Result<()> {
                 message = message
             ))
         })
-        .level(LevelFilter::Info)
+        .level(level)
         .chain(std::io::stdout())
         .apply();
     Ok(())

@@ -1,4 +1,11 @@
-import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import React, {
+  Suspense,
+  lazy,
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+} from "react";
 import { Key } from "@components/Key";
 import { DEFAULT_NOTE_SETTINGS } from "@constants/overlayConfig";
 import { useCustomCssInjection } from "@hooks/useCustomCssInjection";
@@ -137,25 +144,35 @@ export default function App() {
   }, [trackHeight]);
 
   useEffect(() => {
-    const unsubscribe = window.api.keys.onKeyState(({ key, state }) => {
-      const isDown = state === "DOWN";
-      // 개별 Key가 신호를 직접 구독
-      setKeyActiveSignal(key, isDown);
-      // 노트 이펙트가 활성화된 경우에만 핸들러 호출
-      if (noteEffect) {
-        requestAnimationFrame(() => {
-          if (isDown) handleKeyDown(key);
-          else handleKeyUp(key);
-        });
-      }
+    // 키 이벤트 버스 초기화 (백엔드에서 한 번만 구독)
+    import("@utils/keyEventBus").then(({ keyEventBus }) => {
+      keyEventBus.initialize();
+    });
+
+    // 버스를 통해 키 이벤트 수신
+    const unsubscribe = import("@utils/keyEventBus").then(({ keyEventBus }) => {
+      return keyEventBus.subscribe(({ key, state }) => {
+        const isDown = state === "DOWN";
+        // 개별 Key가 신호를 직접 구독
+        setKeyActiveSignal(key, isDown);
+        // 노트 이펙트가 활성화된 경우에만 핸들러 호출
+        if (noteEffect) {
+          requestAnimationFrame(() => {
+            if (isDown) handleKeyDown(key);
+            else handleKeyUp(key);
+          });
+        }
+      });
     });
 
     return () => {
-      try {
-        unsubscribe();
-      } catch (error) {
-        console.error("Failed to remove key state listener", error);
-      }
+      unsubscribe.then((unsub) => {
+        try {
+          unsub?.();
+        } catch (error) {
+          console.error("Failed to remove key state listener", error);
+        }
+      });
       // 안전하게 모든 키 신호 초기화(선택적)
       resetAllKeySignals();
     };
@@ -296,6 +313,14 @@ export default function App() {
     updateTrackLayouts(webglTracks);
   }, [webglTracks, updateTrackLayouts]);
 
+  // 이전 resize 값을 추적하여 실제로 변경되었을 때만 resize 호출
+  const lastResizeParams = useRef<{
+    width: number;
+    height: number;
+    anchor: string;
+    contentTopOffset: number;
+  } | null>(null);
+
   useEffect(() => {
     if (!bounds) return;
 
@@ -304,13 +329,33 @@ export default function App() {
     const extraTop = trackHeight;
     const totalWidth = keyAreaWidth + PADDING * 2;
     const totalHeight = keyAreaHeight + PADDING * 2 + extraTop;
+    const contentTopOffset = extraTop + PADDING;
+
+    // 이전 값과 비교하여 실제로 변경되었을 때만 resize 호출
+    const lastParams = lastResizeParams.current;
+    if (
+      lastParams &&
+      Math.abs(lastParams.width - totalWidth) < 0.5 &&
+      Math.abs(lastParams.height - totalHeight) < 0.5 &&
+      lastParams.anchor === overlayAnchor &&
+      Math.abs(lastParams.contentTopOffset - contentTopOffset) < 0.5
+    ) {
+      return; // 변경사항 없음, resize 건너뛰기
+    }
+
+    lastResizeParams.current = {
+      width: totalWidth,
+      height: totalHeight,
+      anchor: overlayAnchor,
+      contentTopOffset,
+    };
 
     window.api.overlay
       .resize({
         width: totalWidth,
         height: totalHeight,
         anchor: overlayAnchor,
-        contentTopOffset: extraTop + PADDING,
+        contentTopOffset,
       })
       .catch((error) => {
         console.error("Failed to resize overlay window", error);

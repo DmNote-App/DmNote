@@ -60,8 +60,22 @@ export class DisplayElementInstance extends String {
 
   setState(updates: Record<string, any>): void {
     if (!this.ensureActive()) return;
+    if (!updates || typeof updates !== "object") return;
+
     const nextState = this.ensureState();
-    Object.assign(nextState, updates || {});
+
+    // 얕은 비교: 실제로 변경된 값이 있는지 확인
+    let hasChanges = false;
+    for (const key in updates) {
+      if (nextState[key] !== updates[key]) {
+        hasChanges = true;
+        break;
+      }
+    }
+
+    if (!hasChanges) return; // 변경사항 없으면 스킵
+
+    Object.assign(nextState, updates);
     this.renderFromTemplate();
   }
 
