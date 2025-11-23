@@ -561,6 +561,81 @@ const unsub = window.api.keys.onKeyState(({ key, state, mode }) => {
 
 ---
 
+#### `window.api.keys.onRawInput(listener)`
+
+로우 레벨 입력 이벤트를 구독합니다. **오버레이 윈도우에서만 수신 가능합니다.**
+
+키보드와 마우스의 원시 입력 데이터를 수신할 수 있습니다. 매핑되지 않은 키나 마우스 버튼도 감지할 수 있어 커스텀 입력 처리에 유용합니다.
+
+**매개변수**:
+
+- `listener: (payload: RawInputPayload) => void`
+
+```typescript
+interface RawInputPayload {
+  device: "keyboard" | "mouse" | "unknown"; // 입력 장치 타입
+  label: string; // 주 레이블 (예: "KeyD", "LButton", "MButton")
+  labels: string[]; // 모든 레이블 목록
+  state: string; // "DOWN" | "UP"
+}
+```
+
+**반환형**: `Unsubscribe`
+
+**사용 예**:
+
+```javascript
+// 모든 입력 감지
+const unsub = window.api.keys.onRawInput(({ device, label, labels, state }) => {
+  console.log(`[${device}] ${label} ${state}`);
+  console.log("추가 레이블:", labels);
+
+  // 키보드 입력만 처리
+  if (device === "keyboard" && state === "DOWN") {
+    console.log("키보드 키 눌림:", label);
+  }
+
+  // 마우스 버튼 클릭 감지
+  if (device === "mouse" && label === "LButton" && state === "DOWN") {
+    console.log("좌클릭 감지!");
+  }
+
+  // 마우스 측면 버튼 (XButton)
+  if (device === "mouse" && label.startsWith("XButton")) {
+    console.log("마우스 측면 버튼:", label);
+  }
+});
+
+// 구독 해제
+unsub();
+```
+
+**활용 사례**:
+
+```javascript
+// 커스텀 입력 기록기
+const inputLog = [];
+
+window.api.keys.onRawInput(({ device, label, state }) => {
+  if (state === "DOWN") {
+    inputLog.push({
+      device,
+      label,
+      timestamp: Date.now(),
+    });
+
+    // 최근 100개만 유지
+    if (inputLog.length > 100) {
+      inputLog.shift();
+    }
+
+    console.log(`입력 기록: ${inputLog.length}개`);
+  }
+});
+```
+
+---
+
 #### `window.api.keys.onCounterChanged(listener)`
 
 개별 키 카운트 변경 이벤트를 구독합니다.
