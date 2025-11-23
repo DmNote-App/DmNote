@@ -388,21 +388,96 @@ impl AppState {
                         Ok(0) => break,
                         Ok(_) => {
                             let s = line.trim();
-                            if s.len() < 3 || !s.as_bytes().get(1).map(|c| *c == b':').unwrap_or(false) {
+                            if s.is_empty() {
                                 continue;
                             }
-                            let (state_ch, rest) = s.split_at(1);
-                            let key = &rest[1..];
-                            if key.is_empty() {
-                                continue;
+
+                            // Preferred: JSON encoded HookMessage (with device).
+                            let parsed: Option<crate::ipc::HookMessage> =
+                                serde_json::from_str(s).ok();
+
+                            let message = if let Some(msg) = parsed {
+                                if msg.labels.is_empty() {
+                                    continue;
+                                }
+                                msg
+                            } else {
+                                // Legacy compact format: "D:<label>" / "U:<label>"
+                                if s.len() < 3
+                                    || !s.as_bytes().get(1).map(|c| *c == b':').unwrap_or(false)
+                                {
+                                    continue;
+                                }
+                                let (state_ch, rest) = s.split_at(1);
+                                let key = &rest[1..];
+                                if key.is_empty() {
+                                    continue;
+                                }
+                                crate::ipc::HookMessage {
+                                    device: crate::ipc::InputDeviceKind::Keyboard,
+                                    labels: vec![key.to_string()],
+                                    state: if state_ch == "D" {
+                                        crate::ipc::HookKeyState::Down
+                                    } else {
+                                        crate::ipc::HookKeyState::Up
+                                    },
+                                    vk_code: None,
+                                    scan_code: None,
+                                    flags: None,
+                                }
+                            };
+
+                            let device_str = match message.device {
+                                crate::ipc::InputDeviceKind::Keyboard => "keyboard",
+                                crate::ipc::InputDeviceKind::Mouse => "mouse",
+                                crate::ipc::InputDeviceKind::Gamepad => "gamepad",
+                                crate::ipc::InputDeviceKind::Unknown => "unknown",
+                            };
+                            let state = match message.state {
+                                crate::ipc::HookKeyState::Down => "DOWN",
+                                crate::ipc::HookKeyState::Up => "UP",
+                            };
+                            let labels_for_emit = message.labels.clone();
+                            let primary_label = labels_for_emit
+                                .get(0)
+                                .cloned()
+                                .unwrap_or_else(|| String::from(""));
+
+                            // Emit raw input stream to the main window so UI can bind non-keyboard inputs.
+                            if let Some(main) = app_handle.get_webview_window("main") {
+                                let _ = main.emit(
+                                    "input:raw",
+                                    &json!({
+                                        "label": primary_label,
+                                        "labels": labels_for_emit.clone(),
+                                        "state": state,
+                                        "device": device_str,
+                                    }),
+                                );
+                            } else if let Err(err) = app_handle.emit(
+                                "input:raw",
+                                &json!({
+                                    "label": primary_label,
+                                    "labels": labels_for_emit.clone(),
+                                    "state": state,
+                                    "device": device_str,
+                                }),
+                            ) {
+                                error!("failed to emit input:raw: {err}");
                             }
-                            let state = if state_ch == "D" { "DOWN" } else { "UP" };
-                            let Some(key_label) = keyboard.match_candidate(std::iter::once(key)) else { continue };
+
+                            let Some(key_label) =
+                                keyboard.match_candidate(message.labels.iter().map(|s| s.as_str()))
+                            else {
+                                continue;
+                            };
                             let mode = keyboard.current_mode();
                             let app_state = app_handle.state::<AppState>();
                             if state == "DOWN" {
                                 if app_state.register_key_down(&mode, &key_label) {
-                                    if let Some(count) = app_state.increment_key_counter(&mode, &key_label) {
+                                    if let Some(count) =
+                                        app_state.increment_key_counter(&mode, &key_label)
+                                    {
                                         if let Err(err) = app_handle.emit(
                                             "keys:counter",
                                             &json!({
@@ -424,14 +499,21 @@ impl AppState {
                             if let Some(overlay) = overlay_window.as_ref() {
                                 match overlay.emit("keys:state", &payload) {
                                     Ok(_) => emitted = true,
-                                    Err(err) => { error!("failed to emit keys:state to overlay: {err}"); overlay_window = None; }
+                                    Err(err) => {
+                                        error!("failed to emit keys:state to overlay: {err}");
+                                        overlay_window = None;
+                                    }
                                 }
                             }
                             if !emitted {
                                 if overlay_window.is_none() {
                                     overlay_window = app_handle.get_webview_window(OVERLAY_LABEL);
                                     if let Some(overlay) = overlay_window.as_ref() {
-                                        if overlay.emit("keys:state", &payload).is_ok() { emitted = true; } else { overlay_window = None; }
+                                        if overlay.emit("keys:state", &payload).is_ok() {
+                                            emitted = true;
+                                        } else {
+                                            overlay_window = None;
+                                        }
                                     }
                                 }
                                 if !emitted {
@@ -442,7 +524,11 @@ impl AppState {
                             }
                         }
                         Err(err) => {
-                            if err.kind() == std::io::ErrorKind::Interrupted || err.kind() == std::io::ErrorKind::WouldBlock { continue; }
+                            if err.kind() == std::io::ErrorKind::Interrupted
+                                || err.kind() == std::io::ErrorKind::WouldBlock
+                            {
+                                continue;
+                            }
                             break;
                         }
                     }

@@ -117,7 +117,41 @@ export const keyMaps = {
   Delete: { browserKey: 'Delete', globalKey: 'DELETE', displayName: 'Del' },
   End: { browserKey: 'End', globalKey: 'END', displayName: 'End' },
   PageDown: { browserKey: 'PageDown', globalKey: 'PAGE DOWN', displayName: 'PgDn' },
+  ContextMenu: { browserKey: 'ContextMenu', globalKey: 'CONTEXT MENU', displayName: 'Menu' },
 };
+
+// 마우스 / 게임패드
+const extraGlobalKeyMap = {
+  MOUSE1: { browserKey: 'MouseLeft', globalKey: 'MOUSE1', displayName: 'Mouse Left' },
+  MOUSE2: { browserKey: 'MouseRight', globalKey: 'MOUSE2', displayName: 'Mouse Right' },
+  MOUSE3: { browserKey: 'MouseMiddle', globalKey: 'MOUSE3', displayName: 'Mouse Middle' },
+  MOUSE4: { browserKey: 'Mouse4', globalKey: 'MOUSE4', displayName: 'Mouse 4' },
+  MOUSE5: { browserKey: 'Mouse5', globalKey: 'MOUSE5', displayName: 'Mouse 5' },
+  GP_A: { browserKey: 'GamepadA', globalKey: 'GP_A', displayName: 'Pad A' },
+  GP_B: { browserKey: 'GamepadB', globalKey: 'GP_B', displayName: 'Pad B' },
+  GP_X: { browserKey: 'GamepadX', globalKey: 'GP_X', displayName: 'Pad X' },
+  GP_Y: { browserKey: 'GamepadY', globalKey: 'GP_Y', displayName: 'Pad Y' },
+  GP_LB: { browserKey: 'GamepadLB', globalKey: 'GP_LB', displayName: 'Pad LB' },
+  GP_RB: { browserKey: 'GamepadRB', globalKey: 'GP_RB', displayName: 'Pad RB' },
+  GP_LT: { browserKey: 'GamepadLT', globalKey: 'GP_LT', displayName: 'Pad LT' },
+  GP_RT: { browserKey: 'GamepadRT', globalKey: 'GP_RT', displayName: 'Pad RT' },
+  GP_BACK: { browserKey: 'GamepadBack', globalKey: 'GP_BACK', displayName: 'Pad Back' },
+  GP_START: { browserKey: 'GamepadStart', globalKey: 'GP_START', displayName: 'Pad Start' },
+  GP_LS: { browserKey: 'GamepadLS', globalKey: 'GP_LS', displayName: 'Pad LS' },
+  GP_RS: { browserKey: 'GamepadRS', globalKey: 'GP_RS', displayName: 'Pad RS' },
+  GP_UP: { browserKey: 'GamepadUp', globalKey: 'GP_UP', displayName: 'Pad Up' },
+  GP_DOWN: { browserKey: 'GamepadDown', globalKey: 'GP_DOWN', displayName: 'Pad Down' },
+  GP_LEFT: { browserKey: 'GamepadLeft', globalKey: 'GP_LEFT', displayName: 'Pad Left' },
+  GP_RIGHT: { browserKey: 'GamepadRight', globalKey: 'GP_RIGHT', displayName: 'Pad Right' },
+};
+
+const globalKeyLookup = (() => {
+  const map = { ...extraGlobalKeyMap };
+  Object.values(keyMaps).forEach((item) => {
+    map[item.globalKey] = item;
+  });
+  return map;
+})();
 
 export const getKeyInfo = (code, key) => {
   return keyMaps[code] || {
@@ -128,6 +162,6 @@ export const getKeyInfo = (code, key) => {
 };
 
 export const getKeyInfoByGlobalKey = (globalKey) => {
-  const found = Object.values(keyMaps).find(item => item.globalKey === globalKey);
+  const found = globalKeyLookup[globalKey];
   return found || { browserKey: globalKey, globalKey, displayName: globalKey };
 };

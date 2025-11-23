@@ -21,6 +21,13 @@ export type CustomTabsChangePayload = {
   selectedKeyType: string;
 };
 export type KeyStatePayload = { key: string; state: string; mode: string };
+export type InputDevice = "keyboard" | "mouse" | "gamepad" | "unknown";
+export type RawInputPayload = {
+  device: InputDevice;
+  label: string;
+  labels: string[];
+  state: string;
+};
 export type OverlayBounds = {
   x: number;
   y: number;
@@ -301,6 +308,7 @@ export interface DMNoteAPI {
     ): Unsubscribe;
     onModeChanged(listener: (payload: ModeChangePayload) => void): Unsubscribe;
     onKeyState(listener: (payload: KeyStatePayload) => void): Unsubscribe;
+    onRawInput(listener: (payload: RawInputPayload) => void): Unsubscribe;
     resetCounters(): Promise<KeyCounters>;
     resetCountersMode(mode: string): Promise<KeyCounters>;
     onCounterChanged(

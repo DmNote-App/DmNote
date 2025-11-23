@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useTranslation } from "@contexts/I18nContext";
-import { getKeyInfo, getKeyInfoByGlobalKey } from "@utils/KeyMaps";
+import { getKeyInfoByGlobalKey } from "@utils/KeyMaps";
 import { useSettingsStore } from "@stores/useSettingsStore";
 import ColorPicker from "./ColorPicker";
 import ImagePicker from "./ImagePicker";
@@ -80,22 +80,31 @@ export default function KeySetting({
   const initialSkipRef = useRef(skipAnimation);
 
   useEffect(() => {
-    const handleKeyPress = (e) => {
-      if (isListening) {
-        e.preventDefault();
-        let code = e.code;
-        if (e.key === "Shift") {
-          code = e.location === 1 ? "ShiftLeft" : "ShiftRight";
-        }
-        const info = getKeyInfo(code, e.key);
-        setKey(info.globalKey);
-        setDisplayKey(info.displayName);
-        setIsListening(false);
+    if (!isListening) return undefined;
+    if (typeof window === "undefined" || !window.api?.keys?.onRawInput) {
+      return undefined;
+    }
+
+    const unsubscribe = window.api.keys.onRawInput((payload) => {
+      if (!payload || payload.state !== "DOWN") return;
+      const targetLabel =
+        payload.label ||
+        (Array.isArray(payload.labels) ? payload.labels[0] : null);
+      if (!targetLabel) return;
+
+      const info = getKeyInfoByGlobalKey(targetLabel);
+      setKey(info.globalKey);
+      setDisplayKey(info.displayName);
+      setIsListening(false);
+    });
+
+    return () => {
+      try {
+        unsubscribe?.();
+      } catch (error) {
+        console.error("Failed to unsubscribe raw input listener", error);
       }
     };
-
-    window.addEventListener("keydown", handleKeyPress);
-    return () => window.removeEventListener("keydown", handleKeyPress);
   }, [isListening]);
 
   useEffect(() => {
