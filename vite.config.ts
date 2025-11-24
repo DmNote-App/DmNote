@@ -58,6 +58,7 @@ export default defineConfig(() => {
         "@styles": path.resolve(rendererRoot, "styles"),
         "@windows": path.resolve(rendererRoot, "windows"),
         "@hooks": path.resolve(rendererRoot, "hooks"),
+        "@api": path.resolve(rendererRoot, "api"),
         "@assets": path.resolve(rendererRoot, "assets"),
         "@utils": path.resolve(rendererRoot, "utils"),
         "@stores": path.resolve(rendererRoot, "stores"),

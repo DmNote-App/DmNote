@@ -13,8 +13,6 @@ import {
   SettingsState,
 } from "@src/types/settings";
 
-export const TEMPLATE_RESULT_FLAG = Symbol("dmn.template.result");
-
 export type ModeChangePayload = { mode: string };
 export type CustomTabsChangePayload = {
   customTabs: CustomTab[];
@@ -139,10 +137,15 @@ export interface DisplayElementInstance {
 }
 
 // UI Plugin Display Element types
+export type PluginDisplayElementActionContext = {
+  element: PluginDisplayElement;
+  actions: Record<string, (...args: any[]) => any>;
+};
+
 export type PluginDisplayElementContextMenu = {
   enableDelete?: boolean;
   deleteLabel?: string; // 삭제 메뉴 텍스트 (기본: "삭제")
-  customItems?: PluginMenuItem<{ element: PluginDisplayElement }>[];
+  customItems?: PluginMenuItem<PluginDisplayElementActionContext>[];
 };
 
 export type PluginDisplayElement = {
@@ -168,7 +171,83 @@ export type PluginDisplayElement = {
     | ((position: { x: number; y: number }) => void | Promise<void>); // 위치 변경 핸들러 ID 또는 함수 (메인 윈도우에서만)
   onDelete?: string | (() => void | Promise<void>); // 삭제 핸들러 ID 또는 함수 (메인 윈도우에서만)
   contextMenu?: PluginDisplayElementContextMenu;
+  definitionId?: string;
+  settings?: Record<string, any>;
+  state?: Record<string, any>;
+  tabId?: string; // 탭 ID (4key, 5key, custom-tab-id 등)
 };
+
+export type PluginMessages = Record<string, Record<string, any>>;
+export type PluginI18nParams = Record<string, string | number>;
+export type PluginTranslateFn = (
+  key: string,
+  params?: PluginI18nParams,
+  fallback?: string
+) => string;
+
+export interface PluginDefinitionContextMenuItem {
+  label: string;
+  action?: string; // name of the exposed action to call
+  onClick?: (
+    context: PluginDisplayElementActionContext
+  ) => void | Promise<void>;
+  disabled?:
+    | boolean
+    | ((context: PluginDisplayElementActionContext) => boolean);
+  visible?: boolean | ((context: PluginDisplayElementActionContext) => boolean);
+  position?: "top" | "bottom";
+}
+
+export type PluginSettingType =
+  | "boolean"
+  | "color"
+  | "number"
+  | "string"
+  | "select";
+
+export interface PluginSettingSchema {
+  type: PluginSettingType;
+  default: any;
+  label: string;
+  min?: number; // for number
+  max?: number; // for number
+  step?: number; // for number
+  options?: { label: string; value: any }[]; // for select
+  placeholder?: string; // for string/number
+}
+
+export interface PluginDefinitionHookContext {
+  setState: (updates: Record<string, any>) => void;
+  getSettings: () => Record<string, any>;
+  onHook: (event: string, callback: (...args: any[]) => void) => void;
+  expose: (actions: Record<string, (...args: any[]) => any>) => void;
+  locale: string;
+  t: PluginTranslateFn;
+  onLocaleChange: (listener: (locale: string) => void) => Unsubscribe;
+}
+
+export interface PluginDefinition {
+  name: string;
+  contextMenu?: {
+    create?: string; // 그리드 메뉴 라벨 (예: "KPS 패널 생성")
+    delete?: string; // 요소 메뉴 라벨 (예: "KPS 패널 삭제")
+    items?: PluginDefinitionContextMenuItem[];
+  };
+  settings?: Record<string, PluginSettingSchema>;
+  messages?: PluginMessages;
+  template: (
+    state: Record<string, any>,
+    settings: Record<string, any>,
+    helpers: DisplayElementTemplateHelpers
+  ) => DisplayElementTemplateResult | string;
+  previewState?: Record<string, any>;
+  onMount?: (context: PluginDefinitionHookContext) => void | (() => void);
+}
+
+export interface PluginDefinitionInternal extends PluginDefinition {
+  id: string;
+  pluginId: string;
+}
 
 export type PluginDisplayElementInternal = PluginDisplayElement & {
   pluginId: string;
@@ -181,9 +260,8 @@ export type PluginDisplayElementInternal = PluginDisplayElement & {
 };
 
 export interface DisplayElementTemplateResult {
-  readonly strings: TemplateStringsArray;
-  readonly values: unknown[];
-  readonly [TEMPLATE_RESULT_FLAG]: true;
+  // ReactNode or similar
+  [key: string]: any;
 }
 
 export interface DisplayElementTemplateHelpers {
@@ -191,6 +269,15 @@ export interface DisplayElementTemplateHelpers {
     strings: TemplateStringsArray,
     ...values: unknown[]
   ): DisplayElementTemplateResult;
+  styleMap(
+    styles: Record<string, string | number | undefined | null>
+  ): Record<string, string | number | undefined | null>;
+  css(
+    strings: TemplateStringsArray,
+    ...values: (string | number | undefined | null)[]
+  ): string;
+  locale: string;
+  t: PluginTranslateFn;
 }
 
 export type DisplayElementTemplateFunction = (
@@ -245,7 +332,7 @@ export interface CheckboxOptions {
 }
 
 export interface InputOptions {
-  type?: "text" | "number";
+  type?: "text" | "number" | "color";
   placeholder?: string;
   value?: string | number;
   disabled?: boolean;
@@ -384,6 +471,10 @@ export interface DMNoteAPI {
     onAny(listener: BridgeAnyListener): Unsubscribe;
     off(type: string, listener?: BridgeMessageListener): void;
   };
+  i18n: {
+    getLocale(): Promise<string>;
+    onLocaleChange(listener: (locale: string) => void): Unsubscribe;
+  };
   plugin: {
     storage: {
       get<T = any>(key: string): Promise<T | null>;
@@ -395,6 +486,7 @@ export interface DMNoteAPI {
       clearByPrefix(prefix: string): Promise<number>;
     };
     registerCleanup(cleanup: () => void): void;
+    defineElement(definition: PluginDefinition): void;
   };
   ui: {
     contextMenu: {
@@ -491,5 +583,14 @@ export interface DMNoteAPI {
       panel(content: string, options?: PanelOptions): string;
       formRow(label: string, component: string): string;
     };
+    pickColor(options: {
+      initialColor: string;
+      onColorChange: (color: string) => void;
+      position?: { x: number; y: number };
+      id?: string;
+      referenceElement?: HTMLElement;
+      onClose?: () => void;
+      onColorChangeComplete?: (color: string) => void;
+    }): void;
   };
 }

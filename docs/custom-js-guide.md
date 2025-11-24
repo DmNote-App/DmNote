@@ -7,7 +7,395 @@ DM Note는 사용자가 작성한 JavaScript를 런타임에 주입할 수 있�
 
 ---
 
-## 기본 사용법
+## ✨ 선언형 플러그인 API (권장)
+
+DM Note는 복잡한 DOM 조작이나 상태 관리를 직접 하지 않아도 되는 **선언형 플러그인 API (`defineElement`)**를 제공합니다. 이 방식을 사용하면 다음과 같은 이점이 있습니다:
+
+- **자동 설정 UI**: 설정 스키마만 정의하면 설정 팝업이 자동으로 생성됩니다.
+- **인스턴스별 상태 격리**: 같은 플러그인으로 여러 패널을 만들어도 각자 독립적인 설정과 상태를 가집니다.
+- **탭(모드)별 격리**: 패널을 생성한 탭(예: 4key, 5key)에서만 해당 패널이 표시됩니다.
+- **자동 상태 동기화**: 메인 윈도우(설정/미리보기)와 오버레이 윈도우(실제 동작) 간의 상태가 자동으로 동기화됩니다.
+- **컨텍스트 메뉴 통합**: 우클릭 메뉴가 자동으로 생성됩니다.
+- **라이프사이클 관리**: 탭 전환 시 자동으로 마운트/언마운트되며, 리소스가 효율적으로 관리됩니다.
+- **간결한 코드**: HTML 템플릿과 로직만 작성하면 됩니다.
+
+### 기본 구조
+
+```javascript
+// @id my-plugin-id
+
+dmn.plugin.defineElement({
+  name: "내 플러그인 이름",
+
+  // 1. 설정 정의 (자동으로 UI 생성됨)
+  settings: {
+    showGraph: { type: "boolean", default: true, label: "그래프 표시" },
+    textColor: { type: "color", default: "#FFFFFF", label: "텍스트 색상" },
+    fontSize: {
+      type: "number",
+      default: 24,
+      min: 10,
+      max: 100,
+      label: "폰트 크기",
+    },
+  },
+
+  // 2. 컨텍스트 메뉴 정의
+  contextMenu: {
+    create: "패널 생성",
+    delete: "패널 삭제",
+  },
+
+  // 3. 미리보기 상태 (메인 윈도우용)
+  previewState: {
+    value: 123,
+  },
+
+  // 4. HTML 템플릿 (상태와 설정에 따라 렌더링)
+  // ✨ htm 라이브러리 기반 - React Element를 생성합니다
+  // - 값 보간: ${state.value} 형태로 직접 사용
+  // - style 속성: 문자열로 작성 가능 (style="color: ${color}")
+  // - 조건부 렌더링: 삼항 연산자 또는 && 연산자 사용
+  // - 배열 렌더링: map()으로 React Element 배열 반환
+  template: (state, settings, { html }) => html`
+    <div
+      style="color: ${settings.textColor}; font-size: ${settings.fontSize}px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px;"
+    >
+      값: ${state.value || 0} ${settings.showGraph
+        ? html`<div class="graph">...</div>`
+        : ""}
+    </div>
+  `,
+
+  // 5. 로직 구현 (오버레이에서만 실행됨)
+  onMount: ({ setState, getSettings, onHook }) => {
+    console.log("플러그인 시작!");
+
+    // 키 입력 감지
+    onHook("key", ({ state, key }) => {
+      if (state === "DOWN") {
+        setState({ value: Math.random() * 100 });
+      }
+    });
+
+    // 주기적 작업
+    const interval = setInterval(() => {
+      // ...
+    }, 1000);
+
+    // 클린업 함수 반환
+    return () => {
+      clearInterval(interval);
+      console.log("플러그인 종료");
+    };
+  },
+});
+```
+
+### 실전 예제: KPS 측정기
+
+다음은 실제로 동작하는 KPS(초당 키 입력 수) 측정 플러그인 예제입니다.
+
+### 컨텍스트 메뉴 + expose 액션 예시
+
+패널을 우클릭했을 때 뜨는 컨텍스트 메뉴에 커스텀 항목을 추가하고, overlay에서 `expose`로 등록한 함수를 `actions`로 호출할 수 있습니다.
+
+```javascript
+dmn.plugin.defineElement({
+  name: "My Panel",
+  contextMenu: {
+    create: "패널 추가",
+    delete: "패널 삭제",
+    items: [
+      {
+        label: "통계 초기화",
+        onClick: ({ actions }) => actions.reset(),
+      },
+    ],
+  },
+  onMount: ({ setState, expose }) => {
+    expose({
+      reset: () => setState({ count: 0 }),
+    });
+  },
+});
+```
+
+- `contextMenu.items`: 우클릭 메뉴에 원하는 항목을 추가합니다.
+- `actions`: `onMount`에서 `expose`로 공개한 함수를 여기서 호출합니다.
+- 실행은 overlay에서 일어나고, 메뉴 클릭은 main에서 overlay로 브릿지됩니다.
+
+### 다국어(i18n) 적용하기
+
+플러그인에서 다국어 텍스트를 사용하려면 `messages` 필드에 locale별 번역을 정의하고, 라벨 자리에는 메시지 키를 전달하면 됩니다. 템플릿 헬퍼의 `t()` 함수와 `onMount` 컨텍스트의 `locale`, `onLocaleChange()`도 함께 제공됩니다.
+
+```javascript
+dmn.plugin.defineElement({
+  name: "Localized Panel",
+  messages: {
+    en: {
+      "menu.create": "Create Panel",
+      "menu.delete": "Delete Panel",
+      "metrics.count": "Count",
+    },
+    ko: {
+      "menu.create": "패널 생성",
+      "menu.delete": "패널 삭제",
+      "metrics.count": "카운트",
+    },
+  },
+  contextMenu: {
+    create: "menu.create",
+    delete: "menu.delete",
+  },
+  template: (state, settings, { html, t, locale }) => html`
+    <div data-locale="${locale}">
+      ${t("metrics.count")}: ${state.value ?? 0}
+    </div>
+  `,
+  onMount: ({ setState, locale, onLocaleChange }) => {
+    console.log("current locale", locale);
+    const unsub = onLocaleChange((next) => {
+      console.log("locale changed", next);
+    });
+    setState({ value: 1 });
+    return () => unsub();
+  },
+});
+```
+
+필요하다면 `dmn.i18n.getLocale()`와 `dmn.i18n.onLocaleChange()`를 직접 호출해 언어 설정을 가져오거나 감지할 수도 있습니다.
+
+// @id simple-kps
+
+dmn.plugin.defineElement({
+name: "Simple KPS",
+
+contextMenu: {
+create: "KPS 패널 생성",
+delete: "KPS 패널 삭제",
+},
+
+settings: {
+showGraph: { type: "boolean", default: true, label: "그래프 표시" },
+textColor: { type: "color", default: "#FFFFFF", label: "텍스트 색상" },
+graphColor: { type: "color", default: "#00FF00", label: "그래프 색상" },
+},
+
+// 템플릿: htm 라이브러리로 React Element 생성
+// - style 속성에 문자열 직접 사용 가능
+// - 값은 ${state.kps} 형태로 직접 보간
+template: (state, settings, { html }) => html`
+    <div
+      style="background: rgba(0, 0, 0, 0.7); padding: 10px; border-radius: 8px; color: ${settings.textColor}; font-family: sans-serif; min-width: 100px; text-align: center;"
+    >
+      <div style="font-size: 24px; font-weight: bold;">
+        ${state.kps || 0}
+        <span style="font-size: 12px; opacity: 0.7;">KPS</span>
+      </div>
+      ${settings.showGraph
+        ? html`
+
+<div
+              style="margin-top: 5px; height: 4px; background: #333; border-radius: 2px; overflow: hidden;"
+            >
+<div
+                style="height: 100%; width: ${Math.min(
+                  ((state.kps || 0) / 20) * 100,
+                  100
+                )}%; background: ${settings.graphColor}; transition: width 0.1s linear;"
+              ></div>
+</div>
+`        : ""}
+    </div>
+ `,
+
+// 메인 윈도우에서 보여줄 미리보기 상태
+previewState: {
+kps: 12,
+},
+
+// 오버레이 로직: 실제 동작 구현
+onMount: ({ setState, onHook }) => {
+const timestamps = [];
+
+    // 키 입력 이벤트 구독 (자동으로 해제됨)
+    onHook("key", ({ state }) => {
+      if (state.toLowerCase() === "down") {
+        timestamps.push(Date.now());
+      }
+    });
+
+    // 100ms마다 KPS 계산 및 UI 업데이트
+    const interval = setInterval(() => {
+      const now = Date.now();
+      // 1초 지난 기록 제거
+      while (timestamps.length > 0 && timestamps[0] < now - 1000) {
+        timestamps.shift();
+      }
+      // 상태 업데이트 -> 템플릿 자동 리렌더링
+      setState({ kps: timestamps.length });
+    }, 100);
+
+    // 클린업 함수
+    return () => clearInterval(interval);
+
+},
+});
+
+````
+
+---
+
+## 📘 템플릿 문법 가이드 (htm)
+
+DM Note는 내부적으로 **htm** 라이브러리를 사용하여 템플릿을 React Element로 변환합니다. 이는 표준 HTML 문법에 가까운 직관적인 작성을 가능하게 합니다.
+
+### ✨ 핵심 문법
+
+#### 1. 값 보간 (Value Interpolation)
+
+```javascript
+// ✅ 올바른 방법: 값을 직접 보간
+template: (state, settings, { html }) => html`
+  <div>현재 값: ${state.value}</div>
+  <div style="color: ${settings.color};">색상 텍스트</div>
+`;
+
+// ❌ 잘못된 방법: 함수 보간 (더 이상 지원되지 않음)
+template: (state, settings, { html }) => html`
+  <div>현재 값: ${(state) => state.value}</div>
+`;
+````
+
+#### 2. 스타일 속성
+
+```javascript
+// ✅ 권장: 문자열로 직접 작성
+html`<div style="color: ${color}; font-size: ${size}px;">텍스트</div>`;
+
+// ⚠️ 동작하지만 권장하지 않음: 템플릿 리터럴 중첩
+html`<div style=${`color: ${color}; font-size: ${size}px;`}>텍스트</div>`;
+```
+
+#### 3. 조건부 렌더링
+
+```javascript
+// 삼항 연산자
+html`
+  <div>${isVisible ? html`<span>보임</span>` : html`<span>숨김</span>`}</div>
+`;
+
+// && 연산자 (true일 때만 렌더링)
+html` <div>${showGraph ? html`<div class="graph">그래프</div>` : ""}</div> `;
+```
+
+#### 4. 배열 렌더링 (리스트)
+
+```javascript
+// map으로 React Element 배열 반환
+html`
+  <div class="list">
+    ${items.map((item) => html` <div class="item">${item.name}</div> `)}
+  </div>
+`;
+
+// 인덱스 활용
+html`
+  <div>
+    ${data.map((value, index) => html` <span key=${index}>${value}</span> `)}
+  </div>
+`;
+```
+
+#### 5. 클래스 이름
+
+```javascript
+// 문자열로 직접 지정
+html`<div class="btn ${isActive ? "active" : ""}">버튼</div>`;
+
+// className도 동일하게 동작 (React 호환)
+html`<div className="btn">버튼</div>`;
+```
+
+#### 6. 이벤트 핸들러 (주의)
+
+템플릿 내에서 이벤트 핸들러는 **문자열 ID**로만 등록 가능합니다:
+
+```javascript
+// Display Element의 이벤트는 config에서 등록
+dmn.ui.displayElement.add({
+  template: (state, { html }) => html`<div>클릭하세요</div>`,
+  onClick: async () => {
+    /* 핸들러 로직 */
+  }, // ✅ config에서 등록
+});
+
+// 템플릿 내부의 개별 요소 이벤트는 data-plugin-handler 사용
+html`<button data-plugin-handler="myHandler">버튼</button>`;
+// window.myHandler = () => { ... } 로 핸들러 등록 필요
+```
+
+### 🔍 실전 예제
+
+```javascript
+template: (state, settings, { html }) => html`
+  <style>
+    .panel {
+      background: ${settings.bgColor};
+      padding: 16px;
+      border-radius: 8px;
+    }
+    .bar {
+      height: 100%;
+      background: ${settings.barColor};
+    }
+  </style>
+
+  <div class="panel">
+    <!-- 값 보간 -->
+    <h3>KPS: ${state.kps.toFixed(1)}</h3>
+
+    <!-- 조건부 렌더링 -->
+    ${settings.showStats
+      ? html`
+          <div>최대: ${state.max}</div>
+          <div>평균: ${state.avg}</div>
+        `
+      : ""}
+
+    <!-- 배열 렌더링 -->
+    <div
+      class="graph"
+      style="display: flex; gap: 2px; height: 40px; align-items: flex-end;"
+    >
+      ${state.history.map(
+        (value) => html`
+          <div
+            class="bar"
+            style="flex: 1; height: ${(value / state.max) * 100}%;"
+          ></div>
+        `
+      )}
+    </div>
+  </div>
+`;
+```
+
+### ⚠️ 주의사항
+
+1. **함수 보간 미지원**: `${state => state.value}` 형태는 작동하지 않습니다. `${state.value}`를 사용하세요.
+2. **중첩된 템플릿**: `html` 태그 안에서 다시 `html` 태그를 사용할 때는 꼭 명시해야 합니다.
+3. **빈 값 처리**: 조건부 렌더링에서 `false`가 아닌 빈 문자열(`''`)을 반환하세요.
+4. **스타일 객체 미지원**: `style={{ color: 'red' }}` 형태는 지원되지 않습니다. 문자열을 사용하세요.
+
+---
+
+## 고급 / 레거시 가이드
+
+아래 내용은 `defineElement`를 사용하지 않고 직접 DOM을 조작하거나 세밀한 제어가 필요한 경우를 위한 가이드입니다.
+
+### 기본 사용법
 
 ### 1. 설정에서 활성화
 
@@ -29,7 +417,7 @@ DM Note는 사용자가 작성한 JavaScript를 런타임에 주입할 수 있�
 
 DM Note는 커스텀 JS 스크립트에서 사용할 수 있는 전역 API와 컨벤션을 제공합니다.
 
-### `window.api.window.type` ⭐
+### `dmn.window.type` ⭐
 
 **역할**: 현재 윈도우의 타입을 식별하는 프로퍼티입니다.
 
@@ -45,7 +433,7 @@ DM Note는 커스텀 JS 스크립트에서 사용할 수 있는 전역 API와 �
 ```javascript
 (function () {
   // 오버레이 전용 스크립트
-  if (window.api.window.type !== "overlay") {
+  if (dmn.window.type !== "overlay") {
     return; // 오버레이가 아니면 실행 안 함
   }
 
@@ -54,7 +442,7 @@ DM Note는 커스텀 JS 스크립트에서 사용할 수 있는 전역 API와 �
   stats.textContent = "Overlay Active";
   document.body.appendChild(stats);
 
-  window.api.plugin.registerCleanup(() => {
+  dmn.plugin.registerCleanup(() => {
     stats.remove();
   });
 })();
@@ -63,13 +451,13 @@ DM Note는 커스텀 JS 스크립트에서 사용할 수 있는 전역 API와 �
 ```javascript
 (function () {
   // 메인 전용 스크립트
-  if (window.api.window.type !== "main") {
+  if (dmn.window.type !== "main") {
     return; // 메인 윈도우가 아니면 실행 안 함
   }
 
   console.log("Main window script initialized");
 
-  window.api.plugin.registerCleanup(() => {
+  dmn.plugin.registerCleanup(() => {
     console.log("Main window script cleanup");
   });
 })();
@@ -83,7 +471,7 @@ DM Note는 커스텀 JS 스크립트에서 사용할 수 있는 전역 API와 �
 
 ---
 
-### `window.api.plugin.registerCleanup()` ⭐ 권장
+### `dmn.plugin.registerCleanup()` ⭐ 권장
 
 **역할**: 스크립트가 생성한 리소스(타이머, 이벤트 리스너, DOM 요소 등)를 정리하는 함수를 등록합니다.
 
@@ -108,11 +496,11 @@ DM Note는 커스텀 JS 스크립트에서 사용할 수 있는 전역 API와 �
   document.body.appendChild(panel);
 
   const timer = setInterval(() => console.log("tick"), 1000);
-  const unsubKeys = window.api.keys.onKeyState(() => {});
-  const unsubSettings = window.api.settings.onChanged(() => {});
+  const unsubKeys = dmn.keys.onKeyState(() => {});
+  const unsubSettings = dmn.settings.onChanged(() => {});
 
   // ✨ 모든 클린업을 한 번에 등록 (권장)
-  window.api.plugin.registerCleanup(() => {
+  dmn.plugin.registerCleanup(() => {
     clearInterval(timer);
     unsubKeys();
     unsubSettings();
@@ -131,20 +519,20 @@ DM Note는 커스텀 JS 스크립트에서 사용할 수 있는 전역 API와 �
   document.body.appendChild(panel);
 
   const timer = setInterval(() => console.log("tick"), 1000);
-  const unsubKeys = window.api.keys.onKeyState(() => {});
+  const unsubKeys = dmn.keys.onKeyState(() => {});
 
   // 타이머 클린업
-  window.api.plugin.registerCleanup(() => {
+  dmn.plugin.registerCleanup(() => {
     clearInterval(timer);
   });
 
   // 이벤트 구독 클린업
-  window.api.plugin.registerCleanup(() => {
+  dmn.plugin.registerCleanup(() => {
     unsubKeys();
   });
 
   // DOM 클린업
-  window.api.plugin.registerCleanup(() => {
+  dmn.plugin.registerCleanup(() => {
     panel.remove();
   });
 })();
@@ -154,7 +542,7 @@ DM Note는 커스텀 JS 스크립트에서 사용할 수 있는 전역 API와 �
 
 ### `window.__dmn_custom_js_cleanup` (레거시)
 
-> ⚠️ **레거시 방식**: 하위 호환성을 위해 지원되지만, 새로운 플러그인에서는 `window.api.plugin.registerCleanup()` 사용을 권장합니다.
+> ⚠️ **레거시 방식**: 하위 호환성을 위해 지원되지만, 새로운 플러그인에서는 `dmn.plugin.registerCleanup()` 사용을 권장합니다.
 
 **사용법**:
 
@@ -181,7 +569,7 @@ DM Note는 커스텀 JS 스크립트에서 사용할 수 있는 전역 API와 �
 
 **권장사항**:
 
-- 새로운 플러그인: `window.api.plugin.registerCleanup()` 사용
+- 새로운 플러그인: `dmn.plugin.registerCleanup()` 사용
 - 기존 플러그인: 점진적으로 마이그레이션 권장
 - 두 방식 모두 사용 가능 (병행 지원)
 
@@ -189,7 +577,7 @@ DM Note는 커스텀 JS 스크립트에서 사용할 수 있는 전역 API와 �
 
 ### `window.__dmn_window_type` (레거시)
 
-> ⚠️ **레거시 방식**: 하위 호환성을 위해 지원되지만, 새로운 플러그인에서는 `window.api.window.type` 사용을 권장합니다.
+> ⚠️ **레거시 방식**: 하위 호환성을 위해 지원되지만, 새로운 플러그인에서는 `dmn.window.type` 사용을 권장합니다.
 
 **역할**: 현재 렌더러의 윈도우 타입을 문자열로 식별하는 전역 변수입니다.
 
@@ -201,7 +589,7 @@ DM Note는 커스텀 JS 스크립트에서 사용할 수 있는 전역 API와 �
 
 **권장사항**:
 
-- 새로운 플러그인: `window.api.window.type` 사용
+- 새로운 플러그인: `dmn.window.type` 사용
 - 기존 플러그인: 점진적으로 마이그레이션 권장
 - 두 방식 모두 계속 작동
 
@@ -251,38 +639,38 @@ DM Note는 커스텀 JS 스크립트에서 사용할 수 있는 전역 API와 �
 
 ---
 
-## 앱 API 접근 (`window.api`)
+## 앱 API 접근 (`dmn`)
 
-커스텀 JS는 `window.api`를 통해 앱의 모든 기능에 접근할 수 있습니다.
+커스텀 JS는 `dmn`를 통해 앱의 모든 기능에 접근할 수 있습니다.
 
 ### 빠른 시작
 
 ```javascript
 // 앱 초기 데이터 조회
-const bootstrap = await window.api.app.bootstrap();
+const bootstrap = await dmn.app.bootstrap();
 console.log("Keys:", bootstrap.keys);
 console.log("Settings:", bootstrap.settings);
 
 // 현재 키 맵핑 조회
-const keyMappings = await window.api.keys.get();
+const keyMappings = await dmn.keys.get();
 console.log("4key:", keyMappings["4key"]);
 
 // 키 입력 이벤트 구독 (오버레이에서만 가능)
-const unsubKeyState = window.api.keys.onKeyState(({ key, state, mode }) => {
+const unsubKeyState = dmn.keys.onKeyState(({ key, state, mode }) => {
   console.log(`[${mode}] ${key} is ${state}`);
 });
 
 // 키 모드 변경 이벤트 구독
-const unsubMode = window.api.keys.onModeChanged(({ mode }) => {
+const unsubMode = dmn.keys.onModeChanged(({ mode }) => {
   console.log("Mode changed to:", mode);
 });
 
 // 설정 조회
-const settings = await window.api.settings.get();
+const settings = await dmn.settings.get();
 console.log("Background color:", settings.backgroundColor);
 
 // 설정 변경 구독
-const unsubSettings = window.api.settings.onChanged(({ changed, full }) => {
+const unsubSettings = dmn.settings.onChanged(({ changed, full }) => {
   console.log("Settings changed:", changed);
 });
 
@@ -297,18 +685,18 @@ window.__dmn_custom_js_cleanup = function () {
 
 ### 상세 API 레퍼런스
 
-`window.api`의 모든 메서드, 타입, 사용 패턴은 **[`docs/api-reference.md`](../api-reference.md)** 에서 확인할 수 있습니다.
+`dmn`의 모든 메서드, 타입, 사용 패턴은 **[`docs/api-reference.md`](../api-reference.md)** 에서 확인할 수 있습니다.
 
 주요 네임스페이스:
 
-- **`window.api.app`** - 앱 부팅, 재시작, 외부 URL 열기
-- **`window.api.keys`** - 키 매핑, 모드 변경, 카운터, 커스텀 탭
-- **`window.api.settings`** - 설정 조회 및 업데이트
-- **`window.api.overlay`** - 오버레이 제어 (표시/숨김, 잠금, 리사이즈)
-- **`window.api.css`** / **`window.api.js`** - CSS/JS 커스텀 코드 관리
-- **`window.api.presets`** - 프리셋 저장/로드
-- **`window.api.bridge`** - 윈도우 간 통신 (플러그인 간 메시지 전송)
-- **`window.api.plugin.storage`** - 플러그인 데이터 영속화 (설정 저장)
+- **`dmn.app`** - 앱 부팅, 재시작, 외부 URL 열기
+- **`dmn.keys`** - 키 매핑, 모드 변경, 카운터, 커스텀 탭
+- **`dmn.settings`** - 설정 조회 및 업데이트
+- **`dmn.overlay`** - 오버레이 제어 (표시/숨김, 잠금, 리사이즈)
+- **`dmn.css`** / **`dmn.js`** - CSS/JS 커스텀 코드 관리
+- **`dmn.presets`** - 프리셋 저장/로드
+- **`dmn.bridge`** - 윈도우 간 통신 (플러그인 간 메시지 전송)
+- **`dmn.plugin.storage`** - 플러그인 데이터 영속화 (설정 저장)
 
 또한 IPC 채널 저수준 구현에 대해서는 [`docs/ipc-channels.md`](../ipc-channels.md)를 참조하세요.
 
@@ -354,13 +742,13 @@ window.__dmn_custom_js_cleanup = function () {
 
 (function () {
   // 이 플러그인의 모든 스토리지는 'kps-counter' 네임스페이스를 사용
-  await window.api.plugin.storage.set("maxKps", 150);
+  await dmn.plugin.storage.set("maxKps", 150);
 })();
 ```
 
 ---
 
-## 플러그인 스토리지 (`window.api.plugin.storage`)
+## 플러그인 스토리지 (`dmn.plugin.storage`)
 
 플러그인은 **스토리지 API**를 사용하여 설정이나 데이터를 영속적으로 저장할 수 있습니다. 모든 데이터는 앱 설정 파일에 함께 저장되며, 앱을 재시작해도 유지됩니다.
 
@@ -368,25 +756,25 @@ window.__dmn_custom_js_cleanup = function () {
 
 플러그인별로 **자동으로 격리된 스토리지 공간**이 제공됩니다. prefix를 수동으로 관리할 필요가 없으며, 다른 플러그인과의 충돌 걱정도 없습니다.
 
-각 플러그인이 실행될 때 `window.api.plugin.storage`는 자동으로 해당 플러그인의 네임스페이스로 래핑되어, 다른 API들과 일관된 방식으로 사용할 수 있습니다.
+각 플러그인이 실행될 때 `dmn.plugin.storage`는 자동으로 해당 플러그인의 네임스페이스로 래핑되어, 다른 API들과 일관된 방식으로 사용할 수 있습니다.
 
 ```javascript
 // ✅ 간단하게 키만 사용 (자동으로 플러그인 ID가 prefix로 추가됨)
-await window.api.plugin.storage.set("settings", { theme: "dark" });
-await window.api.plugin.storage.set("position", { x: 100, y: 50 });
+await dmn.plugin.storage.set("settings", { theme: "dark" });
+await dmn.plugin.storage.set("position", { x: 100, y: 50 });
 
 // 데이터 조회
-const settings = await window.api.plugin.storage.get("settings");
-const position = await window.api.plugin.storage.get("position");
+const settings = await dmn.plugin.storage.get("settings");
+const position = await dmn.plugin.storage.get("position");
 
 // 데이터 삭제
-await window.api.plugin.storage.remove("settings");
+await dmn.plugin.storage.remove("settings");
 
 // 이 플러그인의 모든 데이터 삭제
-await window.api.plugin.storage.clear();
+await dmn.plugin.storage.clear();
 
 // 이 플러그인이 저장한 키 목록
-const keys = await window.api.plugin.storage.keys();
+const keys = await dmn.plugin.storage.keys();
 console.log("저장된 키:", keys); // ['settings', 'position']
 ```
 
@@ -400,17 +788,17 @@ console.log("저장된 키:", keys); // ['settings', 'position']
   if (window.__dmn_window_type !== "overlay") return;
 
   // 데이터 저장 및 조회
-  await window.api.plugin.storage.set("theme", "dark");
-  const theme = await window.api.plugin.storage.get("theme");
+  await dmn.plugin.storage.set("theme", "dark");
+  const theme = await dmn.plugin.storage.get("theme");
 
   // 객체 저장
-  await window.api.plugin.storage.set("userPreferences", {
+  await dmn.plugin.storage.set("userPreferences", {
     fontSize: 14,
     showNotifications: true,
   });
 
   // 저장된 모든 키 조회
-  const allKeys = await window.api.plugin.storage.keys();
+  const allKeys = await dmn.plugin.storage.keys();
   console.log(allKeys); // ['theme', 'userPreferences']
 })();
 ```
@@ -433,7 +821,7 @@ console.log("저장된 키:", keys); // ['settings', 'position']
   let settings = null;
 
   async function loadSettings() {
-    settings = await window.api.plugin.storage.get("settings");
+    settings = await dmn.plugin.storage.get("settings");
     if (!settings) {
       settings = defaultSettings;
       await saveSettings();
@@ -442,7 +830,7 @@ console.log("저장된 키:", keys); // ['settings', 'position']
   }
 
   async function saveSettings() {
-    await window.api.plugin.storage.set("settings", settings);
+    await dmn.plugin.storage.set("settings", settings);
   }
 
   // 패널 생성
@@ -500,12 +888,12 @@ console.log("저장된 키:", keys); // ['settings', 'position']
 ```javascript
 // ❌ 나쁜 예: 항상 저장 (초기 로드 시에도)
 async function saveHistory(data) {
-  await window.api.plugin.storage.set("history", data); // data가 빈 배열이어도 저장됨
+  await dmn.plugin.storage.set("history", data); // data가 빈 배열이어도 저장됨
 }
 
 // ❌ 나쁜 예: 기본값도 저장
-await window.api.plugin.storage.set("count", 0); // 0이어도 저장됨
-await window.api.plugin.storage.set("items", []); // 빈 배열도 저장됨
+await dmn.plugin.storage.set("count", 0); // 0이어도 저장됨
+await dmn.plugin.storage.set("items", []); // 빈 배열도 저장됨
 ```
 
 **권장 패턴**:
@@ -514,22 +902,22 @@ await window.api.plugin.storage.set("items", []); // 빈 배열도 저장됨
 // ✅ 좋은 예: 의미 있는 값만 저장
 async function saveHistory(data) {
   if (data && data.length > 0) {
-    await window.api.plugin.storage.set("history", data);
+    await dmn.plugin.storage.set("history", data);
   }
 }
 
 // ✅ 좋은 예: 기본값이 아닐 때만 저장
 if (count > 0) {
-  await window.api.plugin.storage.set("count", count);
+  await dmn.plugin.storage.set("count", count);
 }
 
 if (items.length > 0) {
-  await window.api.plugin.storage.set("items", items);
+  await dmn.plugin.storage.set("items", items);
 }
 
 // ✅ 좋은 예: 초기 로드 시에는 저장하지 않기
 async function initializeSettings() {
-  const saved = await window.api.plugin.storage.get("settings");
+  const saved = await dmn.plugin.storage.get("settings");
   if (saved) {
     // 저장된 데이터 사용
     return saved;
@@ -551,7 +939,7 @@ async function initializeSettings() {
 
 ## Display Element 템플릿 & 인스턴스 ✨
 
-`window.api.ui.displayElement.add()`가 반환하는 값은 이제 **DisplayElementInstance**이며, `state`/`template` 조합을 활용하면 React 없이도 DOM 패널을 상태 기반으로 렌더링할 수 있습니다.
+`dmn.ui.displayElement.add()`가 반환하는 값은 이제 **DisplayElementInstance**이며, `state`/`template` 조합을 활용하면 React 없이도 DOM 패널을 상태 기반으로 렌더링할 수 있습니다.
 
 ### 언제 사용하나요?
 
@@ -562,37 +950,56 @@ async function initializeSettings() {
 ### 기본 사용법
 
 ```javascript
-const panel = window.api.ui.displayElement.add({
+const panel = dmn.ui.displayElement.add({
   position: { x: 140, y: 90 },
   draggable: true,
   zIndex: 110,
   contextMenu: { enableDelete: true },
   state: { value: 0, history: [] },
-  template: (state) => `
+  template: (state, { html }) => html`
     <style>
-      .meter { padding: 16px; border-radius: 12px; background: rgba(9,9,12,0.9); color: #fff; }
-      .bars { margin-top: 12px; display: flex; gap: 3px; height: 40px; align-items: flex-end; }
-      .bars span { flex: 1; border-radius: 999px 999px 0 0; background: linear-gradient(180deg,#8B5CF6,#6366F1); opacity: 0.35; }
-      .bars span:last-child { opacity: 1; box-shadow: 0 0 12px rgba(99,102,241,0.4); }
+      .meter {
+        padding: 16px;
+        border-radius: 12px;
+        background: rgba(9, 9, 12, 0.9);
+        color: #fff;
+      }
+      .bars {
+        margin-top: 12px;
+        display: flex;
+        gap: 3px;
+        height: 40px;
+        align-items: flex-end;
+      }
+      .bars span {
+        flex: 1;
+        border-radius: 999px 999px 0 0;
+        background: linear-gradient(180deg, #8b5cf6, #6366f1);
+        opacity: 0.35;
+      }
+      .bars span:last-child {
+        opacity: 1;
+        box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+      }
     </style>
     <div class="meter">
-      <div class="text-[12px] uppercase tracking-[0.3em] text-slate-300">Live KPS</div>
-      <div class="text-[42px] font-semibold leading-none">${state.value.toFixed(
-        1
-      )}</div>
+      <div class="text-[12px] uppercase tracking-[0.3em] text-slate-300">
+        Live KPS
+      </div>
+      <div class="text-[42px] font-semibold leading-none">
+        ${state.value.toFixed(1)}
+      </div>
       <div class="bars">
-        ${state.history
-          .map((value) => {
-            const ratio = state.peak ? Math.min(value / state.peak, 1) : 0;
-            return `<span style="height:${Math.round(ratio * 100)}%"></span>`;
-          })
-          .join("")}
+        ${state.history.map((value) => {
+          const ratio = state.peak ? Math.min(value / state.peak, 1) : 0;
+          return html`<span style="height:${Math.round(ratio * 100)}%"></span>`;
+        })}
       </div>
     </div>
   `,
 });
 
-const unsubscribe = window.api.bridge.on("KPS_UPDATE", ({ kps }) => {
+const unsubscribe = dmn.bridge.on("KPS_UPDATE", ({ kps }) => {
   const snapshot = panel.getState();
   const history = [...snapshot.history, kps].slice(-24);
   panel.setState({
@@ -602,7 +1009,7 @@ const unsubscribe = window.api.bridge.on("KPS_UPDATE", ({ kps }) => {
   });
 });
 
-window.api.plugin.registerCleanup(() => {
+dmn.plugin.registerCleanup(() => {
   unsubscribe();
   panel.remove();
 });
@@ -610,26 +1017,26 @@ window.api.plugin.registerCleanup(() => {
 
 ### 템플릿 헬퍼 (태그드 템플릿)
 
-`window.api.ui.displayElement.template` 태그를 사용하면 `const { html } = ...`를 매번 꺼내지 않아도 되고, `${(state) => state.value}`처럼 상태 기반 값을 깔끔하게 표현할 수 있습니다.
+`dmn.ui.displayElement.template` 태그를 사용하면 `const { html } = ...`를 매번 꺼내지 않아도 되고, `${(state) => state.value}`처럼 상태 기반 값을 깔끔하게 표현할 수 있습니다.
 
 ```javascript
-const meterTemplate = window.api.ui.displayElement.template`
+const meterTemplate = dmn.ui.displayElement.template`
   <div class="meter">
     <strong>${(state) => state.value.toFixed(1)}</strong>
     <div class="history">
-      ${(state) =>
-        state.history
-          .map((value) => {
-            const peak = state.peak || 1;
-            const ratio = peak > 0 ? value / peak : 0;
-            return `<span style="height:${Math.round(ratio * 100)}%"></span>`;
-          })
-          .join("")}
+      ${(state, { html }) =>
+        state.history.map((value) => {
+          const peak = state.peak || 1;
+          const ratio = peak > 0 ? value / peak : 0;
+          return html`<span
+            style=${`height:${Math.round(ratio * 100)}%`}
+          ></span>`;
+        })}
     </div>
   </div>
 `;
 
-window.api.ui.displayElement.add({
+dmn.ui.displayElement.add({
   position: { x: 120, y: 80 },
   state: { value: 0, history: [] },
   template: meterTemplate,
@@ -685,7 +1092,7 @@ panel.update({ draggable: false, zIndex: 200 });
 panel.remove();
 ```
 
-> 기존처럼 문자열 ID를 저장했다면 `window.api.ui.displayElement.get(id)` 또는 `window.api.ui.displayElement.setState(id, updates)`로도 동일하게 조작할 수 있습니다.
+> 기존처럼 문자열 ID를 저장했다면 `dmn.ui.displayElement.get(id)` 또는 `dmn.ui.displayElement.setState(id, updates)`로도 동일하게 조작할 수 있습니다.
 
 ---
 
@@ -701,7 +1108,7 @@ Display Element에 이벤트 핸들러를 등록하는 방식이 크게 개선�
 // @id my-panel
 
 (function () {
-  if (window.api.window.type !== "main") return;
+  if (dmn.window.type !== "main") return;
 
   const panels = new Map();
   let nextPanelId = 1;
@@ -710,14 +1117,14 @@ Display Element에 이벤트 핸들러를 등록하는 방식이 크게 개선�
     const panelId = nextPanelId++;
 
     // ✅ 함수를 직접 전달 - 자동으로 핸들러 등록됨!
-    const elementId = window.api.ui.displayElement.add({
+    const elementId = dmn.ui.displayElement.add({
       html: `<div>Panel ${panelId}</div>`,
       position: position || { x: 100, y: 100 },
       draggable: true,
 
       // 클릭 핸들러
       onClick: async () => {
-        const result = await window.api.ui.dialog.confirm("설정을 열까요?");
+        const result = await dmn.ui.dialog.confirm("설정을 열까요?");
         if (result) {
           await openSettings(panelId);
         }
@@ -726,7 +1133,7 @@ Display Element에 이벤트 핸들러를 등록하는 방식이 크게 개선�
       // 위치 변경 핸들러
       onPositionChange: async (pos) => {
         panels.get(panelId).position = pos;
-        await window.api.plugin.storage.set(
+        await dmn.plugin.storage.set(
           "panels",
           Array.from(panels.values())
         );
@@ -735,7 +1142,7 @@ Display Element에 이벤트 핸들러를 등록하는 방식이 크게 개선�
       // 삭제 핸들러
       onDelete: async () => {
         panels.delete(panelId);
-        await window.api.plugin.storage.set(
+        await dmn.plugin.storage.set(
           "panels",
           Array.from(panels.values())
         );
@@ -750,7 +1157,7 @@ Display Element에 이벤트 핸들러를 등록하는 방식이 크게 개선�
   }
 
   // 그리드 메뉴에서 패널 추가
-  window.api.ui.contextMenu.addGridMenuItem({
+  dmn.ui.contextMenu.addGridMenuItem({
     id: "add-panel",
     label: "📊 패널 추가",
     onClick: async (context) => {
@@ -759,8 +1166,8 @@ Display Element에 이벤트 핸들러를 등록하는 방식이 크게 개선�
   });
 
   // ✅ 클린업도 간단해짐 - 핸들러 자동 정리
-  window.api.plugin.registerCleanup(() => {
-    window.api.ui.displayElement.clearMyElements(); // 핸들러도 자동으로 정리됨
+  dmn.plugin.registerCleanup(() => {
+    dmn.ui.displayElement.clearMyElements(); // 핸들러도 자동으로 정리됨
   });
 })();
 ```
@@ -783,13 +1190,13 @@ window[`handlePanelClick_${panelId}`] = async () => {
   await handlePanelClick(panelId);
 };
 
-window.api.ui.displayElement.add({
+dmn.ui.displayElement.add({
   html: `<div>Panel</div>`,
   onClick: `handlePanelClick_${panelId}`, // 문자열 ID
 });
 
 // 수동 클린업 필요
-window.api.plugin.registerCleanup(() => {
+dmn.plugin.registerCleanup(() => {
   delete window[`handlePanelClick_${panelId}`];
 });
 ```
@@ -814,14 +1221,14 @@ window[`handlePositionChange_${id}`] = async (pos) =>
   await handlePositionChange(id, pos);
 window[`handleDelete_${id}`] = async () => await handleDelete(id);
 
-window.api.ui.displayElement.add({
+dmn.ui.displayElement.add({
   onClick: `handleClick_${id}`,
   onPositionChange: `handlePositionChange_${id}`,
   onDelete: `handleDelete_${id}`,
 });
 
 // 클린업 시 수동 삭제
-window.api.plugin.registerCleanup(() => {
+dmn.plugin.registerCleanup(() => {
   delete window[`handleClick_${id}`];
   delete window[`handlePositionChange_${id}`];
   delete window[`handleDelete_${id}`];
@@ -832,15 +1239,15 @@ window.api.plugin.registerCleanup(() => {
 
 ```javascript
 // 함수를 직접 전달
-window.api.ui.displayElement.add({
+dmn.ui.displayElement.add({
   onClick: async () => await handleClick(id),
   onPositionChange: async (pos) => await handlePositionChange(id, pos),
   onDelete: async () => await handleDelete(id),
 });
 
 // 클린업 간소화 - 핸들러 자동 정리
-window.api.plugin.registerCleanup(() => {
-  window.api.ui.displayElement.clearMyElements();
+dmn.plugin.registerCleanup(() => {
+  dmn.ui.displayElement.clearMyElements();
 });
 ```
 
@@ -850,7 +1257,7 @@ window.api.plugin.registerCleanup(() => {
 // @id kps-counter
 
 (function () {
-  if (window.api.window.type !== "main") return;
+  if (dmn.window.type !== "main") return;
 
   const panels = new Map();
 
@@ -864,7 +1271,7 @@ window.api.plugin.registerCleanup(() => {
     };
 
     // ✅ 클로저를 활용한 깔끔한 핸들러
-    const elementId = window.api.ui.displayElement.add({
+    const elementId = dmn.ui.displayElement.add({
       html: generatePanelHtml(panelId, settings),
       position: settings.position,
       draggable: true,
@@ -902,19 +1309,19 @@ window.api.plugin.registerCleanup(() => {
   }
 
   async function saveSettings() {
-    await window.api.plugin.storage.set("panels", Array.from(panels.values()));
+    await dmn.plugin.storage.set("panels", Array.from(panels.values()));
   }
 
   // 초기화
-  window.api.ui.contextMenu.addGridMenuItem({
+  dmn.ui.contextMenu.addGridMenuItem({
     id: "add-kps",
     label: "📊 KPS 패널 추가",
     onClick: async (ctx) =>
       await createKpsPanel({ x: ctx.position.dx, y: ctx.position.dy }),
   });
 
-  window.api.plugin.registerCleanup(() => {
-    window.api.ui.displayElement.clearMyElements();
+  dmn.plugin.registerCleanup(() => {
+    dmn.ui.displayElement.clearMyElements();
   });
 })();
 ```
@@ -923,11 +1330,11 @@ window.api.plugin.registerCleanup(() => {
 
 ## 비동기 함수와 플러그인 컨텍스트 ✨
 
-플러그인에서 `async/await`를 사용할 때 **모든 `window.api` 호출에서 플러그인 컨텍스트가 자동으로 유지**됩니다.
+플러그인에서 `async/await`를 사용할 때 **모든 `dmn` 호출에서 플러그인 컨텍스트가 자동으로 유지**됩니다.
 
 ### 자동 처리 원리
 
-플러그인 시스템이 내부적으로 **모든 `window.api` 함수를 자동 래핑**하여:
+플러그인 시스템이 내부적으로 **모든 `dmn` 함수를 자동 래핑**하여:
 
 1. API 호출 전에 현재 플러그인 ID를 저장
 2. 비동기 작업 완료 후 플러그인 ID를 자동 복원
@@ -941,19 +1348,19 @@ window.api.plugin.registerCleanup(() => {
 // @id my-plugin
 
 (function () {
-  if (window.api.window.type !== "main") return;
+  if (dmn.window.type !== "main") return;
 
   let panelId = null;
 
   // ✅ IIFE 내부 로컬 함수 - 자동으로 처리됨!
   async function initialize() {
     // 저장된 설정 로드
-    const settings = await window.api.plugin.storage.get("settings");
-    const deployed = await window.api.plugin.storage.get("deployed");
+    const settings = await dmn.plugin.storage.get("settings");
+    const deployed = await dmn.plugin.storage.get("deployed");
 
     // Display Element 생성 - 정상 동작!
     if (deployed) {
-      panelId = window.api.ui.displayElement.add({
+      panelId = dmn.ui.displayElement.add({
         html: "<div>My Panel</div>",
         position: settings?.position || { x: 100, y: 100 },
         draggable: true,
@@ -963,16 +1370,16 @@ window.api.plugin.registerCleanup(() => {
 
   // ✅ 비동기 저장 함수 - 자동으로 처리됨!
   async function saveSettings(settings) {
-    await window.api.plugin.storage.set("settings", settings);
+    await dmn.plugin.storage.set("settings", settings);
   }
 
   // 초기화 실행
   initialize();
 
   // 클린업
-  window.api.plugin.registerCleanup(() => {
+  dmn.plugin.registerCleanup(() => {
     if (panelId) {
-      window.api.ui.displayElement.remove(panelId);
+      dmn.ui.displayElement.remove(panelId);
     }
   });
 })();
@@ -985,14 +1392,14 @@ Display Element의 이벤트 핸들러나 컨텍스트 메뉴 콜백에서도 �
 ```javascript
 // ✅ 비동기 이벤트 핸들러 - 자동으로 처리됨!
 window.handlePanelClick = async function() {
-  const result = await window.api.ui.dialog.confirm("계속하시겠습니까?");
+  const result = await dmn.ui.dialog.confirm("계속하시겠습니까?");
   if (result) {
-    const elementId = window.api.ui.displayElement.add({...});
+    const elementId = dmn.ui.displayElement.add({...});
   }
 };
 
 // Display Element에 연결
-window.api.ui.displayElement.add({
+dmn.ui.displayElement.add({
   html: '<div>클릭하세요</div>',
   onClick: "handlePanelClick",
 });
@@ -1012,19 +1419,19 @@ window.api.ui.displayElement.add({
 // @id status-panel
 
 (function () {
-  if (window.api.window.type !== "main") return;
+  if (dmn.window.type !== "main") return;
 
   let panelId = null;
 
   // ✅ 로컬 비동기 함수 - 전역 할당 불필요!
   async function loadAndCreatePanel() {
-    const deployed = await window.api.plugin.storage.get("deployed");
+    const deployed = await dmn.plugin.storage.get("deployed");
 
     if (deployed) {
-      const settings = await window.api.plugin.storage.get("settings");
+      const settings = await dmn.plugin.storage.get("settings");
 
       // await 이후에도 플러그인 컨텍스트 유지됨
-      panelId = window.api.ui.displayElement.add({
+      panelId = dmn.ui.displayElement.add({
         html: "<div>Status Panel</div>",
         position: settings?.position || { x: 100, y: 100 },
         draggable: true,
@@ -1035,7 +1442,7 @@ window.api.ui.displayElement.add({
 
   // ✅ 삭제 핸들러도 로컬 함수로 작성 가능
   async function handlePanelDelete() {
-    await window.api.plugin.storage.remove("deployed");
+    await dmn.plugin.storage.remove("deployed");
     panelId = null;
   }
 
@@ -1046,9 +1453,9 @@ window.api.ui.displayElement.add({
   loadAndCreatePanel();
 
   // 클린업
-  window.api.plugin.registerCleanup(() => {
+  dmn.plugin.registerCleanup(() => {
     if (panelId) {
-      window.api.ui.displayElement.remove(panelId);
+      dmn.ui.displayElement.remove(panelId);
     }
     delete window.handlePanelDelete;
   });
@@ -1062,7 +1469,7 @@ window.api.ui.displayElement.add({
 ```javascript
 // ❌ 전역 함수로 내보내야 했음
 window.__myPluginInit = async function () {
-  const settings = await window.api.plugin.storage.get("settings");
+  const settings = await dmn.plugin.storage.get("settings");
   createPanel();
 };
 ```
@@ -1072,7 +1479,7 @@ window.__myPluginInit = async function () {
 ```javascript
 // ✅ 로컬 함수로 작성 가능
 async function init() {
-  const settings = await window.api.plugin.storage.get("settings");
+  const settings = await dmn.plugin.storage.get("settings");
   createPanel();
 }
 init();
@@ -1080,7 +1487,7 @@ init();
 
 ---
 
-## 윈도우 간 통신 (`window.api.bridge`)
+## 윈도우 간 통신 (`dmn.bridge`)
 
 플러그인은 **브릿지 API**를 사용하여 메인 윈도우와 오버레이 윈도우 간에 메시지를 주고받을 수 있습니다.
 
@@ -1088,23 +1495,23 @@ init();
 
 ```javascript
 // 메시지 전송 (모든 윈도우에 브로드캐스트)
-await window.api.bridge.send("MY_EVENT", { data: "hello" });
+await dmn.bridge.send("MY_EVENT", { data: "hello" });
 
 // 특정 윈도우에만 전송
-await window.api.bridge.sendTo("overlay", "OVERLAY_EVENT", { value: 123 });
+await dmn.bridge.sendTo("overlay", "OVERLAY_EVENT", { value: 123 });
 
 // 메시지 수신
-const unsub = window.api.bridge.on("MY_EVENT", (data) => {
+const unsub = dmn.bridge.on("MY_EVENT", (data) => {
   console.log("받은 데이터:", data);
 });
 
 // 1회만 수신
-window.api.bridge.once("INIT_COMPLETE", (data) => {
+dmn.bridge.once("INIT_COMPLETE", (data) => {
   console.log("초기화 완료");
 });
 
 // 모든 메시지 수신 (디버깅용)
-window.api.bridge.onAny((type, data) => {
+dmn.bridge.onAny((type, data) => {
   console.log(`[Bridge] ${type}:`, data);
 });
 ```
@@ -1124,7 +1531,7 @@ window.api.bridge.onAny((type, data) => {
     currentKPS = calculateKPS(); // 실제 계산 함수
 
     // 메인 윈도우로 전송
-    window.api.bridge.sendTo("main", "KPS_UPDATE", {
+    dmn.bridge.sendTo("main", "KPS_UPDATE", {
       kps: currentKPS,
       timestamp: Date.now(),
     });
@@ -1147,7 +1554,7 @@ window.api.bridge.onAny((type, data) => {
   document.body.appendChild(display);
 
   // 오버레이로부터 KPS 업데이트 수신
-  const unsub = window.api.bridge.on("KPS_UPDATE", ({ kps, timestamp }) => {
+  const unsub = dmn.bridge.on("KPS_UPDATE", ({ kps, timestamp }) => {
     display.textContent = `KPS: ${kps}`;
   });
 
@@ -1163,11 +1570,11 @@ window.api.bridge.onAny((type, data) => {
 
 ```javascript
 // === 메인 윈도우: 데이터 요청 ===
-window.api.bridge.send("REQUEST_STATS", {});
+dmn.bridge.send("REQUEST_STATS", {});
 
 // === 오버레이: 요청 처리 및 응답 ===
-window.api.bridge.on("REQUEST_STATS", () => {
-  window.api.bridge.sendTo("main", "RESPONSE_STATS", {
+dmn.bridge.on("REQUEST_STATS", () => {
+  dmn.bridge.sendTo("main", "RESPONSE_STATS", {
     kps: currentKPS,
     totalKeys: totalKeyCount,
     uptime: Date.now() - startTime,
@@ -1175,7 +1582,7 @@ window.api.bridge.on("REQUEST_STATS", () => {
 });
 
 // === 메인: 응답 수신 ===
-window.api.bridge.once("RESPONSE_STATS", (stats) => {
+dmn.bridge.once("RESPONSE_STATS", (stats) => {
   console.log("통계:", stats);
 });
 ```
@@ -1186,7 +1593,7 @@ window.api.bridge.once("RESPONSE_STATS", (stats) => {
 
 ## UI Components API ✨
 
-플러그인에서 다이얼로그 내부에 사용할 수 있는 **UI 컴포넌트**를 제공합니다. `window.api.ui.dialog.custom()`과 함께 사용하여 풍부한 입력 폼을 만들 수 있습니다.
+플러그인에서 다이얼로그 내부에 사용할 수 있는 **UI 컴포넌트**를 제공합니다. `dmn.ui.dialog.custom()`과 함께 사용하여 풍부한 입력 폼을 만들 수 있습니다.
 
 ### 🎉 함수 직접 전달 방식 (권장)
 
@@ -1194,7 +1601,7 @@ window.api.bridge.once("RESPONSE_STATS", (stats) => {
 
 ```javascript
 // ✅ 권장: 함수 직접 전달
-const checkbox = window.api.ui.components.checkbox({
+const checkbox = dmn.ui.components.checkbox({
   checked: true,
   onChange: (checked) => {
     console.log("체크박스 상태:", checked);
@@ -1203,7 +1610,7 @@ const checkbox = window.api.ui.components.checkbox({
   },
 });
 
-const dropdown = window.api.ui.components.dropdown({
+const dropdown = dmn.ui.components.dropdown({
   options: [
     { label: "옵션 1", value: "opt1" },
     { label: "옵션 2", value: "opt2" },
@@ -1215,7 +1622,7 @@ const dropdown = window.api.ui.components.dropdown({
   },
 });
 
-const input = window.api.ui.components.input({
+const input = dmn.ui.components.input({
   type: "number",
   value: 50,
   min: 0,
@@ -1243,7 +1650,7 @@ const input = window.api.ui.components.input({
 #### Button
 
 ```javascript
-const button = window.api.ui.components.button("클릭하세요", {
+const button = dmn.ui.components.button("클릭하세요", {
   variant: "primary", // "primary" | "danger" | "secondary"
   size: "medium", // "small" | "medium" | "large"
   onClick: () => {
@@ -1255,7 +1662,7 @@ const button = window.api.ui.components.button("클릭하세요", {
 #### Checkbox (토글)
 
 ```javascript
-const checkbox = window.api.ui.components.checkbox({
+const checkbox = dmn.ui.components.checkbox({
   checked: false,
   id: "my-checkbox",
   onChange: (checked) => {
@@ -1269,7 +1676,7 @@ const checkbox = window.api.ui.components.checkbox({
 #### Input
 
 ```javascript
-const input = window.api.ui.components.input({
+const input = dmn.ui.components.input({
   type: "text", // "text" | "number"
   placeholder: "입력하세요",
   value: "",
@@ -1295,7 +1702,7 @@ const input = window.api.ui.components.input({
 #### Dropdown
 
 ```javascript
-const dropdown = window.api.ui.components.dropdown({
+const dropdown = dmn.ui.components.dropdown({
   options: [
     { label: "다크 모드", value: "dark" },
     { label: "라이트 모드", value: "light" },
@@ -1313,7 +1720,7 @@ const dropdown = window.api.ui.components.dropdown({
 #### FormRow (라벨 + 컴포넌트)
 
 ```javascript
-const formRow = window.api.ui.components.formRow("볼륨", volumeInput);
+const formRow = dmn.ui.components.formRow("볼륨", volumeInput);
 ```
 
 라벨과 컴포넌트를 수평으로 배치한 행을 생성합니다.
@@ -1321,7 +1728,7 @@ const formRow = window.api.ui.components.formRow("볼륨", volumeInput);
 #### Panel (컨테이너)
 
 ```javascript
-const panel = window.api.ui.components.panel(content, {
+const panel = dmn.ui.components.panel(content, {
   title: "설정",
   width: 300,
 });
@@ -1334,7 +1741,7 @@ const panel = window.api.ui.components.panel(content, {
 ```javascript
 async function openSettings() {
   // 현재 설정 불러오기
-  const settings = (await window.api.plugin.storage.get("settings")) || {
+  const settings = (await dmn.plugin.storage.get("settings")) || {
     enabled: true,
     theme: "dark",
     volume: 50,
@@ -1344,14 +1751,14 @@ async function openSettings() {
   const tempSettings = { ...settings };
 
   // ✨ 컴포넌트 생성 - 함수로 핸들러 전달
-  const enabledCheckbox = window.api.ui.components.checkbox({
+  const enabledCheckbox = dmn.ui.components.checkbox({
     checked: settings.enabled,
     onChange: (checked) => {
       tempSettings.enabled = checked;
     },
   });
 
-  const themeDropdown = window.api.ui.components.dropdown({
+  const themeDropdown = dmn.ui.components.dropdown({
     options: [
       { label: "다크 모드", value: "dark" },
       { label: "라이트 모드", value: "light" },
@@ -1363,7 +1770,7 @@ async function openSettings() {
     },
   });
 
-  const volumeInput = window.api.ui.components.input({
+  const volumeInput = dmn.ui.components.input({
     type: "number",
     value: settings.volume,
     min: 0,
@@ -1377,14 +1784,14 @@ async function openSettings() {
   // 폼 HTML 구성
   const formHtml = `
     <div class="flex flex-col gap-[16px] w-full">
-      ${window.api.ui.components.formRow("활성화", enabledCheckbox)}
-      ${window.api.ui.components.formRow("테마", themeDropdown)}
-      ${window.api.ui.components.formRow("볼륨", volumeInput)}
+      ${dmn.ui.components.formRow("활성화", enabledCheckbox)}
+      ${dmn.ui.components.formRow("테마", themeDropdown)}
+      ${dmn.ui.components.formRow("볼륨", volumeInput)}
     </div>
   `;
 
   // 다이얼로그 표시
-  const confirmed = await window.api.ui.dialog.custom(formHtml, {
+  const confirmed = await dmn.ui.dialog.custom(formHtml, {
     title: "설정",
     confirmText: "저장",
     showCancel: true,
@@ -1392,7 +1799,7 @@ async function openSettings() {
 
   // 저장 처리
   if (confirmed) {
-    await window.api.plugin.storage.set("settings", tempSettings);
+    await dmn.plugin.storage.set("settings", tempSettings);
     console.log("설정 저장됨:", tempSettings);
   }
 }
@@ -1409,7 +1816,7 @@ window.__myCheckboxHandler = (e) => {
   tempSettings.enabled = checked;
 };
 
-const checkbox = window.api.ui.components.checkbox({
+const checkbox = dmn.ui.components.checkbox({
   checked: true,
   onChange: "__myCheckboxHandler", // 문자열 ID
 });
@@ -1420,7 +1827,7 @@ const html = checkbox.replace(
 );
 
 // 수동 클린업 필요
-window.api.plugin.registerCleanup(() => {
+dmn.plugin.registerCleanup(() => {
   delete window.__myCheckboxHandler;
 });
 ```
@@ -1429,7 +1836,7 @@ window.api.plugin.registerCleanup(() => {
 
 ```javascript
 // ✅ 새로운 방식: 함수 직접 전달
-const checkbox = window.api.ui.components.checkbox({
+const checkbox = dmn.ui.components.checkbox({
   checked: true,
   onChange: (checked) => {
     tempSettings.enabled = checked;
@@ -1441,7 +1848,7 @@ const checkbox = window.api.ui.components.checkbox({
 
 ### 주의사항
 
-1. **다이얼로그 내부에서만 사용**: Components API는 `window.api.ui.dialog.custom()`과 함께 사용하도록 설계되었습니다.
+1. **다이얼로그 내부에서만 사용**: Components API는 `dmn.ui.dialog.custom()`과 함께 사용하도록 설계되었습니다.
 2. **ID 충돌 방지**: 같은 다이얼로그 내에서 컴포넌트 `id`가 중복되지 않도록 하세요.
 3. **값 접근**: 다이얼로그 확인 후 `document.getElementById()`로 값을 가져오거나, 핸들러 내에서 임시 객체에 저장하세요.
 
@@ -1454,95 +1861,93 @@ const checkbox = window.api.ui.components.checkbox({
 오버레이에 초당 키 입력 횟수를 표시하는 패널을 추가합니다.
 
 ```javascript
-(function () {
-  // 오버레이 전용
-  if (window.api.window.type !== "overlay") return;
+// 오버레이 전용
+if (dmn.window.type !== "overlay") return;
 
-  // 설정
-  const WINDOW_MS = 1000; // 1초 윈도우
-  const REFRESH_MS = 100; // 100ms마다 갱신
+// 설정
+const WINDOW_MS = 1000; // 1초 윈도우
+const REFRESH_MS = 100; // 100ms마다 갱신
 
-  // 상태
-  let currentMode = null;
-  let keyMap = {};
-  let trackedKeys = new Set();
-  const buckets = new Map(); // key => timestamp[]
+// 상태
+let currentMode = null;
+let keyMap = {};
+let trackedKeys = new Set();
+const buckets = new Map(); // key => timestamp[]
 
-  // UI 생성
-  const style = document.createElement("style");
-  style.textContent = `
-    .cps-panel {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      background: rgba(0, 0, 0, 0.8);
-      color: #fff;
-      padding: 10px;
-      border-radius: 8px;
-      font-family: monospace;
-      z-index: 999999;
-    }
-  `;
-  document.head.appendChild(style);
-
-  const panel = document.createElement("div");
-  panel.className = "cps-panel";
-  panel.innerHTML = '<div>Total CPS: <span id="cps-value">0</span></div>';
-  document.body.appendChild(panel);
-  const valueEl = panel.querySelector("#cps-value");
-
-  // 로직
-  function pruneOld(now) {
-    const cutoff = now - WINDOW_MS;
-    for (const [key, arr] of buckets.entries()) {
-      buckets.set(
-        key,
-        arr.filter((ts) => ts >= cutoff)
-      );
-    }
+// UI 생성
+const style = document.createElement("style");
+style.textContent = `
+  .cps-panel {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: 10px;
+    border-radius: 8px;
+    font-family: monospace;
+    z-index: 999999;
   }
+`;
+document.head.appendChild(style);
 
-  function render() {
-    const now = Date.now();
-    pruneOld(now);
-    let total = 0;
-    for (const key of trackedKeys) {
-      total += (buckets.get(key) || []).length;
-    }
-    valueEl.textContent = total;
+const panel = document.createElement("div");
+panel.className = "cps-panel";
+panel.innerHTML = '<div>Total CPS: <span id="cps-value">0</span></div>';
+document.body.appendChild(panel);
+const valueEl = panel.querySelector("#cps-value");
+
+// 로직
+function pruneOld(now) {
+  const cutoff = now - WINDOW_MS;
+  for (const [key, arr] of buckets.entries()) {
+    buckets.set(
+      key,
+      arr.filter((ts) => ts >= cutoff)
+    );
   }
+}
 
-  const timer = setInterval(render, REFRESH_MS);
+function render() {
+  const now = Date.now();
+  pruneOld(now);
+  let total = 0;
+  for (const key of trackedKeys) {
+    total += (buckets.get(key) || []).length;
+  }
+  valueEl.textContent = total;
+}
 
-  // 이벤트 구독
-  const unsubKeyState = window.api.keys.onKeyState(({ key, state }) => {
-    if (!trackedKeys.has(key) || state !== "DOWN") return;
-    if (!buckets.has(key)) buckets.set(key, []);
-    buckets.get(key).push(Date.now());
-  });
+const timer = setInterval(render, REFRESH_MS);
 
-  const unsubMode = window.api.keys.onModeChanged(({ mode }) => {
-    currentMode = mode;
-    trackedKeys = new Set(keyMap[mode] || []);
-  });
+// 이벤트 구독
+const unsubKeyState = dmn.keys.onKeyState(({ key, state }) => {
+  if (!trackedKeys.has(key) || state !== "DOWN") return;
+  if (!buckets.has(key)) buckets.set(key, []);
+  buckets.get(key).push(Date.now());
+});
 
-  // 초기화
-  (async () => {
-    const boot = await window.api.app.bootstrap();
-    keyMap = boot.keys || {};
-    currentMode = boot.selectedKeyType || Object.keys(keyMap)[0];
-    trackedKeys = new Set(keyMap[currentMode] || []);
-  })();
+const unsubMode = dmn.keys.onModeChanged(({ mode }) => {
+  currentMode = mode;
+  trackedKeys = new Set(keyMap[mode] || []);
+});
 
-  // ✨ 클린업 등록
-  window.api.plugin.registerCleanup(() => {
-    clearInterval(timer);
-    unsubKeyState();
-    unsubMode();
-    panel.remove();
-    style.remove();
-  });
+// 초기화
+(async () => {
+  const boot = await dmn.app.bootstrap();
+  keyMap = boot.keys || {};
+  currentMode = boot.selectedKeyType || Object.keys(keyMap)[0];
+  trackedKeys = new Set(keyMap[currentMode] || []);
 })();
+
+// ✨ 클린업 등록
+dmn.plugin.registerCleanup(() => {
+  clearInterval(timer);
+  unsubKeyState();
+  unsubMode();
+  panel.remove();
+  style.remove();
+});
 ```
 
 ---
@@ -1552,59 +1957,57 @@ const checkbox = window.api.ui.components.checkbox({
 최근 입력된 키를 시각적으로 강조 표시합니다.
 
 ```javascript
-(function () {
-  if (window.api.window.type !== "overlay") return;
+if (dmn.window.type !== "overlay") return;
 
-  const style = document.createElement("style");
-  style.textContent = `
-    .key-heatmap {
-      position: fixed;
-      bottom: 10px;
-      left: 10px;
-      background: rgba(0, 0, 0, 0.7);
-      color: #fff;
-      padding: 8px;
-      border-radius: 6px;
-      font-family: monospace;
-      font-size: 12px;
-      z-index: 999999;
-    }
-    .key-heatmap .key-item {
-      display: inline-block;
-      margin: 2px;
-      padding: 4px 8px;
-      background: rgba(100, 200, 255, 0.3);
-      border-radius: 4px;
-      animation: fadeOut 2s forwards;
-    }
-    @keyframes fadeOut {
-      to { opacity: 0; }
-    }
-  `;
-  document.head.appendChild(style);
+const style = document.createElement("style");
+style.textContent = `
+  .key-heatmap {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    padding: 8px;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 12px;
+    z-index: 999999;
+  }
+  .key-heatmap .key-item {
+    display: inline-block;
+    margin: 2px;
+    padding: 4px 8px;
+    background: rgba(100, 200, 255, 0.3);
+    border-radius: 4px;
+    animation: fadeOut 2s forwards;
+  }
+  @keyframes fadeOut {
+    to { opacity: 0; }
+  }
+`;
+document.head.appendChild(style);
 
-  const container = document.createElement("div");
-  container.className = "key-heatmap";
-  document.body.appendChild(container);
+const container = document.createElement("div");
+container.className = "key-heatmap";
+document.body.appendChild(container);
 
-  const unsub = window.api.keys.onKeyState(({ key, state }) => {
-    if (state !== "DOWN") return;
+const unsub = dmn.keys.onKeyState(({ key, state }) => {
+  if (state !== "DOWN") return;
 
-    const keyEl = document.createElement("span");
-    keyEl.className = "key-item";
-    keyEl.textContent = key;
-    container.appendChild(keyEl);
+  const keyEl = document.createElement("span");
+  keyEl.className = "key-item";
+  keyEl.textContent = key;
+  container.appendChild(keyEl);
 
-    setTimeout(() => keyEl.remove(), 2000);
-  });
+  setTimeout(() => keyEl.remove(), 2000);
+});
 
-  // ✨ 클린업 등록
-  window.api.plugin.registerCleanup(() => {
-    unsub();
-    container.remove();
-    style.remove();
-  });
-})();
+// ✨ 클린업 등록
+dmn.plugin.registerCleanup(() => {
+  unsub();
+  container.remove();
+  style.remove();
+});
 ```
 
 ---
@@ -1614,35 +2017,49 @@ const checkbox = window.api.ui.components.checkbox({
 메인 윈도우 콘솔에 설정 변경 이력을 기록합니다.
 
 ```javascript
-(function () {
-  // 메인 전용
-  if (window.api.window.type !== "main") return;
+// 메인 전용
+if (dmn.window.type !== "main") return;
 
-  console.log("[Settings Logger] Started");
+console.log("[Settings Logger] Started");
 
-  const unsub = window.api.settings.onChanged((settings) => {
-    console.log("[Settings Changed]", new Date().toISOString(), settings);
-  });
+const unsub = dmn.settings.onChanged((settings) => {
+  console.log("[Settings Changed]", new Date().toISOString(), settings);
+});
 
-  // ✨ 클린업 등록
-  window.api.plugin.registerCleanup(() => {
-    unsub();
-    console.log("[Settings Logger] Stopped");
-  });
-})();
+// ✨ 클린업 등록
+dmn.plugin.registerCleanup(() => {
+  unsub();
+  console.log("[Settings Logger] Stopped");
+});
 ```
 
 ---
 
 ## 베스트 프랙티스
 
-### 1. 즉시 실행 함수로 감싸기
+### 1. 자동 스코프 격리 ✨
 
-스코프 오염을 방지합니다.
+DM Note는 각 플러그인 코드를 **자동으로 별도의 함수 스코프로 격리**합니다.
+
+- ✅ **자동 strict mode**: 모든 플러그인이 엄격 모드로 실행됩니다
+- ✅ **변수 격리**: 플러그인 간 변수 충돌이 자동으로 방지됩니다
+- ✅ **IIFE 불필요**: 명시적으로 감쌀 필요가 없습니다
 
 ```javascript
+// ✅ 이렇게 자연스럽게 작성하세요
+const myData = 123;
+
+dmn.plugin.registerCleanup(() => {
+  console.log("cleanup");
+});
+```
+
+**선택사항**: 레거시 호환성을 위해 IIFE로 감싼 코드도 계속 작동합니다.
+
+```javascript
+// ✅ 기존 방식도 지원됨 (선택)
 (function () {
-  // 스크립트 코드
+  const myData = 123;
 })();
 ```
 
@@ -1650,21 +2067,21 @@ const checkbox = window.api.ui.components.checkbox({
 
 ```javascript
 // 오버레이 전용
-if (window.api.window.type !== "overlay") return;
+if (dmn.window.type !== "overlay") return;
 
 // 메인 전용
-if (window.api.window.type !== "main") return;
+if (dmn.window.type !== "main") return;
 
 // 특정 윈도우 타입에서만 실행
 const allowedTypes = ["overlay", "main"];
-if (!allowedTypes.includes(window.api.window.type)) return;
+if (!allowedTypes.includes(dmn.window.type)) return;
 ```
 
 ### 3. 클린업 함수 필수 구현
 
 ```javascript
 // ✨ 권장: 모든 클린업을 한 번에 등록
-window.api.plugin.registerCleanup(() => {
+dmn.plugin.registerCleanup(() => {
   // 타이머 정리
   clearInterval(timerId);
   clearTimeout(timeoutId);
@@ -1679,45 +2096,23 @@ window.api.plugin.registerCleanup(() => {
 });
 
 // 선택: 리소스별로 분리 (복잡한 플러그인)
-window.api.plugin.registerCleanup(() => clearInterval(timerId));
-window.api.plugin.registerCleanup(() => unsubscribers.forEach((fn) => fn()));
-window.api.plugin.registerCleanup(() => panel.remove());
+dmn.plugin.registerCleanup(() => clearInterval(timerId));
+dmn.plugin.registerCleanup(() => unsubscribers.forEach((fn) => fn()));
+dmn.plugin.registerCleanup(() => panel.remove());
 ```
 
-### 4. 레거시 방식 (하위 호환성)
-
-```javascript
-// 재주입 대비 기존 리소스 정리
-if (window.__dmn_custom_js_cleanup) window.__dmn_custom_js_cleanup();
-
-window.__dmn_custom_js_cleanup = function () {
-  // 타이머 정리
-  clearInterval(timerId);
-  clearTimeout(timeoutId);
-
-  // 이벤트 구독 해제
-  unsubscribers.forEach((fn) => fn && fn());
-
-  // DOM 정리
-  elements.forEach((el) => el.remove());
-
-  // 자기 자신 제거
-  delete window.__dmn_custom_js_cleanup;
-};
-```
-
-### 5. 에러 핸들링
+### 4. 에러 핸들링
 
 ```javascript
 try {
-  const data = await window.api.app.bootstrap();
+  const data = await dmn.app.bootstrap();
   // ...
 } catch (error) {
   console.error("[Custom JS] Error:", error);
 }
 ```
 
-### 6. 성능 고려
+### 5. 성능 고려
 
 - `requestAnimationFrame`으로 렌더링 최적화
 - 과도한 DOM 조작 지양
@@ -1761,7 +2156,7 @@ window.__dmn_custom_js_cleanup = function () {
 
 - Tauri 2 WebView 기반으로 실행됩니다(Chromium 엔진).
 - ES6+ 문법 사용 가능합니다.
-- Node.js API는 사용할 수 없습니다(`window.api`만 사용).
+- Node.js API는 사용할 수 없습니다(`dmn`만 사용).
 
 ### 외부 리소스 로딩 (CDN, 폰트, 라이브러리)
 
@@ -1805,14 +2200,14 @@ Tracking Prevention blocked access to storage for https://cdn.jsdelivr.net/...
 
 ### 유지보수
 
-- DM Note 업데이트 시 `window.api` 시그니처가 변경될 수 있습니다.
+- DM Note 업데이트 시 `dmn` 시그니처가 변경될 수 있습니다.
 - 주요 변경사항은 릴리스 노트와 [`docs/ipc-channels.md`](./ipc-channels.md)를 확인하세요.
 
 ---
 
 ## 추가 리소스
 
-- **Frontend API 레퍼런스**: [`docs/api-reference.md`](../api-reference.md) - `window.api` 완전 레퍼런스
+- **Frontend API 레퍼런스**: [`docs/api-reference.md`](../api-reference.md) - `dmn` 완전 레퍼런스
 - **IPC 채널 레퍼런스**: [`docs/ipc-channels.md`](../ipc-channels.md) - 백엔드 구현 상세
 - **키 맵핑 구조**: `src/types/keys.ts`
 - **설정 스키마**: `src/types/settings.ts`
@@ -1821,3 +2216,4 @@ Tracking Prevention blocked access to storage for https://cdn.jsdelivr.net/...
 ---
 
 커스텀 JS로 DM Note를 자유롭게 확장하세요! 🎹✨
+

@@ -86,7 +86,7 @@ DmNote/
 │   │   ├── services/             # Services (keyboard listener, etc.)
 │   │   ├── store/                # electron-store + Zod schema
 │   │   ├── windows/              # BrowserWindow wrapper + config
-│   │   ├── preload.ts            # Expose contextBridge API (window.api)
+│   │   ├── preload.ts            # Expose contextBridge API (dmn)
 │   │   └── main.ts               # Main entry point
 │   ├── renderer/                 # React renderer
 │   │   ├── components/           # UI components
@@ -177,4 +177,5 @@ We welcome your contributions. See the [contribution guide](CONTRIBUTING.md) for
 - Millisecond interval display for simultaneous presses
 - Input analytics
 -->
+
 

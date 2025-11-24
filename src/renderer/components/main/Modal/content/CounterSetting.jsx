@@ -91,7 +91,7 @@ export default function CounterSettingModal({
     setPickerFor(null);
   }, [resolvedSettings]);
 
-  // 실시간 프리뷰: 내부 상태가 변하면 즉시 onPreview 호출
+  // 실시간 프리뷰: 내부 상태가 변하면 즉시 onPreview 호출 (색상 제외)
   useEffect(() => {
     if (typeof onPreview !== "function") return;
     const payload = {
@@ -102,7 +102,7 @@ export default function CounterSettingModal({
       stroke: { idle: strokeIdle, active: strokeActive },
     };
     onPreview(payload);
-  }, [placement, align, gap, fillIdle, fillActive, strokeIdle, strokeActive]);
+  }, [placement, align, gap]);
 
   const [pickerFor, setPickerFor] = useState(null); // 'fillIdle' | 'fillActive' | 'strokeIdle' | 'strokeActive'
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -201,6 +201,27 @@ export default function CounterSettingModal({
       setPickerFor(target);
       setPickerOpen(true);
     }
+  };
+
+  const handleColorComplete = (key, color) => {
+    setColorFor(key, color);
+
+    if (typeof onPreview !== "function") return;
+
+    const payload = {
+      placement,
+      align,
+      gap,
+      fill: {
+        idle: key === "fillIdle" ? color : fillIdle,
+        active: key === "fillActive" ? color : fillActive,
+      },
+      stroke: {
+        idle: key === "strokeIdle" ? color : strokeIdle,
+        active: key === "strokeActive" ? color : strokeActive,
+      },
+    };
+    onPreview(payload);
   };
 
   const handleApply = () => {
@@ -382,6 +403,7 @@ export default function CounterSettingModal({
             referenceRef={referenceRefFor()}
             color={colorValueFor(pickerFor)}
             onColorChange={(c) => setColorFor(pickerFor, c)}
+            onColorChangeComplete={(c) => handleColorComplete(pickerFor, c)}
             onClose={closePicker}
             solidOnly={true}
             interactiveRefs={colorPickerInteractiveRefs}

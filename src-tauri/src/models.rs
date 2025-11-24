@@ -584,6 +584,33 @@ pub struct SettingsDiff {
     pub full: SettingsState,
 }
 
+impl SettingsDiff {
+    pub fn changed_count(&self) -> usize {
+        let p = &self.changed;
+        [
+            p.hardware_acceleration.is_some(),
+            p.always_on_top.is_some(),
+            p.overlay_locked.is_some(),
+            p.note_effect.is_some(),
+            p.note_settings.is_some(),
+            p.angle_mode.is_some(),
+            p.language.is_some(),
+            p.laboratory_enabled.is_some(),
+            p.developer_mode_enabled.is_some(),
+            p.background_color.is_some(),
+            p.use_custom_css.is_some(),
+            p.custom_css.is_some(),
+            p.use_custom_js.is_some(),
+            p.custom_js.is_some(),
+            p.overlay_resize_anchor.is_some(),
+            p.key_counter_enabled.is_some(),
+        ]
+        .iter()
+        .filter(|&&x| x)
+        .count()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsPatch {

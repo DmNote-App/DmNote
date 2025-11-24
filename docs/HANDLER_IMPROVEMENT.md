@@ -18,14 +18,14 @@ window[`handleKpsDelete_${panelId}`] = async () =>
   await handlePanelDelete(panelId);
 
 // ❌ 문제점 2: 문자열로 전달
-window.api.ui.displayElement.add({
+dmn.ui.displayElement.add({
   onClick: `handleKpsPanelClick_${panelId}`,
   onPositionChange: `handleKpsPositionChange_${panelId}`,
   onDelete: `handleKpsDelete_${panelId}`,
 });
 
 // ❌ 문제점 3: 수동 클린업 필요
-window.api.plugin.registerCleanup(() => {
+dmn.plugin.registerCleanup(() => {
   delete window[`handleKpsPanelClick_${panelId}`];
   delete window[`handleKpsPositionChange_${panelId}`];
   delete window[`handleKpsDelete_${panelId}`];
@@ -45,7 +45,7 @@ window.api.plugin.registerCleanup(() => {
 
 ```javascript
 // ✅ 함수를 직접 전달 - 자동으로 핸들러 등록됨!
-window.api.ui.displayElement.add({
+dmn.ui.displayElement.add({
   html: generatePanelHtml(panelId),
   position: settings.position,
   draggable: true,
@@ -57,8 +57,8 @@ window.api.ui.displayElement.add({
 });
 
 // ✅ 클린업도 자동으로 처리됨 (수동 delete 불필요)
-window.api.plugin.registerCleanup(() => {
-  window.api.ui.displayElement.clearMyElements(); // 핸들러도 자동으로 정리됨
+dmn.plugin.registerCleanup(() => {
+  dmn.ui.displayElement.clearMyElements(); // 핸들러도 자동으로 정리됨
 });
 ```
 
@@ -172,14 +172,14 @@ window[`handlePositionChange_${id}`] = async (pos) =>
   await handlePositionChange(id, pos);
 window[`handleDelete_${id}`] = async () => await handleDelete(id);
 
-window.api.ui.displayElement.add({
+dmn.ui.displayElement.add({
   onClick: `handleClick_${id}`,
   onPositionChange: `handlePositionChange_${id}`,
   onDelete: `handleDelete_${id}`,
 });
 
 // 클린업 시 수동 삭제
-window.api.plugin.registerCleanup(() => {
+dmn.plugin.registerCleanup(() => {
   delete window[`handleClick_${id}`];
   delete window[`handlePositionChange_${id}`];
   delete window[`handleDelete_${id}`];
@@ -190,15 +190,15 @@ window.api.plugin.registerCleanup(() => {
 
 ```javascript
 // 함수를 직접 전달
-window.api.ui.displayElement.add({
+dmn.ui.displayElement.add({
   onClick: async () => await handleClick(id),
   onPositionChange: async (pos) => await handlePositionChange(id, pos),
   onDelete: async () => await handleDelete(id),
 });
 
 // 클린업 간소화
-window.api.plugin.registerCleanup(() => {
-  window.api.ui.displayElement.clearMyElements(); // 핸들러 자동 정리
+dmn.plugin.registerCleanup(() => {
+  dmn.ui.displayElement.clearMyElements(); // 핸들러 자동 정리
 });
 ```
 
@@ -217,14 +217,14 @@ window[`handleKpsPositionChange_${panelId}`] = async (pos) =>
 window[`handleKpsDelete_${panelId}`] = async () =>
   await handlePanelDelete(panelId);
 
-const elementId = window.api.ui.displayElement.add({
+const elementId = dmn.ui.displayElement.add({
   onClick: `handleKpsPanelClick_${panelId}`,
   onPositionChange: `handleKpsPositionChange_${panelId}`,
   onDelete: `handleKpsDelete_${panelId}`,
 });
 
 // 클린업
-window.api.plugin.registerCleanup(() => {
+dmn.plugin.registerCleanup(() => {
   for (const [panelId] of panels.entries()) {
     delete window[`handleKpsPanelClick_${panelId}`];
     delete window[`handleKpsPositionChange_${panelId}`];
@@ -237,15 +237,15 @@ window.api.plugin.registerCleanup(() => {
 
 ```javascript
 // ✨ 함수를 직접 전달
-const elementId = window.api.ui.displayElement.add({
+const elementId = dmn.ui.displayElement.add({
   onClick: async () => await handlePanelClick(panelId),
   onPositionChange: async (pos) => await handlePositionChange(panelId, pos),
   onDelete: async () => await handlePanelDelete(panelId),
 });
 
 // ✨ 클린업 간소화
-window.api.plugin.registerCleanup(() => {
-  window.api.ui.displayElement.clearMyElements(); // 핸들러도 자동으로 정리됨
+dmn.plugin.registerCleanup(() => {
+  dmn.ui.displayElement.clearMyElements(); // 핸들러도 자동으로 정리됨
 });
 ```
 
@@ -259,7 +259,7 @@ window.handleMyClick = async () => {
   /* ... */
 };
 
-window.api.ui.displayElement.add({
+dmn.ui.displayElement.add({
   onClick: "handleMyClick", // 문자열 ID
 });
 ```
@@ -280,3 +280,4 @@ window.api.ui.displayElement.add({
 - 타입 안정성을 갖춘
 
 **더 깔끔하고 안전한 코드**를 작성할 수 있습니다! 🚀
+

@@ -1,4 +1,4 @@
-import "@utils/tauriApi";
+import "@api/dmnoteApi";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
@@ -23,4 +23,3 @@ root.render(
     <App />
   </I18nProvider>
 );
-

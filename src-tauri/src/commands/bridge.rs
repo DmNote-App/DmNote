@@ -9,6 +9,12 @@ pub async fn plugin_bridge_send(
     message_type: String,
     data: Option<Value>,
 ) -> Result<(), String> {
+    log::debug!(
+        "[IPC] plugin_bridge_send: type={}, data_size={}",
+        message_type,
+        data.as_ref().map(|d| d.to_string().len()).unwrap_or(0)
+    );
+
     let payload = serde_json::json!({
         "type": message_type,
         "data": data,
@@ -28,6 +34,13 @@ pub async fn plugin_bridge_send_to(
     message_type: String,
     data: Option<Value>,
 ) -> Result<(), String> {
+    log::debug!(
+        "[IPC] plugin_bridge_send_to: target={}, type={}, data_size={}",
+        target,
+        message_type,
+        data.as_ref().map(|d| d.to_string().len()).unwrap_or(0)
+    );
+
     let payload = serde_json::json!({
         "type": message_type,
         "data": data,

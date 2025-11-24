@@ -1,4 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import { useTranslation } from "@contexts/I18nContext";
 import DraggableKey from "@components/Key";
 import { getKeyInfoByGlobalKey } from "@utils/KeyMaps";
@@ -7,7 +13,9 @@ import CounterSettingModal from "./Modal/content/CounterSetting";
 import ListPopup from "./Modal/ListPopup";
 import { useKeyStore } from "@stores/useKeyStore";
 import { usePluginMenuStore } from "@stores/usePluginMenuStore";
+import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementStore";
 import { PluginElementsRenderer } from "@components/PluginElementsRenderer";
+import { translatePluginMessage } from "@utils/pluginI18n";
 
 const GRID_SNAP = 5;
 const snapToGrid = (value) => {
@@ -44,12 +52,37 @@ export default function Grid({
   canRedo,
 }) {
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language;
 
   // 플러그인 메뉴 아이템
   const pluginKeyMenuItems = usePluginMenuStore((state) => state.keyMenuItems);
   const pluginGridMenuItems = usePluginMenuStore(
     (state) => state.gridMenuItems
+  );
+  const pluginDefinitions = usePluginDisplayElementStore(
+    (state) => state.definitions
+  );
+
+  const pluginMessagesById = useMemo(() => {
+    const map = new Map();
+    pluginDefinitions.forEach((def) => {
+      if (!map.has(def.pluginId)) {
+        map.set(def.pluginId, def.messages);
+      }
+    });
+    return map;
+  }, [pluginDefinitions]);
+
+  const resolvePluginLabel = useCallback(
+    (pluginId, rawLabel) =>
+      translatePluginMessage({
+        messages: pluginMessagesById.get(pluginId),
+        locale,
+        key: rawLabel,
+        fallback: rawLabel,
+      }),
+    [pluginMessagesById, locale]
   );
 
   // 키 컨텍스트 메뉴
@@ -108,7 +141,7 @@ export default function Grid({
         })
         .map((item) => ({
           id: item.fullId,
-          label: item.label,
+          label: resolvePluginLabel(item.pluginId, item.label),
           disabled:
             typeof item.disabled === "function"
               ? item.disabled(context)
@@ -150,7 +183,7 @@ export default function Grid({
         })
         .map((item) => ({
           id: item.fullId,
-          label: item.label,
+          label: resolvePluginLabel(item.pluginId, item.label),
           disabled:
             typeof item.disabled === "function"
               ? item.disabled(context)
