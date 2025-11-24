@@ -47,6 +47,9 @@ import type {
   InputOptions,
   DropdownOptions,
   PanelOptions,
+  PluginDisplayElementConfig,
+  PluginDisplayElementInternal,
+  RawInputPayload,
 } from "@src/types/api";
 import type { BootstrapPayload } from "@src/types/app";
 import type { CustomCss } from "@src/types/css";
@@ -155,6 +158,8 @@ const api: DMNoteAPI = {
       subscribe<ModeChangePayload>("keys:mode-changed", listener),
     onKeyState: (listener: (payload: KeyStatePayload) => void) =>
       subscribe<KeyStatePayload>("keys:state", listener),
+    onRawInput: (listener: (payload: RawInputPayload) => void) =>
+      subscribe<RawInputPayload>("input:raw", listener),
     onCounterChanged: (listener: (payload: KeyCounterUpdate) => void) =>
       subscribe<KeyCounterUpdate>("keys:counter", listener),
     onCountersChanged: (listener: (payload: KeyCounters) => void) =>

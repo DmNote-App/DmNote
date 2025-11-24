@@ -1,7 +1,24 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum InputDeviceKind {
+    Keyboard,
+    Mouse,
+    Gamepad,
+    #[serde(other)]
+    Unknown,
+}
+
+fn default_device_kind() -> InputDeviceKind {
+    InputDeviceKind::Keyboard
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct HookMessage {
+    /// Primary device type for this input event.
+    #[serde(default = "default_device_kind")]
+    pub device: InputDeviceKind,
     pub labels: Vec<String>,
     pub state: HookKeyState,
     #[serde(skip_serializing_if = "Option::is_none")]
