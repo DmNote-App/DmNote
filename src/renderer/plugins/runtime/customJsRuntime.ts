@@ -33,6 +33,9 @@ export function createCustomJsRuntime(): CustomJsRuntime {
   let disposed = false;
   let currentPlugins: JsPlugin[] = [];
 
+  // 전역 플래그: removeAll/injectAll 실행 중에는 저장 비활성화
+  let isReloading = false;
+
   const safeRun = (fn?: () => void, label?: string) => {
     if (typeof fn !== "function") return;
     try {
@@ -250,7 +253,13 @@ export function createCustomJsRuntime(): CustomJsRuntime {
 
             const INSTANCES_KEY = "instances";
 
+            // 복원 중에는 saveInstances가 호출되지 않도록 플래그 설정
+            let isRestoring = true;
+
             const saveInstances = async () => {
+              // 전역 리로드 중이거나 개별 복원 중에는 저장하지 않음
+              if (isReloading || isRestoring) return;
+
               const elements = usePluginDisplayElementStore
                 .getState()
                 .elements.filter((el) => el.definitionId === defId);
@@ -648,9 +657,6 @@ export function createCustomJsRuntime(): CustomJsRuntime {
             }
 
             setTimeout(async () => {
-              const prevPluginId = (window as any).__dmn_current_plugin_id;
-              (window as any).__dmn_current_plugin_id = pluginId;
-
               try {
                 if ((window as any).__dmn_window_type === "main") {
                   const savedInstances = (await namespacedStorage.get(
@@ -659,6 +665,9 @@ export function createCustomJsRuntime(): CustomJsRuntime {
 
                   if (savedInstances && Array.isArray(savedInstances)) {
                     savedInstances.forEach((inst) => {
+                      // 각 add 호출 직전에 plugin context 재설정 (async race condition 방지)
+                      (window as any).__dmn_current_plugin_id = pluginId;
+
                       window.api.ui.displayElement.add({
                         html: "<!-- plugin-element -->",
                         position: inst.position,
@@ -684,7 +693,7 @@ export function createCustomJsRuntime(): CustomJsRuntime {
                   err
                 );
               } finally {
-                (window as any).__dmn_current_plugin_id = prevPluginId;
+                isRestoring = false;
               }
             }, 0);
           },
@@ -797,12 +806,21 @@ export function createCustomJsRuntime(): CustomJsRuntime {
   };
 
   const injectAll = () => {
+    isReloading = true;
     removeAll();
-    if (!enabled) return;
+    if (!enabled) {
+      isReloading = false;
+      return;
+    }
 
     currentPlugins
       .filter((plugin) => plugin.enabled && plugin.content)
       .forEach((plugin) => injectPlugin(plugin));
+
+    // 모든 플러그인의 복원이 완료될 때까지 딜레이 후 리로드 플래그 해제
+    setTimeout(() => {
+      isReloading = false;
+    }, 100);
   };
 
   const syncPlugins = (next: JsPlugin[]) => {
