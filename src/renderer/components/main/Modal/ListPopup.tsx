@@ -4,6 +4,7 @@ import FloatingPopup from "./FloatingPopup";
 export type ListItem = {
   id: string;
   label: string;
+  disabled?: boolean;
 };
 
 type ListPopupProps = {
@@ -50,13 +51,25 @@ const ListPopup = ({
         <button
           key={it.id}
           type="button"
+          disabled={it.disabled}
           onClick={() => {
+            if (it.disabled) return;
             onSelect(it.id);
             onClose?.();
           }}
-          className="min-w-[108px] h-[24px] px-[24px] rounded-[7px] hover:bg-button-hover active:bg-button-active flex items-center justify-center"
+          className={`min-w-[108px] h-[24px] px-[24px] rounded-[7px] flex items-center justify-center ${
+            it.disabled
+              ? "opacity-50"
+              : "hover:bg-button-hover active:bg-button-active cursor-pointer"
+          }`}
         >
-          <span className="text-style-2 text-[#DBDEE8] whitespace-nowrap">{it.label}</span>
+          <span
+            className={`text-style-2 whitespace-nowrap ${
+              it.disabled ? "text-[#6B6E7B]" : "text-[#DBDEE8]"
+            }`}
+          >
+            {it.label}
+          </span>
         </button>
       ))}
     </FloatingPopup>

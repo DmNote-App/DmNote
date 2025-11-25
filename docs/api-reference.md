@@ -1809,6 +1809,11 @@ interface PluginDefinition {
   // 플러그인 이름 (컨텍스트 메뉴 등에 표시됨)
   name: string;
 
+  // 최대 인스턴스(패널) 개수 제한
+  // - 미지정 또는 0: 무제한 (기본값)
+  // - 양수: 해당 개수로 제한 (제한 도달 시 생성 메뉴 비활성화)
+  maxInstances?: number;
+
   // 다국어 메시지 번들 (locale -> key -> value)
   messages?: Record<string, Record<string, string>>;
 
@@ -1920,6 +1925,42 @@ dmn.plugin.defineElement({
         setState({ val: Math.random() });
       }
     });
+  },
+});
+```
+
+**maxInstances 사용 예 (인스턴스 개수 제한)**:
+
+```javascript
+// @id kps-panel
+
+dmn.plugin.defineElement({
+  name: "KPS Panel",
+  maxInstances: 1, // 패널을 1개만 생성 가능 (제한 도달 시 생성 메뉴 비활성화)
+
+  contextMenu: {
+    create: "KPS 패널 생성",
+    delete: "KPS 패널 삭제",
+  },
+
+  template: (state, settings, { html }) => html`
+    <div style="background: rgba(0,0,0,0.8); color: white; padding: 10px;">
+      KPS: ${state.kps || 0}
+    </div>
+  `,
+
+  onMount: ({ setState, onHook }) => {
+    let count = 0;
+    onHook("key", ({ state }) => {
+      if (state === "DOWN") count++;
+    });
+
+    const interval = setInterval(() => {
+      setState({ kps: count });
+      count = 0;
+    }, 1000);
+
+    return () => clearInterval(interval);
   },
 });
 ```

@@ -256,6 +256,12 @@ export interface PluginDefinitionHookContext {
 
 export interface PluginDefinition {
   name: string;
+  /**
+   * 최대 인스턴스(패널) 개수 제한
+   * - 미지정 또는 0: 무제한 (기본값)
+   * - 양수: 해당 개수로 제한
+   */
+  maxInstances?: number;
   contextMenu?: {
     create?: string; // 그리드 메뉴 라벨 (예: "KPS 패널 생성")
     delete?: string; // 요소 메뉴 라벨 (예: "KPS 패널 삭제")

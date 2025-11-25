@@ -1,5 +1,6 @@
 import { usePluginMenuStore } from "@stores/usePluginMenuStore";
 import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementStore";
+import { useKeyStore } from "@stores/useKeyStore";
 import { extractPluginId } from "@utils/pluginUtils";
 import {
   handlerRegistry,
@@ -627,10 +628,38 @@ export function createCustomJsRuntime(): CustomJsRuntime {
               const createLabel =
                 definition.contextMenu?.create || `${definition.name} 생성`;
 
+              // maxInstances 제한 체크를 위한 헬퍼 함수 (현재 탭 기준)
+              const getInstanceCountForTab = (tabId: string) => {
+                return usePluginDisplayElementStore
+                  .getState()
+                  .elements.filter(
+                    (el) => el.definitionId === defId && el.tabId === tabId
+                  ).length;
+              };
+
               const menuId = window.api.ui.contextMenu.addGridMenuItem({
                 id: `create-${defId}`,
                 label: createLabel,
+                // maxInstances 제한 도달 시 메뉴 비활성화 (현재 탭 기준)
+                disabled: () => {
+                  const maxInstances = definition.maxInstances;
+                  if (!maxInstances || maxInstances <= 0) return false;
+                  const currentTabId = useKeyStore.getState().selectedKeyType;
+                  return getInstanceCountForTab(currentTabId) >= maxInstances;
+                },
                 onClick: async (context) => {
+                  // 클릭 시에도 한 번 더 체크 (동시 클릭 방지, 현재 탭 기준)
+                  const maxInstances = definition.maxInstances;
+                  if (maxInstances && maxInstances > 0) {
+                    const currentTabId = useKeyStore.getState().selectedKeyType;
+                    if (getInstanceCountForTab(currentTabId) >= maxInstances) {
+                      console.warn(
+                        `[Plugin ${pluginId}] Max instances (${maxInstances}) reached for ${defId} in tab ${currentTabId}`
+                      );
+                      return;
+                    }
+                  }
+
                   window.api.ui.displayElement.add({
                     html: "<!-- plugin-element -->",
                     position: {
@@ -664,7 +693,31 @@ export function createCustomJsRuntime(): CustomJsRuntime {
                   )) as any[];
 
                   if (savedInstances && Array.isArray(savedInstances)) {
-                    savedInstances.forEach((inst) => {
+                    // maxInstances 제한 적용: 탭별로 제한 개수만큼만 복원
+                    const maxInstances = definition.maxInstances;
+                    let instancesToRestore = savedInstances;
+
+                    if (maxInstances && maxInstances > 0) {
+                      // 탭별로 그룹화
+                      const instancesByTab = new Map<string, any[]>();
+                      savedInstances.forEach((inst) => {
+                        const tabId = inst.tabId || "4key"; // 기본 탭
+                        if (!instancesByTab.has(tabId)) {
+                          instancesByTab.set(tabId, []);
+                        }
+                        instancesByTab.get(tabId)!.push(inst);
+                      });
+
+                      // 각 탭별로 maxInstances만큼만 선택
+                      instancesToRestore = [];
+                      instancesByTab.forEach((instances) => {
+                        instancesToRestore.push(
+                          ...instances.slice(0, maxInstances)
+                        );
+                      });
+                    }
+
+                    instancesToRestore.forEach((inst) => {
                       // 각 add 호출 직전에 plugin context 재설정 (async race condition 방지)
                       (window as any).__dmn_current_plugin_id = pluginId;
 

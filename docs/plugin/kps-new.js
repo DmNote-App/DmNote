@@ -2,6 +2,7 @@
 
 dmn.plugin.defineElement({
   name: "Simple KPS",
+  maxInstances: 1, // KPS 패널은 1개만 생성 가능
 
   contextMenu: {
     create: "menu.create",
@@ -394,4 +395,3 @@ dmn.plugin.defineElement({
     };
   },
 });
-
