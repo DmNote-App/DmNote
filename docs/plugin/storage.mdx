@@ -1,0 +1,316 @@
+---
+title: 스토리지
+description: 플러그인 데이터 영속화 (dmn.plugin.storage)
+---
+
+# 스토리지
+
+`dmn.plugin.storage`를 사용하면 플러그인 데이터를 영속적으로 저장할 수 있습니다.
+모든 데이터는 앱 설정 파일에 함께 저장되며, 앱을 재시작해도 유지됩니다.
+
+## 자동 네임스페이스
+
+플러그인별로 **자동으로 격리된 스토리지 공간**이 제공됩니다.
+다른 플러그인과의 충돌 걱정 없이 간단하게 키만 사용하면 됩니다.
+
+```javascript
+// 플러그인 ID가 "kps-panel"인 경우
+// 내부적으로 "kps-panel:settings" 키로 저장됨
+await dmn.plugin.storage.set("settings", { theme: "dark" });
+```
+
+## API 레퍼런스
+
+### get(key)
+
+스토리지에서 데이터를 조회합니다.
+
+```javascript
+const settings = await dmn.plugin.storage.get("settings");
+// 데이터가 없으면 null 반환
+```
+
+### set(key, value)
+
+스토리지에 데이터를 저장합니다. JSON 직렬화 가능한 모든 값을 저장할 수 있습니다.
+
+```javascript
+// 문자열
+await dmn.plugin.storage.set("theme", "dark");
+
+// 객체
+await dmn.plugin.storage.set("settings", {
+  enabled: true,
+  fontSize: 14,
+});
+
+// 배열
+await dmn.plugin.storage.set("history", [
+  { timestamp: Date.now(), value: 100 },
+]);
+```
+
+### remove(key)
+
+특정 키의 데이터를 삭제합니다.
+
+```javascript
+await dmn.plugin.storage.remove("settings");
+```
+
+### clear()
+
+이 플러그인이 저장한 모든 데이터를 삭제합니다.
+
+```javascript
+await dmn.plugin.storage.clear();
+```
+
+### keys()
+
+이 플러그인이 저장한 모든 키의 목록을 조회합니다.
+
+```javascript
+const allKeys = await dmn.plugin.storage.keys();
+console.log("저장된 키:", allKeys); // ['settings', 'position']
+```
+
+## 사용 패턴
+
+### 설정 저장 및 복원
+
+```javascript
+// @id my-plugin
+
+const defaultSettings = {
+  panelVisible: true,
+  position: { x: 10, y: 10 },
+  fontSize: 14,
+};
+
+let settings;
+
+async function loadSettings() {
+  const saved = await dmn.plugin.storage.get("settings");
+  settings = saved || defaultSettings;
+  return settings;
+}
+
+async function saveSettings() {
+  await dmn.plugin.storage.set("settings", settings);
+}
+
+// 초기화
+await loadSettings();
+
+// 변경 시 저장
+settings.fontSize = 16;
+await saveSettings();
+```
+
+### 히스토리 관리
+
+```javascript
+const MAX_HISTORY = 100;
+
+async function addToHistory(entry) {
+  const history = (await dmn.plugin.storage.get("history")) || [];
+
+  history.push({
+    ...entry,
+    timestamp: Date.now(),
+  });
+
+  // 최대 개수 제한
+  if (history.length > MAX_HISTORY) {
+    history.shift();
+  }
+
+  await dmn.plugin.storage.set("history", history);
+}
+
+async function getHistory() {
+  return (await dmn.plugin.storage.get("history")) || [];
+}
+```
+
+### 캐싱
+
+```javascript
+async function getCachedData(key) {
+  const cacheKey = `cache-${key}`;
+  const cached = await dmn.plugin.storage.get(cacheKey);
+
+  // 캐시가 있고 1시간 이내면 사용
+  if (cached && Date.now() - cached.timestamp < 3600000) {
+    return cached.data;
+  }
+
+  // 새로 계산
+  const data = await fetchData(key);
+
+  await dmn.plugin.storage.set(cacheKey, {
+    data,
+    timestamp: Date.now(),
+  });
+
+  return data;
+}
+```
+
+### 데이터 마이그레이션
+
+```javascript
+const CURRENT_VERSION = 2;
+
+async function migrateStorage() {
+  const version = (await dmn.plugin.storage.get("version")) || 1;
+
+  if (version < CURRENT_VERSION) {
+    if (version === 1) {
+      // v1 → v2 마이그레이션
+      const oldSettings = await dmn.plugin.storage.get("settings");
+      if (oldSettings) {
+        await dmn.plugin.storage.set("settings", {
+          ...oldSettings,
+          newFeature: true, // 새 필드 추가
+        });
+      }
+    }
+
+    await dmn.plugin.storage.set("version", CURRENT_VERSION);
+    console.log(`마이그레이션 완료: v${version} → v${CURRENT_VERSION}`);
+  }
+}
+
+// 플러그인 시작 시 실행
+await migrateStorage();
+```
+
+## 주의사항
+
+### 빈 값 저장 피하기
+
+불필요한 데이터 저장은 설정 파일을 오염시킵니다.
+
+```javascript
+// ❌ 나쁜 예: 빈 값도 저장
+await dmn.plugin.storage.set("history", []);
+await dmn.plugin.storage.set("count", 0);
+
+// ✅ 좋은 예: 의미 있는 값만 저장
+if (history.length > 0) {
+  await dmn.plugin.storage.set("history", history);
+}
+
+if (count > 0) {
+  await dmn.plugin.storage.set("count", count);
+}
+```
+
+### 초기 로드 시 저장 피하기
+
+```javascript
+// ❌ 나쁜 예
+async function initSettings() {
+  let settings = await dmn.plugin.storage.get("settings");
+  if (!settings) {
+    settings = defaultSettings;
+    await dmn.plugin.storage.set("settings", settings); // 불필요한 저장
+  }
+  return settings;
+}
+
+// ✅ 좋은 예
+async function initSettings() {
+  const saved = await dmn.plugin.storage.get("settings");
+  if (saved) return saved;
+
+  // 기본값은 저장하지 않고 반환만
+  return defaultSettings;
+}
+```
+
+### 용량 권장 사항
+
+- 각 키당 **1MB 이하** 권장
+- 대용량 데이터는 외부 파일로 저장 고려
+- 불필요한 데이터는 주기적으로 정리
+
+## 플러그인 삭제 시 데이터 처리
+
+플러그인을 삭제할 때 스토리지 데이터 삭제 여부를 선택할 수 있습니다:
+
+- **데이터 유지**: 나중에 같은 ID로 플러그인을 다시 설치하면 기존 데이터 사용
+- **데이터와 함께 삭제**: 해당 플러그인의 모든 스토리지 데이터 자동 삭제
+
+## 실전 예제: 위치 저장 플러그인
+
+```javascript
+// @id draggable-panel
+
+if (dmn.window.type !== "main") return;
+
+const STORAGE_KEY = "panel-position";
+const DEFAULT_POSITION = { x: 100, y: 100 };
+
+async function createPanel() {
+  // 저장된 위치 복원
+  const savedPosition = await dmn.plugin.storage.get(STORAGE_KEY);
+  const position = savedPosition || DEFAULT_POSITION;
+
+  const elementId = dmn.ui.displayElement.add({
+    html: `<div style="
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 16px;
+      border-radius: 8px;
+    ">드래그해서 이동하세요</div>`,
+    position,
+    draggable: true,
+    onPositionChange: async (newPos) => {
+      // 위치 변경 시 자동 저장
+      await dmn.plugin.storage.set(STORAGE_KEY, newPos);
+    },
+  });
+
+  return elementId;
+}
+
+let panelId = null;
+
+// 그리드 메뉴 등록
+dmn.ui.contextMenu.addGridMenuItem({
+  id: "create-panel",
+  label: "패널 생성",
+  visible: () => !panelId,
+  onClick: async () => {
+    panelId = await createPanel();
+  },
+});
+
+dmn.ui.contextMenu.addGridMenuItem({
+  id: "remove-panel",
+  label: "패널 삭제",
+  visible: () => !!panelId,
+  onClick: async () => {
+    dmn.ui.displayElement.remove(panelId);
+    panelId = null;
+  },
+});
+
+dmn.ui.contextMenu.addGridMenuItem({
+  id: "reset-position",
+  label: "위치 초기화",
+  visible: () => !!panelId,
+  onClick: async () => {
+    await dmn.plugin.storage.remove(STORAGE_KEY);
+    dmn.ui.displayElement.update(panelId, { position: DEFAULT_POSITION });
+  },
+});
+
+dmn.plugin.registerCleanup(() => {
+  dmn.ui.displayElement.clearMyElements();
+  dmn.ui.contextMenu.clearMyMenuItems();
+});
+```

@@ -1,0 +1,126 @@
+---
+title: 국제화 (i18n)
+description: 다국어 지원 API
+---
+
+# 국제화 (i18n)
+
+## 현재 로케일 조회
+
+### getLocale()
+
+현재 설정된 로케일을 반환합니다.
+
+```javascript
+const locale = dmn.i18n.getLocale();
+console.log(locale); // "ko", "en", etc.
+```
+
+## 로케일 변경 감지
+
+### onLocaleChange(listener)
+
+로케일 변경을 구독합니다.
+
+```javascript
+const unsub = dmn.i18n.onLocaleChange((locale) => {
+  console.log("로케일 변경:", locale);
+});
+```
+
+## 플러그인 다국어 지원
+
+`defineElement`의 `i18n` 속성을 사용하면 플러그인 내에서 다국어를 쉽게 지원할 수 있습니다.
+
+### 기본 사용법
+
+```javascript
+defineElement({
+  id: "my-plugin",
+  i18n: {
+    ko: {
+      title: "제목",
+      description: "설명입니다.",
+    },
+    en: {
+      title: "Title",
+      description: "This is a description.",
+    },
+  },
+  template: ({ t }) => html`
+    <div>
+      <h1>${t("title")}</h1>
+      <p>${t("description")}</p>
+    </div>
+  `,
+});
+```
+
+### 중첩 키 지원
+
+```javascript
+i18n: {
+  ko: {
+    buttons: {
+      save: "저장",
+      cancel: "취소"
+    }
+  },
+  en: {
+    buttons: {
+      save: "Save",
+      cancel: "Cancel"
+    }
+  }
+}
+
+// 템플릿에서
+t("buttons.save")  // "저장" 또는 "Save"
+```
+
+### Fallback 처리
+
+현재 로케일에 번역이 없으면 다른 로케일에서 찾습니다.
+
+```javascript
+i18n: {
+  ko: { hello: "안녕" },
+  en: { hello: "Hello", world: "World" }
+}
+
+// 로케일이 "ko"일 때
+t("hello")  // "안녕"
+t("world")  // "World" (fallback to "en")
+```
+
+<Callout type="info">키를 찾을 수 없으면 키 이름 자체가 반환됩니다.</Callout>
+
+## 동적 로케일 변경 대응
+
+`defineElement`는 로케일 변경 시 자동으로 재렌더링됩니다. 수동으로 처리하려면:
+
+```javascript
+const element = defineElement({
+  id: "locale-demo",
+  onMount(ctx) {
+    ctx.registerCleanup(
+      dmn.i18n.onLocaleChange(() => {
+        // 로케일 변경 시 추가 작업
+        console.log("로케일이 변경되어 UI가 업데이트됩니다.");
+      })
+    );
+  },
+});
+```
+
+## 지원 로케일
+
+| 코드 | 언어    |
+| ---- | ------- |
+| `ko` | 한국어  |
+| `en` | English |
+
+<Callout type="warning">
+  향후 추가 언어가 지원될 수 있습니다. 확장성을 고려해 i18n 객체에 fallback
+  로케일을 항상 포함하세요.
+</Callout>

@@ -1,0 +1,142 @@
+---
+title: DM Note 플러그인 시스템
+description: DM Note의 플러그인 시스템 개요 및 핵심 개념
+---
+
+# DM Note 플러그인 시스템
+
+DM Note는 사용자가 작성한 JavaScript를 런타임에 주입할 수 있는 **플러그인 시스템**을 제공합니다.
+이를 통해 앱 동작을 확장하고, 실시간 통계 패널이나 키 입력 시각화 같은 고급 기능을 구현할 수 있습니다.
+
+<Callout type="warning">
+  **보안 경고**: 플러그인은 앱 내부 API와 DOM에 완전한 접근 권한을 가집니다.
+  신뢰할 수 없는 스크립트는 절대 실행하지 마세요.
+</Callout>
+
+## 핵심 개념
+
+### 두 가지 윈도우
+
+DM Note는 두 개의 독립적인 윈도우에서 플러그인이 실행됩니다:
+
+| 윈도우      | 역할                        | 플러그인 용도             |
+| ----------- | --------------------------- | ------------------------- |
+| **Main**    | 설정 UI, 키 맵핑 편집       | UI 확장, 설정 패널        |
+| **Overlay** | 실제 키 시각화, 노트 이펙트 | 실시간 통계, 키 입력 처리 |
+
+```javascript
+// 윈도우 타입 확인
+if (dmn.window.type === "overlay") {
+  // 오버레이에서만 실행되는 코드
+}
+
+if (dmn.window.type === "main") {
+  // 메인 윈도우에서만 실행되는 코드
+}
+```
+
+### 플러그인 작성 방식
+
+DM Note는 두 가지 플러그인 작성 방식을 제공합니다:
+
+#### 1. 선언형 API (권장)
+
+`defineElement`를 사용하면 복잡한 DOM 조작 없이 선언적으로 UI를 정의할 수 있습니다.
+
+```javascript
+// @id kps-panel
+
+dmn.plugin.defineElement({
+  name: "KPS 패널",
+  settings: {
+    textColor: { type: "color", default: "#FFFFFF", label: "텍스트 색상" },
+  },
+  template: (state, settings, { html }) => html`
+    <div style="color: ${settings.textColor};">KPS: ${state.kps ?? 0}</div>
+  `,
+  onMount: ({ setState, onHook }) => {
+    const timestamps = [];
+    onHook("key", ({ state }) => {
+      if (state === "DOWN") timestamps.push(Date.now());
+    });
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const recent = timestamps.filter((t) => t > now - 1000);
+      timestamps.length = 0;
+      timestamps.push(...recent);
+      setState({ kps: timestamps.length });
+    }, 100);
+
+    return () => clearInterval(interval);
+  },
+});
+```
+
+**장점:**
+
+- ✅ 자동 설정 UI 생성
+- ✅ 상태 동기화 (메인 ↔ 오버레이)
+- ✅ 컨텍스트 메뉴 자동 생성
+- ✅ 라이프사이클 자동 관리
+
+#### 2. 명령형 API (고급)
+
+직접 DOM을 조작하고 세밀한 제어가 필요한 경우 사용합니다.
+
+```javascript
+// @id custom-panel
+
+if (dmn.window.type !== "overlay") return;
+
+const panel = document.createElement("div");
+panel.textContent = "Hello, Plugin!";
+document.body.appendChild(panel);
+
+dmn.plugin.registerCleanup(() => {
+  panel.remove();
+});
+```
+
+### 플러그인 ID
+
+각 플러그인은 고유 ID를 가지며, 파일 상단에 `@id` 주석으로 지정합니다:
+
+```javascript
+// @id my-awesome-plugin
+```
+
+ID는 스토리지 네임스페이스로 사용되므로 신중하게 선택하세요.
+
+## 전역 API (`dmn`)
+
+모든 플러그인은 `dmn` 전역 객체를 통해 앱 기능에 접근합니다:
+
+```javascript
+// 앱 데이터 조회
+const bootstrap = await dmn.app.bootstrap();
+
+// 설정 조회/변경
+const settings = await dmn.settings.get();
+await dmn.settings.update({ language: "en" });
+
+// 키 이벤트 구독
+const unsub = dmn.keys.onKeyState(({ key, state }) => {
+  console.log(`${key} is ${state}`);
+});
+
+// 플러그인 스토리지
+await dmn.plugin.storage.set("data", { value: 123 });
+const data = await dmn.plugin.storage.get("data");
+```
+
+## 다음 단계
+
+import { Cards, Card } from "nextra/components";
+
+<Cards>
+  <Card title="시작하기" href="/plugin/getting-started" />
+  <Card title="선언형 API" href="/plugin/declarative-api" />
+  <Card title="API 레퍼런스" href="/plugin/api-reference" />
+  <Card title="예제 모음" href="/plugin/examples" />
+</Cards>

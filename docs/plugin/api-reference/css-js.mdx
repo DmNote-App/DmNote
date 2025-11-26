@@ -1,0 +1,150 @@
+---
+title: CSS / JS
+description: 커스텀 CSS 및 JavaScript 설정 API
+---
+
+# CSS / JS
+
+## dmn.css
+
+커스텀 CSS 설정을 관리합니다.
+
+### get()
+
+현재 커스텀 CSS 설정을 조회합니다.
+
+```typescript
+interface CustomCss {
+  main: { enabled: boolean; code: string };
+  overlay: { enabled: boolean; code: string };
+}
+```
+
+```javascript
+const css = await dmn.css.get();
+console.log("메인 CSS 활성화:", css.main.enabled);
+console.log("오버레이 CSS:", css.overlay.code);
+```
+
+### update(partial)
+
+커스텀 CSS를 부분 업데이트합니다.
+
+```javascript
+// 메인 윈도우 CSS 변경
+await dmn.css.update({
+  main: {
+    enabled: true,
+    code: ".my-element { color: red; }",
+  },
+});
+
+// 오버레이 CSS 활성화만 토글
+await dmn.css.update({
+  overlay: { enabled: false },
+});
+```
+
+### onChanged(listener)
+
+CSS 설정 변경을 구독합니다.
+
+```javascript
+const unsub = dmn.css.onChanged((css) => {
+  console.log("CSS 변경:", css);
+});
+```
+
+## dmn.js
+
+커스텀 JavaScript(플러그인) 설정을 관리합니다.
+
+### get()
+
+현재 커스텀 JS 설정을 조회합니다.
+
+```typescript
+interface CustomJs {
+  main: { enabled: boolean; code: string };
+  overlay: { enabled: boolean; code: string };
+}
+```
+
+```javascript
+const js = await dmn.js.get();
+console.log("메인 JS:", js.main.code);
+```
+
+### update(partial)
+
+커스텀 JS를 부분 업데이트합니다.
+
+```javascript
+await dmn.js.update({
+  main: {
+    enabled: true,
+    code: `console.log("Hello from plugin!");`,
+  },
+});
+```
+
+### onChanged(listener)
+
+JS 설정 변경을 구독합니다.
+
+```javascript
+const unsub = dmn.js.onChanged((js) => {
+  console.log("JS 변경:", js);
+});
+```
+
+## 공통 패턴
+
+### CSS 토글 헬퍼
+
+```javascript
+async function toggleMainCss() {
+  const css = await dmn.css.get();
+  await dmn.css.update({
+    main: { enabled: !css.main.enabled },
+  });
+}
+```
+
+### 에디터 연동
+
+```javascript
+// 에디터에서 코드 변경 시 실시간 반영
+function onEditorChange(newCode) {
+  dmn.css.update({
+    overlay: { code: newCode },
+  });
+}
+```
+
+<Callout type="info">
+  커스텀 CSS/JS 변경은 앱 설정에 저장되며, 앱 재시작 시에도 유지됩니다.
+</Callout>
+
+## 스타일 주입 vs 커스텀 CSS
+
+| 방법                          | 용도                 | 지속성      |
+| ----------------------------- | -------------------- | ----------- |
+| `dmn.css.update()`            | 사용자 설정 CSS      | 영구 저장   |
+| `document.adoptedStyleSheets` | 플러그인 로컬 스타일 | 세션 동안만 |
+
+### 플러그인 로컬 스타일 주입
+
+```javascript
+// 플러그인 전용 스타일 (설정에 저장 안 됨)
+const style = new CSSStyleSheet();
+style.replaceSync(`
+  .my-plugin { background: #333; }
+`);
+document.adoptedStyleSheets.push(style);
+
+registerCleanup(() => {
+  const idx = document.adoptedStyleSheets.indexOf(style);
+  if (idx >= 0) document.adoptedStyleSheets.splice(idx, 1);
+});
+```

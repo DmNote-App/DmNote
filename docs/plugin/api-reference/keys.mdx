@@ -1,0 +1,260 @@
+---
+title: 키 (keys)
+description: 키 매핑, 이벤트, 커스텀 탭 API
+---
+
+# 키 (keys)
+
+## 키 매핑 조회/수정
+
+### get()
+
+모든 키 모드의 키 매핑을 조회합니다.
+
+```typescript
+type KeyMappings = Record<string, string[]>;
+// { "4key": ["KeyD", "KeyF", "KeyJ", "KeyK"], ... }
+```
+
+```javascript
+const mappings = await dmn.keys.get();
+console.log("4key 매핑:", mappings["4key"]);
+```
+
+### update(mappings)
+
+키 매핑을 업데이트합니다.
+
+```javascript
+const current = await dmn.keys.get();
+current["4key"] = ["KeyS", "KeyD", "KeyJ", "KeyK"];
+await dmn.keys.update(current);
+```
+
+### getPositions()
+
+모든 키 모드의 위치 정보를 조회합니다.
+
+```typescript
+interface KeyPosition {
+  dx: number;
+  dy: number;
+  width: number;
+  height: number;
+  activeImage?: string;
+  inactiveImage?: string;
+  activeTransparent?: boolean;
+  idleTransparent?: boolean;
+  count: number;
+  noteColor: string | { type: "gradient"; top: string; bottom: string };
+  noteOpacity: number;
+  className?: string;
+  counter: KeyCounterSettings;
+}
+```
+
+```javascript
+const positions = await dmn.keys.getPositions();
+console.log("4key 위치:", positions["4key"]);
+```
+
+### updatePositions(positions)
+
+키 위치 정보를 업데이트합니다.
+
+```javascript
+const current = await dmn.keys.getPositions();
+current["4key"][0].dx = 100;
+await dmn.keys.updatePositions(current);
+```
+
+## 모드 관리
+
+### setMode(mode)
+
+현재 활성 키 모드를 변경합니다.
+
+```javascript
+const result = await dmn.keys.setMode("8key");
+console.log("모드 변경 성공:", result.success);
+```
+
+### resetMode(mode)
+
+특정 키 모드를 기본값으로 초기화합니다.
+
+```javascript
+await dmn.keys.resetMode("4key");
+```
+
+### resetAll()
+
+모든 키, 위치, 커스텀 탭을 기본값으로 초기화합니다.
+
+```javascript
+const reset = await dmn.keys.resetAll();
+```
+
+## 카운터
+
+### resetCounters()
+
+모든 키의 누적 카운트를 초기화합니다.
+
+```javascript
+await dmn.keys.resetCounters();
+```
+
+### resetCountersMode(mode)
+
+특정 모드의 키 카운트만 초기화합니다.
+
+```javascript
+await dmn.keys.resetCountersMode("4key");
+```
+
+## 이벤트 구독
+
+### onKeyState(listener) ⭐
+
+실시간 키 입력 이벤트를 구독합니다.
+
+<Callout type="warning">오버레이 윈도우에서만 수신 가능합니다.</Callout>
+
+```typescript
+interface KeyStatePayload {
+  key: string; // 키 코드 (예: "KeyD")
+  state: string; // "DOWN" | "UP"
+  mode: string; // 현재 모드
+}
+```
+
+```javascript
+const unsub = dmn.keys.onKeyState(({ key, state, mode }) => {
+  console.log(`[${mode}] ${key} is ${state}`);
+});
+```
+
+### onRawInput(listener)
+
+로우 레벨 입력 이벤트를 구독합니다. 키보드, 마우스의 원시 입력을 감지합니다.
+
+```typescript
+interface RawInputPayload {
+  device: "keyboard" | "mouse" | "unknown";
+  label: string; // "KeyD", "MOUSE1", "MOUSE4" 등
+  labels: string[]; // 모든 레이블 목록
+  state: string; // "DOWN" | "UP"
+}
+```
+
+```javascript
+const unsub = dmn.keys.onRawInput(({ device, label, state }) => {
+  console.log(`[${device}] ${label} ${state}`);
+});
+```
+
+<Callout type="info">
+  구독자가 없으면 백엔드에서 이벤트를 emit하지 않아 성능 오버헤드가 없습니다.
+</Callout>
+
+### onChanged(listener)
+
+키 매핑 변경 이벤트를 구독합니다.
+
+```javascript
+const unsub = dmn.keys.onChanged((mappings) => {
+  console.log("키 매핑 변경:", mappings);
+});
+```
+
+### onPositionsChanged(listener)
+
+키 위치 변경 이벤트를 구독합니다.
+
+```javascript
+const unsub = dmn.keys.onPositionsChanged((positions) => {
+  console.log("키 위치 변경:", positions);
+});
+```
+
+### onModeChanged(listener)
+
+키 모드 변경 이벤트를 구독합니다.
+
+```javascript
+const unsub = dmn.keys.onModeChanged(({ mode }) => {
+  console.log("모드 변경:", mode);
+});
+```
+
+### onCounterChanged(listener)
+
+개별 키 카운트 변경 이벤트를 구독합니다.
+
+```javascript
+const unsub = dmn.keys.onCounterChanged(({ mode, key, count }) => {
+  console.log(`[${mode}] ${key}: ${count}`);
+});
+```
+
+### onCountersChanged(listener)
+
+전체 키 카운터 변경 이벤트를 구독합니다.
+
+```javascript
+const unsub = dmn.keys.onCountersChanged((counters) => {
+  console.log("카운터:", counters);
+});
+```
+
+## 커스텀 탭 (customTabs)
+
+### list()
+
+커스텀 탭 목록을 조회합니다.
+
+```javascript
+const tabs = await dmn.keys.customTabs.list();
+```
+
+### create(name)
+
+새 커스텀 탭을 생성합니다.
+
+```javascript
+const result = await dmn.keys.customTabs.create("My Keys");
+if (result.error) {
+  console.error(result.error); // "invalid-name", "duplicate-name", "max-reached"
+} else {
+  console.log("생성됨:", result.result);
+}
+```
+
+### delete(id)
+
+커스텀 탭을 삭제합니다.
+
+```javascript
+const result = await dmn.keys.customTabs.delete("custom-123");
+```
+
+### select(id)
+
+커스텀 탭을 선택합니다.
+
+```javascript
+await dmn.keys.customTabs.select("custom-123");
+```
+
+### onChanged(listener)
+
+커스텀 탭 변경 이벤트를 구독합니다.
+
+```javascript
+const unsub = dmn.keys.customTabs.onChanged(
+  ({ customTabs, selectedKeyType }) => {
+    console.log("선택된 탭:", selectedKeyType);
+  }
+);
+```

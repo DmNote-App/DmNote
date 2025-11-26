@@ -1,0 +1,135 @@
+---
+title: 프리셋 (presets)
+description: 설정 프리셋 저장 및 로드 API
+---
+
+# 프리셋 (presets)
+
+프리셋 API를 사용하여 현재 앱 설정을 저장하고 불러올 수 있습니다.
+
+## 프리셋 관리
+
+### list()
+
+저장된 프리셋 목록을 조회합니다.
+
+```typescript
+interface Preset {
+  id: string;
+  name: string;
+  createdAt: number; // timestamp
+}
+```
+
+```javascript
+const presets = await dmn.presets.list();
+presets.forEach((p) => {
+  console.log(`${p.name} (${p.id})`);
+});
+```
+
+### save(name)
+
+현재 설정을 프리셋으로 저장합니다.
+
+```javascript
+const preset = await dmn.presets.save("My Setup");
+console.log("저장됨:", preset.id);
+```
+
+### load(id)
+
+프리셋을 불러옵니다.
+
+```javascript
+await dmn.presets.load("preset-abc123");
+```
+
+### delete(id)
+
+프리셋을 삭제합니다.
+
+```javascript
+await dmn.presets.delete("preset-abc123");
+```
+
+### rename(id, newName)
+
+프리셋 이름을 변경합니다.
+
+```javascript
+await dmn.presets.rename("preset-abc123", "New Name");
+```
+
+## 이벤트
+
+### onChanged(listener)
+
+프리셋 목록 변경을 구독합니다.
+
+```javascript
+const unsub = dmn.presets.onChanged((presets) => {
+  console.log("프리셋 변경:", presets);
+});
+```
+
+## 사용 예제
+
+### 프리셋 선택 UI
+
+```javascript
+const element = defineElement({
+  id: "preset-selector",
+  settings: {},
+  template: ({ presets, selected }) => html`
+    <select onchange=${(e) => this.loadPreset(e.target.value)}>
+      <option value="">프리셋 선택...</option>
+      ${presets.map(
+        (p) => html`
+          <option value=${p.id} selected=${selected === p.id}>${p.name}</option>
+        `
+      )}
+    </select>
+  `,
+  async onMount(ctx) {
+    ctx.state.presets = await dmn.presets.list();
+    ctx.state.selected = "";
+
+    ctx.registerCleanup(
+      dmn.presets.onChanged((list) => {
+        ctx.state.presets = list;
+      })
+    );
+  },
+  methods: {
+    async loadPreset(id) {
+      if (id) {
+        await dmn.presets.load(id);
+        this.state.selected = id;
+      }
+    },
+  },
+});
+```
+
+### 빠른 저장/로드 버튼
+
+```javascript
+async function quickSave() {
+  const name = `Auto-${Date.now()}`;
+  await dmn.presets.save(name);
+}
+
+async function loadLatest() {
+  const presets = await dmn.presets.list();
+  if (presets.length > 0) {
+    // 최신 프리셋 로드
+    const latest = presets.sort((a, b) => b.createdAt - a.createdAt)[0];
+    await dmn.presets.load(latest.id);
+  }
+}
+```
+
+<Callout type="info">
+  프리셋에는 키 매핑, 위치, 앱 설정이 모두 포함됩니다.
+</Callout>

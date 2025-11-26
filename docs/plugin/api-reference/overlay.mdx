@@ -1,0 +1,173 @@
+---
+title: 오버레이 (overlay)
+description: 오버레이 윈도우 제어 및 이벤트 API
+---
+
+# 오버레이 (overlay)
+
+<Callout type="info">
+  오버레이 관련 API는 **메인 윈도우에서만** 호출할 수 있습니다. 오버레이에서
+  직접 리사이즈/이동은 dmn.window.type으로 체크 후 처리하세요.
+</Callout>
+
+## 상태 조회
+
+### get()
+
+오버레이의 현재 상태를 조회합니다.
+
+```typescript
+interface OverlayState {
+  visible: boolean;
+  lock: boolean;
+  anchor: "left" | "center" | "right";
+  width: number;
+  height: number;
+  scaleFactor: number;
+}
+```
+
+```javascript
+const state = await dmn.overlay.get();
+console.log("오버레이 상태:", state);
+```
+
+## 상태 제어
+
+### setVisible(visible)
+
+오버레이 표시/숨김을 제어합니다.
+
+```javascript
+await dmn.overlay.setVisible(true); // 표시
+await dmn.overlay.setVisible(false); // 숨김
+```
+
+### setLock(locked)
+
+오버레이 잠금/해제를 제어합니다.
+
+```javascript
+await dmn.overlay.setLock(true); // 잠금 (이동 불가)
+await dmn.overlay.setLock(false); // 해제 (이동 가능)
+```
+
+### setAnchor(anchor)
+
+오버레이의 앵커(기준점)를 설정합니다.
+
+```javascript
+await dmn.overlay.setAnchor("left"); // 왼쪽 기준
+await dmn.overlay.setAnchor("center"); // 중앙 기준
+await dmn.overlay.setAnchor("right"); // 오른쪽 기준
+```
+
+### resize({ width, height })
+
+오버레이 크기를 변경합니다.
+
+```javascript
+await dmn.overlay.resize({ width: 400, height: 300 });
+```
+
+### resetPosition()
+
+오버레이 위치를 초기 상태로 리셋합니다.
+
+```javascript
+await dmn.overlay.resetPosition();
+```
+
+## 이벤트 구독
+
+### onVisibleChanged(listener)
+
+오버레이 표시 상태 변경을 구독합니다.
+
+```javascript
+const unsub = dmn.overlay.onVisibleChanged((visible) => {
+  console.log("오버레이 표시:", visible);
+});
+```
+
+### onLockChanged(listener)
+
+오버레이 잠금 상태 변경을 구독합니다.
+
+```javascript
+const unsub = dmn.overlay.onLockChanged((locked) => {
+  console.log("오버레이 잠금:", locked);
+});
+```
+
+### onAnchorChanged(listener)
+
+오버레이 앵커 변경을 구독합니다.
+
+```javascript
+const unsub = dmn.overlay.onAnchorChanged((anchor) => {
+  console.log("앵커 변경:", anchor);
+});
+```
+
+### onSizeChanged(listener)
+
+오버레이 크기 변경을 구독합니다.
+
+```javascript
+const unsub = dmn.overlay.onSizeChanged(({ width, height }) => {
+  console.log("크기 변경:", width, height);
+});
+```
+
+## 사용 예제
+
+### 토글 버튼 구현
+
+```javascript
+async function toggleOverlay() {
+  const state = await dmn.overlay.get();
+  await dmn.overlay.setVisible(!state.visible);
+}
+```
+
+### 상태 동기화 패널
+
+```javascript
+const element = defineElement({
+  id: "overlay-status",
+  settings: {},
+  template: ({ visible, locked, anchor }) => html`
+    <div class="status-panel">
+      <span>표시: ${visible ? "✓" : "✗"}</span>
+      <span>잠금: ${locked ? "🔒" : "🔓"}</span>
+      <span>앵커: ${anchor}</span>
+    </div>
+  `,
+  onMount(ctx) {
+    // 초기 상태 로드
+    dmn.overlay.get().then((state) => {
+      ctx.state.visible = state.visible;
+      ctx.state.locked = state.lock;
+      ctx.state.anchor = state.anchor;
+    });
+
+    // 실시간 구독
+    ctx.registerCleanup(
+      dmn.overlay.onVisibleChanged((v) => {
+        ctx.state.visible = v;
+      })
+    );
+    ctx.registerCleanup(
+      dmn.overlay.onLockChanged((l) => {
+        ctx.state.locked = l;
+      })
+    );
+    ctx.registerCleanup(
+      dmn.overlay.onAnchorChanged((a) => {
+        ctx.state.anchor = a;
+      })
+    );
+  },
+});
+```

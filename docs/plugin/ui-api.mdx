@@ -1,0 +1,449 @@
+---
+title: UI API
+description: 컨텍스트 메뉴, Display Element, Dialog, Components API
+---
+
+# UI API
+
+`dmn.ui`를 통해 앱의 UI를 확장할 수 있습니다.
+
+<Callout type="warning">
+  UI API는 **메인 윈도우에서만** 사용 가능합니다. 오버레이에서 호출하면 경고만
+  표시되고 동작하지 않습니다.
+</Callout>
+
+## 컨텍스트 메뉴
+
+### 키 메뉴 (addKeyMenuItem)
+
+키를 우클릭할 때 표시되는 메뉴에 항목을 추가합니다.
+
+```javascript
+const menuId = dmn.ui.contextMenu.addKeyMenuItem({
+  id: "copy-keycode",
+  label: "키 코드 복사",
+  onClick: (context) => {
+    navigator.clipboard.writeText(context.keyCode);
+  },
+});
+```
+
+**Context 객체:**
+
+| 속성       | 타입        | 설명                 |
+| ---------- | ----------- | -------------------- |
+| `keyCode`  | string      | 키 코드 (예: "KeyD") |
+| `index`    | number      | 키 인덱스            |
+| `position` | KeyPosition | 키 위치 정보         |
+| `mode`     | string      | 현재 키 모드         |
+
+### 그리드 메뉴 (addGridMenuItem)
+
+그리드 빈 공간을 우클릭할 때 표시되는 메뉴에 항목을 추가합니다.
+
+```javascript
+dmn.ui.contextMenu.addGridMenuItem({
+  id: "add-timer",
+  label: "타이머 추가",
+  onClick: (context) => {
+    createTimer(context.position);
+  },
+});
+```
+
+**Context 객체:**
+
+| 속성       | 타입       | 설명                    |
+| ---------- | ---------- | ----------------------- |
+| `position` | { dx, dy } | 클릭 위치 (그리드 좌표) |
+| `mode`     | string     | 현재 키 모드            |
+
+### 메뉴 항목 옵션
+
+```javascript
+{
+  id: "my-menu",           // 플러그인 내 고유 ID
+  label: "메뉴 항목",       // 표시 텍스트
+  position: "bottom",      // "top" | "bottom" (기본: bottom)
+
+  // 조건부 표시
+  visible: (context) => context.mode === "4key",
+
+  // 조건부 비활성화
+  disabled: (context) => context.position.count === 0,
+
+  // 클릭 핸들러
+  onClick: async (context) => {
+    // ...
+  },
+}
+```
+
+### 메뉴 관리
+
+```javascript
+// 메뉴 업데이트
+dmn.ui.contextMenu.updateMenuItem(menuId, {
+  label: "새로운 라벨",
+  disabled: true,
+});
+
+// 특정 메뉴 제거
+dmn.ui.contextMenu.removeMenuItem(menuId);
+
+// 이 플러그인의 모든 메뉴 제거
+dmn.ui.contextMenu.clearMyMenuItems();
+```
+
+## Display Element
+
+그리드와 오버레이에 커스텀 UI 요소를 추가합니다.
+
+### 기본 사용법
+
+```javascript
+const panel = dmn.ui.displayElement.add({
+  html: `<div style="background: #000; color: #fff; padding: 16px;">
+    Hello!
+  </div>`,
+  position: { x: 100, y: 100 },
+  draggable: true,
+});
+
+// 제거
+panel.remove();
+```
+
+### 상태 기반 템플릿
+
+```javascript
+const panel = dmn.ui.displayElement.add({
+  position: { x: 100, y: 100 },
+  state: { value: 0, history: [] },
+  template: (state, { html }) => html`
+    <div style="background: #000; color: #fff; padding: 16px;">
+      <strong>${state.value}</strong>
+      <div style="display: flex; gap: 2px;">
+        ${state.history.map(
+          (v) => html`
+            <span
+              style="width: 4px; height: ${v}px; background: #86EFAC;"
+            ></span>
+          `
+        )}
+      </div>
+    </div>
+  `,
+});
+
+// 상태 업데이트 → 자동 리렌더링
+panel.setState({ value: 42, history: [10, 20, 30] });
+```
+
+### 이벤트 핸들러
+
+```javascript
+dmn.ui.displayElement.add({
+  html: `<div>클릭하세요</div>`,
+  position: { x: 100, y: 100 },
+
+  // 함수 직접 전달 (권장)
+  onClick: async () => {
+    console.log("클릭됨!");
+  },
+
+  onPositionChange: async (pos) => {
+    await dmn.plugin.storage.set("position", pos);
+  },
+
+  onDelete: async () => {
+    console.log("삭제됨!");
+  },
+});
+```
+
+### 인스턴스 메서드
+
+| 메서드                              | 설명                            |
+| ----------------------------------- | ------------------------------- |
+| `setState(updates)`                 | 상태 업데이트 (템플릿 리렌더링) |
+| `getState()`                        | 현재 상태 조회                  |
+| `setText(selector, text)`           | 요소 텍스트 설정                |
+| `setHTML(selector, html)`           | 요소 HTML 설정                  |
+| `setStyle(selector, styles)`        | 스타일 적용                     |
+| `addClass(selector, ...classes)`    | 클래스 추가                     |
+| `removeClass(selector, ...classes)` | 클래스 제거                     |
+| `toggleClass(selector, className)`  | 클래스 토글                     |
+| `query(selector)`                   | 요소 검색 (Shadow DOM 포함)     |
+| `update(config)`                    | 메타데이터 업데이트             |
+| `remove()`                          | 요소 제거                       |
+
+### 앵커
+
+특정 키에 요소를 고정합니다:
+
+```javascript
+dmn.ui.displayElement.add({
+  html: `<div>→</div>`,
+  position: { x: 0, y: 0 },
+  anchor: {
+    keyCode: "KeyD",
+    offset: { x: 70, y: 0 },
+  },
+});
+```
+
+### Shadow DOM
+
+스타일을 격리하려면 `scoped: true`를 사용합니다:
+
+```javascript
+dmn.ui.displayElement.add({
+  html: `
+    <style>
+      :host { display: block; }
+      .widget { background: red; }
+    </style>
+    <div class="widget">격리된 스타일</div>
+  `,
+  position: { x: 100, y: 100 },
+  scoped: true,
+});
+```
+
+### 클린업
+
+```javascript
+dmn.plugin.registerCleanup(() => {
+  // 모든 Display Element 제거
+  dmn.ui.displayElement.clearMyElements();
+});
+```
+
+## Dialog
+
+사용자와 상호작용할 수 있는 모달 다이얼로그입니다.
+
+### alert
+
+간단한 알림을 표시합니다.
+
+```javascript
+await dmn.ui.dialog.alert("저장되었습니다!");
+
+await dmn.ui.dialog.alert("작업 완료", { confirmText: "OK" });
+```
+
+### confirm
+
+확인/취소 다이얼로그를 표시합니다.
+
+```javascript
+const ok = await dmn.ui.dialog.confirm("진행하시겠습니까?");
+if (ok) {
+  // 확인 클릭
+}
+
+// 위험한 작업
+const confirmed = await dmn.ui.dialog.confirm("모든 데이터가 삭제됩니다.", {
+  danger: true,
+  confirmText: "삭제",
+});
+```
+
+### custom
+
+커스텀 HTML 다이얼로그를 표시합니다. Components API와 함께 사용합니다.
+
+```javascript
+const formHtml = `
+  <div class="flex flex-col gap-[12px]">
+    ${dmn.ui.components.formRow(
+      "이름",
+      dmn.ui.components.input({ id: "name" })
+    )}
+    ${dmn.ui.components.formRow(
+      "테마",
+      dmn.ui.components.dropdown({
+        id: "theme",
+        options: [
+          { label: "다크", value: "dark" },
+          { label: "라이트", value: "light" },
+        ],
+      })
+    )}
+  </div>
+`;
+
+const confirmed = await dmn.ui.dialog.custom(formHtml, {
+  title: "설정",
+  confirmText: "저장",
+  showCancel: true,
+});
+
+if (confirmed) {
+  const name = document.getElementById("name").value;
+  const theme = document.getElementById("theme").value;
+}
+```
+
+## Components
+
+Dialog 내부에서 사용할 수 있는 UI 컴포넌트입니다.
+모든 컴포넌트는 HTML 문자열을 반환합니다.
+
+### button
+
+```javascript
+dmn.ui.components.button("저장", {
+  variant: "primary", // "primary" | "danger" | "secondary"
+  onClick: () => console.log("클릭"),
+});
+```
+
+### checkbox
+
+```javascript
+dmn.ui.components.checkbox({
+  checked: true,
+  id: "enabled",
+  onChange: (checked) => console.log("상태:", checked),
+});
+```
+
+### input
+
+```javascript
+dmn.ui.components.input({
+  type: "number",
+  value: 50,
+  min: 0,
+  max: 100,
+  width: 100,
+  id: "volume",
+  onChange: (value) => console.log("값:", value),
+});
+```
+
+### dropdown
+
+```javascript
+dmn.ui.components.dropdown({
+  options: [
+    { label: "다크", value: "dark" },
+    { label: "라이트", value: "light" },
+  ],
+  selected: "dark",
+  id: "theme",
+  onChange: (value) => console.log("선택:", value),
+});
+```
+
+### formRow
+
+라벨과 컴포넌트를 수평으로 배치합니다.
+
+```javascript
+dmn.ui.components.formRow("볼륨", volumeInput);
+```
+
+### panel
+
+컨텐츠를 감싸는 패널 컨테이너입니다.
+
+<Callout type="info">
+  `panel`은 Display Element 전용입니다. Dialog 내부에서는 사용하지 마세요.
+</Callout>
+
+```javascript
+const panelHtml = dmn.ui.components.panel(formHtml, {
+  title: "설정",
+  width: 400,
+});
+
+dmn.ui.displayElement.add({
+  html: panelHtml,
+  position: { x: 100, y: 100 },
+});
+```
+
+## 실전 예제: 설정 패널
+
+```javascript
+// @id settings-panel
+
+if (dmn.window.type !== "main") return;
+
+let settings = {
+  enabled: true,
+  theme: "dark",
+  volume: 50,
+};
+
+async function showSettings() {
+  const tempSettings = { ...settings };
+
+  const formHtml = `
+    <div class="flex flex-col gap-[12px]">
+      ${dmn.ui.components.formRow(
+        "활성화",
+        dmn.ui.components.checkbox({
+          checked: settings.enabled,
+          onChange: (v) => (tempSettings.enabled = v),
+        })
+      )}
+      ${dmn.ui.components.formRow(
+        "테마",
+        dmn.ui.components.dropdown({
+          options: [
+            { label: "다크", value: "dark" },
+            { label: "라이트", value: "light" },
+          ],
+          selected: settings.theme,
+          onChange: (v) => (tempSettings.theme = v),
+        })
+      )}
+      ${dmn.ui.components.formRow(
+        "볼륨",
+        dmn.ui.components.input({
+          type: "number",
+          value: settings.volume,
+          min: 0,
+          max: 100,
+          width: 60,
+          onChange: (v) => (tempSettings.volume = parseInt(v)),
+        })
+      )}
+    </div>
+  `;
+
+  const confirmed = await dmn.ui.dialog.custom(formHtml, {
+    title: "설정",
+    confirmText: "저장",
+    showCancel: true,
+  });
+
+  if (confirmed) {
+    settings = tempSettings;
+    await dmn.plugin.storage.set("settings", settings);
+    await dmn.ui.dialog.alert("저장되었습니다!");
+  }
+}
+
+// 그리드 메뉴에 설정 추가
+dmn.ui.contextMenu.addGridMenuItem({
+  id: "open-settings",
+  label: "설정",
+  onClick: showSettings,
+});
+
+// 초기화
+(async () => {
+  const saved = await dmn.plugin.storage.get("settings");
+  if (saved) settings = saved;
+})();
+
+dmn.plugin.registerCleanup(() => {
+  dmn.ui.contextMenu.clearMyMenuItems();
+});
+```

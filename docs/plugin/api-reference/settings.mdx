@@ -1,0 +1,126 @@
+---
+title: 설정 (settings)
+description: 앱 설정 조회, 변경, 구독 API
+---
+
+# 설정 (settings)
+
+## 조회 및 수정
+
+### get()
+
+전체 앱 설정을 조회합니다.
+
+```typescript
+interface NoteSettings {
+  general: GeneralSettings;
+  display: DisplaySettings;
+  animation: AnimationSettings;
+  note: NoteSettings;
+  effects: EffectSettings;
+  appearance: AppearanceSettings;
+}
+```
+
+```javascript
+const settings = await dmn.settings.get();
+console.log("현재 모드:", settings.general.defaultKeyMode);
+```
+
+<Callout type="info">
+  타입 정의의 상세 내용은 앱 소스의 `types/noteSettings.ts`를 참조하세요.
+</Callout>
+
+### update(partial)
+
+설정을 부분 업데이트합니다.
+
+```javascript
+// 단일 값 변경
+await dmn.settings.update({
+  general: { defaultKeyMode: "8key" },
+});
+
+// 여러 값 동시 변경
+await dmn.settings.update({
+  display: { showFps: true },
+  note: { tailEnabled: false },
+});
+```
+
+<Callout type="warning">
+  `update()`는 전달된 키만 업데이트합니다. 중첩 객체도 부분 병합됩니다.
+</Callout>
+
+### reset()
+
+모든 설정을 기본값으로 초기화합니다.
+
+```javascript
+await dmn.settings.reset();
+```
+
+## 이벤트 구독
+
+### onChanged(listener)
+
+설정 변경 이벤트를 구독합니다.
+
+```javascript
+const unsub = dmn.settings.onChanged((settings) => {
+  console.log("설정 변경됨:", settings);
+});
+
+// 구독 해제
+unsub();
+```
+
+## 일반적인 패턴
+
+### 특정 설정 값 감시
+
+```javascript
+// 리액티브하게 특정 설정 추적
+function watchSetting(path, callback) {
+  let prev;
+  return dmn.settings.onChanged((settings) => {
+    const current = path.split(".").reduce((o, k) => o?.[k], settings);
+    if (current !== prev) {
+      prev = current;
+      callback(current);
+    }
+  });
+}
+
+const unsub = watchSetting("general.defaultKeyMode", (mode) => {
+  console.log("모드 변경:", mode);
+});
+```
+
+### 토글 헬퍼
+
+```javascript
+async function toggleSetting(category, key) {
+  const settings = await dmn.settings.get();
+  const current = settings[category]?.[key];
+  if (typeof current === "boolean") {
+    await dmn.settings.update({
+      [category]: { [key]: !current },
+    });
+  }
+}
+
+// 사용
+await toggleSetting("display", "showFps");
+```
+
+## 주요 설정 카테고리
+
+| 카테고리     | 설명                          |
+| ------------ | ----------------------------- |
+| `general`    | 언어, 기본 키 모드, 시작 옵션 |
+| `display`    | FPS 표시, 디버그 정보         |
+| `animation`  | 노트 애니메이션 설정          |
+| `note`       | 노트 길이, 테일, 이징         |
+| `effects`    | 시각 효과 옵션                |
+| `appearance` | 테마, 색상                    |

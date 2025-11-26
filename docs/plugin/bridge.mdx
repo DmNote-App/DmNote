@@ -1,0 +1,284 @@
+---
+title: 윈도우 간 통신
+description: Bridge API를 사용한 메인-오버레이 간 통신
+---
+
+# 윈도우 간 통신 (Bridge)
+
+`dmn.bridge`를 사용하면 메인 윈도우와 오버레이 윈도우 간에 메시지를 주고받을 수 있습니다.
+
+## 주요 용도
+
+- 🪟 **윈도우 간 통신**: 메인 ↔ 오버레이 간 데이터 전송
+- 🔌 **플러그인 간 통신**: 같은 또는 다른 윈도우의 플러그인끼리 데이터 공유
+- 📡 **브로드캐스트**: 모든 윈도우의 모든 플러그인에게 메시지 전송
+
+## API 레퍼런스
+
+### send(type, data)
+
+모든 윈도우에 메시지를 브로드캐스트합니다.
+
+```javascript
+await dmn.bridge.send("WPM_UPDATE", { value: 80, max: 200 });
+```
+
+### sendTo(target, type, data)
+
+특정 윈도우에만 메시지를 전송합니다.
+
+```javascript
+// 오버레이에만 전송
+await dmn.bridge.sendTo("overlay", "THEME_CHANGED", { theme: "dark" });
+
+// 메인에만 전송
+await dmn.bridge.sendTo("main", "KEY_PRESSED", { key: "KeyD" });
+```
+
+### on(type, listener)
+
+특정 타입의 메시지를 구독합니다.
+
+```javascript
+const unsub = dmn.bridge.on("WPM_UPDATE", (data) => {
+  console.log("WPM:", data.value);
+});
+
+// 구독 해제
+unsub();
+```
+
+### once(type, listener)
+
+특정 타입의 메시지를 1회만 수신합니다.
+
+```javascript
+dmn.bridge.once("INIT_COMPLETE", (data) => {
+  console.log("초기화 완료:", data);
+});
+```
+
+### onAny(listener)
+
+모든 타입의 메시지를 수신합니다. 디버깅에 유용합니다.
+
+```javascript
+const unsub = dmn.bridge.onAny((type, data) => {
+  console.log(`[Bridge] ${type}:`, data);
+});
+```
+
+### off(type, listener?)
+
+메시지 구독을 해제합니다.
+
+```javascript
+// 특정 리스너 해제
+dmn.bridge.off("WPM_UPDATE", myListener);
+
+// 해당 타입의 모든 리스너 해제
+dmn.bridge.off("WPM_UPDATE");
+```
+
+## 사용 패턴
+
+### 단방향 이벤트 전송
+
+```javascript
+// 오버레이에서 전송
+await dmn.bridge.send("KEY_PRESSED", { key: "KeyD" });
+
+// 메인에서 수신
+dmn.bridge.on("KEY_PRESSED", ({ key }) => {
+  console.log(`${key} pressed`);
+});
+```
+
+### 실시간 데이터 동기화
+
+```javascript
+// === 오버레이: KPS 계산 후 전송 ===
+// @id kps-sender
+
+if (dmn.window.type !== "overlay") return;
+
+let count = 0;
+
+dmn.keys.onKeyState(({ state }) => {
+  if (state === "DOWN") count++;
+});
+
+setInterval(() => {
+  dmn.bridge.sendTo("main", "KPS_UPDATE", { kps: count });
+  count = 0;
+}, 100);
+```
+
+```javascript
+// === 메인: KPS 표시 ===
+// @id kps-display
+
+if (dmn.window.type !== "main") return;
+
+const display = document.createElement("div");
+display.textContent = "KPS: 0";
+document.body.appendChild(display);
+
+dmn.bridge.on("KPS_UPDATE", ({ kps }) => {
+  display.textContent = `KPS: ${kps}`;
+});
+
+dmn.plugin.registerCleanup(() => {
+  display.remove();
+});
+```
+
+### 요청-응답 패턴
+
+```javascript
+// === 메인: 데이터 요청 ===
+dmn.bridge.send("REQUEST_STATS", { type: "current" });
+
+dmn.bridge.once("RESPONSE_STATS", (stats) => {
+  console.log("통계:", stats);
+});
+```
+
+```javascript
+// === 오버레이: 요청 처리 및 응답 ===
+dmn.bridge.on("REQUEST_STATS", ({ type }) => {
+  const stats = {
+    kps: currentKPS,
+    totalKeys: totalKeyCount,
+    uptime: Date.now() - startTime,
+  };
+
+  dmn.bridge.sendTo("main", "RESPONSE_STATS", stats);
+});
+```
+
+### 플러그인 간 데이터 공유
+
+```javascript
+// === 데이터 제공자 (data-provider.js) ===
+// @id data-provider
+
+const sharedData = { score: 0, level: 1 };
+
+function updateData(score, level) {
+  sharedData.score = score;
+  sharedData.level = level;
+  dmn.bridge.send("SHARED_DATA_UPDATE", sharedData);
+}
+
+// 예시: 1초마다 점수 증가
+setInterval(() => {
+  updateData(sharedData.score + 10, sharedData.level);
+}, 1000);
+```
+
+```javascript
+// === 데이터 소비자 A (consumer-a.js) ===
+// @id consumer-a
+
+dmn.bridge.on("SHARED_DATA_UPDATE", (data) => {
+  console.log("[Consumer A] 데이터:", data);
+  updateUI(data.score);
+});
+```
+
+```javascript
+// === 데이터 소비자 B (consumer-b.js) ===
+// @id consumer-b
+
+// 같은 메시지를 여러 플러그인이 동시에 받을 수 있음
+dmn.bridge.on("SHARED_DATA_UPDATE", (data) => {
+  console.log("[Consumer B] 데이터:", data);
+  displayLevel(data.level);
+});
+```
+
+## Display Element와 Bridge 연동
+
+```javascript
+// @id bridge-panel
+
+if (dmn.window.type !== "main") return;
+
+const panel = dmn.ui.displayElement.add({
+  position: { x: 100, y: 100 },
+  state: { kps: 0, history: [] },
+  template: (state, { html }) => html`
+    <div
+      style="
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 16px;
+      border-radius: 8px;
+    "
+    >
+      <div style="font-size: 24px; font-weight: bold;">${state.kps} KPS</div>
+      <div
+        style="display: flex; gap: 2px; height: 30px; align-items: flex-end;"
+      >
+        ${state.history.map(
+          (v) => html`
+            <div
+              style="
+            flex: 1;
+            height: ${v}%;
+            background: #86EFAC;
+            border-radius: 2px;
+          "
+            ></div>
+          `
+        )}
+      </div>
+    </div>
+  `,
+});
+
+const unsub = dmn.bridge.on("KPS_UPDATE", ({ kps, max }) => {
+  const snapshot = panel.getState();
+  const history = [...snapshot.history, max ? (kps / max) * 100 : 0].slice(-20);
+  panel.setState({ kps, history });
+});
+
+dmn.plugin.registerCleanup(() => {
+  unsub();
+  panel.remove();
+});
+```
+
+## 메시지 타입 네이밍 권장사항
+
+일관성 있는 메시지 타입 이름을 사용하세요:
+
+```javascript
+// 좋은 예: SCREAMING_SNAKE_CASE
+"KPS_UPDATE";
+"RECORDING_START";
+"RECORDING_STOP";
+"SETTINGS_CHANGED";
+"PANEL_CREATED";
+
+// 나쁜 예
+"kpsUpdate";
+"recording-start";
+"SettingsChanged";
+```
+
+## 주의사항
+
+- Bridge 메시지는 **직렬화 가능한 데이터**만 전송할 수 있습니다.
+- 함수, DOM 요소, 순환 참조가 있는 객체는 전송할 수 없습니다.
+- 대용량 데이터 전송은 성능에 영향을 줄 수 있으므로 주의하세요.
+- 구독은 반드시 클린업 시 해제하세요.
+
+```javascript
+dmn.plugin.registerCleanup(() => {
+  // 구독 해제
+  unsub1();
+  unsub2();
+});
+```

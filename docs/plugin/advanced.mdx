@@ -1,0 +1,236 @@
+---
+title: 고급 가이드
+description: 레거시 API, 디버깅, 보안 및 고급 패턴
+---
+
+# 고급 가이드
+
+## 레거시 스타일 플러그인
+
+`defineElement`가 권장되지만, 직접 DOM을 조작하는 방식도 여전히 지원됩니다.
+
+### 직접 DOM 조작
+
+```javascript
+// 루트 요소 가져오기
+const root = dmn.plugin.root;
+
+// 요소 생성 및 추가
+const panel = document.createElement("div");
+panel.className = "my-panel";
+panel.innerHTML = `<h1>Hello</h1>`;
+root.appendChild(panel);
+
+// 클린업 등록
+registerCleanup(() => {
+  panel.remove();
+});
+```
+
+<Callout type="warning">
+  직접 DOM 조작 시 반드시 `registerCleanup`으로 요소를 정리해야 합니다.
+</Callout>
+
+### 스타일 시트 직접 주입
+
+```javascript
+const style = new CSSStyleSheet();
+style.replaceSync(`
+  .my-panel {
+    background: rgba(0, 0, 0, 0.8);
+    padding: 16px;
+    border-radius: 8px;
+  }
+`);
+document.adoptedStyleSheets.push(style);
+
+registerCleanup(() => {
+  const idx = document.adoptedStyleSheets.indexOf(style);
+  if (idx >= 0) document.adoptedStyleSheets.splice(idx, 1);
+});
+```
+
+## 이벤트 버스 활용
+
+키 입력에 반응하는 로우 레벨 이벤트 처리가 필요할 때:
+
+```javascript
+// onKeyState - 등록된 키만
+const unsub1 = dmn.keys.onKeyState(({ key, state }) => {
+  if (state === "DOWN") {
+    console.log(`Key ${key} pressed`);
+  }
+});
+
+// onRawInput - 모든 입력 (키보드 + 마우스)
+const unsub2 = dmn.keys.onRawInput(({ device, label, state }) => {
+  console.log(`[${device}] ${label} ${state}`);
+});
+
+registerCleanup(unsub1);
+registerCleanup(unsub2);
+```
+
+## 디버깅 팁
+
+### DevTools 열기
+
+```javascript
+// 모든 윈도우의 DevTools 열기
+dmn.window.openDevtoolsAll();
+```
+
+### 상태 검사
+
+```javascript
+// 플러그인 정보
+console.log("플러그인 ID:", dmn.plugin.id);
+console.log("윈도우 타입:", dmn.window.type);
+
+// 현재 설정
+dmn.settings.get().then((s) => console.log("설정:", s));
+
+// 키 매핑
+dmn.keys.get().then((k) => console.log("키:", k));
+```
+
+### 에러 추적
+
+```javascript
+// 전역 에러 핸들러
+window.addEventListener("error", (e) => {
+  console.error("Plugin error:", e.error);
+});
+
+window.addEventListener("unhandledrejection", (e) => {
+  console.error("Unhandled promise:", e.reason);
+});
+```
+
+## 보안 고려사항
+
+### 샌드박싱 없음
+
+플러그인은 앱과 동일한 권한으로 실행됩니다:
+
+- 모든 dmn.\* API에 접근 가능
+- DOM 전체에 접근 가능
+- 외부 네트워크 요청 가능
+
+<Callout type="error">
+  신뢰할 수 없는 코드를 실행하지 마세요. 플러그인 코드는 항상 직접 검토 후
+  사용하세요.
+</Callout>
+
+### 안전한 외부 요청
+
+```javascript
+// Tauri fetch를 사용한 CORS 우회
+const response = await fetch("https://api.example.com/data", {
+  headers: { "Content-Type": "application/json" },
+});
+const data = await response.json();
+```
+
+## 성능 최적화
+
+### 불필요한 렌더링 방지
+
+```javascript
+defineElement({
+  id: "optimized",
+  shouldRender(prevState, nextState) {
+    // 관련 상태만 비교
+    return prevState.count !== nextState.count;
+  },
+  template: ({ count }) => html`<span>${count}</span>`,
+});
+```
+
+### 배치 업데이트
+
+```javascript
+// 나쁜 예: 여러 번 렌더링
+ctx.state.a = 1;
+ctx.state.b = 2;
+ctx.state.c = 3;
+
+// 좋은 예: 한 번에 업데이트
+Object.assign(ctx.state, { a: 1, b: 2, c: 3 });
+```
+
+### 무거운 연산 분리
+
+```javascript
+onMount(ctx) {
+  // 무거운 초기화는 비동기로
+  setTimeout(async () => {
+    const data = await heavyComputation();
+    ctx.state.data = data;
+  }, 0);
+}
+```
+
+## 멀티 윈도우 패턴
+
+### 메인에서 오버레이 제어
+
+```javascript
+// 메인 윈도우에서
+if (dmn.window.type === "main") {
+  dmn.bridge.send("update-overlay", { value: 42 });
+}
+
+// 오버레이에서
+if (dmn.window.type === "overlay") {
+  dmn.bridge.on("update-overlay", ({ value }) => {
+    ctx.state.value = value;
+  });
+}
+```
+
+### 양방향 동기화
+
+```javascript
+const SYNC_KEY = "shared-state";
+
+// 상태 변경 시 브로드캐스트
+function updateShared(newState) {
+  dmn.bridge.send(SYNC_KEY, newState);
+  // 로컬도 업데이트
+  localState = newState;
+}
+
+// 수신 시 로컬 업데이트
+dmn.bridge.on(SYNC_KEY, (state) => {
+  localState = state;
+  render();
+});
+```
+
+## 알려진 제한사항
+
+| 제한            | 설명                         |
+| --------------- | ---------------------------- |
+| Web Workers     | 현재 미지원                  |
+| ES Modules      | 동적 import 제한적 지원      |
+| LocalStorage    | dmn.plugin.storage 사용 권장 |
+| 외부 라이브러리 | CDN에서 직접 로드 필요       |
+
+### 외부 라이브러리 로드
+
+```javascript
+async function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+// 사용
+await loadScript("https://unpkg.com/lodash@4.17.21/lodash.min.js");
+const result = _.chunk([1, 2, 3, 4], 2);
+```

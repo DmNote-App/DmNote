@@ -1,0 +1,267 @@
+---
+title: 템플릿 문법
+description: htm 라이브러리 기반 템플릿 작성 가이드
+---
+
+# 템플릿 문법 (htm)
+
+DM Note는 **htm** 라이브러리를 사용하여 템플릿을 React Element로 변환합니다.
+표준 HTML 문법에 가까운 직관적인 작성이 가능합니다.
+
+## 기본 문법
+
+### 값 보간
+
+```javascript
+template: (state, settings, { html }) => html`
+  <div>현재 값: ${state.value}</div>
+  <div style="color: ${settings.color};">색상 텍스트</div>
+`;
+```
+
+<Callout type="warning">
+  함수 보간은 지원되지 않습니다. ```javascript // ❌ 잘못된 방법 html`
+  <div>${(state) => state.value}</div>` // ✅ 올바른 방법 html`
+  <div>${state.value}</div>` ```
+</Callout>
+
+### 스타일 속성
+
+```javascript
+// ✅ 권장: 문자열로 직접 작성
+html`<div style="color: ${color}; font-size: ${size}px;">텍스트</div>`;
+
+// ⚠️ 동작하지만 권장하지 않음
+html`<div style=${`color: ${color};`}>텍스트</div>`;
+
+// ❌ 지원 안 됨: 스타일 객체
+html`<div style=${{ color: "red" }}>텍스트</div>`;
+```
+
+### 조건부 렌더링
+
+```javascript
+// 삼항 연산자
+html`
+  <div>${isVisible ? html`<span>보임</span>` : html`<span>숨김</span>`}</div>
+`;
+
+// && 연산자 (true일 때만 렌더링)
+html` <div>${showGraph ? html`<div class="graph">그래프</div>` : ""}</div> `;
+```
+
+<Callout type="info">
+  조건부 렌더링에서 `false` 대신 빈 문자열(`""`)을 반환하세요.
+</Callout>
+
+### 배열 렌더링
+
+```javascript
+// map으로 React Element 배열 반환
+html`
+  <div class="list">
+    ${items.map((item) => html` <div class="item">${item.name}</div> `)}
+  </div>
+`;
+
+// 인덱스 활용
+html`
+  <div>
+    ${data.map((value, index) => html` <span key=${index}>${value}</span> `)}
+  </div>
+`;
+```
+
+### 클래스 이름
+
+```javascript
+// 문자열로 직접 지정
+html`<div class="btn ${isActive ? "active" : ""}">버튼</div>`;
+
+// className도 동일하게 동작 (React 호환)
+html`<div className="btn">버튼</div>`;
+```
+
+## 중첩 템플릿
+
+`html` 태그 안에서 다시 `html` 태그를 사용할 때는 꼭 명시해야 합니다:
+
+```javascript
+html`
+  <div class="container">
+    ${items.map(
+      (item) => html`
+        <div class="card">
+          ${item.highlighted
+            ? html`<strong>${item.name}</strong>`
+            : html`<span>${item.name}</span>`}
+        </div>
+      `
+    )}
+  </div>
+`;
+```
+
+## 스타일 정의
+
+### 인라인 스타일
+
+```javascript
+template: (state, settings, { html }) => html`
+  <div
+    style="
+    background: rgba(0, 0, 0, 0.8);
+    color: ${settings.textColor};
+    padding: 16px;
+    border-radius: 8px;
+  "
+  >
+    ${state.value}
+  </div>
+`;
+```
+
+### `<style>` 태그
+
+```javascript
+template: (state, settings, { html }) => html`
+  <style>
+    .panel {
+      background: rgba(0, 0, 0, 0.8);
+      padding: 16px;
+      border-radius: 8px;
+    }
+    .panel__value {
+      font-size: 24px;
+      font-weight: bold;
+      color: ${settings.textColor};
+    }
+    .panel__label {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+  </style>
+
+  <div class="panel">
+    <div class="panel__value">${state.value}</div>
+    <div class="panel__label">KPS</div>
+  </div>
+`;
+```
+
+## 실전 예제
+
+### 통계 패널
+
+```javascript
+template: (state, settings, { html }) => html`
+  <style>
+    .stats-panel {
+      background: ${settings.bgColor};
+      padding: 16px;
+      border-radius: 12px;
+      color: white;
+      font-family: system-ui, sans-serif;
+    }
+    .stats-panel__header {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      opacity: 0.7;
+    }
+    .stats-panel__value {
+      font-size: 48px;
+      font-weight: bold;
+      line-height: 1;
+      margin: 8px 0;
+    }
+    .stats-panel__graph {
+      display: flex;
+      gap: 2px;
+      height: 40px;
+      align-items: flex-end;
+    }
+    .stats-panel__bar {
+      flex: 1;
+      background: ${settings.barColor};
+      border-radius: 2px 2px 0 0;
+      transition: height 0.1s ease;
+    }
+  </style>
+
+  <div class="stats-panel">
+    <div class="stats-panel__header">Live KPS</div>
+    <div class="stats-panel__value">${state.kps?.toFixed(1) ?? "0.0"}</div>
+
+    ${settings.showGraph
+      ? html`
+          <div class="stats-panel__graph">
+            ${(state.history ?? []).map((value) => {
+              const max = state.max || 1;
+              const height = Math.round((value / max) * 100);
+              return html`
+                <div
+                  class="stats-panel__bar"
+                  style="height: ${height}%; opacity: ${height > 80 ? 1 : 0.5};"
+                ></div>
+              `;
+            })}
+          </div>
+        `
+      : ""}
+  </div>
+`;
+```
+
+### 다국어 패널
+
+```javascript
+template: (state, settings, { html, t, locale }) => html`
+  <div class="panel" data-locale="${locale}">
+    <h3>${t("title")}</h3>
+    <p>${t("description")}</p>
+    <div class="value">${t("count")}: ${state.count}</div>
+  </div>
+`;
+```
+
+## 주의사항
+
+| 항목               | 설명                                           |
+| ------------------ | ---------------------------------------------- |
+| 함수 보간 미지원   | `${state => state.value}` 형태는 작동하지 않음 |
+| 중첩 템플릿        | 내부에서 다시 `html` 태그를 명시해야 함        |
+| 빈 값 처리         | 조건부 렌더링에서 빈 문자열(`""`) 반환 권장    |
+| 스타일 객체 미지원 | `style={{ color: 'red' }}` 형태 불가           |
+| 이벤트 핸들러      | 템플릿 내부에서 직접 함수 바인딩 불가          |
+
+## 이벤트 핸들러
+
+템플릿 내부에서 이벤트 핸들러는 직접 바인딩할 수 없습니다.
+대신 `data-plugin-handler` 속성을 사용합니다:
+
+```javascript
+// 핸들러 등록
+window.myHandler = () => {
+  console.log("클릭됨!");
+};
+
+// 템플릿에서 사용
+html`<button data-plugin-handler="myHandler">클릭</button>`;
+
+// 클린업 시 제거
+dmn.plugin.registerCleanup(() => {
+  delete window.myHandler;
+});
+```
+
+Display Element의 루트 레벨 이벤트는 config에서 직접 등록할 수 있습니다:
+
+```javascript
+dmn.ui.displayElement.add({
+  template: (state, { html }) => html`<div>클릭하세요</div>`,
+  onClick: async () => {
+    console.log("패널 클릭됨!");
+  },
+});
+```

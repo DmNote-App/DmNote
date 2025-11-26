@@ -1,0 +1,324 @@
+---
+title: 설정 시스템
+description: defineSettings를 사용한 플러그인 설정 관리
+---
+
+# 설정 시스템 (defineSettings)
+
+`dmn.plugin.defineSettings`는 패널과 독립적인 설정을 정의할 수 있는 범용 설정 관리 API입니다.
+
+## 언제 사용하나요?
+
+| 사용 사례                 | 설명                                            |
+| ------------------------- | ----------------------------------------------- |
+| **여러 패널의 전역 설정** | 여러 `defineElement` 패널이 공유하는 공통 설정  |
+| **독립 기능 설정**        | 알림, 단축키, API 연동 등 패널 없는 기능의 설정 |
+| **플러그인 환경 설정**    | 플러그인 전체에 영향을 미치는 옵션              |
+
+## 기본 사용법
+
+```javascript
+// @id my-plugin
+
+const pluginSettings = dmn.plugin.defineSettings({
+  settings: {
+    apiKey: {
+      type: "string",
+      default: "",
+      label: "API 키",
+    },
+    theme: {
+      type: "select",
+      options: [
+        { value: "dark", label: "다크" },
+        { value: "light", label: "라이트" },
+      ],
+      default: "dark",
+      label: "테마",
+    },
+    enabled: {
+      type: "boolean",
+      default: true,
+      label: "활성화",
+    },
+  },
+});
+
+// 설정값 조회
+const current = pluginSettings.get();
+console.log("API Key:", current.apiKey);
+
+// 설정값 변경
+await pluginSettings.set({ theme: "light" });
+
+// 설정 다이얼로그 열기
+const confirmed = await pluginSettings.open();
+if (confirmed) {
+  console.log("설정 저장됨!");
+}
+```
+
+## API 레퍼런스
+
+### defineSettings(definition)
+
+```typescript
+interface PluginSettingsDefinition {
+  // 설정 스키마 (defineElement와 동일한 형식)
+  settings: Record<string, PluginSettingSchema>;
+
+  // 다국어 메시지 (선택)
+  messages?: Record<string, Record<string, string>>;
+
+  // 설정 변경 시 호출되는 콜백 (선택)
+  onChange?: (newSettings, oldSettings) => void;
+}
+```
+
+### 반환값 (PluginSettingsInstance)
+
+| 메서드                | 설명                    |
+| --------------------- | ----------------------- |
+| `get()`               | 현재 설정값 조회        |
+| `set(updates)`        | 설정값 변경 (자동 저장) |
+| `open()`              | 설정 다이얼로그 열기    |
+| `reset()`             | 기본값으로 초기화       |
+| `subscribe(listener)` | 설정 변경 구독          |
+
+## onChange vs subscribe()
+
+두 방식 모두 설정 변경을 감지하지만 용도가 다릅니다:
+
+|               | `onChange`                   | `subscribe()`      |
+| ------------- | ---------------------------- | ------------------ |
+| **선언 위치** | `defineSettings()` 정의 내부 | 어디서든           |
+| **해제 가능** | ❌ 불가능                    | ✅ 가능            |
+| **개수**      | 1개만                        | 여러 개            |
+| **용도**      | 핵심/필수 로직               | 조건부/일시적 로직 |
+
+```javascript
+const settings = dmn.plugin.defineSettings({
+  settings: { apiKey: { type: "string", default: "" } },
+
+  // onChange: 항상 실행 (해제 불가)
+  onChange: (newSettings, oldSettings) => {
+    if (newSettings.apiKey !== oldSettings.apiKey) {
+      reconnectAPI(newSettings.apiKey);
+    }
+  },
+});
+
+// subscribe: 필요할 때만 구독, 나중에 해제 가능
+function openPreviewPanel() {
+  const panel = createPanel();
+
+  const unsubscribe = settings.subscribe((newSettings) => {
+    panel.update(newSettings);
+  });
+
+  panel.onClose = () => unsubscribe();
+}
+```
+
+## 다국어 지원
+
+```javascript
+const pluginSettings = dmn.plugin.defineSettings({
+  settings: {
+    volume: {
+      type: "number",
+      default: 50,
+      min: 0,
+      max: 100,
+      label: "settings.volume", // 메시지 키
+    },
+  },
+
+  messages: {
+    ko: {
+      "settings.volume": "볼륨",
+    },
+    en: {
+      "settings.volume": "Volume",
+    },
+  },
+});
+```
+
+## 실전 예제
+
+### 전역 설정 + defineElement 연동
+
+```javascript
+// @id kps-plugin
+
+// 전역 설정 정의
+const globalSettings = dmn.plugin.defineSettings({
+  settings: {
+    defaultColor: {
+      type: "color",
+      default: "#86EFAC",
+      label: "기본 색상",
+    },
+    refreshRate: {
+      type: "number",
+      default: 50,
+      min: 10,
+      max: 200,
+      label: "갱신 주기 (ms)",
+    },
+  },
+});
+
+// 패널 정의
+dmn.plugin.defineElement({
+  name: "KPS Panel",
+
+  contextMenu: {
+    create: "KPS 패널 생성",
+    delete: "KPS 패널 삭제",
+    items: [
+      {
+        label: "전역 설정",
+        onClick: () => globalSettings.open(),
+      },
+    ],
+  },
+
+  // 인스턴스별 설정
+  settings: {
+    showGraph: { type: "boolean", default: true, label: "그래프 표시" },
+  },
+
+  template: (state, instanceSettings, { html }) => {
+    const global = globalSettings.get();
+    return html`
+      <div style="color: ${global.defaultColor};">KPS: ${state.kps ?? 0}</div>
+    `;
+  },
+
+  onMount: ({ setState, onHook }) => {
+    const global = globalSettings.get();
+    let count = 0;
+
+    onHook("key", ({ state }) => {
+      if (state === "DOWN") count++;
+    });
+
+    const interval = setInterval(() => {
+      setState({ kps: count });
+      count = 0;
+    }, global.refreshRate);
+
+    return () => clearInterval(interval);
+  },
+});
+```
+
+### 그리드 메뉴에 설정 추가
+
+패널 없이 설정 메뉴만 추가할 수도 있습니다:
+
+```javascript
+// @id settings-only-plugin
+
+const pluginSettings = dmn.plugin.defineSettings({
+  settings: {
+    volume: { type: "number", default: 50, min: 0, max: 100, label: "볼륨" },
+    notifications: { type: "boolean", default: true, label: "알림" },
+  },
+});
+
+// 그리드 빈 공간 우클릭 메뉴에 추가
+dmn.ui.contextMenu.addGridMenuItem({
+  id: "my-plugin-settings",
+  label: "플러그인 설정",
+  onClick: () => pluginSettings.open(),
+});
+
+dmn.plugin.registerCleanup(() => {
+  dmn.ui.contextMenu.clearMyMenuItems();
+});
+```
+
+### 설정 변경에 따른 동적 반응
+
+```javascript
+// @id data-fetcher
+
+const fetcherSettings = dmn.plugin.defineSettings({
+  settings: {
+    apiEndpoint: {
+      type: "string",
+      default: "https://api.example.com",
+      label: "API 엔드포인트",
+    },
+    refreshInterval: {
+      type: "number",
+      default: 5000,
+      min: 1000,
+      max: 60000,
+      label: "갱신 주기 (ms)",
+    },
+    autoRefresh: {
+      type: "boolean",
+      default: true,
+      label: "자동 갱신",
+    },
+  },
+});
+
+let fetchInterval = null;
+
+function startFetching() {
+  const { refreshInterval, autoRefresh, apiEndpoint } = fetcherSettings.get();
+
+  if (fetchInterval) {
+    clearInterval(fetchInterval);
+    fetchInterval = null;
+  }
+
+  if (!autoRefresh) return;
+
+  fetchInterval = setInterval(async () => {
+    const response = await fetch(apiEndpoint);
+    const data = await response.json();
+    console.log("Data:", data);
+  }, refreshInterval);
+}
+
+// 설정 변경 시 인터벌 재시작
+fetcherSettings.subscribe((newSettings, oldSettings) => {
+  if (
+    newSettings.refreshInterval !== oldSettings.refreshInterval ||
+    newSettings.autoRefresh !== oldSettings.autoRefresh
+  ) {
+    startFetching();
+  }
+});
+
+startFetching();
+
+dmn.plugin.registerCleanup(() => {
+  if (fetchInterval) clearInterval(fetchInterval);
+});
+```
+
+## defineElement의 onSettingsChange와 비교
+
+| 기능           | `defineElement`              | `defineSettings`              |
+| -------------- | ---------------------------- | ----------------------------- |
+| 설정 변경 감지 | `onSettingsChange(callback)` | `onChange` + `subscribe()`    |
+| 구독 해제      | 자동 (언마운트 시)           | `subscribe()` 반환값으로 수동 |
+| 사용 위치      | `onMount` 내부만             | 어디서든                      |
+| 대상           | 인스턴스별 설정              | 전역/독립 설정                |
+
+## 자동 처리 기능
+
+| 기능                  | 설명                                            |
+| --------------------- | ----------------------------------------------- |
+| **UI 자동 생성**      | settings 스키마 기반 다이얼로그 자동 생성       |
+| **Storage 자동 관리** | `plugin.storage`에 자동 저장/복원               |
+| **다국어 지원**       | messages와 연동                                 |
+| **타입별 컴포넌트**   | boolean→체크박스, color→컬러피커 등 자동 매핑   |
+| **패널 자동 연동**    | 설정 변경 시 같은 플러그인의 모든 패널 리렌더링 |

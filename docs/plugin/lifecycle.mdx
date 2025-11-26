@@ -1,0 +1,271 @@
+---
+title: 라이프사이클
+description: 플러그인의 라이프사이클과 리소스 관리
+---
+
+# 라이프사이클
+
+플러그인은 로드, 실행, 언로드의 라이프사이클을 가집니다.
+리소스 누수를 방지하려면 클린업을 올바르게 구현해야 합니다.
+
+## 플러그인 실행 시점
+
+플러그인 코드는 다음 상황에서 실행됩니다:
+
+1. **앱 시작** - JS 플러그인이 활성화된 상태로 앱 실행
+2. **플러그인 활성화** - 설정에서 JS 플러그인 토글 켬
+3. **플러그인 추가/수정** - 플러그인 목록 변경
+4. **리로드** - 설정에서 리로드 버튼 클릭
+
+## 클린업이 실행되는 시점
+
+등록된 클린업 함수는 다음 상황에서 자동으로 호출됩니다:
+
+1. **플러그인 비활성화** - JS 플러그인 토글 끔
+2. **플러그인 제거** - 플러그인 목록에서 삭제
+3. **리로드** - 새 코드 실행 전에 기존 코드 정리
+4. **앱 종료** - 윈도우 닫힘
+
+## 클린업 등록 (registerCleanup)
+
+`dmn.plugin.registerCleanup()`으로 정리 작업을 등록합니다.
+
+### 기본 사용법 (권장)
+
+모든 클린업을 한 번에 등록:
+
+```javascript
+// @id my-plugin
+
+const panel = document.createElement("div");
+document.body.appendChild(panel);
+
+const timer = setInterval(() => console.log("tick"), 1000);
+const unsubKeys = dmn.keys.onKeyState(() => {});
+const unsubSettings = dmn.settings.onChanged(() => {});
+
+// 모든 정리 작업을 한 번에 등록
+dmn.plugin.registerCleanup(() => {
+  clearInterval(timer);
+  unsubKeys();
+  unsubSettings();
+  panel.remove();
+});
+```
+
+### 고급 사용법
+
+복잡한 플러그인에서 리소스별로 분리 등록:
+
+```javascript
+// DOM 요소
+const panel = document.createElement("div");
+document.body.appendChild(panel);
+dmn.plugin.registerCleanup(() => panel.remove());
+
+// 타이머
+const timer = setInterval(() => {}, 1000);
+dmn.plugin.registerCleanup(() => clearInterval(timer));
+
+// 이벤트 구독
+const unsub = dmn.keys.onKeyState(() => {});
+dmn.plugin.registerCleanup(() => unsub());
+```
+
+등록된 모든 클린업 함수는 순서대로 실행됩니다.
+
+## 클린업이 필요한 리소스
+
+| 리소스             | 정리 방법               |
+| ------------------ | ----------------------- |
+| `addEventListener` | `removeEventListener`   |
+| `setInterval`      | `clearInterval`         |
+| `setTimeout`       | `clearTimeout`          |
+| DOM 요소 생성      | `element.remove()`      |
+| 전역 변수          | `delete window.varName` |
+| 이벤트 구독        | 구독 해제 함수 호출     |
+| WebSocket          | `connection.close()`    |
+
+## 실전 예제
+
+### 완전한 클린업 예제
+
+```javascript
+// @id complete-cleanup-example
+
+if (dmn.window.type !== "overlay") return;
+
+// 1. DOM 요소
+const style = document.createElement("style");
+style.textContent = `.my-panel { background: #000; color: #fff; }`;
+document.head.appendChild(style);
+
+const panel = document.createElement("div");
+panel.className = "my-panel";
+document.body.appendChild(panel);
+
+// 2. 타이머
+const intervalId = setInterval(() => {
+  panel.textContent = new Date().toLocaleTimeString();
+}, 1000);
+
+// 3. 이벤트 리스너
+const handleKeyDown = (e) => console.log("Key:", e.key);
+window.addEventListener("keydown", handleKeyDown);
+
+// 4. API 구독
+const unsubKeyState = dmn.keys.onKeyState(({ key, state }) => {
+  console.log(`${key}: ${state}`);
+});
+
+const unsubSettings = dmn.settings.onChanged(({ changed }) => {
+  console.log("Settings changed:", changed);
+});
+
+// 5. 전역 핸들러
+window.myPluginHandler = () => {
+  console.log("Handler called");
+};
+
+// 모든 리소스 정리
+dmn.plugin.registerCleanup(() => {
+  // 타이머
+  clearInterval(intervalId);
+
+  // 이벤트 리스너
+  window.removeEventListener("keydown", handleKeyDown);
+
+  // API 구독
+  unsubKeyState();
+  unsubSettings();
+
+  // DOM 요소
+  panel.remove();
+  style.remove();
+
+  // 전역 변수
+  delete window.myPluginHandler;
+
+  console.log("[my-plugin] Cleanup completed");
+});
+```
+
+### defineElement의 클린업
+
+`defineElement`를 사용할 때는 `onMount`에서 클린업 함수를 반환합니다:
+
+```javascript
+dmn.plugin.defineElement({
+  name: "My Panel",
+
+  onMount: ({ setState, onHook }) => {
+    const timestamps = [];
+
+    // onHook으로 등록한 이벤트는 자동으로 정리됨
+    onHook("key", ({ state }) => {
+      if (state === "DOWN") {
+        timestamps.push(Date.now());
+      }
+    });
+
+    // 직접 생성한 리소스는 클린업 함수에서 정리
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const recent = timestamps.filter((t) => t > now - 1000);
+      timestamps.length = 0;
+      timestamps.push(...recent);
+      setState({ kps: timestamps.length });
+    }, 100);
+
+    // 클린업 함수 반환
+    return () => {
+      clearInterval(interval);
+      console.log("Panel cleanup");
+    };
+  },
+});
+```
+
+## 비동기 컨텍스트 유지
+
+플러그인에서 `async/await`를 사용해도 컨텍스트가 자동으로 유지됩니다:
+
+```javascript
+// @id async-example
+
+async function initialize() {
+  // await 이후에도 플러그인 컨텍스트 유지
+  const settings = await dmn.plugin.storage.get("settings");
+
+  const data = await fetch("/api/data").then((r) => r.json());
+
+  // 다른 API 호출도 정상 동작
+  await dmn.plugin.storage.set("lastFetch", Date.now());
+}
+
+initialize();
+```
+
+## 레거시 클린업 (호환성)
+
+<Callout type="warning">
+  다음 방식은 하위 호환성을 위해 지원되지만, 새 플러그인에서는
+  `registerCleanup()` 사용을 권장합니다.
+</Callout>
+
+```javascript
+// 레거시 방식
+(function () {
+  if (window.__dmn_custom_js_cleanup) {
+    window.__dmn_custom_js_cleanup();
+  }
+
+  const timer = setInterval(() => {}, 1000);
+
+  window.__dmn_custom_js_cleanup = function () {
+    clearInterval(timer);
+    delete window.__dmn_custom_js_cleanup;
+  };
+})();
+```
+
+## 메모리 누수 방지 체크리스트
+
+플러그인을 작성할 때 다음 사항을 확인하세요:
+
+- [ ] 모든 `setInterval`에 대응하는 `clearInterval`이 있는가?
+- [ ] 모든 `setTimeout`에 대응하는 `clearTimeout`이 있는가?
+- [ ] 모든 `addEventListener`에 대응하는 `removeEventListener`가 있는가?
+- [ ] 생성한 DOM 요소를 모두 `remove()`하는가?
+- [ ] 모든 API 구독(onChanged, onKeyState 등)을 해제하는가?
+- [ ] 전역 변수(`window.xxx`)를 모두 `delete`하는가?
+- [ ] WebSocket이나 외부 연결을 모두 닫는가?
+
+## 디버깅 팁
+
+### 클린업 확인
+
+```javascript
+dmn.plugin.registerCleanup(() => {
+  console.log("[my-plugin] Cleanup started");
+  // 정리 작업...
+  console.log("[my-plugin] Cleanup completed");
+});
+```
+
+### 리로드 테스트
+
+1. 플러그인을 활성화합니다.
+2. 콘솔에서 상태를 확인합니다.
+3. 설정에서 **리로드** 버튼을 클릭합니다.
+4. 클린업 로그가 출력되는지 확인합니다.
+5. 새 코드가 정상 실행되는지 확인합니다.
+6. 메모리 사용량이 증가하지 않는지 확인합니다.
+
+### 토글 테스트
+
+JS 플러그인 토글을 여러 번 껐다 켜면서:
+
+- 메모리 누수가 없는지 확인
+- 중복 실행이 없는지 확인
+- DOM 요소가 중복 생성되지 않는지 확인

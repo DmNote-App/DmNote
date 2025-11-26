@@ -1,0 +1,77 @@
+---
+title: API 레퍼런스 개요
+description: dmn 전역 객체의 API 레퍼런스
+---
+
+# API 레퍼런스
+
+모든 플러그인은 `dmn` 전역 객체를 통해 DM Note의 기능에 접근합니다.
+
+## 네임스페이스 구조
+
+| 네임스페이스                                     | 설명                       |
+| ------------------------------------------------ | -------------------------- |
+| [`dmn.app`](/plugin/api-reference/app)           | 앱 부팅, 재시작, 외부 URL  |
+| [`dmn.window`](/plugin/api-reference/app#window) | 윈도우 타입, 최소화, 닫기  |
+| [`dmn.keys`](/plugin/api-reference/keys)         | 키 매핑, 이벤트, 커스텀 탭 |
+| [`dmn.settings`](/plugin/api-reference/settings) | 앱 설정 조회/변경          |
+| [`dmn.overlay`](/plugin/api-reference/overlay)   | 오버레이 제어              |
+| [`dmn.css`](/plugin/api-reference/css-js#css)    | CSS 커스텀 코드            |
+| [`dmn.js`](/plugin/api-reference/css-js#js)      | JS 플러그인 관리           |
+| [`dmn.presets`](/plugin/api-reference/presets)   | 프리셋 저장/로드           |
+| [`dmn.bridge`](/plugin/bridge)                   | 윈도우 간 통신             |
+| [`dmn.i18n`](/plugin/api-reference/i18n)         | 다국어                     |
+| [`dmn.plugin`](/plugin/declarative-api)          | 플러그인 API               |
+| [`dmn.ui`](/plugin/ui-api)                       | UI 확장                    |
+
+## 빠른 시작
+
+```javascript
+// 앱 초기 데이터 조회
+const bootstrap = await dmn.app.bootstrap();
+console.log("현재 모드:", bootstrap.selectedKeyType);
+console.log("설정:", bootstrap.settings);
+
+// 키 이벤트 구독 (오버레이에서만)
+const unsub = dmn.keys.onKeyState(({ key, state, mode }) => {
+  console.log(`[${mode}] ${key} is ${state}`);
+});
+
+// 설정 변경 감시
+dmn.settings.onChanged(({ changed, full }) => {
+  console.log("설정 변경:", changed);
+});
+
+// 클린업
+dmn.plugin.registerCleanup(() => {
+  unsub();
+});
+```
+
+## 공통 타입
+
+### Unsubscribe
+
+이벤트 구독 해제 함수입니다. `on*` 메서드들이 반환합니다.
+
+```typescript
+type Unsubscribe = () => void;
+
+// 사용
+const unsub = dmn.keys.onModeChanged(({ mode }) => {
+  console.log(mode);
+});
+
+// 나중에 해제
+unsub();
+```
+
+## 주의사항
+
+1. **비동기 작업**: 대부분의 API는 `Promise`를 반환합니다. `await` 또는 `.then()`을 사용하세요.
+
+2. **구독 해제**: 이벤트 구독은 반드시 클린업 시 해제하세요.
+
+3. **윈도우 타입**: `keys:state` 이벤트는 **오버레이 윈도우에서만** 수신됩니다.
+
+4. **메인 전용 API**: `dmn.ui`는 메인 윈도우에서만 동작합니다.

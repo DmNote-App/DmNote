@@ -1,0 +1,101 @@
+---
+title: 앱 (app) & 윈도우 (window)
+description: 앱 부팅, 재시작, 윈도우 제어 API
+---
+
+# 앱 (app) & 윈도우 (window)
+
+## dmn.app
+
+### bootstrap()
+
+앱 초기화 시 필요한 모든 데이터를 한 번에 가져옵니다.
+
+```typescript
+interface BootstrapPayload {
+  settings: SettingsState;
+  keys: KeyMappings;
+  positions: KeyPositions;
+  customTabs: CustomTab[];
+  selectedKeyType: string;
+  currentMode: string;
+  overlay: {
+    visible: boolean;
+    locked: boolean;
+    anchor: string;
+  };
+  keyCounters: KeyCounters;
+}
+```
+
+```javascript
+const bootstrap = await dmn.app.bootstrap();
+console.log("현재 모드:", bootstrap.selectedKeyType);
+console.log("4key 매핑:", bootstrap.keys["4key"]);
+```
+
+### openExternal(url)
+
+외부 URL을 기본 브라우저에서 엽니다.
+
+```javascript
+await dmn.app.openExternal("https://github.com");
+```
+
+### restart()
+
+애플리케이션을 재시작합니다.
+
+```javascript
+await dmn.app.restart();
+```
+
+## dmn.window
+
+### type
+
+현재 윈도우 타입을 반환합니다.
+
+| 값          | 설명                          |
+| ----------- | ----------------------------- |
+| `"main"`    | 메인 윈도우 (설정/키 맵핑 UI) |
+| `"overlay"` | 오버레이 윈도우 (키 시각화)   |
+
+```javascript
+if (dmn.window.type === "overlay") {
+  // 오버레이 전용 코드
+}
+
+if (dmn.window.type === "main") {
+  // 메인 윈도우 전용 코드
+}
+```
+
+### minimize()
+
+메인 윈도우를 최소화합니다.
+
+```javascript
+await dmn.window.minimize();
+```
+
+### close()
+
+애플리케이션을 종료합니다.
+
+```javascript
+await dmn.window.close();
+```
+
+### openDevtoolsAll()
+
+개발자 모드가 활성화된 경우 모든 윈도우의 DevTools를 엽니다.
+
+```javascript
+await dmn.window.openDevtoolsAll();
+```
+
+<Callout type="info">
+  개발자 모드가 비활성화된 경우에도 호출은 가능하지만, 키보드
+  단축키(Ctrl+Shift+I, F12)를 통한 DevTools 접근은 차단됩니다.
+</Callout>

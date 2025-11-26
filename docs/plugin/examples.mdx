@@ -1,0 +1,356 @@
+---
+title: 예제 모음
+description: 실전 플러그인 예제
+---
+
+# 예제 모음
+
+## CPS 모니터 (Keys Per Second)
+
+실시간으로 초당 키 입력 수를 표시하는 패널입니다.
+
+```javascript
+defineElement({
+  id: "cps-monitor",
+  defaultTarget: "overlay",
+
+  settings: {
+    windowSize: { type: "number", default: 1, min: 0.5, max: 5, step: 0.5 },
+    showPeak: { type: "boolean", default: true },
+  },
+
+  i18n: {
+    ko: { current: "현재", peak: "최고" },
+    en: { current: "Current", peak: "Peak" },
+  },
+
+  template: ({ cps, peak, settings, t }) => html`
+    <div
+      style=${{
+        background: "rgba(0,0,0,0.7)",
+        padding: "8px 16px",
+        borderRadius: "8px",
+        fontFamily: "monospace",
+        color: "#fff",
+      }}
+    >
+      <div>${t("current")}: <strong>${cps.toFixed(1)}</strong></div>
+      ${settings.showPeak &&
+      html`
+        <div style=${{ opacity: 0.7 }}>${t("peak")}: ${peak.toFixed(1)}</div>
+      `}
+    </div>
+  `,
+
+  onMount(ctx) {
+    const timestamps = [];
+    ctx.state.cps = 0;
+    ctx.state.peak = 0;
+
+    const unsub = dmn.keys.onKeyState(({ state }) => {
+      if (state !== "DOWN") return;
+
+      const now = Date.now();
+      timestamps.push(now);
+
+      // 윈도우 내 타임스탬프만 유지
+      const windowMs = ctx.settings.windowSize * 1000;
+      while (timestamps.length && timestamps[0] < now - windowMs) {
+        timestamps.shift();
+      }
+
+      const cps = timestamps.length / ctx.settings.windowSize;
+      ctx.state.cps = cps;
+      ctx.state.peak = Math.max(ctx.state.peak, cps);
+    });
+
+    ctx.registerCleanup(unsub);
+  },
+});
+```
+
+## 키 히트맵
+
+각 키의 사용 빈도를 색상으로 시각화합니다.
+
+```javascript
+defineElement({
+  id: "key-heatmap",
+  defaultTarget: "main",
+
+  settings: {
+    colorCold: { type: "color", default: "#3b82f6" },
+    colorHot: { type: "color", default: "#ef4444" },
+  },
+
+  template: ({ counters, maxCount, settings }) => html`
+    <div style=${{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+      ${Object.entries(counters).map(([key, count]) => {
+        const ratio = maxCount > 0 ? count / maxCount : 0;
+        const color = interpolateColor(
+          settings.colorCold,
+          settings.colorHot,
+          ratio
+        );
+        return html`
+          <div
+            style=${{
+              width: "40px",
+              height: "40px",
+              background: color,
+              borderRadius: "4px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "10px",
+              color: "#fff",
+            }}
+          >
+            ${key.replace("Key", "")}
+          </div>
+        `;
+      })}
+    </div>
+  `,
+
+  async onMount(ctx) {
+    ctx.state.counters = {};
+    ctx.state.maxCount = 0;
+
+    const unsub = dmn.keys.onCounterChanged(({ key, count }) => {
+      ctx.state.counters[key] = count;
+      ctx.state.maxCount = Math.max(...Object.values(ctx.state.counters));
+    });
+
+    ctx.registerCleanup(unsub);
+  },
+});
+
+// 헬퍼 함수
+function interpolateColor(c1, c2, ratio) {
+  const hex = (s) => parseInt(s.slice(1), 16);
+  const r1 = (hex(c1) >> 16) & 255;
+  const g1 = (hex(c1) >> 8) & 255;
+  const b1 = hex(c1) & 255;
+  const r2 = (hex(c2) >> 16) & 255;
+  const g2 = (hex(c2) >> 8) & 255;
+  const b2 = hex(c2) & 255;
+  const r = Math.round(r1 + (r2 - r1) * ratio);
+  const g = Math.round(g1 + (g2 - g1) * ratio);
+  const b = Math.round(b1 + (b2 - b1) * ratio);
+  return `rgb(${r},${g},${b})`;
+}
+```
+
+## 녹화 기록 뷰어
+
+키 입력 시퀀스를 기록하고 재생합니다.
+
+```javascript
+defineElement({
+  id: "key-recorder",
+  defaultTarget: "main",
+
+  settings: {},
+
+  i18n: {
+    ko: {
+      record: "녹화",
+      stop: "중지",
+      play: "재생",
+      clear: "지우기",
+    },
+    en: {
+      record: "Record",
+      stop: "Stop",
+      play: "Play",
+      clear: "Clear",
+    },
+  },
+
+  contextMenu: (ctx, t) => [
+    {
+      label: t("clear"),
+      action: () => {
+        ctx.state.events = [];
+      },
+    },
+  ],
+
+  template: ({ recording, events, t }) => html`
+    <div
+      style=${{ padding: "16px", background: "#1a1a2e", borderRadius: "8px" }}
+    >
+      <div style=${{ marginBottom: "8px" }}>
+        <button onclick=${() => this.toggle()}>
+          ${recording ? t("stop") : t("record")}
+        </button>
+        <button onclick=${() => this.play()} disabled=${events.length === 0}>
+          ${t("play")}
+        </button>
+      </div>
+      <div
+        style=${{
+          maxHeight: "200px",
+          overflow: "auto",
+          fontSize: "12px",
+          fontFamily: "monospace",
+        }}
+      >
+        ${events.map((e) => html` <div>${e.key} (${e.duration}ms)</div> `)}
+      </div>
+    </div>
+  `,
+
+  onMount(ctx) {
+    ctx.state.recording = false;
+    ctx.state.events = [];
+    let unsub = null;
+    let lastTime = 0;
+
+    ctx.toggle = () => {
+      if (ctx.state.recording) {
+        unsub?.();
+        ctx.state.recording = false;
+      } else {
+        ctx.state.events = [];
+        lastTime = Date.now();
+        unsub = dmn.keys.onKeyState(({ key, state }) => {
+          if (state === "DOWN") {
+            const now = Date.now();
+            ctx.state.events = [
+              ...ctx.state.events,
+              { key, duration: now - lastTime },
+            ];
+            lastTime = now;
+          }
+        });
+        ctx.state.recording = true;
+      }
+    };
+
+    ctx.play = () => {
+      console.log("Recorded sequence:", ctx.state.events);
+      // 실제 재생 로직은 요구사항에 따라 구현
+    };
+
+    ctx.registerCleanup(() => unsub?.());
+  },
+});
+```
+
+## 세션 타이머
+
+플레이 시간을 추적합니다.
+
+```javascript
+defineElement({
+  id: "session-timer",
+  defaultTarget: "overlay",
+
+  settings: {
+    format: {
+      type: "select",
+      default: "hms",
+      options: [
+        { value: "hms", label: "00:00:00" },
+        { value: "ms", label: "00:00" },
+      ],
+    },
+  },
+
+  template: ({ elapsed, settings }) => html`
+    <div
+      style=${{
+        fontFamily: "monospace",
+        fontSize: "24px",
+        color: "#fff",
+      }}
+    >
+      ${formatTime(elapsed, settings.format)}
+    </div>
+  `,
+
+  onMount(ctx) {
+    ctx.state.elapsed = 0;
+    const start = Date.now();
+
+    const interval = setInterval(() => {
+      ctx.state.elapsed = Date.now() - start;
+    }, 1000);
+
+    ctx.registerCleanup(() => clearInterval(interval));
+  },
+});
+
+function formatTime(ms, format) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+
+  if (format === "hms") {
+    return [h, m % 60, s % 60]
+      .map((n) => n.toString().padStart(2, "0"))
+      .join(":");
+  }
+  return [m, s % 60].map((n) => n.toString().padStart(2, "0")).join(":");
+}
+```
+
+## 설정 동기화 패널
+
+메인과 오버레이 간 설정을 동기화합니다.
+
+```javascript
+defineElement({
+  id: "sync-panel",
+  defaultTarget: "both",
+
+  settings: {
+    syncKey: { type: "string", default: "my-sync" },
+  },
+
+  template: ({ value }) => html`
+    <div>
+      <input
+        type="text"
+        value=${value}
+        oninput=${(e) => this.updateValue(e.target.value)}
+      />
+    </div>
+  `,
+
+  onMount(ctx) {
+    ctx.state.value = "";
+    const key = `sync:${ctx.settings.syncKey}`;
+
+    // 초기값 로드
+    dmn.plugin.storage.get(key).then((v) => {
+      if (v) ctx.state.value = v;
+    });
+
+    // 브리지로 실시간 동기화
+    ctx.registerCleanup(
+      dmn.bridge.on(key, (data) => {
+        ctx.state.value = data.value;
+      })
+    );
+
+    ctx.updateValue = (val) => {
+      ctx.state.value = val;
+      dmn.plugin.storage.set(key, val);
+      dmn.bridge.send(key, { value: val });
+    };
+  },
+});
+```
+
+## 더 많은 예제
+
+실제 플러그인 예제는 `docs/plugin/` 폴더의 파일들을 참조하세요:
+
+- `keystroke-visualizer.js` - 키 입력 시각화
+- `kps-new.js` - 고급 KPS 모니터
+- `v-archive-tier.js` - V-Archive 연동
+- `context-menu-example.js` - 컨텍스트 메뉴 예제
+- `settings-example.js` - 설정 시스템 예제
