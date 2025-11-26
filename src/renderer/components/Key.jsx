@@ -20,6 +20,9 @@ export default function DraggableKey({
   onEraserClick,
   onContextMenu,
   setReferenceRef,
+  zoom = 1,
+  panX = 0,
+  panY = 0,
 }) {
   const { displayName } = getKeyInfoByGlobalKey(keyName);
   const {
@@ -36,6 +39,9 @@ export default function DraggableKey({
     initialX: dx,
     initialY: dy,
     onPositionChange: (newDx, newDy) => onPositionChange(index, newDx, newDy),
+    zoom,
+    panX,
+    panY,
   });
 
   const handleClick = (e) => {

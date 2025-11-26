@@ -1,0 +1,241 @@
+import { useCallback, useEffect, useRef } from "react";
+import {
+  useGridViewStore,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  ZOOM_STEP,
+  clampZoom,
+} from "@stores/useGridViewStore";
+
+interface UseGridZoomPanOptions {
+  mode: string;
+  containerRef: React.RefObject<HTMLDivElement>;
+  contentRef: React.RefObject<HTMLDivElement>;
+}
+
+interface GridCoords {
+  x: number;
+  y: number;
+}
+
+export function useGridZoomPan({
+  mode,
+  containerRef,
+  contentRef,
+}: UseGridZoomPanOptions) {
+  const { getViewState, setZoom, setPan, resetView } = useGridViewStore();
+  const viewState = getViewState(mode);
+  const { zoom, panX, panY } = viewState;
+
+  // 휠 이벤트 누적 방지용 ref
+  const isWheelProcessingRef = useRef(false);
+
+  /**
+   * 클라이언트 좌표를 그리드 로컬 좌표로 변환
+   * (줌/팬이 적용된 상태에서 실제 그리드 상의 좌표)
+   */
+  const clientToGridCoords = useCallback(
+    (clientX: number, clientY: number): GridCoords | null => {
+      if (!containerRef.current) return null;
+      const rect = containerRef.current.getBoundingClientRect();
+      const localX = (clientX - rect.left - panX) / zoom;
+      const localY = (clientY - rect.top - panY) / zoom;
+      return { x: localX, y: localY };
+    },
+    [containerRef, zoom, panX, panY]
+  );
+
+  /**
+   * 그리드 로컬 좌표를 클라이언트 좌표로 변환
+   */
+  const gridToClientCoords = useCallback(
+    (gridX: number, gridY: number): GridCoords | null => {
+      if (!containerRef.current) return null;
+      const rect = containerRef.current.getBoundingClientRect();
+      const clientX = gridX * zoom + panX + rect.left;
+      const clientY = gridY * zoom + panY + rect.top;
+      return { x: clientX, y: clientY };
+    },
+    [containerRef, zoom, panX, panY]
+  );
+
+  /**
+   * 마우스 위치 기준 줌 (마우스 포인터 아래 지점을 고정)
+   */
+  const zoomAtPoint = useCallback(
+    (clientX: number, clientY: number, newZoom: number) => {
+      if (!containerRef.current) return;
+
+      const clampedZoom = clampZoom(newZoom);
+      if (clampedZoom === zoom) return;
+
+      const rect = containerRef.current.getBoundingClientRect();
+
+      // 마우스 위치의 현재 그리드 좌표
+      const mouseGridX = (clientX - rect.left - panX) / zoom;
+      const mouseGridY = (clientY - rect.top - panY) / zoom;
+
+      // 새 줌 레벨에서 같은 그리드 좌표가 같은 화면 위치에 오도록 팬 조정
+      const newPanX = clientX - rect.left - mouseGridX * clampedZoom;
+      const newPanY = clientY - rect.top - mouseGridY * clampedZoom;
+
+      setZoom(mode, clampedZoom);
+      setPan(mode, newPanX, newPanY);
+    },
+    [containerRef, zoom, panX, panY, mode, setZoom, setPan]
+  );
+
+  /**
+   * 중앙 기준 줌 인
+   */
+  const zoomIn = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    zoomAtPoint(centerX, centerY, zoom + ZOOM_STEP);
+  }, [containerRef, zoom, zoomAtPoint]);
+
+  /**
+   * 중앙 기준 줌 아웃
+   */
+  const zoomOut = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    zoomAtPoint(centerX, centerY, zoom - ZOOM_STEP);
+  }, [containerRef, zoom, zoomAtPoint]);
+
+  /**
+   * 줌 100%로 리셋
+   */
+  const resetZoom = useCallback(() => {
+    resetView(mode);
+  }, [mode, resetView]);
+
+  /**
+   * 팬 이동
+   */
+  const pan = useCallback(
+    (deltaX: number, deltaY: number) => {
+      setPan(mode, panX + deltaX, panY + deltaY);
+    },
+    [mode, panX, panY, setPan]
+  );
+
+  /**
+   * 휠 이벤트 핸들러
+   */
+  const handleWheel = useCallback(
+    (e: WheelEvent) => {
+      // 기본 스크롤 방지
+      e.preventDefault();
+
+      // 빠른 연속 휠 이벤트 방지
+      if (isWheelProcessingRef.current) return;
+      isWheelProcessingRef.current = true;
+      requestAnimationFrame(() => {
+        isWheelProcessingRef.current = false;
+      });
+
+      if (e.ctrlKey) {
+        // Ctrl + 휠: 줌
+        const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+        zoomAtPoint(e.clientX, e.clientY, zoom + delta);
+      } else if (e.shiftKey) {
+        // Shift + 휠: 수평 스크롤
+        pan(-e.deltaY, 0);
+      } else {
+        // 휠: 수직 스크롤
+        pan(0, -e.deltaY);
+      }
+    },
+    [zoom, zoomAtPoint, pan]
+  );
+
+  /**
+   * 키보드 단축키 핸들러
+   */
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // 입력 요소에서는 단축키 무시
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      // Ctrl+0: 줌 리셋
+      if (e.ctrlKey && e.key === "0") {
+        e.preventDefault();
+        resetZoom();
+        return;
+      }
+
+      // Ctrl++: 줌 인 (= 또는 + 키)
+      if (e.ctrlKey && (e.key === "+" || e.key === "=")) {
+        e.preventDefault();
+        zoomIn();
+        return;
+      }
+
+      // Ctrl+-: 줌 아웃
+      if (e.ctrlKey && e.key === "-") {
+        e.preventDefault();
+        zoomOut();
+        return;
+      }
+    },
+    [resetZoom, zoomIn, zoomOut]
+  );
+
+  // 휠 이벤트 등록
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener("wheel", handleWheel);
+    };
+  }, [containerRef, handleWheel]);
+
+  // 키보드 이벤트 등록
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
+  return {
+    // 현재 상태
+    zoom,
+    panX,
+    panY,
+
+    // 좌표 변환
+    clientToGridCoords,
+    gridToClientCoords,
+
+    // 액션
+    setZoom: (newZoom: number) => setZoom(mode, newZoom),
+    setPan: (newPanX: number, newPanY: number) =>
+      setPan(mode, newPanX, newPanY),
+    zoomIn,
+    zoomOut,
+    zoomAtPoint,
+    resetZoom,
+    pan,
+
+    // 상수
+    minZoom: MIN_ZOOM,
+    maxZoom: MAX_ZOOM,
+    zoomStep: ZOOM_STEP,
+  };
+}

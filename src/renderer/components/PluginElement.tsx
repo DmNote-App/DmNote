@@ -23,12 +23,18 @@ interface PluginElementProps {
   element: PluginDisplayElementInternal;
   windowType: "main" | "overlay";
   positionOffset?: { x: number; y: number };
+  zoom?: number;
+  panX?: number;
+  panY?: number;
 }
 
 export const PluginElement: React.FC<PluginElementProps> = ({
   element,
   windowType,
   positionOffset = { x: 0, y: 0 },
+  zoom = 1,
+  panX = 0,
+  panY = 0,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [shadowRoot, setShadowRoot] = useState<ShadowRoot | null>(null);
@@ -198,6 +204,9 @@ export const PluginElement: React.FC<PluginElementProps> = ({
         }
       }
     },
+    zoom,
+    panX,
+    panY,
   });
 
   const { ref: draggableRef, dx: renderX, dy: renderY } = draggable;
@@ -792,17 +801,21 @@ export const PluginElement: React.FC<PluginElementProps> = ({
           : renderContent()}
       </div>
 
-      {/* 컨텍스트 메뉴 */}
-      {windowType === "main" && element.contextMenu && (
-        <ListPopup
-          open={contextMenuOpen}
-          position={contextMenuPosition}
-          onClose={() => setContextMenuOpen(false)}
-          items={contextMenuItems}
-          onSelect={handleContextMenuSelect}
-          className="!z-[10000]"
-        />
-      )}
+      {/* 컨텍스트 메뉴 - 줌 영향을 받지 않도록 body에 Portal로 렌더링 */}
+      {windowType === "main" &&
+        element.contextMenu &&
+        contextMenuOpen &&
+        createPortal(
+          <ListPopup
+            open={contextMenuOpen}
+            position={contextMenuPosition}
+            onClose={() => setContextMenuOpen(false)}
+            items={contextMenuItems}
+            onSelect={handleContextMenuSelect}
+            className="!z-[10000]"
+          />,
+          document.body
+        )}
     </>
   );
 };

@@ -35,11 +35,17 @@ function mergeElementsFromMain(
 interface PluginElementsRendererProps {
   windowType: "main" | "overlay";
   positionOffset?: { x: number; y: number };
+  zoom?: number;
+  panX?: number;
+  panY?: number;
 }
 
 export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
   windowType,
   positionOffset = { x: 0, y: 0 },
+  zoom = 1,
+  panX = 0,
+  panY = 0,
 }) => {
   const elements = usePluginDisplayElementStore((state) => state.elements);
   const setElements = usePluginDisplayElementStore(
@@ -135,6 +141,9 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
           element={element}
           windowType={windowType}
           positionOffset={positionOffset}
+          zoom={zoom}
+          panX={panX}
+          panY={panY}
         />
       ))}
     </>

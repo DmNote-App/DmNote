@@ -16,6 +16,9 @@ import { usePluginMenuStore } from "@stores/usePluginMenuStore";
 import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementStore";
 import { PluginElementsRenderer } from "@components/PluginElementsRenderer";
 import { translatePluginMessage } from "@utils/pluginI18n";
+import { useGridZoomPan } from "@hooks/useGridZoomPan";
+import GridMinimap from "./GridMinimap";
+import ZoomIndicator from "./ZoomIndicator";
 
 const GRID_SNAP = 5;
 const snapToGrid = (value) => {
@@ -54,6 +57,28 @@ export default function Grid({
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
+
+  // 그리드 컨테이너 및 콘텐츠 ref
+  const gridContainerRef = useRef(null);
+  const gridContentRef = useRef(null);
+
+  // 줌/팬 훅
+  const {
+    zoom,
+    panX,
+    panY,
+    clientToGridCoords,
+    gridToClientCoords,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    minZoom,
+    maxZoom,
+  } = useGridZoomPan({
+    mode: selectedKeyType,
+    containerRef: gridContainerRef,
+    contentRef: gridContentRef,
+  });
 
   // 플러그인 메뉴 아이템
   const pluginKeyMenuItems = usePluginMenuStore((state) => state.keyMenuItems);
@@ -96,13 +121,15 @@ export default function Grid({
   const [duplicateCursor, setDuplicateCursor] = useState(null);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
 
-  const computeSnappedCursorFromClient = (clientX, clientY) => {
-    if (!gridRef.current) return null;
-    const rect = gridRef.current.getBoundingClientRect();
-    const relativeX = Math.round(clientX - rect.left);
-    const relativeY = Math.round(clientY - rect.top);
-    return snapCursorToGrid(relativeX, relativeY);
-  };
+  // 클라이언트 좌표를 그리드 좌표로 변환 (줌/팬 반영)
+  const computeSnappedCursorFromClient = useCallback(
+    (clientX, clientY) => {
+      const gridCoords = clientToGridCoords(clientX, clientY);
+      if (!gridCoords) return null;
+      return snapCursorToGrid(gridCoords.x, gridCoords.y);
+    },
+    [clientToGridCoords]
+  );
 
   const [counterTargetIndex, setCounterTargetIndex] = useState(null);
   const [counterOriginalSettings, setCounterOriginalSettings] = useState(null);
@@ -300,6 +327,9 @@ export default function Grid({
         setReferenceRef={(node) => {
           keyRefs.current[index] = node;
         }}
+        zoom={zoom}
+        panX={panX}
+        panY={panY}
       />
     ));
   };
@@ -378,8 +408,11 @@ export default function Grid({
 
   return (
     <div
-      ref={gridRef}
-      className="grid-bg relative w-full h-full bg-[#3A3943] rounded-[0px]"
+      ref={(node) => {
+        gridRef.current = node;
+        gridContainerRef.current = node;
+      }}
+      className="grid-bg relative w-full h-full bg-[#3A3943] rounded-[0px] overflow-hidden"
       style={{ backgroundColor: color === "transparent" ? "#3A3943" : color }}
       onContextMenu={(e) => {
         if (duplicateState) {
@@ -388,10 +421,13 @@ export default function Grid({
         }
         e.preventDefault();
         e.stopPropagation();
-        const rect = e.currentTarget.getBoundingClientRect();
-        const localX = e.clientX - rect.left;
-        const localY = e.clientY - rect.top;
-        setGridAddLocalPos({ dx: Math.round(localX), dy: Math.round(localY) });
+        // 줌/팬 반영된 그리드 좌표 계산
+        const gridCoords = clientToGridCoords(e.clientX, e.clientY);
+        if (!gridCoords) return;
+        setGridAddLocalPos({
+          dx: Math.round(gridCoords.x),
+          dy: Math.round(gridCoords.y),
+        });
         setGridContextClientPos({ x: e.clientX, y: e.clientY });
         setIsGridContextOpen(true);
       }}
@@ -425,9 +461,25 @@ export default function Grid({
         setDuplicateCursor(null);
       }}
     >
-      {renderKeys()}
-      {renderDuplicateGhost()}
-      <PluginElementsRenderer windowType="main" />
+      {/* 줌/팬이 적용되는 콘텐츠 영역 */}
+      <div
+        ref={gridContentRef}
+        className="absolute"
+        style={{
+          transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
+          transformOrigin: "0 0",
+          willChange: "transform",
+        }}
+      >
+        {renderKeys()}
+        {renderDuplicateGhost()}
+        <PluginElementsRenderer
+          windowType="main"
+          zoom={zoom}
+          panX={panX}
+          panY={panY}
+        />
+      </div>
       {/* 우클릭 리스트 팝업 */}
       <div className="relative">
         <ListPopup
@@ -684,6 +736,17 @@ export default function Grid({
           initialSettings={counterOriginalSettings}
         />
       )}
+      {/* 미니맵 */}
+      <GridMinimap
+        positions={positions[selectedKeyType] || []}
+        zoom={zoom}
+        panX={panX}
+        panY={panY}
+        containerRef={gridContainerRef}
+        mode={selectedKeyType}
+      />
+      {/* 줌 레벨 표시 */}
+      <ZoomIndicator zoom={zoom} />
     </div>
   );
 }

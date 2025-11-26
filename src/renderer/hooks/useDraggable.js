@@ -5,6 +5,9 @@ export const useDraggable = ({
   initialX = 0,
   initialY = 0,
   onPositionChange,
+  zoom = 1, // 줌 레벨 (기본값 1)
+  panX = 0, // 팬 X 오프셋
+  panY = 0, // 팬 Y 오프셋
 }) => {
   const [node, setNode] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -15,6 +18,17 @@ export const useDraggable = ({
   const lastSnappedRef = useRef({ dx: initialX, dy: initialY });
   // 드래그 감지를 위한 최소 거리 임계값
   const dragThresholdRef = useRef(5);
+
+  // 줌/팬 값을 ref로 저장 (드래그 중 최신 값 참조)
+  const zoomRef = useRef(zoom);
+  const panXRef = useRef(panX);
+  const panYRef = useRef(panY);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+    panXRef.current = panX;
+    panYRef.current = panY;
+  }, [zoom, panX, panY]);
 
   // initialX, initialY 변경 시 동기화
   useEffect(() => {
@@ -37,7 +51,7 @@ export const useDraggable = ({
   const handleMouseDown = useCallback(
     (e) => {
       if (!node) return;
-      
+
       // 마우스 다운 시점의 위치 저장
       const startClientX = e.clientX;
       const startClientY = e.clientY;
@@ -46,16 +60,14 @@ export const useDraggable = ({
       setIsDragging(true);
       setWasMoved(false);
 
-      // bounds를 시작 시점에 1회 계산해서 캐시
-      const parentNode = node.parentElement;
-      const parentRect = parentNode.getBoundingClientRect();
-      const nodeRect = node.getBoundingClientRect();
-      const maxX = parentRect.width - nodeRect.width;
-      const maxY = parentRect.height - nodeRect.height;
+      // 현재 줌/팬 값 캡처
+      const currentZoom = zoomRef.current;
 
+      // 무한 캔버스에서는 경계 제한 없음
+      // 시작 위치 계산 (줌 반영)
       const startPos = {
-        x: e.clientX - dx,
-        y: e.clientY - dy,
+        x: e.clientX - dx * currentZoom,
+        y: e.clientY - dy * currentZoom,
       };
       const initialPosition = { dx, dy };
 
@@ -65,8 +77,12 @@ export const useDraggable = ({
         // 드래그 임계값 체크
         const deltaX = Math.abs(moveEvent.clientX - startClientX);
         const deltaY = Math.abs(moveEvent.clientY - startClientY);
-        
-        if (!actuallyDragging && (deltaX > dragThresholdRef.current || deltaY > dragThresholdRef.current)) {
+
+        if (
+          !actuallyDragging &&
+          (deltaX > dragThresholdRef.current ||
+            deltaY > dragThresholdRef.current)
+        ) {
           actuallyDragging = true;
           node.style.cursor = "grabbing";
           // 실제 드래그가 시작될 때만 최적화 적용
@@ -80,17 +96,13 @@ export const useDraggable = ({
         rafId = requestAnimationFrame(() => {
           rafId = null;
 
-          const newDx = moveEvent.clientX - startPos.x;
-          const newDy = moveEvent.clientY - startPos.y;
+          // 줌 레벨을 고려한 좌표 계산
+          const newDx = (moveEvent.clientX - startPos.x) / currentZoom;
+          const newDy = (moveEvent.clientY - startPos.y) / currentZoom;
 
-          const snappedX = Math.min(
-            Math.max(Math.round(newDx / gridSize) * gridSize, 0),
-            maxX
-          );
-          const snappedY = Math.min(
-            Math.max(Math.round(newDy / gridSize) * gridSize, 0),
-            maxY
-          );
+          // 그리드 스냅 (경계 제한 없음 - 무한 캔버스)
+          const snappedX = Math.round(newDx / gridSize) * gridSize;
+          const snappedY = Math.round(newDy / gridSize) * gridSize;
 
           if (
             snappedX !== initialPosition.dx ||
@@ -107,15 +119,15 @@ export const useDraggable = ({
       const handleMouseUp = () => {
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
-        
+
         setIsDragging(false);
-        
+
         // 실제 드래그가 발생했을 때만 복구
         if (actuallyDragging) {
           node.style.cursor = "grab";
           node.style.pointerEvents = "auto";
           node.style.userSelect = "auto";
-          
+
           // 최종 위치만 부모에 커밋
           const { dx: finalDx, dy: finalDy } = lastSnappedRef.current;
           onPositionChange?.(finalDx, finalDy);
@@ -125,7 +137,9 @@ export const useDraggable = ({
         }
       };
 
-      document.addEventListener("mousemove", handleMouseMove, { passive: true });
+      document.addEventListener("mousemove", handleMouseMove, {
+        passive: true,
+      });
       document.addEventListener("mouseup", handleMouseUp, { once: true });
     },
     [node, dx, dy, gridSize, onPositionChange]
