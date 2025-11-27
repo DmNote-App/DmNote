@@ -92,6 +92,8 @@ export const useDraggable = ({
       const initialPosition = { dx, dy };
 
       let rafId = null;
+      // Shift 키 드래그 시 축 고정을 위한 변수
+      let lockedAxis = null; // 'x' | 'y' | null
 
       const handleMouseMove = (moveEvent) => {
         // 드래그 임계값 체크
@@ -110,6 +112,11 @@ export const useDraggable = ({
           node.style.userSelect = "none";
           // 드래그 시작 콜백 호출 (히스토리 저장용)
           onDragStart?.();
+
+          // Shift 키가 눌려있으면 처음 움직인 방향으로 축 고정
+          if (moveEvent.shiftKey && lockedAxis === null) {
+            lockedAxis = deltaX >= deltaY ? "x" : "y";
+          }
         }
 
         if (!actuallyDragging) return;
@@ -119,8 +126,15 @@ export const useDraggable = ({
           rafId = null;
 
           // 줌 레벨을 고려한 좌표 계산
-          const newDx = (moveEvent.clientX - startPos.x) / currentZoom;
-          const newDy = (moveEvent.clientY - startPos.y) / currentZoom;
+          let newDx = (moveEvent.clientX - startPos.x) / currentZoom;
+          let newDy = (moveEvent.clientY - startPos.y) / currentZoom;
+
+          // Shift 키로 축이 고정된 경우 해당 축만 이동
+          if (lockedAxis === "x") {
+            newDy = initialPosition.dy;
+          } else if (lockedAxis === "y") {
+            newDx = initialPosition.dx;
+          }
 
           // 동적 그리드 스냅 및 범위 제한 적용
           const snappedX = clampPosition(
