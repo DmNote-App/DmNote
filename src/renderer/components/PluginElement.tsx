@@ -109,6 +109,9 @@ export const PluginElement: React.FC<PluginElementProps> = ({
     element.resizeAnchor || definition?.resizeAnchor || "top-left"
   );
 
+  // 이전 줌 값을 추적하여 줌 변경 시 위치 보정을 스킵
+  const prevZoomRef = useRef<number>(zoom);
+
   // 앵커가 변경되면 prevMeasuredSizeRef를 현재 크기로 리셋
   // 이렇게 하면 앵커 변경 직후의 크기 변화에서 불필요한 위치 보정이 발생하지 않음
   useEffect(() => {
@@ -364,6 +367,10 @@ export const PluginElement: React.FC<PluginElementProps> = ({
           const measuredHeight = Math.ceil(rect.height / zoom);
           const newSize = { width: measuredWidth, height: measuredHeight };
 
+          // 줌이 변경되었는지 확인
+          const zoomChanged = prevZoomRef.current !== zoom;
+          prevZoomRef.current = zoom;
+
           // 현재 크기와 이전 크기 비교
           const prevSize = prevMeasuredSizeRef.current;
           const sizeChanged =
@@ -376,8 +383,12 @@ export const PluginElement: React.FC<PluginElementProps> = ({
             const resizeAnchor: ElementResizeAnchor =
               element.resizeAnchor || definition?.resizeAnchor || "top-left";
 
-            // 이전 크기가 있고 앵커가 top-left가 아니면 위치 보정
-            if (prevSize && resizeAnchor !== "top-left") {
+            // 줌 변경으로 인한 크기 측정 차이는 위치 보정하지 않음
+            // 실제 콘텐츠 변화에 의한 크기 변경만 위치 보정
+            const shouldAdjustPosition =
+              prevSize && resizeAnchor !== "top-left" && !zoomChanged;
+
+            if (shouldAdjustPosition) {
               const { dx, dy } = calculateAnchorOffset(
                 resizeAnchor,
                 prevSize,
@@ -399,7 +410,7 @@ export const PluginElement: React.FC<PluginElementProps> = ({
                 });
               }
             } else {
-              // 첫 측정이거나 top-left 앵커인 경우 크기만 업데이트
+              // 첫 측정이거나 top-left 앵커이거나 줌 변경인 경우 크기만 업데이트
               updateElement(element.fullId, {
                 measuredSize: newSize,
               });
