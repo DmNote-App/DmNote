@@ -216,7 +216,7 @@ fn apply_main_window_configuration(
     if let Err(err) = window.set_size(tauri::Size::Logical(size)) {
         log::warn!("failed to set size: {err}");
     }
-    if let Err(err) = window.set_shadow(false) {
+    if let Err(err) = window.set_shadow(true) {
         log::warn!("failed to enable shadow: {err}");
     }
 
