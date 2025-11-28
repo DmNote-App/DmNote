@@ -51,9 +51,13 @@ export const SmartGuidesOverlay: React.FC<SmartGuidesOverlayProps> = ({
       );
     });
 
-    // 플러그인 요소 bounds (main 윈도우에 표시되는 것만)
+    // 플러그인 요소 bounds (현재 탭에 속하는 것만)
     pluginElements.forEach((el) => {
-      if (el.measuredSize) {
+      // tabId가 없으면 모든 탭에 표시되는 요소로 간주
+      // tabId가 있으면 현재 선택된 탭과 일치해야 함
+      const belongsToCurrentTab = !el.tabId || el.tabId === selectedKeyType;
+
+      if (el.measuredSize && belongsToCurrentTab) {
         bounds.push(
           calculateBounds(
             el.position.x,
