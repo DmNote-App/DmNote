@@ -172,6 +172,9 @@
     "delayToggle": "단노트 길이 일관성 유지",
     "threshold": "단노트 구분 시간",
     "minLength": "단노트 최소 길이",
+    "keyDelay": "키 표시 지연",
+    "keyDelayAuto": "추천: {{value}}ms",
+    "autoCalc": "자동 계산",
     "save": "저장",
     "cancel": "취소"
   },

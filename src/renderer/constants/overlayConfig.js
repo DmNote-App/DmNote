@@ -10,6 +10,7 @@ export const DEFAULT_NOTE_SETTINGS = {
   delayedNoteEnabled: false,
   shortNoteThresholdMs: NOTE_SETTINGS_CONSTRAINTS.shortNoteThresholdMs.default,
   shortNoteMinLengthPx: NOTE_SETTINGS_CONSTRAINTS.shortNoteMinLengthPx.default,
+  keyDisplayDelayMs: NOTE_SETTINGS_CONSTRAINTS.keyDisplayDelayMs.default,
 };
 
 // 기존 상수(하위 호환성 유지)

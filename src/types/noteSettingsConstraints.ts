@@ -29,6 +29,11 @@ export const NOTE_SETTINGS_CONSTRAINTS = {
     max: 9999,
     default: 30,
   },
+  keyDisplayDelayMs: {
+    min: 0,
+    max: 9999,
+    default: 0,
+  },
 } as const;
 
 /**

@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useState,
   useRef,
+  useCallback,
 } from "react";
 import { Key } from "@components/Key";
 import { DEFAULT_NOTE_SETTINGS } from "@constants/overlayConfig";
@@ -54,6 +55,7 @@ const Tracks = lazy(async () => {
 });
 
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
+type KeyDelayTimerEntry = { timers: Set<ReturnType<typeof setTimeout>> };
 
 export default function App() {
   useCustomCssInjection();
@@ -130,6 +132,50 @@ export default function App() {
   const trackHeight =
     noteSettings?.trackHeight ?? DEFAULT_NOTE_SETTINGS.trackHeight;
 
+  // 키 딜레이 설정 (실험적 기능)
+  const keyDisplayDelayMs =
+    laboratoryEnabled && noteSettings?.keyDisplayDelayMs
+      ? noteSettings.keyDisplayDelayMs
+      : 0;
+
+  // 키 딜레이 값을 ref로 관리하여 클로저 문제 방지
+  const keyDisplayDelayMsRef = useRef(keyDisplayDelayMs);
+  useEffect(() => {
+    keyDisplayDelayMsRef.current = keyDisplayDelayMs;
+  }, [keyDisplayDelayMs]);
+
+  // 키 딜레이 타이머 관리 (down/up 별도 관리)
+  const keyDelayTimersRef = useRef<Map<string, KeyDelayTimerEntry>>(new Map());
+
+  // 키 딜레이 적용된 신호 업데이트
+  const updateKeySignalWithDelay = useCallback(
+    (key: string, isDown: boolean) => {
+      const delayMs = keyDisplayDelayMsRef.current;
+
+      let timerEntry = keyDelayTimersRef.current.get(key);
+      if (!timerEntry) {
+        timerEntry = { timers: new Set() };
+        keyDelayTimersRef.current.set(key, timerEntry);
+      }
+
+      if (delayMs <= 0) {
+        // 딜레이가 0일 경우 즉시 업데이트 
+        // 기존 타이머 모두 취소 
+        timerEntry.timers.forEach((timer) => clearTimeout(timer));
+        timerEntry.timers.clear();
+        setKeyActiveSignal(key, isDown);
+        return;
+      }
+
+      const timer = setTimeout(() => {
+        setKeyActiveSignal(key, isDown);
+        timerEntry?.timers.delete(timer);
+      }, delayMs);
+      timerEntry.timers.add(timer);
+    },
+    [] // ref를 사용하므로 dependency 불필요
+  );
+
   // 키 활성 상태는 signals로 관리하여 App 리렌더를 방지
   const [layoutVersion, setLayoutVersion] = useState(0);
 
@@ -153,9 +199,9 @@ export default function App() {
     const unsubscribe = import("@utils/keyEventBus").then(({ keyEventBus }) => {
       return keyEventBus.subscribe(({ key, state }) => {
         const isDown = state === "DOWN";
-        // 개별 Key가 신호를 직접 구독
-        setKeyActiveSignal(key, isDown);
-        // 노트 이펙트가 활성화된 경우에만 핸들러 호출
+        // 키 UI 업데이트 (딜레이 적용)
+        updateKeySignalWithDelay(key, isDown);
+        // 노트 이펙트는 즉시 처리 (딜레이 없음)
         if (noteEffect) {
           requestAnimationFrame(() => {
             if (isDown) handleKeyDown(key);
@@ -173,10 +219,16 @@ export default function App() {
           console.error("Failed to remove key state listener", error);
         }
       });
+      // 키 딜레이 타이머 정리
+      keyDelayTimersRef.current.forEach((timerEntry) => {
+        timerEntry.timers.forEach((timer) => clearTimeout(timer));
+        timerEntry.timers.clear();
+      });
+      keyDelayTimersRef.current.clear();
       // 안전하게 모든 키 신호 초기화(선택적)
       resetAllKeySignals();
     };
-  }, [handleKeyDown, handleKeyUp, noteEffect]);
+  }, [handleKeyDown, handleKeyUp, noteEffect, updateKeySignalWithDelay]);
 
   const currentKeys = useMemo(
     () => keyMappings[selectedKeyType] ?? [],

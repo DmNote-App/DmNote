@@ -183,6 +183,9 @@ fn apply_note_patch(mut settings: NoteSettings, patch: &NoteSettingsPatch) -> No
     if let Some(value) = patch.short_note_min_length_px {
         settings.short_note_min_length_px = value;
     }
+    if let Some(value) = patch.key_display_delay_ms {
+        settings.key_display_delay_ms = value;
+    }
     settings
 }
 

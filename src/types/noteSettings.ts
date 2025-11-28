@@ -36,6 +36,11 @@ export const noteSettingsSchema = z.object({
     .int()
     .min(NOTE_SETTINGS_CONSTRAINTS.shortNoteMinLengthPx.min)
     .max(NOTE_SETTINGS_CONSTRAINTS.shortNoteMinLengthPx.max),
+  keyDisplayDelayMs: z
+    .number()
+    .int()
+    .min(NOTE_SETTINGS_CONSTRAINTS.keyDisplayDelayMs.min)
+    .max(NOTE_SETTINGS_CONSTRAINTS.keyDisplayDelayMs.max),
 });
 
 export type NoteSettings = z.infer<typeof noteSettingsSchema>;
@@ -49,6 +54,7 @@ export const NOTE_SETTINGS_DEFAULTS: NoteSettings = Object.freeze({
   delayedNoteEnabled: false,
   shortNoteThresholdMs: NOTE_SETTINGS_CONSTRAINTS.shortNoteThresholdMs.default,
   shortNoteMinLengthPx: NOTE_SETTINGS_CONSTRAINTS.shortNoteMinLengthPx.default,
+  keyDisplayDelayMs: NOTE_SETTINGS_CONSTRAINTS.keyDisplayDelayMs.default,
 });
 
 export function normalizeNoteSettings(raw: unknown): NoteSettings {

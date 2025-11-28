@@ -184,6 +184,8 @@ pub struct NoteSettings {
     pub delayed_note_enabled: bool,
     pub short_note_threshold_ms: u32,
     pub short_note_min_length_px: u32,
+    #[serde(default)]
+    pub key_display_delay_ms: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -205,6 +207,7 @@ impl Default for NoteSettings {
             delayed_note_enabled: false,
             short_note_threshold_ms: 50,
             short_note_min_length_px: 30,
+            key_display_delay_ms: 0,
         }
     }
 }
@@ -547,6 +550,7 @@ pub struct NoteSettingsPatch {
     pub delayed_note_enabled: Option<bool>,
     pub short_note_threshold_ms: Option<u32>,
     pub short_note_min_length_px: Option<u32>,
+    pub key_display_delay_ms: Option<u32>,
 }
 
 impl Default for NoteSettingsPatch {
@@ -560,6 +564,7 @@ impl Default for NoteSettingsPatch {
             delayed_note_enabled: None,
             short_note_threshold_ms: None,
             short_note_min_length_px: None,
+            key_display_delay_ms: None,
         }
     }
 }

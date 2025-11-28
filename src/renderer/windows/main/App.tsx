@@ -485,6 +485,9 @@ export default function App() {
           delayEnabled={noteSettings.delayedNoteEnabled}
           thresholdMs={noteSettings.shortNoteThresholdMs}
           minLengthPx={noteSettings.shortNoteMinLengthPx}
+          keyDisplayDelayMs={noteSettings.keyDisplayDelayMs ?? 0}
+          trackHeight={noteSettings.trackHeight}
+          speed={noteSettings.speed}
           onSave={async (payload) => {
             try {
               const updated = {

@@ -172,6 +172,9 @@
     "delayToggle": "Enforce short-note length",
     "threshold": "Short threshold",
     "minLength": "Min short length",
+    "keyDelay": "Key display delay",
+    "keyDelayAuto": "Recommended: {{value}}ms",
+    "autoCalc": "Auto",
     "save": "Apply",
     "cancel": "Cancel"
   },
