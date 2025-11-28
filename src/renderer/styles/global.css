@@ -34,7 +34,8 @@ body,
   -webkit-app-region: no-drag;
 }
 
-.grid-bg {
+/* 기존 CSS 그리드 배경 - SVG GridBackground 컴포넌트로 대체됨 */
+/* .grid-bg {
   background-image: linear-gradient(
       to right,
       rgb(25, 25, 28) 1px,
@@ -42,7 +43,7 @@ body,
     ),
     linear-gradient(to bottom, rgb(25, 25, 28) 1px, transparent 1px);
   background-size: 5px 5px;
-}
+} */
 
 .image-rendering {
   image-rendering: -webkit-optimize-contrast;

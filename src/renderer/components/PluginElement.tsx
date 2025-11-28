@@ -13,6 +13,7 @@ import {
 import { useDraggable } from "@hooks/useDraggable";
 import { useHistoryStore } from "@stores/useHistoryStore";
 import { useKeyStore as useKeyStoreForHistory } from "@stores/useKeyStore";
+import { useSmartGuidesElements } from "@hooks/useSmartGuidesElements";
 
 /**
  * 리사이즈 앵커에 따라 크기 변경 시 위치 보정값 계산
@@ -266,6 +267,9 @@ export const PluginElement: React.FC<PluginElementProps> = ({
       .pushState(keyMappings, positions, pluginElements);
   }, [windowType]);
 
+  // 스마트 가이드를 위한 다른 요소들의 bounds 가져오기
+  const { getOtherElements } = useSmartGuidesElements();
+
   // 드래그 지원 (main 윈도우에서만)
   const draggable = useDraggable({
     gridSize: 5,
@@ -294,6 +298,11 @@ export const PluginElement: React.FC<PluginElementProps> = ({
     zoom,
     panX,
     panY,
+    // 스마트 가이드 옵션
+    elementId: element.fullId,
+    elementWidth: element.measuredSize?.width || 100,
+    elementHeight: element.measuredSize?.height || 100,
+    getOtherElements: windowType === "main" ? getOtherElements : null,
   });
 
   const { ref: draggableRef, dx: renderX, dy: renderY } = draggable;

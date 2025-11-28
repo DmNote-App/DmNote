@@ -9,6 +9,7 @@ import {
   normalizeCounterSettings,
 } from "@src/types/keys";
 import { toCssRgba } from "@utils/colorUtils";
+import { useSmartGuidesElements } from "@hooks/useSmartGuidesElements";
 
 export default function DraggableKey({
   index,
@@ -34,6 +35,10 @@ export default function DraggableKey({
     inactiveImage,
     className,
   } = position;
+
+  // 스마트 가이드를 위한 다른 요소들의 bounds 가져오기
+  const { getOtherElements } = useSmartGuidesElements();
+
   const draggable = useDraggable({
     gridSize: 5,
     initialX: dx,
@@ -42,6 +47,11 @@ export default function DraggableKey({
     zoom,
     panX,
     panY,
+    // 스마트 가이드 옵션
+    elementId: `key-${index}`,
+    elementWidth: width || 60,
+    elementHeight: height || 60,
+    getOtherElements,
   });
 
   const handleClick = (e) => {

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { MIN_GRID_POSITION, MAX_GRID_POSITION } from "@stores/useGridViewStore";
+import { useSmartGuidesStore } from "@stores/useSmartGuidesStore";
+import { calculateBounds, calculateSnapPoints } from "@utils/smartGuides";
 
 // 위치 클램핑 함수
 const clampPosition = (value) => {
@@ -25,6 +27,11 @@ export const useDraggable = ({
   zoom = 1, // 줌 레벨 (기본값 1)
   panX = 0, // 팬 X 오프셋
   panY = 0, // 팬 Y 오프셋
+  // 스마트 가이드 관련 옵션
+  elementId = "", // 요소 식별자
+  elementWidth = 60, // 요소 너비
+  elementHeight = 60, // 요소 높이
+  getOtherElements = null, // 다른 요소들의 bounds를 반환하는 함수
 }) => {
   const [node, setNode] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -41,11 +48,24 @@ export const useDraggable = ({
   const panXRef = useRef(panX);
   const panYRef = useRef(panY);
 
+  // 스마트 가이드 관련 ref
+  const elementIdRef = useRef(elementId);
+  const elementWidthRef = useRef(elementWidth);
+  const elementHeightRef = useRef(elementHeight);
+  const getOtherElementsRef = useRef(getOtherElements);
+
   useEffect(() => {
     zoomRef.current = zoom;
     panXRef.current = panX;
     panYRef.current = panY;
   }, [zoom, panX, panY]);
+
+  useEffect(() => {
+    elementIdRef.current = elementId;
+    elementWidthRef.current = elementWidth;
+    elementHeightRef.current = elementHeight;
+    getOtherElementsRef.current = getOtherElements;
+  }, [elementId, elementWidth, elementHeight, getOtherElements]);
 
   // initialX, initialY 변경 시 동기화
   useEffect(() => {
@@ -95,6 +115,9 @@ export const useDraggable = ({
       // Shift 키 드래그 시 축 고정을 위한 변수
       let lockedAxis = null; // 'x' | 'y' | null
 
+      // 스마트 가이드 스토어 참조
+      const smartGuidesStore = useSmartGuidesStore.getState();
+
       const handleMouseMove = (moveEvent) => {
         // 드래그 임계값 체크
         const deltaX = Math.abs(moveEvent.clientX - startClientX);
@@ -136,13 +159,79 @@ export const useDraggable = ({
             newDx = initialPosition.dx;
           }
 
-          // 동적 그리드 스냅 및 범위 제한 적용
-          const snappedX = clampPosition(
-            Math.round(newDx / dynamicGridSize) * dynamicGridSize
-          );
-          const snappedY = clampPosition(
-            Math.round(newDy / dynamicGridSize) * dynamicGridSize
-          );
+          // 스마트 가이드 계산 (getOtherElements가 제공된 경우)
+          const getOtherElementsFn = getOtherElementsRef.current;
+          const currentElementId = elementIdRef.current;
+          const currentWidth = elementWidthRef.current;
+          const currentHeight = elementHeightRef.current;
+
+          let finalX = newDx;
+          let finalY = newDy;
+          let didSmartSnapX = false;
+          let didSmartSnapY = false;
+
+          if (getOtherElementsFn && currentElementId) {
+            const otherElements = getOtherElementsFn(currentElementId);
+            const draggedBounds = calculateBounds(
+              newDx,
+              newDy,
+              currentWidth,
+              currentHeight,
+              currentElementId
+            );
+
+            const snapResult = calculateSnapPoints(
+              draggedBounds,
+              otherElements
+            );
+
+            if (snapResult.didSnapX || snapResult.didSnapY) {
+              // 스마트 가이드 스냅이 적용됨 (축별로 개별 처리)
+              if (snapResult.didSnapX) {
+                finalX = snapResult.snappedX;
+                didSmartSnapX = true;
+              }
+              if (snapResult.didSnapY) {
+                finalY = snapResult.snappedY;
+                didSmartSnapY = true;
+              }
+
+              // 스냅된 bounds 업데이트
+              const snappedBounds = calculateBounds(
+                finalX,
+                finalY,
+                currentWidth,
+                currentHeight,
+                currentElementId
+              );
+              smartGuidesStore.setDraggedBounds(snappedBounds);
+              smartGuidesStore.setActiveGuides(snapResult.guides);
+            } else {
+              // 스마트 가이드 스냅이 없으면 가이드라인 클리어
+              smartGuidesStore.clearGuides();
+            }
+          }
+
+          // 축별로 스냅 적용
+          // X축: 스마트 가이드로 스냅되지 않은 경우에만 기본 그리드 스냅 적용
+          let snappedX;
+          if (didSmartSnapX) {
+            snappedX = clampPosition(Math.round(finalX));
+          } else {
+            snappedX = clampPosition(
+              Math.round(finalX / dynamicGridSize) * dynamicGridSize
+            );
+          }
+
+          // Y축: 스마트 가이드로 스냅되지 않은 경우에만 기본 그리드 스냅 적용
+          let snappedY;
+          if (didSmartSnapY) {
+            snappedY = clampPosition(Math.round(finalY));
+          } else {
+            snappedY = clampPosition(
+              Math.round(finalY / dynamicGridSize) * dynamicGridSize
+            );
+          }
 
           if (
             snappedX !== initialPosition.dx ||
@@ -161,6 +250,9 @@ export const useDraggable = ({
         document.removeEventListener("mouseup", handleMouseUp);
 
         setIsDragging(false);
+
+        // 스마트 가이드 클리어
+        useSmartGuidesStore.getState().clearGuides();
 
         // 실제 드래그가 발생했을 때만 복구
         if (actuallyDragging) {

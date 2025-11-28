@@ -20,6 +20,8 @@ import { translatePluginMessage } from "@utils/pluginI18n";
 import { useGridZoomPan } from "@hooks/useGridZoomPan";
 import GridMinimap from "./GridMinimap";
 import ZoomIndicator from "./ZoomIndicator";
+import SmartGuidesOverlay from "./SmartGuidesOverlay";
+import GridBackground from "./GridBackground";
 
 const GRID_SNAP = 5;
 const snapToGrid = (value) => {
@@ -429,7 +431,7 @@ export default function Grid({
         gridRef.current = node;
         gridContainerRef.current = node;
       }}
-      className="grid-bg relative w-full h-full bg-[#3A3943] rounded-[0px] overflow-hidden"
+      className="relative w-full h-full bg-[#3A3943] rounded-[0px] overflow-hidden"
       style={{ backgroundColor: color === "transparent" ? "#3A3943" : color }}
       onContextMenu={(e) => {
         if (duplicateState) {
@@ -480,6 +482,14 @@ export default function Grid({
         setDuplicateCursor(null);
       }}
     >
+      {/* 정확한 그리드 배경 */}
+      <GridBackground
+        gridSize={GRID_SNAP}
+        zoom={zoom}
+        panX={panX}
+        panY={panY}
+        color={color === "transparent" ? "#3A3943" : color}
+      />
       {/* 줌/팬이 적용되는 콘텐츠 영역 */}
       <div
         ref={gridContentRef}
@@ -499,6 +509,8 @@ export default function Grid({
           panY={panY}
         />
       </div>
+      {/* 스마트 가이드 오버레이 */}
+      <SmartGuidesOverlay zoom={zoom} panX={panX} panY={panY} />
       {/* 우클릭 리스트 팝업 */}
       <div className="relative">
         <ListPopup
