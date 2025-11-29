@@ -762,11 +762,18 @@ export default function Grid({
               "#FFFFFF",
             noteOpacity:
               positions[selectedKeyType][selectedKey.index].noteOpacity || 80,
+            noteGlowEnabled:
+              positions[selectedKeyType][selectedKey.index].noteGlowEnabled ??
+              true,
             noteGlowSize:
-              positions[selectedKeyType][selectedKey.index].noteGlowSize || 0,
+              positions[selectedKeyType][selectedKey.index].noteGlowSize ?? 20,
             noteGlowOpacity:
-              positions[selectedKeyType][selectedKey.index].noteGlowOpacity ||
-              0,
+              positions[selectedKeyType][selectedKey.index].noteGlowOpacity ??
+              70,
+            noteGlowColor:
+              positions[selectedKeyType][selectedKey.index].noteGlowColor ||
+              positions[selectedKeyType][selectedKey.index].noteColor ||
+              "#FFFFFF",
             className:
               positions[selectedKeyType][selectedKey.index].className || "",
           }}
@@ -822,8 +829,10 @@ export default function Grid({
                 noteColorTargetIndex,
                 settings.noteColor,
                 settings.noteOpacity,
+                settings.noteGlowEnabled,
                 settings.noteGlowSize,
-                settings.noteGlowOpacity
+                settings.noteGlowOpacity,
+                settings.noteGlowColor
               );
             }
             setNoteColorTargetIndex(null);
@@ -836,13 +845,22 @@ export default function Grid({
             positions[selectedKeyType]?.[noteColorTargetIndex]?.noteOpacity ||
             80
           }
+          initialNoteGlowEnabled={
+            positions[selectedKeyType]?.[noteColorTargetIndex]
+              ?.noteGlowEnabled ?? true
+          }
           initialNoteGlowSize={
-            positions[selectedKeyType]?.[noteColorTargetIndex]?.noteGlowSize ||
-            0
+            positions[selectedKeyType]?.[noteColorTargetIndex]?.noteGlowSize ??
+            20
           }
           initialNoteGlowOpacity={
             positions[selectedKeyType]?.[noteColorTargetIndex]
-              ?.noteGlowOpacity || 0
+              ?.noteGlowOpacity ?? 70
+          }
+          initialNoteGlowColor={
+            positions[selectedKeyType]?.[noteColorTargetIndex]?.noteGlowColor ||
+            positions[selectedKeyType]?.[noteColorTargetIndex]?.noteColor ||
+            "#FFFFFF"
           }
         />
       )}

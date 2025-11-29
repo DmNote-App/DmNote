@@ -11,6 +11,8 @@ const vertexShader = `
   attribute vec4 noteColorBottom;
   attribute float noteRadius;
   attribute vec2 noteGlow; // x: glow size, y: glow opacity (0-1)
+  attribute vec3 noteGlowColorTop;
+  attribute vec3 noteGlowColorBottom;
   attribute float trackIndex;
 
   uniform mat4 projectionMatrix;
@@ -28,6 +30,8 @@ const vertexShader = `
   varying float vRadius;
   varying float vGlowSize;
   varying float vGlowOpacity;
+  varying vec3 vGlowColorTop;
+  varying vec3 vGlowColorBottom;
   varying float vTrackTopY;
   varying float vTrackBottomY;
   varying float vReverse;
@@ -119,6 +123,8 @@ const vertexShader = `
     vRadius = noteRadius;
     vGlowSize = glowSize;
     vGlowOpacity = glowOpacity;
+    vGlowColorTop = noteGlowColorTop;
+    vGlowColorBottom = noteGlowColorBottom;
     vTrackTopY = trackTopY;
     vTrackBottomY = trackBottomY;
     vReverse = uReverse;
@@ -140,6 +146,8 @@ const fragmentShader = `
   varying float vRadius;
   varying float vGlowSize;
   varying float vGlowOpacity;
+  varying vec3 vGlowColorTop;
+  varying vec3 vGlowColorBottom;
   varying float vTrackTopY;
   varying float vTrackBottomY;
   varying float vReverse;
@@ -166,6 +174,7 @@ const fragmentShader = `
     }
 
     vec4 baseColor = mix(vColorTop, vColorBottom, gradientRatio);
+    vec3 glowColor = mix(vGlowColorTop, vGlowColorBottom, gradientRatio);
     float fadeZone = 50.0;
     float fadeRatio = fadeZone / trackHeight;
 
@@ -181,8 +190,7 @@ const fragmentShader = `
       float outside = max(dist, 0.0);
       float range = max(vGlowSize, 0.0001);
       float glowFalloff = clamp(1.0 - outside / range, 0.0, 1.0);
-      glowFalloff = glowFalloff * glowFalloff;
-      glowAlpha = baseColor.a * vGlowOpacity * glowFalloff;
+      glowAlpha = baseColor.a * vGlowOpacity * pow(glowFalloff, 2.0);
     }
 
     float fadeMask = 1.0;
@@ -193,7 +201,7 @@ const fragmentShader = `
     glowAlpha *= fadeMask;
 
     float outAlpha = clamp(bodyAlpha + glowAlpha, 0.0, 1.0);
-    vec3 outColor = baseColor.rgb * bodyAlpha + baseColor.rgb * glowAlpha;
+    vec3 outColor = baseColor.rgb * bodyAlpha + glowColor * glowAlpha;
     gl_FragColor = vec4(outColor, outAlpha);
   }
 `;
@@ -308,6 +316,16 @@ export const WebGLTracksOGL = memo(
         instanced: 1,
         size: 2,
         data: noteBuffer.noteGlow,
+      });
+      geometry.addAttribute("noteGlowColorTop", {
+        instanced: 1,
+        size: 3,
+        data: noteBuffer.noteGlowColorTop,
+      });
+      geometry.addAttribute("noteGlowColorBottom", {
+        instanced: 1,
+        size: 3,
+        data: noteBuffer.noteGlowColorBottom,
       });
       geometry.addAttribute("trackIndex", {
         instanced: 1,

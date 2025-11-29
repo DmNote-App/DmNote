@@ -76,13 +76,15 @@
     "noteOpacity": "Note Opacity",
     "noteGlowSize": "Glow Size",
     "noteGlowOpacity": "Glow Opacity",
+    "noteGlow": "Glow Effect",
     "inactiveState": "Idle",
     "activeState": "Pressed",
     "customImage": "Custom Image",
     "configure": "Configure",
     "className": "Class Name",
     "save": "Apply",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "noteGlowColor": "Glow Color"
   },
   "imagePicker": {
     "idle": "Idle",

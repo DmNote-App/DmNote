@@ -87,10 +87,14 @@ pub struct KeyPosition {
     pub count: u32,
     pub note_color: NoteColor,
     pub note_opacity: u32,
+    #[serde(default = "default_note_glow_enabled")]
+    pub note_glow_enabled: bool,
     #[serde(default = "default_note_glow_size")]
     pub note_glow_size: u32,
     #[serde(default = "default_note_glow_opacity")]
     pub note_glow_opacity: u32,
+    #[serde(default)]
+    pub note_glow_color: Option<NoteColor>,
     #[serde(default)]
     pub class_name: Option<String>,
     #[serde(default)]
@@ -177,8 +181,9 @@ impl Default for KeyCounterSettings {
 
 fn default_gap() -> u32 { 6 }
 
-fn default_note_glow_size() -> u32 { 0 }
-fn default_note_glow_opacity() -> u32 { 0 }
+fn default_note_glow_enabled() -> bool { false }
+fn default_note_glow_size() -> u32 { 20 }
+fn default_note_glow_opacity() -> u32 { 70 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

@@ -127,8 +127,10 @@ export const keyPositionSchema = z.object({
   count: z.number().int().nonnegative(),
   noteColor: noteColorSchema,
   noteOpacity: z.number().int().min(0).max(100),
-  noteGlowSize: z.number().int().min(0).max(9999).optional().default(0),
-  noteGlowOpacity: z.number().int().min(0).max(100).optional().default(0),
+  noteGlowEnabled: z.boolean().optional().default(false),
+  noteGlowSize: z.number().int().min(0).max(50).optional().default(20),
+  noteGlowOpacity: z.number().int().min(0).max(100).optional().default(70),
+  noteGlowColor: noteColorSchema.optional(),
   className: z.string().optional().or(z.literal("")),
   counter: z
     .any()

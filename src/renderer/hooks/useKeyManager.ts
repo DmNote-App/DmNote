@@ -28,6 +28,8 @@ type KeyUpdatePayload = {
   noteOpacity?: number;
   noteGlowSize?: number;
   noteGlowOpacity?: number;
+  noteGlowEnabled?: boolean;
+  noteGlowColor?: NoteColor;
   className?: string;
 };
 
@@ -119,10 +121,15 @@ export function useKeyManager() {
                 height: keyData.height,
                 noteColor: keyData.noteColor ?? value.noteColor ?? "#FFFFFF",
                 noteOpacity: keyData.noteOpacity ?? value.noteOpacity ?? 80,
+                noteGlowEnabled:
+                  keyData.noteGlowEnabled ??
+                  value.noteGlowEnabled ??
+                  true,
                 noteGlowSize:
-                  keyData.noteGlowSize ?? value.noteGlowSize ?? 0,
+                  keyData.noteGlowSize ?? value.noteGlowSize ?? 20,
                 noteGlowOpacity:
-                  keyData.noteGlowOpacity ?? value.noteGlowOpacity ?? 0,
+                  keyData.noteGlowOpacity ?? value.noteGlowOpacity ?? 70,
+                noteGlowColor: keyData.noteGlowColor ?? value.noteGlowColor,
                 className: keyData.className ?? value.className ?? "",
               }
             : value
@@ -170,8 +177,10 @@ export function useKeyManager() {
           count: 0,
           noteColor: "#FFFFFF",
           noteOpacity: 80,
-          noteGlowSize: 0,
-          noteGlowOpacity: 0,
+          noteGlowEnabled: false,
+          noteGlowSize: 20,
+          noteGlowOpacity: 70,
+          noteGlowColor: "#FFFFFF",
           className: "",
           counter: createDefaultCounterSettings(),
         },
@@ -216,8 +225,10 @@ export function useKeyManager() {
           count: 0,
           noteColor: "#FFFFFF",
           noteOpacity: 80,
-          noteGlowSize: 0,
-          noteGlowOpacity: 0,
+          noteGlowEnabled: false,
+          noteGlowSize: 20,
+          noteGlowOpacity: 70,
+          noteGlowColor: "#FFFFFF",
           className: "",
           counter: createDefaultCounterSettings(),
         },
@@ -271,6 +282,11 @@ export function useKeyManager() {
       dy: snappedDy,
       counter: clonedCounter,
       noteColor: clonedNoteColor,
+      noteGlowEnabled:
+        sourcePosition.noteGlowEnabled ?? true,
+      noteGlowSize: sourcePosition.noteGlowSize ?? 20,
+      noteGlowOpacity: sourcePosition.noteGlowOpacity ?? 70,
+      noteGlowColor: clonedNoteColor,
     };
 
     const updatedMappings: KeyMappings = {
@@ -298,8 +314,10 @@ export function useKeyManager() {
     index: number,
     noteColor: NoteColor,
     noteOpacity: number,
+    noteGlowEnabled: boolean,
     noteGlowSize: number,
-    noteGlowOpacity: number
+    noteGlowOpacity: number,
+    noteGlowColor: NoteColor | undefined
   ) => {
     // 노트 색상 설정 모달에서 적용하기 클릭 시 호출됨
     saveToHistory();
@@ -315,8 +333,10 @@ export function useKeyManager() {
               ...pos,
               noteColor,
               noteOpacity,
+              noteGlowEnabled,
               noteGlowSize,
               noteGlowOpacity,
+              noteGlowColor: noteGlowColor ?? noteColor,
             }
           : pos
       ),
