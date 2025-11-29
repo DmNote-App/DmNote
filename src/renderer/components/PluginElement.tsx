@@ -10,10 +10,10 @@ import {
   PluginDisplayElementInternal,
   ElementResizeAnchor,
 } from "@src/types/api";
-import { useDraggable } from "@hooks/useDraggable";
+import { useDraggable } from "@hooks/Grid";
 import { useHistoryStore } from "@stores/useHistoryStore";
 import { useKeyStore as useKeyStoreForHistory } from "@stores/useKeyStore";
-import { useSmartGuidesElements } from "@hooks/useSmartGuidesElements";
+import { useSmartGuidesElements } from "@hooks/Grid";
 import { useSmartGuidesStore } from "@stores/useSmartGuidesStore";
 import { calculateBounds, calculateSnapPoints } from "@utils/smartGuides";
 import {
@@ -350,6 +350,9 @@ export const PluginElement: React.FC<PluginElementProps> = ({
       e.preventDefault();
       e.stopPropagation();
 
+      // 드래그 시작 전 기존 스마트 가이드 클리어 (이전 드래그가 정상 종료되지 않은 경우 대비)
+      useSmartGuidesStore.getState().clearGuides();
+
       // 드래그 시작 시 히스토리 저장
       onMultiDragStart?.();
 
@@ -371,14 +374,19 @@ export const PluginElement: React.FC<PluginElementProps> = ({
       };
 
       let rafId: number | null = null;
+      // 드래그 종료 플래그 (rAF 콜백에서 체크)
+      let dragEnded = false;
       const smartGuidesStore = useSmartGuidesStore.getState();
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        if (!multiDragRef.current.isDragging) return;
+        if (!multiDragRef.current.isDragging || dragEnded) return;
 
         if (rafId) return;
         rafId = requestAnimationFrame(() => {
           rafId = null;
+
+          // 드래그가 종료되었으면 rAF 콜백에서도 무시
+          if (dragEnded) return;
 
           const currentZoom = zoom;
           // raw delta (스냅 전)
@@ -469,9 +477,18 @@ export const PluginElement: React.FC<PluginElementProps> = ({
       };
 
       const handleMouseUp = () => {
+        // 드래그 종료 플래그 설정 (rAF 콜백 무시)
+        dragEnded = true;
+        // 진행 중인 rAF 취소
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
         multiDragRef.current.isDragging = false;
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
+        // window blur 시에도 cleanup 되도록 이벤트 제거
+        window.removeEventListener("blur", handleMouseUp);
         // 스마트 가이드 클리어
         useSmartGuidesStore.getState().clearGuides();
         // 드래그 종료 시 오버레이 동기화
@@ -480,6 +497,8 @@ export const PluginElement: React.FC<PluginElementProps> = ({
 
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
+      // window blur 시에도 드래그 종료 처리 (창이 포커스를 잃었을 때)
+      window.addEventListener("blur", handleMouseUp);
     },
     [
       isSelectionMode,
@@ -1033,18 +1052,19 @@ export const PluginElement: React.FC<PluginElementProps> = ({
     // 우클릭은 컨텍스트 메뉴용이므로 제외
     if (e.button !== 0) return;
 
-    // 선택된 상태에서는 클릭 이벤트 무시
-    if (isSelectionMode) {
-      e.stopPropagation();
-      return;
-    }
-
-    // Ctrl+클릭으로 선택 토글 (메인 윈도우에서만)
+    // Ctrl+클릭으로 선택 토글 (메인 윈도우에서만) - 선택 모드에서도 동작해야 함 (선택 해제용)
     if (e.ctrlKey && windowType === "main") {
+      e.stopPropagation();
       useGridSelectionStore.getState().toggleSelection({
         type: "plugin",
         id: element.fullId,
       });
+      return;
+    }
+
+    // 선택된 상태에서는 일반 클릭 이벤트 무시
+    if (isSelectionMode) {
+      e.stopPropagation();
       return;
     }
 

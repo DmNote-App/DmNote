@@ -1,0 +1,214 @@
+/**
+ * Grid 컨텍스트 메뉴 관련 로직 훅
+ * - 키 컨텍스트 메뉴 항목 생성
+ * - 그리드 컨텍스트 메뉴 항목 생성
+ */
+
+import { useCallback, useMemo } from "react";
+import { usePluginMenuStore } from "@stores/usePluginMenuStore";
+import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementStore";
+import { translatePluginMessage } from "@utils/pluginI18n";
+
+interface MenuItem {
+  id: string;
+  label: string;
+  disabled?: boolean;
+  isPlugin?: boolean;
+}
+
+interface KeyContext {
+  keyCode: string;
+  index: number;
+  position: any;
+  mode: string;
+}
+
+interface GridContext {
+  position: { dx: number; dy: number };
+  mode: string;
+}
+
+interface UseGridContextMenuParams {
+  selectedKeyType: string;
+  keyMappings: Record<string, string[]>;
+  positions: Record<string, any[]>;
+  locale: string;
+  t: (key: string) => string;
+}
+
+interface UseGridContextMenuReturn {
+  getKeyMenuItems: (contextIndex: number | null) => MenuItem[];
+  getGridMenuItems: (
+    gridAddLocalPos: { dx: number; dy: number } | null
+  ) => MenuItem[];
+  pluginKeyMenuItems: any[];
+  pluginGridMenuItems: any[];
+  resolvePluginLabel: (pluginId: string, rawLabel: string) => string;
+}
+
+/**
+ * 컨텍스트 메뉴 훅
+ */
+export function useGridContextMenu({
+  selectedKeyType,
+  keyMappings,
+  positions,
+  locale,
+  t,
+}: UseGridContextMenuParams): UseGridContextMenuReturn {
+  // 플러그인 메뉴 아이템
+  const pluginKeyMenuItems = usePluginMenuStore((state) => state.keyMenuItems);
+  const pluginGridMenuItems = usePluginMenuStore(
+    (state) => state.gridMenuItems
+  );
+  const pluginDefinitions = usePluginDisplayElementStore(
+    (state) => state.definitions
+  );
+
+  const pluginMessagesById = useMemo(() => {
+    const map = new Map<string, any>();
+    pluginDefinitions.forEach((def) => {
+      if (!map.has(def.pluginId)) {
+        map.set(def.pluginId, def.messages);
+      }
+    });
+    return map;
+  }, [pluginDefinitions]);
+
+  const resolvePluginLabel = useCallback(
+    (pluginId: string, rawLabel: string) =>
+      translatePluginMessage({
+        messages: pluginMessagesById.get(pluginId),
+        locale,
+        key: rawLabel,
+        fallback: rawLabel,
+      }),
+    [pluginMessagesById, locale]
+  );
+
+  // 키 메뉴 아이템 생성 (기본 + 플러그인)
+  const getKeyMenuItems = useCallback(
+    (contextIndex: number | null): MenuItem[] => {
+      const baseItems: MenuItem[] = [
+        { id: "delete", label: t("contextMenu.deleteKey") },
+        { id: "duplicate", label: t("contextMenu.duplicateKey") },
+        { id: "counter", label: t("contextMenu.counterSetting") },
+        { id: "counterReset", label: t("contextMenu.counterReset") },
+        { id: "bringToFront", label: t("contextMenu.bringToFront") },
+        { id: "sendToBack", label: t("contextMenu.sendToBack") },
+      ];
+
+      // 플러그인 메뉴 필터링 (조건부 표시)
+      const context: KeyContext | null =
+        contextIndex !== null
+          ? {
+              keyCode: keyMappings[selectedKeyType]?.[contextIndex] || "",
+              index: contextIndex,
+              position: positions[selectedKeyType]?.[contextIndex] || {},
+              mode: selectedKeyType,
+            }
+          : null;
+
+      const filterPluginItems = (items: any[]): MenuItem[] => {
+        if (!context) return [];
+        return items
+          .filter((item) => {
+            // visible 체크
+            if (item.visible === false) return false;
+            if (typeof item.visible === "function" && !item.visible(context))
+              return false;
+            return true;
+          })
+          .map((item) => ({
+            id: item.fullId,
+            label: resolvePluginLabel(item.pluginId, item.label),
+            disabled:
+              typeof item.disabled === "function"
+                ? item.disabled(context)
+                : item.disabled || false,
+            isPlugin: true,
+          }));
+      };
+
+      const topPluginItems = filterPluginItems(
+        pluginKeyMenuItems.filter((i) => i.position === "top")
+      );
+      const bottomPluginItems = filterPluginItems(
+        pluginKeyMenuItems.filter((i) => i.position !== "top")
+      );
+
+      return [...topPluginItems, ...baseItems, ...bottomPluginItems];
+    },
+    [
+      selectedKeyType,
+      keyMappings,
+      positions,
+      t,
+      pluginKeyMenuItems,
+      resolvePluginLabel,
+    ]
+  );
+
+  // 그리드 메뉴 아이템 생성 (기본 + 플러그인)
+  const getGridMenuItems = useCallback(
+    (gridAddLocalPos: { dx: number; dy: number } | null): MenuItem[] => {
+      const topBaseItems: MenuItem[] = [
+        { id: "add", label: t("tooltip.addKey") },
+      ];
+      const bottomBaseItems: MenuItem[] = [
+        { id: "tabCss", label: t("contextMenu.tabCssSetting") },
+      ];
+
+      // 플러그인 메뉴 필터링
+      const context: GridContext | null = gridAddLocalPos
+        ? {
+            position: gridAddLocalPos,
+            mode: selectedKeyType,
+          }
+        : null;
+
+      const filterPluginItems = (items: any[]): MenuItem[] => {
+        if (!context) return [];
+        return items
+          .filter((item) => {
+            if (item.visible === false) return false;
+            if (typeof item.visible === "function" && !item.visible(context))
+              return false;
+            return true;
+          })
+          .map((item) => ({
+            id: item.fullId,
+            label: resolvePluginLabel(item.pluginId, item.label),
+            disabled:
+              typeof item.disabled === "function"
+                ? item.disabled(context)
+                : item.disabled || false,
+            isPlugin: true,
+          }));
+      };
+
+      const topPluginItems = filterPluginItems(
+        pluginGridMenuItems.filter((i) => i.position === "top")
+      );
+      const bottomPluginItems = filterPluginItems(
+        pluginGridMenuItems.filter((i) => i.position !== "top")
+      );
+
+      return [
+        ...topPluginItems,
+        ...topBaseItems,
+        ...bottomPluginItems,
+        ...bottomBaseItems,
+      ];
+    },
+    [selectedKeyType, t, pluginGridMenuItems, resolvePluginLabel]
+  );
+
+  return {
+    getKeyMenuItems,
+    getGridMenuItems,
+    pluginKeyMenuItems,
+    pluginGridMenuItems,
+    resolvePluginLabel,
+  };
+}

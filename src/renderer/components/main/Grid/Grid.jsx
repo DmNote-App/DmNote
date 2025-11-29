@@ -1,45 +1,32 @@
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useCallback,
-} from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useTranslation } from "@contexts/I18nContext";
 import DraggableKey from "@components/Key";
 import { getKeyInfoByGlobalKey } from "@utils/KeyMaps";
-import KeySettingModal from "./Modal/content/KeySetting";
-import CounterSettingModal from "./Modal/content/CounterSetting";
-import TabCssModal from "./Modal/content/TabCssModal";
-import ListPopup from "./Modal/ListPopup";
+import KeySettingModal from "../Modal/content/KeySetting";
+import CounterSettingModal from "../Modal/content/CounterSetting";
+import TabCssModal from "../Modal/content/TabCssModal";
+import ListPopup from "../Modal/ListPopup";
 import { useKeyStore } from "@stores/useKeyStore";
-import { usePluginMenuStore } from "@stores/usePluginMenuStore";
 import { usePluginDisplayElementStore } from "@stores/usePluginDisplayElementStore";
 import { PluginElementsRenderer } from "@components/PluginElementsRenderer";
-import { translatePluginMessage } from "@utils/pluginI18n";
-import { useGridZoomPan } from "@hooks/useGridZoomPan";
+import { useGridZoomPan } from "@hooks/Grid/useGridZoomPan";
 import GridMinimap from "./GridMinimap";
 import ZoomIndicator from "./ZoomIndicator";
 import SmartGuidesOverlay from "./SmartGuidesOverlay";
 import GridBackground from "./GridBackground";
 import MarqueeSelectionOverlay from "./MarqueeSelectionOverlay";
-import {
-  useGridSelectionStore,
-  isElementInMarquee,
-  getMarqueeRect,
-} from "@stores/useGridSelectionStore";
+import { useGridSelectionStore } from "@stores/useGridSelectionStore";
 import { useHistoryStore } from "@stores/useHistoryStore";
 import { useUIStore } from "@stores/useUIStore";
-
-const GRID_SNAP = 5;
-const snapToGrid = (value) => {
-  if (!Number.isFinite(value)) return 0;
-  return Math.round(value / GRID_SNAP) * GRID_SNAP;
-};
-const snapCursorToGrid = (x, y) => ({
-  x: snapToGrid(x),
-  y: snapToGrid(y),
-});
+import { useSmartGuidesStore } from "@stores/useSmartGuidesStore";
+import {
+  GRID_SNAP,
+  snapCursorToGrid,
+  useGridKeyboard,
+  useGridSelection,
+  useGridContextMenu,
+  useGridMarquee,
+} from "@hooks/Grid";
 
 export default function Grid({
   showConfirm,
@@ -92,74 +79,72 @@ export default function Grid({
     contentRef: gridContentRef,
   });
 
-  // 플러그인 메뉴 아이템
-  const pluginKeyMenuItems = usePluginMenuStore((state) => state.keyMenuItems);
-  const pluginGridMenuItems = usePluginMenuStore(
-    (state) => state.gridMenuItems
-  );
-  const pluginDefinitions = usePluginDisplayElementStore(
-    (state) => state.definitions
-  );
-
-  const pluginMessagesById = useMemo(() => {
-    const map = new Map();
-    pluginDefinitions.forEach((def) => {
-      if (!map.has(def.pluginId)) {
-        map.set(def.pluginId, def.messages);
-      }
-    });
-    return map;
-  }, [pluginDefinitions]);
-
-  const resolvePluginLabel = useCallback(
-    (pluginId, rawLabel) =>
-      translatePluginMessage({
-        messages: pluginMessagesById.get(pluginId),
-        locale,
-        key: rawLabel,
-        fallback: rawLabel,
-      }),
-    [pluginMessagesById, locale]
-  );
+  // 컨텍스트 메뉴 훅 사용
+  const {
+    getKeyMenuItems,
+    getGridMenuItems,
+    pluginKeyMenuItems,
+    pluginGridMenuItems,
+  } = useGridContextMenu({
+    selectedKeyType,
+    keyMappings,
+    positions,
+    locale,
+    t,
+  });
 
   // 선택 상태 관리
   const selectedElements = useGridSelectionStore(
     (state) => state.selectedElements
   );
-  const selectElement = useGridSelectionStore((state) => state.selectElement);
   const toggleSelection = useGridSelectionStore(
     (state) => state.toggleSelection
   );
   const clearSelection = useGridSelectionStore((state) => state.clearSelection);
-  const setSelectedElements = useGridSelectionStore(
-    (state) => state.setSelectedElements
-  );
-  const isMarqueeSelecting = useGridSelectionStore(
-    (state) => state.isMarqueeSelecting
-  );
-  const startMarqueeSelection = useGridSelectionStore(
-    (state) => state.startMarqueeSelection
-  );
-  const updateMarqueeSelection = useGridSelectionStore(
-    (state) => state.updateMarqueeSelection
-  );
-  const endMarqueeSelection = useGridSelectionStore(
-    (state) => state.endMarqueeSelection
-  );
-  const marqueeStart = useGridSelectionStore((state) => state.marqueeStart);
-  const marqueeEnd = useGridSelectionStore((state) => state.marqueeEnd);
 
-  // 클립보드 상태
+  // 클립보드 상태 (복사/붙여넣기용)
   const clipboard = useGridSelectionStore((state) => state.clipboard);
-  const setClipboard = useGridSelectionStore((state) => state.setClipboard);
 
   // 플러그인 요소 가져오기
   const pluginElements = usePluginDisplayElementStore(
     (state) => state.elements
   );
-  const updatePluginElement = usePluginDisplayElementStore(
-    (state) => state.updateElement
-  );
+
+  // 선택 관련 로직 훅 사용
+  const {
+    moveSelectedElements,
+    deleteSelectedElements,
+    copySelectedElements,
+    pasteElements,
+    syncSelectedElementsToOverlay,
+  } = useGridSelection({
+    selectedElements,
+    selectedKeyType,
+    keyMappings,
+    positions,
+  });
+
+  // 마퀴 선택 훅 사용
+  const { isMarqueeSelecting, startMarqueeSelection } = useGridMarquee({
+    positions,
+    selectedKeyType,
+    pluginElements,
+    clientToGridCoords,
+  });
+
+  // 키보드 단축키 훅 사용
+  useGridKeyboard({
+    selectedElements,
+    moveSelectedElements,
+    deleteSelectedElements,
+    clearSelection,
+    copySelectedElements,
+    pasteElements,
+    canUndo,
+    canRedo,
+    onUndo,
+    onRedo,
+  });
 
   // 키 컨텍스트 메뉴
   const [isContextOpen, setIsContextOpen] = useState(false);
@@ -195,551 +180,15 @@ export default function Grid({
   // 기타 설정 팝업 열림 상태 (미니맵 표시 제어용)
   const isExtrasPopupOpen = useUIStore((state) => state.isExtrasPopupOpen);
 
-  // 선택된 요소들의 위치를 오버레이에 동기화하는 함수
-  const syncSelectedElementsToOverlay = useCallback(() => {
-    // 키 위치 동기화
-    const currentPositions = useKeyStore.getState().positions;
-    window.api.keys.updatePositions(currentPositions).catch((error) => {
-      console.error("Failed to sync key positions to overlay", error);
-    });
-    // 플러그인 요소는 setElements에서 자동으로 syncToOverlayThrottled 호출됨
-  }, []);
-
-  // 선택된 요소들 일괄 이동 함수 (배치 업데이트)
-  const moveSelectedElements = useCallback(
-    (deltaX, deltaY, saveHistory = false, syncToOverlay = true) => {
-      if (selectedElements.length === 0) return;
-
-      // 현재 상태 직접 가져오기 (클로저 문제 방지)
-      const currentPositions = useKeyStore.getState().positions;
-      const currentPluginElements =
-        usePluginDisplayElementStore.getState().elements;
-
-      // 히스토리 저장 (옵션)
-      if (saveHistory) {
-        const { keyMappings: km } = useKeyStore.getState();
-        useHistoryStore
-          .getState()
-          .pushState(km, currentPositions, currentPluginElements);
-      }
-
-      // 키 위치 배치 업데이트
-      const keyUpdates = selectedElements.filter(
-        (el) => el.type === "key" && el.index !== undefined
-      );
-      if (keyUpdates.length > 0) {
-        const newPositions = { ...currentPositions };
-        const tabPositions = [...(newPositions[selectedKeyType] || [])];
-
-        keyUpdates.forEach((el) => {
-          const currentPos = tabPositions[el.index];
-          if (currentPos) {
-            tabPositions[el.index] = {
-              ...currentPos,
-              dx: currentPos.dx + deltaX,
-              dy: currentPos.dy + deltaY,
-            };
-          }
-        });
-
-        newPositions[selectedKeyType] = tabPositions;
-        useKeyStore.getState().setPositions(newPositions);
-
-        // syncToOverlay가 true일 때만 API 호출 (드래그 중에는 false)
-        if (syncToOverlay) {
-          window.api.keys.updatePositions(newPositions).catch((error) => {
-            console.error("Failed to sync key positions to overlay", error);
-          });
-        }
-      }
-
-      // 플러그인 요소 배치 업데이트
-      const pluginUpdates = selectedElements.filter(
-        (el) => el.type === "plugin"
-      );
-      if (pluginUpdates.length > 0) {
-        const newElements = currentPluginElements.map((pluginEl) => {
-          const isSelected = pluginUpdates.some(
-            (sel) => sel.id === pluginEl.fullId
-          );
-          if (isSelected) {
-            return {
-              ...pluginEl,
-              position: {
-                x: pluginEl.position.x + deltaX,
-                y: pluginEl.position.y + deltaY,
-              },
-            };
-          }
-          return pluginEl;
-        });
-        // setElements는 내부적으로 syncToOverlayThrottled 호출 (드래그 중에도 throttle 덕분에 문제 없음)
-        usePluginDisplayElementStore.getState().setElements(newElements);
-      }
-    },
-    [selectedElements, selectedKeyType]
-  );
-
-  // 선택된 요소들 삭제 함수 (배치 삭제)
-  const deleteSelectedElements = useCallback(async () => {
-    if (selectedElements.length === 0) return;
-
-    const keysToDelete = selectedElements
-      .filter((el) => el.type === "key" && el.index !== undefined)
-      .map((el) => el.index);
-
-    const pluginsToDelete = selectedElements
-      .filter((el) => el.type === "plugin")
-      .map((el) => el.id);
-
-    // 히스토리 저장
-    if (keysToDelete.length > 0 || pluginsToDelete.length > 0) {
-      const { keyMappings: km, positions: pos } = useKeyStore.getState();
-      const currentPluginElements =
-        usePluginDisplayElementStore.getState().elements;
-      useHistoryStore.getState().pushState(km, pos, currentPluginElements);
-    }
-
-    // 먼저 선택 해제 (삭제된 인덱스 참조 방지)
-    clearSelection();
-
-    // 키 배치 삭제 (atomic update로 한 번의 리렌더링만 발생)
-    if (keysToDelete.length > 0) {
-      const { keyMappings: km, positions: pos } = useKeyStore.getState();
-      const mapping = km[selectedKeyType] || [];
-      const posArray = pos[selectedKeyType] || [];
-
-      // 삭제할 인덱스를 Set으로 변환 (O(1) 조회)
-      const deleteSet = new Set(keysToDelete);
-
-      const updatedMappings = {
-        ...km,
-        [selectedKeyType]: mapping.filter((_, index) => !deleteSet.has(index)),
-      };
-
-      const updatedPositions = {
-        ...pos,
-        [selectedKeyType]: posArray.filter((_, index) => !deleteSet.has(index)),
-      };
-
-      // 로컬 업데이트 플래그 설정 (백엔드 이벤트 무시)
-      useKeyStore.getState().setLocalUpdateInProgress(true);
-
-      // Atomic update: mappings와 positions를 동시에 업데이트하여 중간 상태 방지
-      useKeyStore
-        .getState()
-        .setKeyMappingsAndPositions(updatedMappings, updatedPositions);
-
-      // API 동기화 (순차 실행으로 일관성 보장)
-      try {
-        await window.api.keys.update(updatedMappings);
-        await window.api.keys.updatePositions(updatedPositions);
-      } catch (error) {
-        console.error("Failed to delete keys", error);
-      } finally {
-        // 플래그 해제
-        useKeyStore.getState().setLocalUpdateInProgress(false);
-      }
-    }
-
-    // 플러그인 요소 배치 삭제
-    if (pluginsToDelete.length > 0) {
-      const currentElements = usePluginDisplayElementStore.getState().elements;
-      const deleteSet = new Set(pluginsToDelete);
-      const newElements = currentElements.filter(
-        (el) => !deleteSet.has(el.fullId)
-      );
-      usePluginDisplayElementStore.getState().setElements(newElements);
-    }
-  }, [selectedElements, selectedKeyType, clearSelection]);
-
-  // 선택된 요소들 복사
-  const copySelectedElements = useCallback(() => {
-    if (selectedElements.length === 0) return;
-
-    const clipboardItems = [];
-    const currentMappings = keyMappings[selectedKeyType] || [];
-    const currentPositions = positions[selectedKeyType] || [];
-    const currentPluginElements =
-      usePluginDisplayElementStore.getState().elements;
-
-    for (const element of selectedElements) {
-      if (element.type === "key" && element.index !== undefined) {
-        const keyCode = currentMappings[element.index];
-        const position = currentPositions[element.index];
-        if (keyCode && position) {
-          clipboardItems.push({
-            type: "key",
-            keyCode,
-            position: { ...position },
-          });
-        }
-      } else if (element.type === "plugin") {
-        const pluginElement = currentPluginElements.find(
-          (el) => el.fullId === element.id
-        );
-        if (pluginElement) {
-          // fullId를 제외한 나머지 데이터 복사
-          const { fullId, ...elementData } = pluginElement;
-          clipboardItems.push({
-            type: "plugin",
-            element: elementData,
-          });
-        }
-      }
-    }
-
-    if (clipboardItems.length > 0) {
-      setClipboard(clipboardItems);
-    }
-  }, [selectedElements, selectedKeyType, keyMappings, positions, setClipboard]);
-
-  // 클립보드에서 붙여넣기
-  const pasteElements = useCallback(async () => {
-    if (clipboard.length === 0) return;
-
-    const PASTE_OFFSET = 20; // 붙여넣기 시 오프셋
-
-    // 히스토리 저장
-    const historyStore = useHistoryStore.getState();
-    historyStore.pushState({ ...keyMappings }, { ...positions }, [
-      ...usePluginDisplayElementStore.getState().elements,
-    ]);
-
-    const keysToAdd = [];
-    const pluginsToAdd = [];
-
-    for (const item of clipboard) {
-      if (item.type === "key") {
-        keysToAdd.push({
-          keyCode: item.keyCode,
-          position: {
-            ...item.position,
-            left: (item.position.left || 0) + PASTE_OFFSET,
-            top: (item.position.top || 0) + PASTE_OFFSET,
-          },
-        });
-      } else if (item.type === "plugin") {
-        pluginsToAdd.push({
-          ...item.element,
-          left: (item.element.left || 0) + PASTE_OFFSET,
-          top: (item.element.top || 0) + PASTE_OFFSET,
-          tabId: selectedKeyType, // 현재 탭으로 업데이트
-        });
-      }
-    }
-
-    // 새로 추가된 요소들의 선택을 위한 인덱스 추적
-    const newSelectedElements = [];
-
-    // 키 추가
-    if (keysToAdd.length > 0) {
-      const km = useKeyStore.getState().keyMappings;
-      const pos = useKeyStore.getState().positions;
-      const mapping = [...(km[selectedKeyType] || [])];
-      const posArray = [...(pos[selectedKeyType] || [])];
-
-      const startIndex = mapping.length;
-
-      for (let i = 0; i < keysToAdd.length; i++) {
-        mapping.push(keysToAdd[i].keyCode);
-        posArray.push(keysToAdd[i].position);
-        newSelectedElements.push({
-          type: "key",
-          id: `key-${startIndex + i}`,
-          index: startIndex + i,
-        });
-      }
-
-      const updatedMappings = { ...km, [selectedKeyType]: mapping };
-      const updatedPositions = { ...pos, [selectedKeyType]: posArray };
-
-      // 로컬 업데이트 플래그 설정
-      useKeyStore.getState().setLocalUpdateInProgress(true);
-
-      useKeyStore
-        .getState()
-        .setKeyMappingsAndPositions(updatedMappings, updatedPositions);
-
-      try {
-        await window.api.keys.update(updatedMappings);
-        await window.api.keys.updatePositions(updatedPositions);
-      } catch (error) {
-        console.error("Failed to paste keys", error);
-      } finally {
-        useKeyStore.getState().setLocalUpdateInProgress(false);
-      }
-    }
-
-    // 플러그인 요소 추가
-    if (pluginsToAdd.length > 0) {
-      const currentElements = usePluginDisplayElementStore.getState().elements;
-      const newElements = [...currentElements];
-
-      for (const elementData of pluginsToAdd) {
-        // 새로운 고유 ID 생성
-        const newFullId = `${elementData.pluginId}:${
-          elementData.elementId
-        }:${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const newElement = {
-          ...elementData,
-          fullId: newFullId,
-        };
-        newElements.push(newElement);
-        newSelectedElements.push({
-          type: "plugin",
-          id: newFullId,
-        });
-      }
-
-      usePluginDisplayElementStore.getState().setElements(newElements);
-    }
-
-    // 붙여넣기된 요소들 선택
-    if (newSelectedElements.length > 0) {
-      setSelectedElements(newSelectedElements);
-    }
-  }, [clipboard, selectedKeyType, keyMappings, positions, setSelectedElements]);
-
-  // 키보드 방향키로 선택 요소 이동 핸들러
-  const lastArrowKeyTime = useRef(0);
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // 입력 요소에서는 무시
-      const target = e.target;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      ) {
-        return;
-      }
-
-      // Ctrl+C: 복사 (선택된 요소가 있을 때)
-      if ((e.ctrlKey || e.metaKey) && e.key === "c") {
-        if (selectedElements.length > 0) {
-          e.preventDefault();
-          copySelectedElements();
-        }
-        return;
-      }
-
-      // Ctrl+V: 붙여넣기 (클립보드에 항목이 있을 때)
-      if ((e.ctrlKey || e.metaKey) && e.key === "v") {
-        if (clipboard.length > 0) {
-          e.preventDefault();
-          pasteElements();
-        }
-        return;
-      }
-
-      // 선택된 요소가 없으면 무시
-      if (selectedElements.length === 0) return;
-
-      // 방향키 처리
-      const arrowKeys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
-      if (arrowKeys.includes(e.key)) {
-        e.preventDefault();
-
-        let deltaX = 0;
-        let deltaY = 0;
-
-        switch (e.key) {
-          case "ArrowUp":
-            deltaY = -1;
-            break;
-          case "ArrowDown":
-            deltaY = 1;
-            break;
-          case "ArrowLeft":
-            deltaX = -1;
-            break;
-          case "ArrowRight":
-            deltaX = 1;
-            break;
-        }
-
-        // 500ms 내 연속 입력이면 히스토리 저장 안함
-        const now = Date.now();
-        const saveHistory = now - lastArrowKeyTime.current > 500;
-        lastArrowKeyTime.current = now;
-
-        moveSelectedElements(deltaX, deltaY, saveHistory);
-        return;
-      }
-
-      // Delete 키로 선택 요소 삭제
-      if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
-        deleteSelectedElements();
-        return;
-      }
-
-      // Escape 키로 선택 해제
-      if (e.key === "Escape") {
-        clearSelection();
-        return;
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    selectedElements,
-    moveSelectedElements,
-    deleteSelectedElements,
-    clearSelection,
-    copySelectedElements,
-    pasteElements,
-    clipboard,
-  ]);
-
   // 탭 변경 시 선택 해제
   useEffect(() => {
     clearSelection();
   }, [selectedKeyType, clearSelection]);
 
-  // 키 메뉴 아이템 생성 (기본 + 플러그인)
-  const getKeyMenuItems = () => {
-    const baseItems = [
-      { id: "delete", label: t("contextMenu.deleteKey") },
-      { id: "duplicate", label: t("contextMenu.duplicateKey") },
-      { id: "counter", label: t("contextMenu.counterSetting") },
-      { id: "counterReset", label: t("contextMenu.counterReset") },
-      { id: "bringToFront", label: t("contextMenu.bringToFront") },
-      { id: "sendToBack", label: t("contextMenu.sendToBack") },
-    ];
-
-    // 플러그인 메뉴 필터링 (조건부 표시)
-    const context =
-      contextIndex !== null
-        ? {
-            keyCode: keyMappings[selectedKeyType]?.[contextIndex] || "",
-            index: contextIndex,
-            position: positions[selectedKeyType]?.[contextIndex] || {},
-            mode: selectedKeyType,
-          }
-        : null;
-
-    const filterPluginItems = (items) => {
-      if (!context) return [];
-      return items
-        .filter((item) => {
-          // visible 체크
-          if (item.visible === false) return false;
-          if (typeof item.visible === "function" && !item.visible(context))
-            return false;
-          return true;
-        })
-        .map((item) => ({
-          id: item.fullId,
-          label: resolvePluginLabel(item.pluginId, item.label),
-          disabled:
-            typeof item.disabled === "function"
-              ? item.disabled(context)
-              : item.disabled || false,
-          isPlugin: true,
-        }));
-    };
-
-    const topPluginItems = filterPluginItems(
-      pluginKeyMenuItems.filter((i) => i.position === "top")
-    );
-    const bottomPluginItems = filterPluginItems(
-      pluginKeyMenuItems.filter((i) => i.position !== "top")
-    );
-
-    return [...topPluginItems, ...baseItems, ...bottomPluginItems];
-  };
-
-  // 그리드 메뉴 아이템 생성 (기본 + 플러그인)
-  const getGridMenuItems = () => {
-    const topBaseItems = [{ id: "add", label: t("tooltip.addKey") }];
-    const bottomBaseItems = [
-      { id: "tabCss", label: t("contextMenu.tabCssSetting") },
-    ];
-
-    // 플러그인 메뉴 필터링
-    const context = gridAddLocalPos
-      ? {
-          position: gridAddLocalPos,
-          mode: selectedKeyType,
-        }
-      : null;
-
-    const filterPluginItems = (items) => {
-      if (!context) return [];
-      return items
-        .filter((item) => {
-          if (item.visible === false) return false;
-          if (typeof item.visible === "function" && !item.visible(context))
-            return false;
-          return true;
-        })
-        .map((item) => ({
-          id: item.fullId,
-          label: resolvePluginLabel(item.pluginId, item.label),
-          disabled:
-            typeof item.disabled === "function"
-              ? item.disabled(context)
-              : item.disabled || false,
-          isPlugin: true,
-        }));
-    };
-
-    const topPluginItems = filterPluginItems(
-      pluginGridMenuItems.filter((i) => i.position === "top")
-    );
-    const bottomPluginItems = filterPluginItems(
-      pluginGridMenuItems.filter((i) => i.position !== "top")
-    );
-
-    return [
-      ...topPluginItems,
-      ...topBaseItems,
-      ...bottomPluginItems,
-      ...bottomBaseItems,
-    ];
-  };
-
   // 그리드 컨텍스트 메뉴
   const [isGridContextOpen, setIsGridContextOpen] = useState(false);
   const [gridContextClientPos, setGridContextClientPos] = useState(null);
   const [gridAddLocalPos, setGridAddLocalPos] = useState(null);
-
-  // Undo/Redo 단축키 핸들러
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // 입력 요소에서는 단축키 무시
-      const target = e.target;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      ) {
-        return;
-      }
-
-      // Ctrl+Z: Undo
-      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        if (canUndo && typeof onUndo === "function") {
-          onUndo();
-        }
-      }
-      // Ctrl+Shift+Z: Redo
-      else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        if (canRedo && typeof onRedo === "function") {
-          onRedo();
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [canUndo, canRedo, onUndo, onRedo]);
 
   // 전역 마우스 위치 추적
   useEffect(() => {
@@ -901,92 +350,6 @@ export default function Grid({
     );
   };
 
-  // 마퀴 선택 중 마우스 이동 핸들러
-  const handleMarqueeMouseMove = useCallback(
-    (e) => {
-      if (!isMarqueeSelecting) return;
-
-      const gridCoords = clientToGridCoords(e.clientX, e.clientY);
-      if (gridCoords) {
-        updateMarqueeSelection(gridCoords.x, gridCoords.y);
-      }
-    },
-    [isMarqueeSelecting, clientToGridCoords, updateMarqueeSelection]
-  );
-
-  // 마퀴 선택 완료 시 요소 선택 처리
-  const handleMarqueeMouseUp = useCallback(() => {
-    if (!isMarqueeSelecting) return;
-
-    const rect = getMarqueeRect(marqueeStart, marqueeEnd);
-    if (rect && rect.width > 5 && rect.height > 5) {
-      const newSelectedElements = [];
-
-      // 키 요소 체크
-      const keyPositions = positions[selectedKeyType] || [];
-      keyPositions.forEach((pos, index) => {
-        const elementBounds = {
-          x: pos.dx,
-          y: pos.dy,
-          width: pos.width || 60,
-          height: pos.height || 60,
-        };
-        if (isElementInMarquee(elementBounds, rect)) {
-          newSelectedElements.push({
-            type: "key",
-            id: `key-${index}`,
-            index,
-          });
-        }
-      });
-
-      // 플러그인 요소 체크 (현재 탭에 속하는 것만)
-      pluginElements.forEach((el) => {
-        const belongsToCurrentTab = !el.tabId || el.tabId === selectedKeyType;
-        if (belongsToCurrentTab && el.measuredSize) {
-          const elementBounds = {
-            x: el.position.x,
-            y: el.position.y,
-            width: el.measuredSize.width,
-            height: el.measuredSize.height,
-          };
-          if (isElementInMarquee(elementBounds, rect)) {
-            newSelectedElements.push({
-              type: "plugin",
-              id: el.fullId,
-            });
-          }
-        }
-      });
-
-      setSelectedElements(newSelectedElements);
-    }
-
-    endMarqueeSelection();
-  }, [
-    isMarqueeSelecting,
-    marqueeStart,
-    marqueeEnd,
-    positions,
-    selectedKeyType,
-    pluginElements,
-    setSelectedElements,
-    endMarqueeSelection,
-  ]);
-
-  // 마퀴 선택 이벤트 등록
-  useEffect(() => {
-    if (isMarqueeSelecting) {
-      document.addEventListener("mousemove", handleMarqueeMouseMove);
-      document.addEventListener("mouseup", handleMarqueeMouseUp);
-
-      return () => {
-        document.removeEventListener("mousemove", handleMarqueeMouseMove);
-        document.removeEventListener("mouseup", handleMarqueeMouseUp);
-      };
-    }
-  }, [isMarqueeSelecting, handleMarqueeMouseMove, handleMarqueeMouseUp]);
-
   // 그리드 좌클릭 핸들러 (Ctrl+드래그로 마퀴 선택 시작)
   const handleGridMouseDown = useCallback(
     (e) => {
@@ -995,6 +358,9 @@ export default function Grid({
 
       // 복제 상태일 때는 무시
       if (duplicateState) return;
+
+      // 클릭 시 스마트 가이드 클리어 (드래그가 정상 종료되지 않은 경우 대비)
+      useSmartGuidesStore.getState().clearGuides();
 
       // Ctrl+드래그로 마퀴 선택 시작
       if (e.ctrlKey) {

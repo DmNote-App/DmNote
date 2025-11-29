@@ -95,6 +95,9 @@ export const useDraggable = ({
       // disabled 상태면 드래그 무시
       if (disabledRef.current) return;
 
+      // 드래그 시작 전 기존 스마트 가이드 클리어 (이전 드래그가 정상 종료되지 않은 경우 대비)
+      useSmartGuidesStore.getState().clearGuides();
+
       // 마우스 다운 시점의 위치 저장
       const startClientX = e.clientX;
       const startClientY = e.clientY;
@@ -118,6 +121,8 @@ export const useDraggable = ({
       const initialPosition = { dx, dy };
 
       let rafId = null;
+      // 드래그 종료 플래그 (rAF 콜백에서 체크)
+      let dragEnded = false;
       // Shift 키 드래그 시 축 고정을 위한 변수
       let lockedAxis = null; // 'x' | 'y' | null
 
@@ -125,6 +130,9 @@ export const useDraggable = ({
       const smartGuidesStore = useSmartGuidesStore.getState();
 
       const handleMouseMove = (moveEvent) => {
+        // 드래그가 종료되었으면 무시
+        if (dragEnded) return;
+
         // 드래그 임계값 체크
         const deltaX = Math.abs(moveEvent.clientX - startClientX);
         const deltaY = Math.abs(moveEvent.clientY - startClientY);
@@ -153,6 +161,9 @@ export const useDraggable = ({
         if (rafId) return;
         rafId = requestAnimationFrame(() => {
           rafId = null;
+
+          // 드래그가 종료되었으면 rAF 콜백에서도 무시
+          if (dragEnded) return;
 
           // 줌 레벨을 고려한 좌표 계산
           let newDx = (moveEvent.clientX - startPos.x) / currentZoom;
@@ -252,8 +263,18 @@ export const useDraggable = ({
       };
 
       const handleMouseUp = () => {
+        // 드래그 종료 플래그 설정 (pending rAF 콜백이 실행되지 않도록)
+        dragEnded = true;
+
+        // pending rAF가 있으면 취소
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
+        window.removeEventListener("blur", handleMouseUp);
 
         setIsDragging(false);
 
@@ -278,7 +299,8 @@ export const useDraggable = ({
       document.addEventListener("mousemove", handleMouseMove, {
         passive: true,
       });
-      document.addEventListener("mouseup", handleMouseUp, { once: true });
+      document.addEventListener("mouseup", handleMouseUp);
+      window.addEventListener("blur", handleMouseUp);
     },
     [node, dx, dy, onPositionChange]
   );

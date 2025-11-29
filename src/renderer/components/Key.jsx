@@ -2,14 +2,14 @@ import React, { memo, useMemo, useCallback, useRef, useEffect } from "react";
 import { getKeySignal } from "@stores/keySignals";
 import { getKeyCounterSignal } from "@stores/keyCounterSignals";
 import { useSignals } from "@preact/signals-react/runtime";
-import { useDraggable } from "@hooks/useDraggable";
+import { useDraggable } from "@hooks/Grid";
 import { getKeyInfoByGlobalKey } from "@utils/KeyMaps";
 import {
   createDefaultCounterSettings,
   normalizeCounterSettings,
 } from "@src/types/keys";
 import { toCssRgba } from "@utils/colorUtils";
-import { useSmartGuidesElements } from "@hooks/useSmartGuidesElements";
+import { useSmartGuidesElements } from "@hooks/Grid";
 import { useSmartGuidesStore } from "@stores/useSmartGuidesStore";
 import { calculateBounds, calculateSnapPoints } from "@utils/smartGuides";
 
@@ -84,6 +84,9 @@ export default function DraggableKey({
       e.preventDefault();
       e.stopPropagation();
 
+      // 드래그 시작 전 기존 스마트 가이드 클리어 (이전 드래그가 정상 종료되지 않은 경우 대비)
+      useSmartGuidesStore.getState().clearGuides();
+
       // 드래그 시작 시 히스토리 저장
       onMultiDragStart?.();
 
@@ -103,14 +106,19 @@ export default function DraggableKey({
       };
 
       let rafId = null;
+      // 드래그 종료 플래그 (rAF 콜백에서 체크)
+      let dragEnded = false;
       const smartGuidesStore = useSmartGuidesStore.getState();
 
       const handleMouseMove = (moveEvent) => {
-        if (!multiDragRef.current.isDragging) return;
+        if (!multiDragRef.current.isDragging || dragEnded) return;
 
         if (rafId) return;
         rafId = requestAnimationFrame(() => {
           rafId = null;
+
+          // 드래그가 종료되었으면 rAF 콜백에서도 무시
+          if (dragEnded) return;
 
           const currentZoom = zoom;
           // raw delta (스냅 전)
@@ -201,9 +209,19 @@ export default function DraggableKey({
       };
 
       const handleMouseUp = () => {
+        // 드래그 종료 플래그 설정 (pending rAF 콜백이 실행되지 않도록)
+        dragEnded = true;
         multiDragRef.current.isDragging = false;
+
+        // pending rAF가 있으면 취소
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
+        window.removeEventListener("blur", handleMouseUp);
         // 스마트 가이드 클리어
         useSmartGuidesStore.getState().clearGuides();
         // 드래그 종료 시 오버레이 동기화
@@ -212,6 +230,8 @@ export default function DraggableKey({
 
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
+      // window blur 시에도 드래그 종료 처리 (창이 포커스를 잃었을 때)
+      window.addEventListener("blur", handleMouseUp);
     },
     [
       isSelectionMode,
@@ -230,7 +250,14 @@ export default function DraggableKey({
   );
 
   const handleClick = (e) => {
-    // 선택된 상태에서는 클릭 이벤트 무시
+    // Ctrl+클릭으로 선택 토글 (선택 모드에서도 동작해야 함 - 선택 해제용)
+    if (e.ctrlKey && onCtrlClick) {
+      e.stopPropagation();
+      onCtrlClick(e);
+      return;
+    }
+
+    // 선택된 상태에서는 일반 클릭 이벤트 무시
     if (isSelectionMode) {
       e.stopPropagation();
       return;
@@ -238,11 +265,6 @@ export default function DraggableKey({
 
     if (activeTool === "eraser") {
       onEraserClick?.();
-      return;
-    }
-    // Ctrl+클릭으로 선택 토글
-    if (e.ctrlKey && onCtrlClick) {
-      onCtrlClick(e);
       return;
     }
     if (!draggable.wasMoved) onClick(e);
