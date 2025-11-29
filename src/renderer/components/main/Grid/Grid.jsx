@@ -4,6 +4,7 @@ import DraggableKey from "@components/Key";
 import { getKeyInfoByGlobalKey } from "@utils/KeyMaps";
 import KeySettingModal from "../Modal/content/KeySetting";
 import CounterSettingModal from "../Modal/content/CounterSetting";
+import NoteColorSettingModal from "../Modal/content/NoteColorSetting";
 import TabCssModal from "../Modal/content/TabCssModal";
 import ListPopup from "../Modal/ListPopup";
 import { useKeyStore } from "@stores/useKeyStore";
@@ -37,6 +38,7 @@ export default function Grid({
   positions,
   onPositionChange,
   onKeyUpdate,
+  onNoteColorUpdate,
   onCounterUpdate,
   onCounterPreview,
   onKeyDelete,
@@ -170,6 +172,9 @@ export default function Grid({
   const [counterTargetIndex, setCounterTargetIndex] = useState(null);
   const [counterOriginalSettings, setCounterOriginalSettings] = useState(null);
   const [counterApplied, setCounterApplied] = useState(false);
+
+  // 노트 색상 설정 모달 상태
+  const [noteColorTargetIndex, setNoteColorTargetIndex] = useState(null);
 
   // 탭 CSS 모달 상태
   const [isTabCssModalOpen, setIsTabCssModalOpen] = useState(false);
@@ -625,6 +630,9 @@ export default function Grid({
               setCounterOriginalSettings(original || null);
               setCounterApplied(false);
               setCounterTargetIndex(contextIndex);
+            } else if (id === "noteColor") {
+              // 노트 색상 설정 모달 열기
+              setNoteColorTargetIndex(contextIndex);
             } else if (id === "counterReset") {
               const globalKey =
                 keyMappings[selectedKeyType]?.[contextIndex] || "";
@@ -797,6 +805,30 @@ export default function Grid({
           })()}
           // 모달은 항상 최초 스냅샷으로 시작 (미리보기로 바뀐 값에 영향을 받지 않도록)
           initialSettings={counterOriginalSettings}
+        />
+      )}
+      {/* 노트 색상 세팅 모달 */}
+      {noteColorTargetIndex != null && (
+        <NoteColorSettingModal
+          onClose={() => setNoteColorTargetIndex(null)}
+          onSave={(settings) => {
+            if (typeof onNoteColorUpdate === "function") {
+              onNoteColorUpdate(
+                noteColorTargetIndex,
+                settings.noteColor,
+                settings.noteOpacity
+              );
+            }
+            setNoteColorTargetIndex(null);
+          }}
+          initialNoteColor={
+            positions[selectedKeyType]?.[noteColorTargetIndex]?.noteColor ||
+            "#FFFFFF"
+          }
+          initialNoteOpacity={
+            positions[selectedKeyType]?.[noteColorTargetIndex]?.noteOpacity ||
+            80
+          }
         />
       )}
       {/* 미니맵 */}

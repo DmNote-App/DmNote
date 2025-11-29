@@ -284,6 +284,36 @@ export function useKeyManager() {
     });
   };
 
+  const handleNoteColorUpdate = (
+    index: number,
+    noteColor: NoteColor,
+    noteOpacity: number
+  ) => {
+    // 노트 색상 설정 모달에서 적용하기 클릭 시 호출됨
+    saveToHistory();
+
+    const current = positions[selectedKeyType] || [];
+    if (!current[index]) return;
+
+    const updatedPositions: KeyPositions = {
+      ...positions,
+      [selectedKeyType]: current.map((pos, i) =>
+        i === index
+          ? {
+              ...pos,
+              noteColor,
+              noteOpacity,
+            }
+          : pos
+      ),
+    };
+
+    setPositions(updatedPositions);
+    window.api.keys.updatePositions(updatedPositions).catch((error) => {
+      console.error("Failed to update note color settings", error);
+    });
+  };
+
   const handleCounterSettingsUpdate = (
     index: number,
     payload: CounterUpdatePayload
@@ -638,6 +668,7 @@ export function useKeyManager() {
     positions,
     handlePositionChange,
     handleKeyUpdate,
+    handleNoteColorUpdate,
     handleCounterSettingsUpdate,
     handleCounterSettingsPreview,
     handleAddKey,

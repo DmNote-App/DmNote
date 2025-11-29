@@ -185,6 +185,7 @@
   "contextMenu": {
     "duplicateKey": "Duplicate Key",
     "deleteKey": "Delete Key",
+    "noteSetting": "Note Setting",
     "counterSetting": "Counter Setting",
     "counterReset": "Reset Counter",
     "bringToFront": "Bring to Front",

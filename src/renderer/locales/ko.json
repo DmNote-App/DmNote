@@ -185,6 +185,7 @@
   "contextMenu": {
     "duplicateKey": "키 복제",
     "deleteKey": "키 삭제",
+    "noteSetting": "노트 설정",
     "counterSetting": "카운터 설정",
     "counterReset": "카운터 초기화",
     "bringToFront": "맨 위로",
