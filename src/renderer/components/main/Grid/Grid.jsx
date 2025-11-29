@@ -762,6 +762,11 @@ export default function Grid({
               "#FFFFFF",
             noteOpacity:
               positions[selectedKeyType][selectedKey.index].noteOpacity || 80,
+            noteGlowSize:
+              positions[selectedKeyType][selectedKey.index].noteGlowSize || 0,
+            noteGlowOpacity:
+              positions[selectedKeyType][selectedKey.index].noteGlowOpacity ||
+              0,
             className:
               positions[selectedKeyType][selectedKey.index].className || "",
           }}
@@ -816,7 +821,9 @@ export default function Grid({
               onNoteColorUpdate(
                 noteColorTargetIndex,
                 settings.noteColor,
-                settings.noteOpacity
+                settings.noteOpacity,
+                settings.noteGlowSize,
+                settings.noteGlowOpacity
               );
             }
             setNoteColorTargetIndex(null);
@@ -828,6 +835,14 @@ export default function Grid({
           initialNoteOpacity={
             positions[selectedKeyType]?.[noteColorTargetIndex]?.noteOpacity ||
             80
+          }
+          initialNoteGlowSize={
+            positions[selectedKeyType]?.[noteColorTargetIndex]?.noteGlowSize ||
+            0
+          }
+          initialNoteGlowOpacity={
+            positions[selectedKeyType]?.[noteColorTargetIndex]
+              ?.noteGlowOpacity || 0
           }
         />
       )}

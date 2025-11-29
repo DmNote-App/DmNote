@@ -59,6 +59,8 @@ export type TrackLayoutInput = {
   height: number;
   noteColor?: string | { type: string; top?: string; bottom?: string };
   noteOpacity?: number;
+  noteGlowSize?: number;
+  noteGlowOpacity?: number;
   borderRadius?: number;
 };
 
@@ -71,6 +73,7 @@ export class NoteBuffer {
   readonly noteColorBottom: Float32Array;
   readonly noteRadius: Float32Array;
   readonly trackIndex: Float32Array;
+  readonly noteGlow: Float32Array;
 
   private readonly noteIdByIndex: (string | null)[];
   private readonly indexByNoteId: Map<string, number>;
@@ -86,6 +89,7 @@ export class NoteBuffer {
     this.noteColorBottom = new Float32Array(MAX_NOTES * 4);
     this.noteRadius = new Float32Array(MAX_NOTES);
     this.trackIndex = new Float32Array(MAX_NOTES);
+    this.noteGlow = new Float32Array(MAX_NOTES * 2);
 
     this.noteIdByIndex = new Array<string | null>(MAX_NOTES).fill(null);
     this.indexByNoteId = new Map();
@@ -115,6 +119,12 @@ export class NoteBuffer {
       layout.noteOpacity != null
         ? Math.min(Math.max(layout.noteOpacity / 100, 0), 1)
         : 0.8;
+    const glowSize =
+      layout.noteGlowSize != null ? Math.max(layout.noteGlowSize, 0) : 0;
+    const glowOpacity =
+      layout.noteGlowOpacity != null
+        ? Math.min(Math.max(layout.noteGlowOpacity / 100, 0), 1)
+        : 0;
 
     const { top, bottom } = extractColorStops(
       layout.noteColor,
@@ -164,6 +174,11 @@ export class NoteBuffer {
         insertIndex,
         this.activeCount
       );
+      this.noteGlow.copyWithin(
+        (insertIndex + 1) * 2,
+        insertIndex * 2,
+        this.activeCount * 2
+      );
 
       for (let i = this.activeCount; i > insertIndex; i -= 1) {
         const movedId = this.noteIdByIndex[i - 1];
@@ -199,6 +214,9 @@ export class NoteBuffer {
     this.noteRadius[insertIndex] =
       layout.borderRadius ?? DEFAULT_NOTE_SETTINGS.borderRadius;
     this.trackIndex[insertIndex] = trackIndex;
+    const glowOffset = insertIndex * 2;
+    this.noteGlow[glowOffset] = glowSize;
+    this.noteGlow[glowOffset + 1] = glowOpacity;
 
     this.noteIdByIndex[insertIndex] = noteId;
     this.indexByNoteId.set(noteId, insertIndex);
@@ -239,6 +257,7 @@ export class NoteBuffer {
       this.noteColorBottom.copyWithin(index * 4, nextIndex * 4, totalColor);
       this.noteRadius.copyWithin(index, nextIndex, last + 1);
       this.trackIndex.copyWithin(index, nextIndex, last + 1);
+      this.noteGlow.copyWithin(index * 2, nextIndex * 2, (last + 1) * 2);
 
       for (let i = index; i < last; i += 1) {
         const movedId = this.noteIdByIndex[i + 1];
@@ -264,6 +283,8 @@ export class NoteBuffer {
     this.noteColorBottom.fill(0, colorOffset, colorOffset + 4);
     this.noteRadius[last] = 0;
     this.trackIndex[last] = 0;
+    const glowOffset = last * 2;
+    this.noteGlow.fill(0, glowOffset, glowOffset + 2);
 
     this.version += 1;
     return index;
@@ -280,6 +301,7 @@ export class NoteBuffer {
     this.noteColorBottom.fill(0);
     this.noteRadius.fill(0);
     this.trackIndex.fill(0);
+    this.noteGlow.fill(0);
   }
 
   private copySlot(from: number, to: number) {
@@ -308,6 +330,11 @@ export class NoteBuffer {
 
     this.noteRadius[to] = this.noteRadius[from];
     this.trackIndex[to] = this.trackIndex[from];
+
+    const fromGlow = from * 2;
+    const toGlow = to * 2;
+    this.noteGlow[toGlow] = this.noteGlow[fromGlow];
+    this.noteGlow[toGlow + 1] = this.noteGlow[fromGlow + 1];
   }
 }
 

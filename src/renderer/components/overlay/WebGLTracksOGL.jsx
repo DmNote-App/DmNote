@@ -10,6 +10,7 @@ const vertexShader = `
   attribute vec4 noteColorTop;
   attribute vec4 noteColorBottom;
   attribute float noteRadius;
+  attribute vec2 noteGlow; // x: glow size, y: glow opacity (0-1)
   attribute float trackIndex;
 
   uniform mat4 projectionMatrix;
@@ -25,6 +26,8 @@ const vertexShader = `
   varying vec2 vLocalPos;
   varying vec2 vHalfSize;
   varying float vRadius;
+  varying float vGlowSize;
+  varying float vGlowOpacity;
   varying float vTrackTopY;
   varying float vTrackBottomY;
   varying float vReverse;
@@ -47,6 +50,8 @@ const vertexShader = `
 
     bool isActive = endTime == 0.0;
     float rawNoteLength = 0.0;
+    float glowSize = max(noteGlow.x, 0.0);
+    float glowOpacity = clamp(noteGlow.y, 0.0, 1.0);
 
     if (isActive) {
       rawNoteLength = max(0.0, (uTime - startTime) * uFlowSpeed / 1000.0);
@@ -95,9 +100,12 @@ const vertexShader = `
     float centerCanvasY = (noteTopY + noteBottomY) / 2.0;
     float centerWorldY = uScreenHeight - centerCanvasY;
 
+    float expandedWidth = noteWidth + glowSize * 2.0;
+    float expandedLength = noteLength + glowSize * 2.0;
+
     vec3 transformed = vec3(position.x, position.y, position.z);
-    transformed.x *= noteWidth;
-    transformed.y *= noteLength;
+    transformed.x *= expandedWidth;
+    transformed.y *= expandedLength;
     transformed.x += trackX + noteWidth / 2.0;
     transformed.y += centerWorldY;
     transformed.z = 0.0;
@@ -107,8 +115,10 @@ const vertexShader = `
     vColorTop = noteColorTop;
     vColorBottom = noteColorBottom;
     vHalfSize = vec2(noteWidth, noteLength) * 0.5;
-    vLocalPos = vec2(position.x * noteWidth, position.y * noteLength);
+    vLocalPos = vec2(position.x * expandedWidth, position.y * expandedLength);
     vRadius = noteRadius;
+    vGlowSize = glowSize;
+    vGlowOpacity = glowOpacity;
     vTrackTopY = trackTopY;
     vTrackBottomY = trackBottomY;
     vReverse = uReverse;
@@ -128,6 +138,8 @@ const fragmentShader = `
   varying vec2 vLocalPos;
   varying vec2 vHalfSize;
   varying float vRadius;
+  varying float vGlowSize;
+  varying float vGlowOpacity;
   varying float vTrackTopY;
   varying float vTrackBottomY;
   varying float vReverse;
@@ -156,23 +168,33 @@ const fragmentShader = `
     vec4 baseColor = mix(vColorTop, vColorBottom, gradientRatio);
     float fadeZone = 50.0;
     float fadeRatio = fadeZone / trackHeight;
-    float alpha = baseColor.a;
 
     float r = clamp(vRadius, 0.0, min(vHalfSize.x, vHalfSize.y));
-    if (r > 0.0) {
-      vec2 q = abs(vLocalPos) - (vHalfSize - vec2(r));
-      float dist = length(max(q, 0.0)) - r;
-      float aa = 1.0;
-      float smoothAlpha = clamp(0.5 - dist / aa, 0.0, 1.0);
-      if (dist > 0.5) discard;
-      alpha *= smoothAlpha;
+    vec2 q = abs(vLocalPos) - (vHalfSize - vec2(r));
+    float dist = length(max(q, 0.0)) - r;
+    float aa = 1.0;
+    float bodyMask = clamp(1.0 - dist / aa, 0.0, 1.0);
+    float bodyAlpha = baseColor.a * bodyMask;
+
+    float glowAlpha = 0.0;
+    if (vGlowSize > 0.0) {
+      float outside = max(dist, 0.0);
+      float range = max(vGlowSize, 0.0001);
+      float glowFalloff = clamp(1.0 - outside / range, 0.0, 1.0);
+      glowFalloff = glowFalloff * glowFalloff;
+      glowAlpha = baseColor.a * vGlowOpacity * glowFalloff;
     }
 
+    float fadeMask = 1.0;
     if (trackRelativeY < fadeRatio) {
-      alpha *= clamp(trackRelativeY / fadeRatio, 0.0, 1.0);
+      fadeMask = clamp(trackRelativeY / fadeRatio, 0.0, 1.0);
     }
+    bodyAlpha *= fadeMask;
+    glowAlpha *= fadeMask;
 
-    gl_FragColor = vec4(baseColor.rgb * alpha, alpha);
+    float outAlpha = clamp(bodyAlpha + glowAlpha, 0.0, 1.0);
+    vec3 outColor = baseColor.rgb * bodyAlpha + baseColor.rgb * glowAlpha;
+    gl_FragColor = vec4(outColor, outAlpha);
   }
 `;
 
@@ -281,6 +303,11 @@ export const WebGLTracksOGL = memo(
         instanced: 1,
         size: 1,
         data: noteBuffer.noteRadius,
+      });
+      geometry.addAttribute("noteGlow", {
+        instanced: 1,
+        size: 2,
+        data: noteBuffer.noteGlow,
       });
       geometry.addAttribute("trackIndex", {
         instanced: 1,

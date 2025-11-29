@@ -74,6 +74,8 @@
     "keySize": "키 사이즈",
     "noteColor": "노트 색상",
     "noteOpacity": "노트 투명도",
+    "noteGlowSize": "글로우 범위",
+    "noteGlowOpacity": "글로우 투명도",
     "inactiveState": "대기 상태",
     "activeState": "입력 상태",
     "customImage": "커스텀 이미지",

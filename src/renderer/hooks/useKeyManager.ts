@@ -26,6 +26,8 @@ type KeyUpdatePayload = {
   height: number;
   noteColor?: NoteColor;
   noteOpacity?: number;
+  noteGlowSize?: number;
+  noteGlowOpacity?: number;
   className?: string;
 };
 
@@ -117,6 +119,10 @@ export function useKeyManager() {
                 height: keyData.height,
                 noteColor: keyData.noteColor ?? value.noteColor ?? "#FFFFFF",
                 noteOpacity: keyData.noteOpacity ?? value.noteOpacity ?? 80,
+                noteGlowSize:
+                  keyData.noteGlowSize ?? value.noteGlowSize ?? 0,
+                noteGlowOpacity:
+                  keyData.noteGlowOpacity ?? value.noteGlowOpacity ?? 0,
                 className: keyData.className ?? value.className ?? "",
               }
             : value
@@ -164,6 +170,8 @@ export function useKeyManager() {
           count: 0,
           noteColor: "#FFFFFF",
           noteOpacity: 80,
+          noteGlowSize: 0,
+          noteGlowOpacity: 0,
           className: "",
           counter: createDefaultCounterSettings(),
         },
@@ -208,6 +216,8 @@ export function useKeyManager() {
           count: 0,
           noteColor: "#FFFFFF",
           noteOpacity: 80,
+          noteGlowSize: 0,
+          noteGlowOpacity: 0,
           className: "",
           counter: createDefaultCounterSettings(),
         },
@@ -287,7 +297,9 @@ export function useKeyManager() {
   const handleNoteColorUpdate = (
     index: number,
     noteColor: NoteColor,
-    noteOpacity: number
+    noteOpacity: number,
+    noteGlowSize: number,
+    noteGlowOpacity: number
   ) => {
     // 노트 색상 설정 모달에서 적용하기 클릭 시 호출됨
     saveToHistory();
@@ -303,6 +315,8 @@ export function useKeyManager() {
               ...pos,
               noteColor,
               noteOpacity,
+              noteGlowSize,
+              noteGlowOpacity,
             }
           : pos
       ),

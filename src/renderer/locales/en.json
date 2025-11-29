@@ -74,6 +74,8 @@
     "keySize": "Key Size",
     "noteColor": "Note Color",
     "noteOpacity": "Note Opacity",
+    "noteGlowSize": "Glow Size",
+    "noteGlowOpacity": "Glow Opacity",
     "inactiveState": "Idle",
     "activeState": "Pressed",
     "customImage": "Custom Image",

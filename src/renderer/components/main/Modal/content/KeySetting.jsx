@@ -77,6 +77,8 @@ export default function KeySetting({
       height: parseInt(height, 10),
       noteColor: keyData.noteColor,
       noteOpacity: keyData.noteOpacity,
+      noteGlowSize: keyData.noteGlowSize,
+      noteGlowOpacity: keyData.noteGlowOpacity,
       className,
       idleTransparent,
       activeTransparent,

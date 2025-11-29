@@ -40,6 +40,8 @@ const FALLBACK_POSITION: KeyPosition = {
   count: 0,
   noteColor: "#FFFFFF",
   noteOpacity: 80,
+  noteGlowSize: 0,
+  noteGlowOpacity: 0,
   className: "",
   counter: createDefaultCounterSettings(),
 };
@@ -345,6 +347,8 @@ export default function App() {
           height: trackHeight,
           noteColor: position.noteColor,
           noteOpacity: position.noteOpacity,
+          noteGlowSize: position.noteGlowSize ?? 0,
+          noteGlowOpacity: position.noteGlowOpacity ?? 0,
           flowSpeed: noteSettings?.speed ?? DEFAULT_NOTE_SETTINGS.speed,
           borderRadius:
             noteSettings?.borderRadius ?? DEFAULT_NOTE_SETTINGS.borderRadius,
