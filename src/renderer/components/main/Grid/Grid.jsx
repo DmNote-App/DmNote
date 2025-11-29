@@ -532,7 +532,7 @@ export default function Grid({
             setIsContextOpen(false);
             setContextPosition(null);
           }}
-          items={getKeyMenuItems()}
+          items={getKeyMenuItems(contextIndex)}
           onSelect={(id) => {
             if (contextIndex == null) return;
 
@@ -668,7 +668,7 @@ export default function Grid({
             setGridContextClientPos(null);
             setGridAddLocalPos(null);
           }}
-          items={getGridMenuItems()}
+          items={getGridMenuItems(gridAddLocalPos)}
           onSelect={(id) => {
             // 플러그인 메뉴 처리
             const pluginItem = pluginGridMenuItems.find(
