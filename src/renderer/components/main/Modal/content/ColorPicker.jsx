@@ -221,14 +221,48 @@ export default function ColorPickerWrapper({
       return;
     }
 
-    const parsed = parseHexColor(inputValue);
+    // 8자리 hex인 경우 alpha 포함 (RRGGBBAA)
+    let colorPart = inputValue;
+    let newAlpha = alpha;
+
+    if (solidOnly && inputValue.length === 8) {
+      colorPart = inputValue.slice(0, 6);
+      newAlpha = parseInt(inputValue.slice(6, 8), 16) / 255;
+      setAlpha(newAlpha);
+    } else if (inputValue.length > 6) {
+      colorPart = inputValue.slice(0, 6);
+    }
+
+    const parsed = parseHexColor(colorPart);
     if (!parsed) {
       setInputValue(selectedColor.hex.slice(1));
       return;
     }
 
-    applyColor(parsed);
-  }, [inputValue, selectedColor.hex, applyColor]);
+    setSelectedColor(parsed);
+
+    if (solidOnly) {
+      const rgbaValue = `rgba(${parseInt(
+        parsed.hex.slice(1, 3),
+        16
+      )}, ${parseInt(parsed.hex.slice(3, 5), 16)}, ${parseInt(
+        parsed.hex.slice(5, 7),
+        16
+      )}, ${newAlpha})`;
+      onColorChange?.(rgbaValue);
+      onColorChangeComplete?.(rgbaValue);
+    } else {
+      onColorChange?.(parsed.hex);
+      onColorChangeComplete?.(parsed.hex);
+    }
+  }, [
+    inputValue,
+    selectedColor.hex,
+    alpha,
+    solidOnly,
+    onColorChange,
+    onColorChangeComplete,
+  ]);
 
   const commitGradient = useCallback(() => {
     const parsedTop = parseHexColor(gradientTop);
@@ -237,8 +271,10 @@ export default function ColorPickerWrapper({
       return;
     }
     setSelectedColor(parsedTop);
-    onColorChange?.(buildGradient(parsedTop.hex, parsedBottom.hex));
-  }, [gradientTop, gradientBottom, onColorChange]);
+    const gradient = buildGradient(parsedTop.hex, parsedBottom.hex);
+    onColorChange?.(gradient);
+    onColorChangeComplete?.(gradient);
+  }, [gradientTop, gradientBottom, onColorChange, onColorChangeComplete]);
 
   const handleGradientInputChange = (setter) => (raw) => {
     const sanitized = raw
@@ -441,7 +477,6 @@ const Input = ({
           }
         }}
         className="pl-[23px] text-left w-full h-[23px] bg-[#2A2A30] rounded-[7px] border-[1px] border-[#3A3943] focus:border-[#459BF8] text-style-4 text-[#DBDEE8] uppercase pt-[1px] leading-[23px]"
-        readOnly={alpha !== undefined}
       />
     </div>
   );
