@@ -42,10 +42,15 @@ export default function Modal({
     pointerDownInsideRef.current = true;
   };
 
+  const handleWheel = (e: React.WheelEvent) => {
+    e.stopPropagation();
+  };
+
   return (
     <div
       className={`fixed top-[31px] left-[1px] flex items-center justify-center w-[900px] h-[396px] bg-[#000000] bg-opacity-70 z-50 ${backdropAnimClass}`}
       onClick={handleBackdropClick}
+      onWheel={handleWheel}
     >
       <div
         className={contentAnimClass}
