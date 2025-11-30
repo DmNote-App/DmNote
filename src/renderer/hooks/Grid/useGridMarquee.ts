@@ -56,6 +56,7 @@ export function useGridMarquee({
   const setSelectedElements = useGridSelectionStore(
     (state) => state.setSelectedElements
   );
+  const clearSelection = useGridSelectionStore((state) => state.clearSelection);
 
   // 마퀴 선택 중 마우스 이동 핸들러
   const handleMarqueeMouseMove = useCallback(
@@ -75,6 +76,8 @@ export function useGridMarquee({
     if (!isMarqueeSelecting) return;
 
     const rect = getMarqueeRect(marqueeStart, marqueeEnd);
+
+    // 마퀴 영역이 충분히 크면 범위 내 요소 선택
     if (rect && rect.width > 5 && rect.height > 5) {
       const newSelectedElements: SelectedElement[] = [];
 
@@ -116,6 +119,9 @@ export function useGridMarquee({
       });
 
       setSelectedElements(newSelectedElements);
+    } else {
+      // 마퀴 영역이 작으면 (클릭) 선택 해제
+      clearSelection();
     }
 
     endMarqueeSelection();
@@ -127,6 +133,7 @@ export function useGridMarquee({
     selectedKeyType,
     pluginElements,
     setSelectedElements,
+    clearSelection,
     endMarqueeSelection,
   ]);
 

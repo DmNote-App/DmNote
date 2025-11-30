@@ -351,7 +351,7 @@ export default function Grid({
     );
   };
 
-  // 그리드 좌클릭 핸들러 (Ctrl+드래그로 마퀴 선택 시작)
+  // 그리드 좌클릭 핸들러 (빈 공간에서 드래그로 마퀴 선택 시작)
   const handleGridMouseDown = useCallback(
     (e) => {
       // 좌클릭만 처리
@@ -360,22 +360,26 @@ export default function Grid({
       // 복제 상태일 때는 무시
       if (duplicateState) return;
 
-      // 클릭 시 스마트 가이드 클리어 (드래그가 정상 종료되지 않은 경우 대비)
-      useSmartGuidesStore.getState().clearGuides();
+      // 이벤트 타겟이 그리드 컨테이너나 그리드 콘텐츠인 경우에만 마퀴 선택 시작
+      // (키나 플러그인 요소에서 버블링된 이벤트 필터링)
+      const target = e.target;
+      const isGridContainer = target === gridContainerRef.current;
+      const isGridContent = target === gridContentRef.current;
 
-      // Ctrl+드래그로 마퀴 선택 시작
-      if (e.ctrlKey) {
-        const gridCoords = clientToGridCoords(e.clientX, e.clientY);
-        if (gridCoords) {
-          startMarqueeSelection(gridCoords.x, gridCoords.y);
-        }
+      if (!isGridContainer && !isGridContent) {
         return;
       }
 
-      // 일반 클릭 시 선택 해제
-      clearSelection();
+      // 클릭 시 스마트 가이드 클리어 (드래그가 정상 종료되지 않은 경우 대비)
+      useSmartGuidesStore.getState().clearGuides();
+
+      // 그리드 빈 공간에서 드래그로 마퀴 선택 시작
+      const gridCoords = clientToGridCoords(e.clientX, e.clientY);
+      if (gridCoords) {
+        startMarqueeSelection(gridCoords.x, gridCoords.y);
+      }
     },
-    [duplicateState, clientToGridCoords, clearSelection, startMarqueeSelection]
+    [duplicateState, clientToGridCoords, startMarqueeSelection]
   );
 
   return (
@@ -770,10 +774,7 @@ export default function Grid({
             // 미리보기 롤백
             if (originalKeyData) {
               // 키 롤백
-              if (
-                typeof onKeyPreview === "function" &&
-                originalKeyData.key
-              ) {
+              if (typeof onKeyPreview === "function" && originalKeyData.key) {
                 const origKey = originalKeyData.key;
                 onKeyPreview(selectedKey.index, {
                   activeImage: origKey.activeImage,
