@@ -20,12 +20,18 @@ Select the program interface language:
 
 Set the background color of the overlay window. Default is transparent.
 
+If saving fails, the background returns to the saved color while the popup retains your input. After resolving the cause, click **Save again** to retry the same draft. The draft survives closing and reopening the popup, but is lost when you exit the app.
+
 <Callout type="info">
   Using window capture in OBS maintains transparent background. No chroma key
   needed.
 </Callout>
 
 ## Window Settings
+
+### Overlay Visibility
+
+The overlay starts closed on first launch. The app saves whether you show or hide it and restores that visibility on the next launch.
 
 ### Always on Top
 
@@ -70,6 +76,9 @@ Select the reference point when resizing the overlay window:
 - **bottom-left**: Fixed bottom-left, expand top-right
 - **bottom-right**: Fixed bottom-right, expand top-left
 - **center**: Fixed center, expand all directions
+- **fixed-position**: Preserve existing elements' screen positions when the window size or content origin changes
+
+The default, top-left, fixes the window corner. When a sprite extends beyond the left or top edge and changes the content origin, existing elements can move on screen. Choose fixed-position to preserve their screen positions.
 
 ## Custom CSS/JS
 

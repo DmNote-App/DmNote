@@ -53,12 +53,13 @@ await dmn.overlay.setLock(false); // 잠금 해제
 리사이즈 기준점을 설정합니다.
 
 <Callout type="info">
-  지원 값: `top-left`, `top-right`, `bottom-left`, `bottom-right`, `center`
+  지원 값: `top-left`, `top-right`, `bottom-left`, `bottom-right`, `center`, `fixed-position`
 </Callout>
 
 ```javascript
 await dmn.overlay.setAnchor("top-left"); // 좌상단 기준
 await dmn.overlay.setAnchor("center"); // 중앙 기준
+await dmn.overlay.setAnchor("fixed-position"); // 기존 요소의 화면 위치 유지
 await dmn.overlay.setAnchor("bottom-right"); // 우하단 기준
 ```
 

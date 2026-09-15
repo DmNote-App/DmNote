@@ -50,13 +50,38 @@ describe('배경색 저장 실패 복원', () => {
     vi.restoreAllMocks();
   });
 
-  it('거절된 낙관 배경색을 저장된 값으로 되돌리고 안내한다', async () => {
+  it('화면만 저장값으로 복원하고 팝업을 다시 열어도 초안과 오류를 유지한다', async () => {
     mocks.update.mockRejectedValue(new Error('disk full'));
     await act(async () => palette.handleColorChange('#222222'));
 
     expect(useSettingsStore.getState().backgroundColor).toBe('#111111');
-    expect(palette.color).toBe('#111111');
-    expect(mocks.alert).toHaveBeenCalledTimes(1);
+    expect(palette.color).toBe('#222222');
+    expect(palette.saveError).toBe('common.saveFailed');
+    expect(palette.isSaving).toBe(false);
+    expect(mocks.alert).not.toHaveBeenCalled();
+    act(() => palette.setPalette(true));
+    act(() => palette.handlePaletteClose());
+    act(() => palette.setPalette(true));
+    expect(palette.color).toBe('#222222');
+    expect(palette.saveError).toBe('common.saveFailed');
+  });
+
+  it('쓰기 복구 후 같은 초안을 재시도하고 이후 외부 변경을 반영한다', async () => {
+    mocks.update
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockResolvedValue({});
+    await act(async () => palette.handleColorChange('#222222'));
+    await act(async () => palette.handleColorChange(palette.color));
+
+    expect(mocks.update).toHaveBeenCalledTimes(2);
+    expect(mocks.update).toHaveBeenLastCalledWith({
+      backgroundColor: '#222222',
+    });
+    expect(useSettingsStore.getState().backgroundColor).toBe('#222222');
+    expect(palette.saveError).toBeNull();
+    expect(palette.isSaving).toBe(false);
+    act(() => useSettingsStore.getState().setBackgroundColor('#555555'));
+    expect(palette.color).toBe('#555555');
   });
 
   it('이전 저장 실패가 나중에 선택한 배경색을 덮지 않는다', async () => {
@@ -75,6 +100,7 @@ describe('배경색 저장 실패 복원', () => {
 
     expect(useSettingsStore.getState().backgroundColor).toBe('#333333');
     expect(palette.color).toBe('#333333');
+    expect(palette.saveError).toBeNull();
   });
 
   it('저장값 재조회 중 도착한 외부 배경색을 덮지 않는다', async () => {
@@ -90,5 +116,6 @@ describe('배경색 저장 실패 복원', () => {
     await act(async () => finishRead({ backgroundColor: '#111111' }));
 
     expect(useSettingsStore.getState().backgroundColor).toBe('#444444');
+    expect(palette.color).toBe('#222222');
   });
 });

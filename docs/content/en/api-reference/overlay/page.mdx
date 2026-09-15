@@ -45,13 +45,14 @@ await dmn.overlay.setLock(false);
 Sets the fixed point used when resizing the overlay.
 
 <Callout type="info">
-  Supported values: `top-left`, `top-right`, `bottom-left`, `bottom-right`, and
-  `center`.
+  Supported values: `top-left`, `top-right`, `bottom-left`, `bottom-right`,
+  `center`, and `fixed-position`.
 </Callout>
 
 ```javascript
 await dmn.overlay.setAnchor('top-left');
 await dmn.overlay.setAnchor('center');
+await dmn.overlay.setAnchor('fixed-position'); // Preserve existing elements' screen positions
 await dmn.overlay.setAnchor('bottom-right');
 ```
 
