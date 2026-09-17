@@ -22,7 +22,7 @@ minisign-verify = "0.2.5"
 thiserror = "2.0"
 parking_lot = "0.12"
 log = "0.4"
-notify = "6.1"
+notify = "8.2"
 notify-debouncer-mini = "0.4"
 fern = { version = "0.6", features = ["colored"] }
 tauri = { version = "~2.11.5", features = ["wry", "devtools", "macos-private-api", "protocol-asset", "tray-icon"] }
