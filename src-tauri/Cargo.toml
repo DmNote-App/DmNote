@@ -11,7 +11,7 @@ asio-backend = ["dep:cpal"]
 [build-dependencies]
 tauri-build = { version = "2.4.1", features = [] }
 walkdir = "2.5"
-zip = "0.6"
+zip = "8.6"
 
 [dependencies]
 anyhow = "1.0"
@@ -40,7 +40,7 @@ tempfile = "3"
 plist = "1"
 url = "2"
 unicode-normalization = "0.1"
-zip = "0.6"
+zip = "8.6"
 sha2 = "0.10"
 quick-xml = "0.38"
 infer = "0.19"
