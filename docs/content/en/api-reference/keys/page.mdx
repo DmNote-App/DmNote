@@ -81,7 +81,7 @@ Subscribes to all raw input events (including unregistered keys).
 ```typescript
 interface RawInputEvent {
   device: 'keyboard' | 'mouse' | 'gamepad' | 'unknown';
-  label: string; // e.g., 'A', 'MOUSE1', 'HIDB:1ccf:101c:9:3'
+  label: string; // e.g., 'A', 'MOUSE1', 'WHEELUP', 'HIDB:1ccf:101c:9:3'
   labels: string[]; // all candidate labels for this event
   state: 'DOWN' | 'UP';
 }
@@ -94,6 +94,13 @@ const unsub = dmn.keys.onRawInput(({ device, label, state }) => {
 HID device buttons (Windows) are delivered with `device: 'gamepad'` and
 labels in the form `HIDB:vid:pid:usagePage:usage`. See the
 [Knobs API](/docs/api-reference/knobs) for HID axis (knob) elements.
+
+The mouse wheel is delivered with `device: 'mouse'` and the labels
+`WHEELUP`, `WHEELDOWN`, `WHEELLEFT`, and `WHEELRIGHT`. A wheel has no release,
+so each notch is synthesized as a short tap: DOWN, then UP 50 ms later. When
+the next notch arrives within 50 ms, UP and DOWN are sent back to back, so the
+number of DOWN events always equals the number of notches. The wheel can also
+drive a knob element as an axis.
 
 ---
 
