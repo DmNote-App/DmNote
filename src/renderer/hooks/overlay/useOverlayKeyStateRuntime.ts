@@ -182,9 +182,16 @@ export const useOverlayKeyStateRuntime = ({
     };
 
     // HID 축 이벤트 버스 초기화 (input:axis 구독 → axisSignals 누적)
-    import('@utils/input/axisEventBus').then(({ axisEventBus }) => {
+    const axisEventBusModule = import('@utils/input/axisEventBus');
+    void axisEventBusModule.then(({ axisEventBus }) => {
       axisEventBus.initialize();
     });
+    // 휠 가상 축은 데몬 재시작 시 0부터, OBS 유실 뒤 값은 이전 값과 이어지지 않음
+    const resetAxisBaselines = () => {
+      void axisEventBusModule.then(({ axisEventBus }) => {
+        axisEventBus.resetBaselines();
+      });
+    };
 
     let hydrationCancelled = false;
 
@@ -337,6 +344,7 @@ export const useOverlayKeyStateRuntime = ({
 
     // OBS Lagged/재연결 스냅샷은 유실된 keys:state를 개별 복구하지 못하므로 대조로 정리
     const unsubscribeResync = obsApi.onResync(() => {
+      resetAxisBaselines();
       void reconcileWithBootstrap();
     });
 
@@ -344,6 +352,7 @@ export const useOverlayKeyStateRuntime = ({
     const unsubscribeKeysReset = window.api.keys.onKeysReset(() => {
       // 진행 중인 대조의 낡은 스냅샷이 리셋 이후 상태를 덮지 못하게 무효화
       reconcileGenerationRef.current += 1;
+      resetAxisBaselines();
       const { finalizeAllActive } = keyEventContextRef.current;
       finalizeAllActive();
       cancelKeyDelayTimers(

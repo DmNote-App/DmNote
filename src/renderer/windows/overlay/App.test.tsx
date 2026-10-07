@@ -13,6 +13,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const mocks = vi.hoisted(() => ({
   axisInitialize: vi.fn(),
+  axisResetBaselines: vi.fn(),
   bootstrap: vi.fn(),
   keyInitialize: vi.fn(),
   keyEventListener: null as null | ((payload: unknown) => void),
@@ -156,7 +157,10 @@ vi.mock('@hooks/shared/useLayoutComputation', () => ({
   }),
 }));
 vi.mock('@utils/input/axisEventBus', () => ({
-  axisEventBus: { initialize: mocks.axisInitialize },
+  axisEventBus: {
+    initialize: mocks.axisInitialize,
+    resetBaselines: mocks.axisResetBaselines,
+  },
 }));
 vi.mock('@utils/input/keyEventBus', () => ({
   keyEventBus: {
@@ -248,6 +252,7 @@ const makeApiMock = () =>
 
 const resetSharedMocks = () => {
   mocks.axisInitialize.mockReset();
+  mocks.axisResetBaselines.mockReset();
   mocks.bootstrap.mockReset();
   mocks.bootstrap.mockResolvedValue({ activeKeys: [] });
   mocks.keyInitialize.mockReset();
@@ -633,6 +638,22 @@ describe('note timing payload and loss recovery', () => {
     expect(mocks.finalizeAllActive).toHaveBeenCalled();
     expect(mocks.bootstrap).toHaveBeenCalled();
     expect(getKeySignal('KeyJ').value).toBe(true);
+  });
+
+  it('keys:reset과 obs:resync 수신 시 축 기준값을 버린다', async () => {
+    mocks.bootstrap.mockResolvedValue({ activeKeys: [] });
+
+    await act(async () => {
+      mocks.keysResetListener?.({ reason: 'hook_restart' });
+    });
+    await flushAsync();
+    expect(mocks.axisResetBaselines).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      mocks.resyncListener?.();
+    });
+    await flushAsync();
+    expect(mocks.axisResetBaselines).toHaveBeenCalledTimes(2);
   });
 
   it('obs:resync 수신 시 모드 삼중 일치에서만 스냅샷 대조를 실행한다', async () => {
