@@ -23,6 +23,18 @@ mod windows_hid;
 #[cfg(target_os = "macos")]
 mod macos;
 
+// macOS 휠 원본 수집 (IOHIDManager)
+#[cfg(target_os = "macos")]
+mod macos_wheel;
+
+// 마우스 휠 공용 엔진 (판정·탭 합성·가상 축)
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+mod wheel;
+
+/// 축 값 전송 최소 간격(ms), 고빈도 축 입력이 파이프·입력 스레드를 막지 않도록 (HID 축·휠 가상 축 공용)
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+pub(super) const AXIS_THROTTLE_MS: u64 = 12;
+
 fn load_hotkeys_from_env() -> ShortcutsState {
     std::env::var("DMNOTE_HOTKEYS_V1")
         .ok()
@@ -60,7 +72,7 @@ pub fn start_parent_liveness_watch() -> io::Result<()> {
 pub(super) enum DaemonOutput {
     Hook(HookMessage),
     Command(DaemonCommand),
-    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+    #[cfg_attr(not(any(target_os = "windows", target_os = "macos")), allow(dead_code))]
     Axis(HidAxisMessage),
 }
 

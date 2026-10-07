@@ -213,6 +213,7 @@ pub(super) fn run_raw_input() -> Result<()> {
         Err(_) => Box::new(std::io::stdout()),
     };
     let output = super::start_output_writer(sink)?;
+    let wheel = super::wheel::spawn_wheel_engine(output.clone())?;
 
     // 글로벌 단축키 상태 추적기
     let hotkeys = super::load_hotkeys_from_env();
@@ -233,9 +234,6 @@ pub(super) fn run_raw_input() -> Result<()> {
     const RI_MOUSE_BUTTON_4_UP: u16 = 0x0080;
     const RI_MOUSE_BUTTON_5_DOWN: u16 = 0x0100;
     const RI_MOUSE_BUTTON_5_UP: u16 = 0x0200;
-    // 휠 상수 — 완전성을 위해 유지하나 미사용 (휠 이벤트 비활성화)
-    const _RI_MOUSE_WHEEL: u16 = 0x0400;
-    const _RI_MOUSE_HWHEEL: u16 = 0x0800;
 
     unsafe extern "system" fn wndproc(
         hwnd: HWND,
@@ -542,6 +540,12 @@ pub(super) fn run_raw_input() -> Result<()> {
                     t if t == RIM_TYPEMOUSE.0 => {
                         let mouse = raw.data.mouse;
                         let button_flags = mouse.Anonymous.Anonymous.usButtonFlags;
+                        if let Some(sample) = super::wheel::windows_wheel_sample(
+                            button_flags,
+                            mouse.Anonymous.Anonymous.usButtonData,
+                        ) {
+                            wheel.send(captured, sample);
+                        }
 
                         let mut events: Vec<(u8, String, HookKeyState)> = Vec::new();
                         let mut push = |button: u8, label: &str, state: HookKeyState| {

@@ -338,6 +338,8 @@ pub(super) fn run_macos() -> Result<()> {
     }
 
     let output = super::start_output_writer(Box::new(std::io::stdout()))?;
+    let wheel = super::wheel::spawn_wheel_engine(output.clone())?;
+    super::macos_wheel::start_hid_wheel_capture(wheel);
 
     // rdev::listen — 접근성 + 입력 모니터링 권한 필수
     // 권한 부여 직후 CGEventTap 생성 실패 가능 — 재시도 처리
