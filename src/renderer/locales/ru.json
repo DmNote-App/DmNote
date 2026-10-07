@@ -570,6 +570,8 @@
     "clickToSet": "Нажмите",
     "knobAxis": "Назначение ручки",
     "knobAxisUnset": "Не задано",
+    "knobAxisWheelVertical": "Колесо мыши",
+    "knobAxisWheelHorizontal": "Горизонтальное колесо мыши",
     "knobCapture": "Нажмите",
     "knobCapturing": "Поверните ручку",
     "knobSensitivity": "Чувствительность",

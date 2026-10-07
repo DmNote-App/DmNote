@@ -97,6 +97,11 @@ export function useKeySlotCapture({
     window.addEventListener('keyup', blockKeyboardEvents, true);
     window.addEventListener('keypress', blockKeyboardEvents, true);
     window.addEventListener('mousedown', blockMouseEvents, true);
+    // 휠 할당 중 패널 스크롤 방지
+    window.addEventListener('wheel', blockMouseEvents, {
+      capture: true,
+      passive: false,
+    });
     window.addEventListener('contextmenu', blockContextMenu, true);
 
     return () => {
@@ -104,6 +109,7 @@ export function useKeySlotCapture({
       window.removeEventListener('keyup', blockKeyboardEvents, true);
       window.removeEventListener('keypress', blockKeyboardEvents, true);
       window.removeEventListener('mousedown', blockMouseEvents, true);
+      window.removeEventListener('wheel', blockMouseEvents, true);
       window.removeEventListener('contextmenu', blockContextMenu, true);
     };
   }, [isListening, escapeCancels]);

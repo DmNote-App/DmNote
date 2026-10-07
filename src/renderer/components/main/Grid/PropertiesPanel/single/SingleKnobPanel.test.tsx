@@ -102,6 +102,22 @@ describe('SingleKnobPanel 대상 전환 세션 정리', () => {
     });
   };
 
+  it('휠 가상 축은 로케일 이름, HID 축은 접두어를 뗀 ID로 표시한다', () => {
+    const labelOf = (axisId: string) =>
+      container.querySelector(`button[title="${axisId}"]`)?.textContent;
+
+    render({ ...knobPosition, axisId: 'WHEEL:VERTICAL' });
+    expect(labelOf('WHEEL:VERTICAL')).toBe(
+      'propertiesPanel.knobAxisWheelVertical',
+    );
+    render({ ...knobPosition, axisId: 'WHEEL:HORIZONTAL' });
+    expect(labelOf('WHEEL:HORIZONTAL')).toBe(
+      'propertiesPanel.knobAxisWheelHorizontal',
+    );
+    render({ ...knobPosition, axisId: 'HIDA:1ccf:101c:1:48' });
+    expect(labelOf('HIDA:1ccf:101c:1:48')).toBe('1ccf:101c:1:48');
+  });
+
   it('stable capture는 selection과 index가 바뀌어도 시작 ID에 완료한다', () => {
     act(() => captureButton().click());
     render({

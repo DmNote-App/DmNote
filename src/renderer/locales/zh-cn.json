@@ -570,6 +570,8 @@
     "clickToSet": "点击设置",
     "knobAxis": "旋钮映射",
     "knobAxisUnset": "未设置",
+    "knobAxisWheelVertical": "鼠标滚轮",
+    "knobAxisWheelHorizontal": "鼠标水平滚轮",
     "knobCapture": "点击设置",
     "knobCapturing": "转动旋钮",
     "knobSensitivity": "灵敏度",
