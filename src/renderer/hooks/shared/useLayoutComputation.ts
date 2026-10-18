@@ -197,6 +197,18 @@ export function computeLayout(input: LayoutInput) {
     };
   })();
 
+  // 자동 보정 히트라인 - 보이는 키 상변 중 가장 위. 노트 오프셋은 키별 트랙에서
+  // 따로 얹고, 키 옆 패널·카운터는 밴드와 겹쳐 놓일 수 있으니 시작선을 밀지 않는다.
+  // 보이는 키가 없으면 콘텐츠 상단 - 숨긴 키 좌표는 창을 넓히지 않는다
+  const hitlineY = (() => {
+    let top: number | null = null;
+    for (const pos of currentPositions) {
+      if (!pos || pos.hidden) continue;
+      top = top === null ? pos.dy : Math.min(top, pos.dy);
+    }
+    return top ?? contentBounds?.minY;
+  })();
+
   const unionBounds = (a: Bounds, b: Bounds): Bounds => ({
     minX: Math.min(a.minX, b.minX),
     minY: Math.min(a.minY, b.minY),
@@ -296,7 +308,7 @@ export function computeLayout(input: LayoutInput) {
     return { minX, minY, maxX, maxY };
   })();
 
-  // 트랙 예약 - 축 정렬 키의 트랙은 콘텐츠 상단 위 밴드 하나로 예약하고,
+  // 트랙 예약 - 축 정렬 키의 트랙은 히트라인 위 밴드 하나로 예약하고,
   // 회전 키의 트랙은 자기 상변에서 기울어져 흐르므로 회전 AABB를 창·배경에 합산한다
   const trackKeyPositions = currentKeys.map(
     (_key, index) => currentPositions[index],
@@ -310,6 +322,11 @@ export function computeLayout(input: LayoutInput) {
   const reserveTop =
     hasUnrotatedTrackKey || visibleTrackKeys.length === 0 ? trackHeight : 0;
 
+  // 오버행을 뺀 창 상단 - 밴드 위로 나간 요소만 창을 더 키운다
+  const frameTop =
+    contentBounds && hitlineY !== undefined
+      ? Math.min(contentBounds.minY, hitlineY - reserveTop)
+      : 0;
   // 회전 키의 자동 시작선 보정 - 같은 방향(각도 오차 안)으로 흐르는 키끼리 오프셋 없는
   // 상변을 진행축에 투영해 가장 앞선 선에 맞춘다. 회전 0의 "한 줄에서 시작"을 방향별로
   // 일반화한 것이고, 혼자면 자기 상변. 사용자 노트 오프셋은 보정 뒤 로컬 프레임으로
@@ -349,11 +366,7 @@ export function computeLayout(input: LayoutInput) {
       const pos = trackKeyPositions[index];
       const onHitline =
         (pos.rotation ?? 0) === 0 && pos.noteAutoYCorrection !== false;
-      return trackGeometry(
-        pos,
-        false,
-        onHitline ? contentBounds?.minY : undefined,
-      );
+      return trackGeometry(pos, false, onHitline ? hitlineY : undefined);
     });
     groupSameFlowAngles(
       candidates.map((index) => trackKeyPositions[index].rotation ?? 0),
@@ -383,7 +396,7 @@ export function computeLayout(input: LayoutInput) {
       const onHitline =
         (pos.rotation ?? 0) === 0 && pos.noteAutoYCorrection !== false;
       const { rect } = translateTrackGeometry(
-        trackGeometry(pos, true, onHitline ? contentBounds?.minY : undefined),
+        trackGeometry(pos, true, onHitline ? hitlineY : undefined),
         rotatedFlowShiftByIndex.get(index) ?? 0,
       );
       acc = acc ? unionBounds(acc, rect) : rect;
@@ -391,11 +404,41 @@ export function computeLayout(input: LayoutInput) {
     return acc;
   })();
 
+  // 창 원점 보정 기준점 - 트랙이 히트라인 위로 뻗는 높이를 밴드로 보고 그 아래 콘텐츠 상단.
+  // 창 좌표가 패딩 + 밴드 + 오버행이라 노트 길이·오버행 변화만 창 위치 보정으로 이어지고,
+  // 요소 편집·탭 전환·키 회전은 창 원점을 둔다. 뻗는 높이는 사용자 노트 오프셋을 빼고
+  // 재서 키별 오프셋 편집이 기준을 옮기지 않는다. 밴드 밖으로 나간 요소가 있을 때
+  // 노트 길이가 바뀌면 그 몫만큼 보정이 남는다
+  const contentOrigin = (() => {
+    if (!contentBounds || hitlineY === undefined) return null;
+    let baseTrackTop: number | null = null;
+    if (trackHeight > 0) {
+      for (let index = 0; index < trackKeyPositions.length; index += 1) {
+        const pos = trackKeyPositions[index];
+        if (!pos || pos.hidden) continue;
+        const onHitline =
+          (pos.rotation ?? 0) === 0 && pos.noteAutoYCorrection !== false;
+        const { rect } = translateTrackGeometry(
+          trackGeometry(pos, false, onHitline ? hitlineY : undefined),
+          rotatedFlowShiftByIndex.get(index) ?? 0,
+        );
+        baseTrackTop =
+          baseTrackTop === null ? rect.minY : Math.min(baseTrackTop, rect.minY);
+      }
+    }
+    const reach =
+      baseTrackTop === null ? reserveTop : Math.max(0, hitlineY - baseTrackTop);
+    return {
+      x: contentBounds.minX,
+      y: Math.min(contentBounds.minY + reach, hitlineY),
+    };
+  })();
+
   // 음수 오프셋·키보다 넓은 노트도 회전 여부와 관계없이 실제 트랙 끝까지 예약
-  // 창 바운즈 = 콘텐츠·도달 범위 + 위쪽 트랙 밴드 + 트랙 AABB
+  // 창 바운즈 = 콘텐츠·도달 범위 + 히트라인 위 트랙 밴드 + 트랙 AABB
   const windowBounds: Bounds | null = (() => {
     if (!bounds) return null;
-    const banded = { ...bounds, minY: bounds.minY - reserveTop };
+    const banded = { ...bounds, minY: Math.min(bounds.minY, frameTop) };
     return trackBounds ? unionBounds(banded, trackBounds) : banded;
   })();
 
@@ -416,10 +459,7 @@ export function computeLayout(input: LayoutInput) {
   // 배경의 화면상 위치·크기는 오버행 유무와 무관하게 동일하다
   const backgroundBox = (() => {
     if (!contentBounds || !windowBounds) return null;
-    let area: Bounds = {
-      ...contentBounds,
-      minY: contentBounds.minY - reserveTop,
-    };
+    let area: Bounds = { ...contentBounds, minY: frameTop };
     if (rotatedFaceBounds) area = unionBounds(area, rotatedFaceBounds);
     if (trackBounds) area = unionBounds(area, trackBounds);
     return {
@@ -462,13 +502,15 @@ export function computeLayout(input: LayoutInput) {
     ? { x: offsetX, y: offsetY }
     : { x: 0, y: 0 };
 
-  // 콘텐츠 상단의 창 좌표. 위쪽 오버행이 없으면 트랙 밴드 + PADDING과 같다
-  const topMostY = contentBounds ? contentBounds.minY + offsetY : 0;
+  // 콘텐츠 원점의 창 좌표. 위쪽 오버행이 없으면 트랙 밴드 + PADDING과 같다
+  const topMostY = contentOrigin ? contentOrigin.y + offsetY : 0;
   // 콘텐츠 왼쪽의 창 좌표. 왼쪽 오버행이 없으면 PADDING과 같다
-  const leftMostX = contentBounds ? contentBounds.minX + offsetX : 0;
+  const leftMostX = contentOrigin ? contentOrigin.x + offsetX : 0;
+  // 히트라인의 창 좌표
+  const hitlineWindowY = hitlineY !== undefined ? hitlineY + offsetY : 0;
 
   // WebGL 트랙 계산 - 지오메트리는 trackGeometry 단일 정의.
-  // 회전 0은 콘텐츠 상단(topMostY), 회전 키는 같은 방향 키들의 공통 시작선에 맞춘다
+  // 회전 0은 히트라인, 회전 키는 같은 방향 키들의 공통 시작선에 맞춘다
   const webglTracks = currentKeys
     .map((key, index) => {
       const originalPosition = currentPositions[index];
@@ -490,7 +532,7 @@ export function computeLayout(input: LayoutInput) {
           noteAlignment: position.noteAlignment,
           noteOffsetX: position.noteOffsetX,
           noteOffsetY: position.noteOffsetY,
-          hitline: useAutoCorrection ? topMostY : undefined,
+          hitline: useAutoCorrection ? hitlineWindowY : undefined,
         }),
         rotatedFlowShiftByIndex.get(index) ?? 0,
       );
@@ -548,8 +590,9 @@ export function computeLayout(input: LayoutInput) {
     positionOffset,
     topMostY,
     leftMostX,
-    // fixed-position 델타의 기준점 - 창 바운즈가 아니라 콘텐츠 원점을 쓴다
     contentBounds,
+    // fixed-position 델타의 기준점 - 창 바운즈가 아니라 콘텐츠 원점을 쓴다
+    contentOrigin,
     webglTracks,
   };
 }

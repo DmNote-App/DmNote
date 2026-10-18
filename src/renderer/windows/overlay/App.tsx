@@ -216,7 +216,7 @@ export default function App() {
   );
   const {
     backgroundBox,
-    contentBounds,
+    contentOrigin,
     displayPositions,
     displayStatPositions,
     displayGraphPositions,
@@ -257,7 +257,7 @@ export default function App() {
   } | null>(null);
 
   useEffect(() => {
-    if (!contentBounds || !contentSize) return;
+    if (!contentOrigin || !contentSize) return;
     // OBS 오버레이에는 네이티브 창이 없다 - allowlist 밖이라 호출이 항상 거부되고,
     // 기준선을 지우는 실패 처리와 맞물려 레이아웃이 바뀔 때마다 헛호출이 반복된다
     if (window.__dmn_runtime === 'obs') return;
@@ -270,8 +270,8 @@ export default function App() {
     const contentLeftOffset = leftMostX;
     // fixed-position 델타는 콘텐츠 원점 기준 - 창 바운즈 기준이면 오버행 시
     // 콘텐츠 오프셋 보정과 겹쳐 이중 이동이 된다
-    const currentMinX = contentBounds.minX;
-    const currentMinY = contentBounds.minY;
+    const currentMinX = contentOrigin.x;
+    const currentMinY = contentOrigin.y;
 
     // 이전 값과 비교하여 실제로 변경되었을 때만 resize 호출
     const lastParams = lastResizeParams.current;
@@ -332,7 +332,7 @@ export default function App() {
         setResizeInFlight((count) => Math.max(0, count - 1));
       });
   }, [
-    contentBounds,
+    contentOrigin,
     contentSize,
     topMostY,
     leftMostX,
