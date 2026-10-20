@@ -471,8 +471,8 @@ describe('자세 편집 세션 통합 (패널 + 캔버스 핸들)', () => {
     expect(runtime.commit).toHaveBeenCalledTimes(1);
     expect(canonicalSprite().pivot.x).toBeCloseTo(0.7, 9);
     const baseAxisAfter = pivotCenter();
-    // 기본 선택 표식은 1px 선택 테두리 프레임에 놓여 x가 0.4px 바깥이다
-    expect(baseAxisAfter.x).toBeCloseTo(140.4, 6);
+    // 기본 선택 표식은 0.5px 바깥의 선택 테두리 중심에 놓여 x가 0.2px 바깥이다
+    expect(baseAxisAfter.x).toBeCloseTo(140.2, 6);
     expect(baseAxisAfter.y).toBeCloseTo(75, 6);
     const linkedTransform = canonicalSprite().poses[0].transform;
     // 연결 상태는 이동값을 유지해 기준점 화면 좌표가 기본 축을 따라간다

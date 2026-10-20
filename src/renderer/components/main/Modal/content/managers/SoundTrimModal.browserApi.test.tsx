@@ -135,7 +135,7 @@ describe('SoundTrimModal 브라우저 API 계약', () => {
       ].map((name) => [name, vi.fn()]),
     );
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-      canvasContext as unknown as CanvasRenderingContext2D,
+      canvasContext as unknown as ReturnType<HTMLCanvasElement['getContext']>,
     );
   });
 

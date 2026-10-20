@@ -1,4 +1,5 @@
 use quick_xml::{
+    encoding::DecodingReader,
     events::Event,
     name::{Namespace, ResolveResult},
     NsReader,
@@ -34,7 +35,7 @@ const IMAGE_PREFIX_LENGTH: u64 = 8192;
 // XML prolog는 스펙상 길이 상한이 없다 - 문서를 훑는 데 허용할 예산.
 // 예산을 넘기면 루트까지만 확인하고 통과시킨다 (큰 SVG를 거절하지 않기 위해)
 const SVG_PARSE_BUDGET: u64 = 16 << 20;
-const SVG_NAMESPACE: Namespace<'static> = Namespace(b"http://www.w3.org/2000/svg");
+const SVG_NAMESPACE: Namespace<'static> = Namespace("http://www.w3.org/2000/svg");
 const INVALID_IMAGE_CONTENT: &str = "invalid-image-content";
 
 /// 로컬 이미지 파일을 선택해서 앱 데이터 디렉토리로 복사한 뒤 경로를 반환합니다.
@@ -118,19 +119,27 @@ fn is_svg_document(path: &Path) -> bool {
         return false;
     }
 
-    // quick-xml은 ASCII 호환 바이트를 전제하므로 UTF-16은 먼저 옮겨 담는다
+    // UTF-16은 직접 옮겨 담는다 - 온전한 파일의 깨진 서로게이트·홀수 바이트를 엄격히 거절하기 위해
     if read == 2 && (bom == [0xFF, 0xFE] || bom == [0xFE, 0xFF]) {
         let Some((utf8, truncated)) = transcode_utf16(file, bom[0] == 0xFF) else {
             return false;
         };
-        // 옮겨 담으면 길이가 줄어 읽은 바이트로는 잘렸는지 알 수 없다 - 플래그로 전달한다
-        return scan_svg(NsReader::from_reader(Cursor::new(utf8)), truncated);
+        // 옮겨 담으면 길이가 줄어 읽은 바이트로는 잘렸는지 알 수 없다 - 플래그로 전달한다.
+        // 이미 UTF-8이므로 선언의 encoding(UTF-16)은 따르지 않는다
+        return scan_svg(
+            NsReader::from_reader(DecodingReader::new(Cursor::new(utf8))),
+            truncated,
+            false,
+        );
     }
 
     let size = file.metadata().map(|meta| meta.len()).unwrap_or(0);
     scan_svg(
-        NsReader::from_reader(BufReader::new(file.take(SVG_PARSE_BUDGET))),
+        NsReader::from_reader(DecodingReader::new(BufReader::new(
+            file.take(SVG_PARSE_BUDGET),
+        ))),
         size > SVG_PARSE_BUDGET,
+        true,
     )
 }
 
@@ -181,7 +190,11 @@ fn transcode_utf16(file: File, little_endian: bool) -> Option<(Vec<u8>, bool)> {
     Some((text.into_bytes(), truncated))
 }
 
-fn scan_svg<R: BufRead>(mut reader: NsReader<R>, truncated: bool) -> bool {
+fn scan_svg<R: BufRead>(
+    mut reader: NsReader<DecodingReader<R>>,
+    truncated: bool,
+    follow_declared_encoding: bool,
+) -> bool {
     let mut buffer = Vec::new();
     let mut root_seen = false;
     let mut root_closed = false;
@@ -224,7 +237,9 @@ fn scan_svg<R: BufRead>(mut reader: NsReader<R>, truncated: bool) -> bool {
             }
             // 루트 바깥에 올 수 있는 것은 공백뿐이다 (XML 1.0 Misc)
             Ok((_, Event::Text(text))) => {
-                if (!root_seen || root_closed) && !text.iter().all(u8::is_ascii_whitespace) {
+                if (!root_seen || root_closed)
+                    && !text.bytes().all(|byte| byte.is_ascii_whitespace())
+                {
                     return false;
                 }
             }
@@ -236,6 +251,15 @@ fn scan_svg<R: BufRead>(mut reader: NsReader<R>, truncated: bool) -> bool {
             // 예산에 걸려 잘린 문서는 뒷부분을 판정하지 않는다.
             // 루트를 이미 확인했으면 통과시킨다 - 큰 SVG를 거절하지 않기 위한 계약
             Ok((_, Event::Eof)) => return if truncated { root_seen } else { root_closed },
+            // quick-xml은 UTF-8만 읽는다 - ISO-8859-1, EUC-KR처럼 선언된 인코딩은 옮겨 읽게 한다.
+            // 모르는 이름이면 UTF-8로 계속 읽는다
+            Ok((_, Event::Decl(declaration))) => {
+                if follow_declared_encoding {
+                    if let Some(encoding) = declaration.encoder() {
+                        reader.get_mut().set_encoding(encoding);
+                    }
+                }
+            }
             // prolog(선언, PI, 주석, DOCTYPE)는 그대로 지나간다
             Ok(_) => {}
             // 예산 경계가 태그나 주석 한가운데를 자르면 파싱 오류로 나온다.
@@ -245,9 +269,9 @@ fn scan_svg<R: BufRead>(mut reader: NsReader<R>, truncated: bool) -> bool {
     }
 }
 
-fn is_svg_root(namespace: ResolveResult, local_name: &[u8]) -> bool {
+fn is_svg_root(namespace: ResolveResult, local_name: &str) -> bool {
     matches!(namespace, ResolveResult::Bound(value) if value == SVG_NAMESPACE)
-        && local_name == b"svg"
+        && local_name == "svg"
 }
 
 fn normalize_image_extension(extension: Option<&str>) -> String {
@@ -541,5 +565,48 @@ mod tests {
         .unwrap();
         assert!(cancelled.get("errorCode").is_none());
         assert!(cancelled.get("error").is_none());
+    }
+
+    #[test]
+    fn svg_in_a_declared_legacy_encoding_is_accepted() {
+        let latin1 = Fixture::new(
+            "latin1.svg",
+            b"<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><svg xmlns=\"http://www.w3.org/2000/svg\"><title>caf\xE9</title></svg>",
+        );
+        assert!(latin1.accepted());
+
+        let euc_kr = Fixture::new(
+            "euc-kr.svg",
+            b"<?xml version=\"1.0\" encoding=\"EUC-KR\"?><svg xmlns=\"http://www.w3.org/2000/svg\"><title>\xC7\xD1\xB1\xDB</title></svg>",
+        );
+        assert!(euc_kr.accepted());
+    }
+
+    // 선언 없는 문서는 UTF-8이어야 한다 (XML 1.0 §4.3.3)
+    #[test]
+    fn undeclared_non_utf8_bytes_are_rejected() {
+        let in_text = Fixture::new(
+            "text.svg",
+            b"<svg xmlns=\"http://www.w3.org/2000/svg\"><title>caf\xE9</title></svg>",
+        );
+        assert!(!in_text.accepted());
+
+        let in_prolog_comment = Fixture::new(
+            "comment.svg",
+            b"<!-- caf\xE9 --><svg xmlns=\"http://www.w3.org/2000/svg\"/>",
+        );
+        assert!(!in_prolog_comment.accepted());
+    }
+
+    #[test]
+    fn utf16_svg_with_a_utf16_declaration_is_accepted() {
+        let mut bytes = vec![0xFF, 0xFE];
+        for unit in
+            "<?xml version=\"1.0\" encoding=\"UTF-16\"?><svg xmlns=\"http://www.w3.org/2000/svg\"/>"
+                .encode_utf16()
+        {
+            bytes.extend_from_slice(&unit.to_le_bytes());
+        }
+        assert!(Fixture::new("declared-utf16.svg", &bytes).accepted());
     }
 }

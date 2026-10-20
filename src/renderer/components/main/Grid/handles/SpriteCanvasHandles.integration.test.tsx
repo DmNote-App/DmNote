@@ -230,14 +230,14 @@ describe('SpriteCanvasHandles 기준점 드래그 통합', () => {
     pointer('pointerdown', pivotHandle(), 100, 75);
     pointer('pointermove', window, 160, 75);
     await settle();
-    // pivot x = 0.8 → 축 160 + 프레임 보정 0.6 → 히트 좌상단 147.6
-    expect(parseFloat(pivotHandle().style.left)).toBeCloseTo(147.6, 3);
+    // pivot x = 0.8 → 축 160 + 프레임 보정 0.3 → 히트 좌상단 147.3
+    expect(parseFloat(pivotHandle().style.left)).toBeCloseTo(147.3, 3);
 
     pointer('pointermove', window, 180, 90);
     await settle();
     // 두 번째 move도 살아 있다 - 드래그가 도중에 취소되지 않았다
-    expect(parseFloat(pivotHandle().style.left)).toBeCloseTo(167.8, 3);
-    expect(parseFloat(pivotHandle().style.top)).toBeCloseTo(77.2, 3);
+    expect(parseFloat(pivotHandle().style.left)).toBeCloseTo(167.4, 3);
+    expect(parseFloat(pivotHandle().style.top)).toBeCloseTo(77.1, 3);
 
     pointer('pointerup', window, 180, 90);
     await settle();
@@ -245,11 +245,11 @@ describe('SpriteCanvasHandles 기준점 드래그 통합', () => {
     const canonical = harness.useSpriteStore.getState().positions['4key'][0];
     expect(canonical.pivot).toEqual({ x: 0.9, y: 0.6 });
     // 표식은 드래그를 놓은 자리에 남는다
-    expect(parseFloat(pivotHandle().style.left)).toBeCloseTo(167.8, 3);
+    expect(parseFloat(pivotHandle().style.left)).toBeCloseTo(167.4, 3);
 
     runtime.resolveCommit({ revision: 1, changedFields: ['spritePositions'] });
     await settle();
-    expect(parseFloat(pivotHandle().style.left)).toBeCloseTo(167.8, 3);
+    expect(parseFloat(pivotHandle().style.left)).toBeCloseTo(167.4, 3);
     expect(
       harness.useSpriteStore.getState().positions['4key'][0].pivot,
     ).toEqual({ x: 0.9, y: 0.6 });
@@ -264,7 +264,7 @@ describe('SpriteCanvasHandles 기준점 드래그 통합', () => {
     render();
 
     // 1차: 모서리 → 중앙으로 드래그해 스냅
-    pointer('pointerdown', pivotHandle(), 201, -1);
+    pointer('pointerdown', pivotHandle(), 200.5, -0.5);
     pointer('pointermove', window, 102, 77);
     await settle();
     pointer('pointerup', window, 102, 77);
@@ -281,11 +281,11 @@ describe('SpriteCanvasHandles 기준점 드래그 통합', () => {
     pointer('pointerdown', pivotHandle(), 100, 75);
     pointer('pointermove', window, 140, 75);
     await settle();
-    expect(parseFloat(pivotHandle().style.left)).toBeCloseTo(127.4, 3);
+    expect(parseFloat(pivotHandle().style.left)).toBeCloseTo(127.2, 3);
 
     pointer('pointermove', window, 160, 75);
     await settle();
-    expect(parseFloat(pivotHandle().style.left)).toBeCloseTo(147.6, 3);
+    expect(parseFloat(pivotHandle().style.left)).toBeCloseTo(147.3, 3);
 
     pointer('pointerup', window, 160, 75);
     await settle();
@@ -317,8 +317,8 @@ describe('SpriteCanvasHandles 기준점 드래그 통합', () => {
     // 스냅 해제 상태로 5px - 배율 0.1이라 기준점은 0.25 움직이고 표식은 포인터 아래
     pointer('pointermove', window, 105, 75, { ctrlKey: true });
     await settle();
-    // 105 + 프레임 보정 (2·0.75−1)·1 = 105.5
-    expect(handleCenterX()).toBeCloseTo(105.5, 6);
+    // 105 + 프레임 보정 (2·0.75−1)·0.5 = 105.25
+    expect(handleCenterX()).toBeCloseTo(105.25, 6);
 
     pointer('pointerup', window, 105, 75);
     await settle();
@@ -328,7 +328,7 @@ describe('SpriteCanvasHandles 기준점 드래그 통합', () => {
     expect(canonical.pivot.y).toBeCloseTo(0.5, 9);
     // 그림은 움직이지 않는다 - t' = t + (P − P') + sR·Δ = 0 + (100 − 150) + 0.1·50
     expect(canonical.idleTransform.x).toBeCloseTo(-45, 9);
-    expect(handleCenterX()).toBeCloseTo(105.5, 6);
+    expect(handleCenterX()).toBeCloseTo(105.25, 6);
   });
 
   it('히트 영역 가장자리를 잡아도 첫 move에서 표식이 튀지 않는다', async () => {
@@ -343,8 +343,8 @@ describe('SpriteCanvasHandles 기준점 드래그 통합', () => {
     pointer('pointerdown', pivotHandle(), 108, 75);
     pointer('pointermove', window, 112, 75, { ctrlKey: true });
     await settle();
-    // 축 104 + 프레임 보정 (2·0.52−1)·1 = 104.04
-    expect(handleCenterX()).toBeCloseTo(104.04, 6);
+    // 축 104 + 프레임 보정 (2·0.52−1)·0.5 = 104.02
+    expect(handleCenterX()).toBeCloseTo(104.02, 6);
     pointer('pointerup', window, 112, 75);
     await settle();
     expect(runtime.commit).toHaveBeenCalledOnce();
@@ -380,7 +380,7 @@ describe('SpriteCanvasHandles 기준점 드래그 통합', () => {
       ),
     );
     await settle();
-    expect(handleCenterX()).toBeCloseTo(150.5, 6);
+    expect(handleCenterX()).toBeCloseTo(150.25, 6);
 
     pointer('pointerdown', pivotHandle(), 150, 75);
     pointer('pointermove', window, 120, 75, { ctrlKey: true });
@@ -388,7 +388,7 @@ describe('SpriteCanvasHandles 기준점 드래그 통합', () => {
     pointer('pointerup', window, 120, 75);
     await settle();
     expect(runtime.commit).not.toHaveBeenCalled();
-    expect(handleCenterX()).toBeCloseTo(150.5, 6);
+    expect(handleCenterX()).toBeCloseTo(150.25, 6);
     act(() => editGestureController.cancel());
   });
 
@@ -414,7 +414,7 @@ describe('SpriteCanvasHandles 기준점 드래그 통합', () => {
       );
     });
     await settle();
-    expect(handleCenterX()).toBeCloseTo(150.5, 6);
+    expect(handleCenterX()).toBeCloseTo(150.25, 6);
 
     pointer('pointerdown', pivotHandle(), 150, 75);
     pointer('pointermove', window, 120, 75, { ctrlKey: true });
@@ -427,7 +427,7 @@ describe('SpriteCanvasHandles 기준점 드래그 통합', () => {
     expect(
       harness.useSpriteStore.getState().positions['4key'][0].pivot.x,
     ).toBeCloseTo(0.6, 9);
-    expect(handleCenterX()).toBeCloseTo(120.2, 6);
+    expect(handleCenterX()).toBeCloseTo(120.1, 6);
   });
 
   it('다른 프리뷰가 상자 크기만 바꿔 보여 줘도 드래그를 시작하지 않는다', async () => {

@@ -240,10 +240,10 @@ describe('GroupResizeHandles 세션', () => {
     const outline = host.querySelector<HTMLElement>(
       '[data-group-resize-outline]',
     )!;
-    expect(outline.style.left).toBe('-12px');
-    expect(outline.style.top).toBe('0px');
-    expect(outline.style.width).toBe('124px');
-    expect(outline.style.height).toBe('100px');
+    expect(outline.style.left).toBe('-11px');
+    expect(outline.style.top).toBe('1px');
+    expect(outline.style.width).toBe('122px');
+    expect(outline.style.height).toBe('98px');
     expect(outline.style.transform).toBe('rotate(45deg)');
   });
 

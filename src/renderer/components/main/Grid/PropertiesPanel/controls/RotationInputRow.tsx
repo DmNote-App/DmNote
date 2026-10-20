@@ -28,7 +28,7 @@ const RotationInputRow = ({
       prefix={<AngleGlyph />}
       ariaLabel={label}
       suffix="°"
-      width="80px"
+      width="68px"
       min={ELEMENT_ROTATION_RANGE.min}
       max={ELEMENT_ROTATION_RANGE.max}
       allowDecimal

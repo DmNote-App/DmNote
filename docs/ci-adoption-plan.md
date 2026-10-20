@@ -1,5 +1,7 @@
 # DmNote CI 도입 제안
 
+> **2026-09-07 운영 변경:** `main` 직접 push를 허용하고 ruleset의 PR 경유·필수 status check 요구를 제거했다. PR CI와 main push 후 검사는 유지한다. 아래 필수 병합 체크 내용은 초기 도입 계획이며, 현재 적용 규칙은 [CI 운영 안내](./ci-operations.md)를 따른다.
+
 > 작성일: 2026-09-05 · 상태: 검토용 제안
 >
 > 조사 기준: 로컬 `main`의 `198bf32df28755f131bfa5cbb96115949dffde9c`, GitHub 설정·실행 기록, 공식 문서와 프로젝트 워크플로

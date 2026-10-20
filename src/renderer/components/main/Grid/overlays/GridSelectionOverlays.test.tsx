@@ -9,6 +9,8 @@ import type {
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import { makeCanonicalSpritePosition } from '@utils/sprite/spriteFixtures';
 import GridSelectionOverlays from './GridSelectionOverlays';
+import type { Bounds, ElementBounds } from '../handles/groupResizeUtils';
+import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useStatItemStore } from '@stores/data/useStatItemStore';
 import { useGraphItemStore } from '@stores/data/useGraphItemStore';
@@ -92,10 +94,16 @@ describe('GridSelectionOverlays', () => {
     pluginElements = [] as PluginDisplayElementInternal[],
     hasGradientEditSession = false,
     hasSpritePoseSession = false,
-    previewElementBounds = null as readonly unknown[] | null,
+    previewElementBounds = null as readonly ElementBounds[] | null,
+    previewGroupBounds = null as Bounds | null,
+    statPositions = {} as CanonicalEditorDocumentV1['statPositions'],
+    graphPositions = {} as CanonicalEditorDocumentV1['graphPositions'],
+    knobPositions = {} as CanonicalEditorDocumentV1['knobPositions'],
+    zoom = 2,
     firstKeyRotation = 0,
+    keyPositions = null as CanonicalEditorDocumentV1['keyPositions'] | null,
   } = {}) => {
-    const positions = {
+    const positions = keyPositions ?? {
       '4key': [
         keyPosition(FIRST_ID, 10, 20, firstKeyRotation),
         keyPosition(SECOND_ID, 50, 60),
@@ -108,23 +116,26 @@ describe('GridSelectionOverlays', () => {
       });
       useGridSelectionStore.setState({ selectedElements });
       useSpriteStore.setState({ positions: spritePositions });
+      useStatItemStore.setState({ positions: statPositions });
+      useGraphItemStore.setState({ positions: graphPositions });
+      useKnobItemStore.setState({ positions: knobPositions });
       root.render(
         <GridSelectionOverlays
           selectedElements={selectedElements}
           positions={positions}
-          statPositions={{}}
-          graphPositions={{}}
-          knobPositions={{}}
+          statPositions={statPositions}
+          graphPositions={graphPositions}
+          knobPositions={knobPositions}
           spritePositions={spritePositions}
           mode="4key"
           pluginElements={pluginElements}
-          zoom={2}
+          zoom={zoom}
           panX={3}
           panY={4}
           hasGradientEditSession={hasGradientEditSession}
           hasSpritePoseSession={hasSpritePoseSession}
           previewBounds={{ x: 15, y: 25, width: 35, height: 45 }}
-          previewGroupBounds={null}
+          previewGroupBounds={previewGroupBounds}
           previewElementBounds={previewElementBounds}
           onResizeStart={vi.fn()}
           onResize={vi.fn()}
@@ -138,6 +149,7 @@ describe('GridSelectionOverlays', () => {
   };
 
   beforeEach(() => {
+    usePluginDisplayElementStore.setState({ definitions: new Map() });
     useStatItemStore.setState({ positions: {} });
     useGraphItemStore.setState({ positions: {} });
     useKnobItemStore.setState({ positions: {} });
@@ -162,10 +174,10 @@ describe('GridSelectionOverlays', () => {
     const outline = host.querySelector(
       '[data-grid-selection-outline]',
     ) as HTMLElement;
-    expect(outline.style.left).toBe('31px');
-    expect(outline.style.top).toBe('52px');
-    expect(outline.style.width).toBe('74px');
-    expect(outline.style.height).toBe('94px');
+    expect(outline.style.left).toBe('32px');
+    expect(outline.style.top).toBe('53px');
+    expect(outline.style.width).toBe('72px');
+    expect(outline.style.height).toBe('92px');
     expect(host.querySelector('[data-resize-handles]')).not.toBeNull();
     expect(host.querySelector('[data-group-resize-handles]')).toBeNull();
     expect(host.querySelector('[data-gradient-axis]')).not.toBeNull();
@@ -194,23 +206,42 @@ describe('GridSelectionOverlays', () => {
     expect(host.querySelector('[data-grid-selection-outline]')).not.toBeNull();
   });
 
-  it('다중 선택은 그룹 핸들을 사용하고 그룹 프리뷰 중 개별 윤곽을 숨긴다', () => {
+  it('그룹 리사이즈 중에도 각 요소의 프리뷰 윤곽을 표시한다', () => {
     renderOverlays({
       selectedElements: [
         { type: 'key', id: FIRST_ID, index: 0 },
         { type: 'key', id: SECOND_ID, index: 1 },
       ],
-      previewElementBounds: [{ id: FIRST_ID }],
+      previewGroupBounds: { x: 20, y: 30, width: 140, height: 160 },
+      previewElementBounds: [
+        {
+          element: { type: 'key', id: FIRST_ID },
+          bounds: { x: 20, y: 30, width: 60, height: 80 },
+        },
+        {
+          element: { type: 'key', id: SECOND_ID },
+          bounds: { x: 100, y: 110, width: 60, height: 80 },
+        },
+      ],
     });
 
     expect(host.querySelectorAll('[data-grid-selection-outline]')).toHaveLength(
-      0,
+      2,
     );
     expect(
       host
         .querySelector('[data-group-resize-handles]')
         ?.getAttribute('data-group-resize-handles'),
     ).toBe('2');
+    const first = host.querySelector<HTMLElement>(
+      '[data-grid-selection-outline]',
+    )!;
+    expect(first.style.left).toBe('42px');
+    expect(first.style.top).toBe('63px');
+    expect(first.style.width).toBe('122px');
+    expect(first.style.borderTopColor).toBe('transparent');
+    expect(first.style.borderLeftColor).toBe('transparent');
+    expect(first.style.borderRightColor).not.toBe('transparent');
     expect(host.querySelector('[data-resize-handles]')).toBeNull();
     expect(
       host.querySelector('[data-rotation-handles="selection"]'),
@@ -218,7 +249,7 @@ describe('GridSelectionOverlays', () => {
   });
 
   it.each([0, 30])(
-    '기존 각도 %s°의 다중 선택은 공통 틀만 표시한다',
+    '기존 각도 %s°의 다중 선택은 공통 틀과 개별 윤곽을 함께 표시한다',
     (rotation) => {
       renderOverlays({
         selectedElements: [
@@ -229,7 +260,7 @@ describe('GridSelectionOverlays', () => {
       });
       expect(
         host.querySelectorAll('[data-grid-selection-outline]'),
-      ).toHaveLength(0);
+      ).toHaveLength(2);
       expect(host.querySelectorAll('[data-group-resize-handles]')).toHaveLength(
         1,
       );
@@ -268,7 +299,9 @@ describe('GridSelectionOverlays', () => {
       pluginElements: [PLUGIN_ELEMENT],
     });
     expect(host.querySelector('[data-group-resize-handles]')).not.toBeNull();
-    expect(host.querySelector('[data-grid-selection-outline]')).toBeNull();
+    expect(host.querySelectorAll('[data-grid-selection-outline]')).toHaveLength(
+      2,
+    );
   });
 
   it.each([0, 30])(
@@ -293,7 +326,7 @@ describe('GridSelectionOverlays', () => {
       const outlines = host.querySelectorAll<HTMLElement>(
         '[data-grid-selection-outline]',
       );
-      expect(outlines).toHaveLength(rotation === 0 ? 0 : 2);
+      expect(outlines).toHaveLength(2);
       if (rotation === 0) {
         expect(
           host.querySelector('[data-group-resize-handles]'),
@@ -305,6 +338,137 @@ describe('GridSelectionOverlays', () => {
       expect(
         host.querySelector('[data-rotation-handles="selection"]'),
       ).toBeNull();
+    },
+  );
+
+  it('3×3 배치에서 중앙을 제외하면 나머지 여덟 항목에만 윤곽을 표시한다', () => {
+    const keys = Array.from({ length: 9 }, (_, index) =>
+      keyPosition(`key-${index}`, (index % 3) * 50, Math.floor(index / 3) * 60),
+    );
+    renderOverlays({
+      keyPositions: { '4key': keys },
+      selectedElements: keys
+        .filter((_, index) => index !== 4)
+        .map(({ id }) => ({ type: 'key', id })),
+    });
+    expect(host.querySelectorAll('[data-grid-selection-outline]')).toHaveLength(
+      8,
+    );
+    expect(
+      host.querySelector('[data-grid-selection-element-id="key-4"]'),
+    ).toBeNull();
+    // 중앙 빈 선택을 마주 보는 변은 모두 남아 있어야 한다
+    for (const [id, side] of [
+      ['key-1', 'bottom'],
+      ['key-3', 'right'],
+      ['key-5', 'left'],
+      ['key-7', 'top'],
+    ]) {
+      const outline = host.querySelector<HTMLElement>(
+        `[data-grid-selection-element-id="${id}"]`,
+      )!;
+      expect(outline.style.getPropertyValue(`border-${side}-color`)).toBe(
+        'var(--ui-selection-border-strong)',
+      );
+    }
+  });
+
+  it('모든 요소 종류에서 선택한 항목만 표시하고 바깥 박스와 겹친 변을 생략한다', () => {
+    const selectedElements: SelectedElement[] = [
+      { type: 'key', id: FIRST_ID },
+      { type: 'stat', id: 'stat-1' },
+      { type: 'graph', id: 'graph-1' },
+      { type: 'knob', id: 'knob-1' },
+      { type: 'sprite', id: 'sprite-1' },
+      { type: 'plugin', id: PLUGIN_ELEMENT.fullId },
+    ];
+    renderOverlays({
+      selectedElements,
+      statPositions: {
+        '4key': [{ ...keyPosition('stat-1', 60, 20), statType: 'kps' }],
+      },
+      graphPositions: {
+        '4key': [
+          {
+            ...keyPosition('graph-1', 110, 20),
+            statType: 'kps',
+            graphType: 'line',
+            graphSpeed: 1,
+            graphColor: '#fff',
+          },
+        ],
+      },
+      knobPositions: {
+        '4key': [
+          {
+            ...keyPosition('knob-1', 160, 20),
+            axisId: 'x',
+            sensitivity: 1,
+            reverse: false,
+          },
+        ],
+      },
+      spritePositions: {
+        '4key': [
+          makeCanonicalSpritePosition({
+            id: 'sprite-1',
+            dx: 210,
+            dy: 20,
+            width: 30,
+            height: 40,
+          }),
+        ],
+      },
+      pluginElements: [PLUGIN_ELEMENT],
+    });
+    const outlines = Array.from(
+      host.querySelectorAll<HTMLElement>('[data-grid-selection-outline]'),
+    );
+    expect(
+      outlines.map((outline) => outline.dataset.gridSelectionElementType),
+    ).toEqual(['key', 'stat', 'graph', 'knob', 'sprite', 'plugin']);
+    expect(
+      host.querySelector(`[data-grid-selection-element-id="${SECOND_ID}"]`),
+    ).toBeNull();
+    expect(outlines[0].style.borderTopColor).toBe('transparent');
+    expect(outlines[0].style.borderBottomColor).toBe('transparent');
+    expect(outlines[0].style.borderLeftColor).toBe('transparent');
+    expect(outlines[0].style.borderRightColor).not.toBe('transparent');
+    expect(outlines[4].style.borderRightColor).toBe('transparent');
+    expect(outlines[4].style.borderLeftColor).not.toBe('transparent');
+    // 내부 플러그인은 네 변을 유지하고 크기 조절 불가 표시도 보존
+    expect(outlines[5].style.borderStyle).toBe('dashed');
+    for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
+      expect(
+        outlines[5].style.getPropertyValue(
+          `border-${side.toLowerCase()}-color`,
+        ),
+      ).not.toBe('transparent');
+    }
+    expect(host.querySelector('[data-resize-handles]')).toBeNull();
+  });
+
+  it.each([0.25, 1, 4])(
+    '배율 %s에서도 개별 윤곽 두께는 바깥 박스와 같은 화면 기준 1px이다',
+    (zoom) => {
+      renderOverlays({
+        selectedElements: [
+          { type: 'key', id: FIRST_ID },
+          { type: 'key', id: SECOND_ID },
+        ],
+        zoom,
+      });
+      const outlines = host.querySelectorAll<HTMLElement>(
+        '[data-grid-selection-outline]',
+      );
+      expect(outlines).toHaveLength(2);
+      expect(outlines[0].style.borderWidth).toBe('1px');
+      expect(outlines[0].style.borderRightColor).toBe(
+        'var(--ui-selection-border-strong)',
+      );
+      expect(outlines[0].style.width).toBe(`${30 * zoom + 2}px`);
+      expect(outlines[0].style.borderTopColor).toBe('transparent');
+      expect(outlines[1].style.borderBottomColor).toBe('transparent');
     },
   );
 

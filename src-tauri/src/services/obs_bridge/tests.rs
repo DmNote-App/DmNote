@@ -81,7 +81,7 @@ async fn connect_authenticated(port: u16, token: &str) -> TestWebSocket {
         0,
         serde_json::json!({ "token": token, "protocol": OBS_PROTOCOL_VERSION }),
     );
-    ws.send(Message::Text(hello.to_string()))
+    ws.send(Message::text(hello.to_string()))
         .await
         .expect("hello 전송 실패");
 
@@ -439,15 +439,15 @@ async fn websocket_session_preserves_handshake_projection_and_client_sequence() 
         .expect("WS 연결 실패");
 
     // hello 전의 malformed/다른 text envelope 무시
-    ws.send(Message::Text("not-json".to_string()))
+    ws.send(Message::text("not-json".to_string()))
         .await
         .expect("malformed text 전송 실패");
-    ws.send(Message::Text(
+    ws.send(Message::text(
         make_envelope("ping", 10, Value::Null).to_string(),
     ))
     .await
     .expect("handshake 이전 ping 전송 실패");
-    ws.send(Message::Text(
+    ws.send(Message::text(
         make_envelope(
             "hello",
             11,
@@ -481,7 +481,7 @@ async fn websocket_session_preserves_handshake_projection_and_client_sequence() 
     assert_eq!(server_ping["seq"], 2);
     assert_eq!(server_ping["payload"], Value::Null);
 
-    ws.send(Message::Text(
+    ws.send(Message::text(
         make_envelope("ping", 12, Value::Null).to_string(),
     ))
     .await
@@ -490,7 +490,7 @@ async fn websocket_session_preserves_handshake_projection_and_client_sequence() 
     assert_eq!(pong["seq"], 3);
     assert_eq!(pong["payload"], Value::Null);
 
-    ws.send(Message::Text(
+    ws.send(Message::text(
         make_envelope("resync_request", 13, Value::Null).to_string(),
     ))
     .await
@@ -499,7 +499,7 @@ async fn websocket_session_preserves_handshake_projection_and_client_sequence() 
     assert_eq!(resync["seq"], 4);
     assert_eq!(resync["payload"], serde_json::json!({ "revision": 7 }));
 
-    ws.send(Message::Text(
+    ws.send(Message::text(
         make_envelope(
             "invoke_request",
             14,
@@ -951,7 +951,7 @@ async fn protocol_mismatch_is_rejected_before_auth() {
         "seq": 0,
         "payload": { "token": "wrong-token", "protocol": 999 },
     });
-    ws.send(Message::Text(hello.to_string()))
+    ws.send(Message::text(hello.to_string()))
         .await
         .expect("hello 전송 실패");
 
@@ -975,7 +975,7 @@ async fn auth_failure_follows_protocol_validation_and_empty_server_token_disable
     let (mut ws, _) = connect_async(format!("ws://127.0.0.1:{port}"))
         .await
         .expect("WS 연결 실패");
-    ws.send(Message::Text(
+    ws.send(Message::text(
         make_envelope(
             "hello",
             0,
@@ -1003,7 +1003,7 @@ async fn auth_failure_follows_protocol_validation_and_empty_server_token_disable
     let (mut ws, _) = connect_async(format!("ws://127.0.0.1:{port}"))
         .await
         .expect("빈 토큰 WS 연결 실패");
-    ws.send(Message::Text(
+    ws.send(Message::text(
         make_envelope(
             "hello",
             0,
@@ -1071,7 +1071,7 @@ async fn legacy_protocol_v1_hello_is_rejected() {
         "seq": 0,
         "payload": { "token": "token", "protocol": 1 },
     });
-    ws.send(Message::Text(hello.to_string()))
+    ws.send(Message::text(hello.to_string()))
         .await
         .expect("hello 전송 실패");
 
@@ -1115,7 +1115,7 @@ async fn lan_address_accepts_authenticated_clients() {
         0,
         serde_json::json!({ "token": "lan-token", "protocol": OBS_PROTOCOL_VERSION }),
     );
-    ws.send(Message::Text(hello.to_string()))
+    ws.send(Message::text(hello.to_string()))
         .await
         .expect("hello 전송 실패");
     receive_envelope(&mut ws, "hello_ack").await;
@@ -1140,7 +1140,7 @@ async fn token_rotation_disconnects_existing_sessions_and_keeps_server_running()
     assert_eq!(bridge.status().port, port);
 
     let resync = make_envelope("resync_request", 1, Value::Null);
-    let _ = old_ws.send(Message::Text(resync.to_string())).await;
+    let _ = old_ws.send(Message::text(resync.to_string())).await;
     bridge.publish(
         "settings:changed",
         serde_json::json!({ "authenticated": false }),

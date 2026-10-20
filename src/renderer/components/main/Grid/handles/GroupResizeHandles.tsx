@@ -7,7 +7,6 @@ import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import {
   isElementResizable,
-  getElementBounds,
   calculateGroupBounds,
   type Bounds,
   type SelectedElement,
@@ -17,6 +16,11 @@ import { useGroupResizeSession } from './useGroupResizeSession';
 import { rotatePointAround } from '@utils/element/rotation';
 import { resizeCursorForHandle } from './rotatedResize';
 import type { GroupRotationFrame } from './rotatedGroupResize';
+import {
+  GROUP_SELECTION_BORDER_WIDTH,
+  GROUP_SELECTION_BORDER_COLOR,
+  SELECTION_BORDER_WIDTH,
+} from './selectionOutline';
 
 /**
  * 다중 선택 시 그룹 전체를 감싸는 리사이즈 핸들을 표시하는 컴포넌트
@@ -60,7 +64,6 @@ const CORNER_HANDLE_SIZE = 10; // 꼭짓점 핸들의 시각적 크기 (픽셀)
 const EDGE_HANDLE_WIDTH = 8; // 상하좌우 핸들의 두께 (픽셀)
 const EDGE_HANDLE_LENGTH = 18; // 상하좌우 핸들의 길이 (픽셀)
 const HANDLE_HIT_SIZE = 18; // 핸들의 클릭 가능 영역 크기 (픽셀)
-const GROUP_BORDER_WIDTH = 3; // 그룹 테두리 두께 (픽셀)
 // ================================
 
 const HANDLE_HIT_HALF = HANDLE_HIT_SIZE / 2;
@@ -227,9 +230,6 @@ const GroupResizeHandles = ({
     ),
   }));
 
-  const nonResizableElements = resizabilityInfo.filter(
-    (info) => !info.isResizable,
-  );
   const resizableElements = resizabilityInfo.filter((info) => info.isResizable);
 
   const handleMouseDown = useGroupResizeSession({
@@ -263,20 +263,19 @@ const GroupResizeHandles = ({
   const rotation = rotationFrame?.rotation ?? 0;
 
   // 그룹 테두리 좌표 계산 - 내부 요소 테두리와 동일한 위치에 겹치게
-  const selectionLeft = displayBounds.x * zoom + panX - 2;
-  const selectionTop = displayBounds.y * zoom + panY - 2;
-  const selectionWidth = displayBounds.width * zoom + 4;
-  const selectionHeight = displayBounds.height * zoom + 4;
+  const selectionLeft = displayBounds.x * zoom + panX - SELECTION_BORDER_WIDTH;
+  const selectionTop = displayBounds.y * zoom + panY - SELECTION_BORDER_WIDTH;
+  const selectionWidth =
+    displayBounds.width * zoom + SELECTION_BORDER_WIDTH * 2;
+  const selectionHeight =
+    displayBounds.height * zoom + SELECTION_BORDER_WIDTH * 2;
 
   // 핸들 위치 계산용 - 테두리 중앙에 배치하기 위해 테두리 두께의 절반만큼 오프셋
-  const borderHalf = GROUP_BORDER_WIDTH / 2;
+  const borderHalf = GROUP_SELECTION_BORDER_WIDTH / 2;
   const handleAreaLeft = selectionLeft + borderHalf;
   const handleAreaTop = selectionTop + borderHalf;
-  const handleAreaWidth = selectionWidth - GROUP_BORDER_WIDTH;
-  const handleAreaHeight = selectionHeight - GROUP_BORDER_WIDTH;
-
-  // 리사이즈 불가능한 요소가 있으면 핸들 비활성화
-  const _hasNonResizable = nonResizableElements.length > 0;
+  const handleAreaWidth = selectionWidth - GROUP_SELECTION_BORDER_WIDTH;
+  const handleAreaHeight = selectionHeight - GROUP_SELECTION_BORDER_WIDTH;
 
   return (
     <>
@@ -290,45 +289,13 @@ const GroupResizeHandles = ({
           width: selectionWidth,
           height: selectionHeight,
           ...(rotation !== 0 ? { transform: `rotate(${rotation}deg)` } : {}),
-          border: `${GROUP_BORDER_WIDTH}px solid var(--ui-selection-border-strong)`,
+          boxSizing: 'border-box',
+          border: `${GROUP_SELECTION_BORDER_WIDTH}px solid ${GROUP_SELECTION_BORDER_COLOR}`,
           borderRadius: '6px',
           pointerEvents: 'none' as const,
           zIndex: 'var(--z-canvas-group-outline)',
         }}
       />
-
-      {/* 리사이즈 불가능한 요소들에 대한 표시 (주황색 점선만, 아이콘 없음) */}
-      {nonResizableElements.map(({ element }) => {
-        const bounds = getElementBounds(
-          element,
-          positions,
-          statPositions,
-          graphPositions,
-          knobPositions,
-          selectedKeyType,
-          pluginElements,
-          spritePositions,
-        );
-        if (!bounds) return null;
-
-        return (
-          <div
-            key={`non-resizable-${element.id}`}
-            style={{
-              position: 'absolute',
-              left: bounds.x * zoom + panX - 2,
-              top: bounds.y * zoom + panY - 2,
-              width: bounds.width * zoom + 4,
-              height: bounds.height * zoom + 4,
-              border: '2px dashed rgba(251, 146, 60, 0.9)',
-              borderRadius: '4px',
-              pointerEvents: 'none' as const,
-              zIndex: 'var(--z-canvas-selection-handle)',
-            }}
-            title="크기 조절 불가능한 요소"
-          />
-        );
-      })}
 
       {/* 리사이즈 핸들들 - 리사이즈 가능한 요소가 있을 때만 표시 */}
       {resizableElements.length > 0 &&

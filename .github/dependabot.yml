@@ -12,7 +12,37 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    ignore:
+      # Hooks 린트 7.1 전환은 React Compiler bail-out 정리와 함께 별도 과제로 진행 — 완료 시 제거
+      - dependency-name: eslint-plugin-react-hooks
+        versions: ['>=7.1.0']
+      # 아래 메이저는 별도 전환 과제로 분리 — 각 과제 완료 시 제거
+      # ESLint 10: Hooks 린트 7.1 전환이 선행 조건 (7.0.1의 peer가 ESLint 9까지)
+      - dependency-name: eslint
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@eslint/js'
+        update-types: ['version-update:semver-major']
+      # Tailwind 4: @tailwindcss/postcss 분리·CSS-first 설정 마이그레이션 필요
+      - dependency-name: tailwindcss
+        update-types: ['version-update:semver-major']
+      # jsdom 30: CSSOM 직렬화 변화로 사용자 CSS 격리 테스트 기대값 재검토 필요
+      - dependency-name: jsdom
+        update-types: ['version-update:semver-major']
+      # Vite 8(Rolldown): 번들러·CSS 압축기 교체라 실제 앱 화면 검증 필요, plugin-react 6은 Vite 8 전용
+      - dependency-name: vite
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@vitejs/plugin-react'
+        update-types: ['version-update:semver-major']
+      # TypeScript 6+: tsconfig 기본값 변경 마이그레이션 필요, 7은 typescript-eslint 미지원
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      # .node-version(22)과 맞춘다 — Node 메이저를 올릴 때 함께 올린다
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
+      # 서로 정확히 같은 버전을 peer로 요구해 따로 올리면 npm ci가 실패한다
+      vitest:
+        patterns: ['vitest', '@vitest/*']
       npm-minor-patch:
         update-types: [minor, patch]
   - package-ecosystem: cargo
@@ -20,6 +50,25 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    ignore:
+      # cocoa 0.23+: 크레이트 전체가 deprecated — objc2 이전 과제 완료 시 제거
+      - dependency-name: cocoa
+        versions: ['>=0.23']
+      # zip: 레거시 WebView2 고정 런타임 경로 전용 — 해당 경로 정리 시 의존성째 제거
+      - dependency-name: zip
+        update-types: ['version-update:semver-major']
+      # windows 0.62+: Tauri가 쓰는 windows 버전과 HWND 타입이 어긋난다 — Tauri와 함께 올린다 (#165)
+      - dependency-name: windows
+        versions: ['>=0.62']
+      # cpal 0.18+: rodio 포크(lee-sihun/rodio)가 같은 cpal을 써야 한다 — 포크와 함께 올린다
+      - dependency-name: cpal
+        versions: ['>=0.18']
+      # symphonia 0.6+: 오디오 버퍼·디코더·probe API 재구성으로 오디오 엔진 이전 필요
+      - dependency-name: symphonia
+        versions: ['>=0.6']
+      # reqwest 0.13+: TLS 기능 체계 변경(ring → aws-lc-rs, 플랫폼 검증기) — 자동 업데이트 경로 검증 필요
+      - dependency-name: reqwest
+        versions: ['>=0.13']
     groups:
       cargo-minor-patch:
         update-types: [minor, patch]

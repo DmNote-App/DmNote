@@ -205,7 +205,7 @@ describe('toCanonicalCssRgba', () => {
       set fillStyle(value: string) {
         fillStyle = value === 'rebeccapurple' ? '#663399' : value;
       },
-    } as CanvasRenderingContext2D);
+    } as unknown as ReturnType<HTMLCanvasElement['getContext']>);
 
     expect(toCanonicalCssRgba('rebeccapurple')).toBe('rgba(102,51,153,1)');
   });

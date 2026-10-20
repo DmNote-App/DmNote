@@ -1,6 +1,6 @@
 # CI 운영 안내
 
-CI는 `.node-version`의 Node 22.23.2와 `rust-toolchain.toml`의 Rust 1.93.0을 사용한다. 로컬 커밋 hook과 일반 작업 브랜치 push에는 검사를 강제하지 않는다.
+CI는 `.node-version`의 Node 22.23.2와 `rust-toolchain.toml`의 Rust 1.93.0을 사용한다. 로컬 커밋 hook과 브랜치 push에는 검사 통과를 강제하지 않는다. `main` 직접 push도 허용한다.
 
 ## PR 검사
 
@@ -19,7 +19,7 @@ CI는 `.node-version`의 Node 22.23.2와 `rust-toolchain.toml`의 Rust 1.93.0을
 
 모든 변경이 `README.md`, `AGENTS.md`, `docs/**/*.md`, `docs/content/**/*.mdx` 안에만 있으면 무거운 job을 생략한다. 문서·계약 검사는 생략하지 않는다. rename은 이전/이후 경로를 모두 확인하고, 미분류 경로·불완전한 diff는 전체 검사로 처리한다. 파일 형식 변경도 전체 검사한다.
 
-`CI Gate`는 필수 job의 실패·취소·누락·예상하지 못한 skip을 성공으로 처리하지 않는다. Draft의 성공은 빠른 검사의 성공이며, Draft 상태에서는 병합할 수 없다. 수동·주간 전체 검증은 `Full Validation Gate`, main의 빠른 검사는 `Main Quality`로 표시해 PR 필수 체크와 구분한다.
+`CI Gate`는 필수 job의 실패·취소·누락·예상하지 못한 skip을 성공으로 처리하지 않는다. Draft의 성공은 빠른 검사의 성공이며, Draft 상태에서는 병합할 수 없다. 수동·주간 전체 검증은 `Full Validation Gate`, main의 빠른 검사는 `Main Quality`로 표시해 PR 검사 결과와 구분한다.
 
 Windows의 전체 Rust 테스트는 `cargo-nextest` 0.9.143으로 테스트마다 별도 프로세스에서 실행한다. 첫 `cargo test` pilot에서 오디오 테스트 이후 `STATUS_ACCESS_VIOLATION`이 발생했으며, 사용 중인 CPAL 0.17.3의 공유 WASAPI 객체 수명에 [동일한 증상의 보고](https://github.com/RustAudio/cpal/issues/1302)가 있다. [프로세스별 테스트 격리](https://nexte.st/docs/design/why-process-per-test/)로 테스트 간 네이티브 전역 상태를 분리하며 테스트 코드·검사 범위는 유지한다. 자동 재시도는 0이고, 한 테스트가 실패해도 나머지 결과를 수집한 뒤 job은 실패한다. nextest 공식 바이너리의 버전과 SHA256을 고정한다. CPAL 자체의 수명 문제를 수정한 것은 아니므로 해당 라이브러리 갱신 시 재검토한다.
 
@@ -45,21 +45,17 @@ Actions의 `CI` → `Run workflow`에서 브랜치를 선택하면 경로에 무
 
 PR과 릴리즈 검증은 같은 Windows/macOS composite action을 사용한다. 릴리즈의 기존 오디오 전용 테스트는 같은 SHA·Windows·ASIO 구성의 전체 테스트로 대체했다. 검사 workflow에 서명 secret을 상속하지 않는다.
 
-## 병합 후 저장소 설정
+## 저장소 브랜치 규칙
 
-워크플로 파일만으로 병합 제한이 활성화되지는 않는다. 이번 PR은 검토 가능한 [main ruleset JSON](../.github/rulesets/main.json)을 제공하며 저장소 설정을 자동으로 변경하지 않는다.
+2026-09-07 운영 결정에 따라 `main` 직접 push를 허용한다. `main-ci` ruleset에서는 PR 경유와 `CI Gate` 성공 요구를 제거하고, 브랜치 삭제와 강제 push 제한만 유지한다. PR용 [CI workflow](../.github/workflows/ci.yml)는 그대로 실행되며, `CI Gate`는 PR 검사 결과를 집계한다.
 
-1. 이 PR에서 `CI Gate`의 전체 성공을 확인하고 병합한다.
-2. Settings → Rules → Rulesets에서 JSON을 가져온다. API로 적용하려면 아래 명령을 사용한다. 같은 이름의 ruleset이 이미 있으면 중복 생성하지 않고 기존 것을 편집한다.
-3. `CI Gate`의 제공자가 GitHub Actions인지, 최신 base 검사 요구·PR 경유·force push/삭제 제한이 적용됐는지 확인한다.
+[main ruleset JSON](../.github/rulesets/main.json)은 원격 설정과 같은 규칙을 담는다. 기존 ruleset을 갱신할 때는 중복 생성 대신 다음 명령을 사용한다.
 
 ```bash
-gh api --method POST repos/DmNote-App/DmNote/rulesets --input .github/rulesets/main.json
+gh api --method PUT repos/DmNote-App/DmNote/rulesets/22317478 --input .github/rulesets/main.json
 ```
 
-승인 리뷰 수는 0으로 시작한다. 기본 bypass는 없으며 긴급 운영 예외는 관리자가 ruleset에서 명시적으로 결정한다. 이 설정은 기존의 직접 `npm version` push 흐름에도 영향을 주므로 버전 변경도 PR로 병합하고, 릴리즈 감지에 사용하는 최종 커밋 제목은 버전 문자열을 유지한다.
-
-Merge queue는 아직 설정하지 않는다. 활성화할 때는 `merge_group` 트리거와 해당 이벤트의 `CI Gate` 이름을 함께 추가해야 한다.
+`Main Quality`는 `main` push 후 실행하는 빠른 검사이며 push 허용 조건이 아니다. 직접 `npm version` push 흐름도 허용하며, 문서 동기화와 릴리즈 검증은 기존대로 실행한다. Merge queue는 사용하지 않는다.
 
 ## 실패 확인과 버전 갱신
 

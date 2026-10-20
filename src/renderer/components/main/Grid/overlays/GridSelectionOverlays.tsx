@@ -8,13 +8,20 @@ import SpriteRotateHandle from '../handles/SpriteRotateHandle';
 import SelectionRotateHandle from '../handles/SelectionRotateHandle';
 import { useSelectionRotationFrame } from '@hooks/Grid/selection/useSelectionRotationFrame';
 import { isRotatableElementType } from '../handles/rotatableElement';
-import { SELECTION_BORDER_WIDTH } from '../handles/selectionOutline';
 import {
+  getSelectionOutlineEdges,
+  GROUP_SELECTION_BORDER_WIDTH,
+  GROUP_SELECTION_BORDER_COLOR,
+  SELECTION_BORDER_WIDTH,
+} from '../handles/selectionOutline';
+import {
+  calculateGroupBounds,
   getElementBounds,
   getElementRotation,
   isAspectLockedElement,
   isElementResizable,
   type Bounds,
+  type ElementBounds,
 } from '../handles/groupResizeUtils';
 import { matchSpriteAnchorPreset } from '@utils/sprite/spriteGeometry';
 import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
@@ -41,7 +48,7 @@ interface GridSelectionOverlaysProps {
   hasSpritePoseSession: boolean;
   previewBounds: Bounds | null;
   previewGroupBounds: Bounds | null;
-  previewElementBounds: readonly unknown[] | null;
+  previewElementBounds: readonly ElementBounds[] | null;
   onResizeStart: NonNullable<ResizeHandlesProps['onResizeStart']>;
   onResize: NonNullable<ResizeHandlesProps['onResize']>;
   onResizeEnd: NonNullable<ResizeHandlesProps['onResizeEnd']>;
@@ -91,11 +98,48 @@ const GridSelectionOverlays = ({
           spritePositions,
         ) !== 0,
     );
+  const isMultiSelection = selectedElements.length > 1;
+  const rotationFrame =
+    selectionFrame &&
+    (selectionFrame.rotation !== 0 ||
+      selectionFrame.snapshot.hasRotatedContent ||
+      selectionFrame.snapshot.entries.some(
+        (entry) =>
+          entry.type === 'sprite' &&
+          (entry.idleTransform.x !== 0 ||
+            entry.idleTransform.y !== 0 ||
+            entry.idleTransform.scale !== 1),
+      ))
+      ? { bounds: selectionFrame.bounds, rotation: selectionFrame.rotation }
+      : undefined;
+  const groupData =
+    isMultiSelection && !rotatedWithoutFrame
+      ? calculateGroupBounds(
+          selectedElements,
+          positions,
+          statPositions,
+          graphPositions,
+          knobPositions,
+          mode,
+          pluginElements,
+          spritePositions,
+        )
+      : null;
+  // 그룹 핸들이 실제로 그리는 프레임과 같은 좌표·회전·프리뷰 사용
+  const groupOutlineFrame = groupData
+    ? {
+        bounds: previewGroupBounds ?? rotationFrame?.bounds ?? groupData,
+        rotation: rotationFrame?.rotation ?? 0,
+      }
+    : null;
+  const previewByElement = new Map(
+    previewElementBounds?.map(({ element, bounds }) => [
+      `${element.type}:${element.id}`,
+      bounds,
+    ]),
+  );
   const selectionOutlines: ReactNode[] = [];
-  if (
-    !hasGradientEditSession &&
-    (selectedElements.length === 1 || rotatedWithoutFrame)
-  ) {
+  if (!hasGradientEditSession) {
     selectedElements.forEach((element) => {
       const bounds = getElementBounds(
         element,
@@ -108,16 +152,12 @@ const GridSelectionOverlays = ({
         spritePositions,
       );
       if (!bounds) return;
-      const displayBounds =
-        selectedElements.length === 1 && previewBounds ? previewBounds : bounds;
-      const outlineLeft =
-        displayBounds.x * zoom + panX - SELECTION_BORDER_WIDTH;
-      const outlineTop = displayBounds.y * zoom + panY - SELECTION_BORDER_WIDTH;
-      const outlineWidth =
-        displayBounds.width * zoom + SELECTION_BORDER_WIDTH * 2;
-      const outlineHeight =
-        displayBounds.height * zoom + SELECTION_BORDER_WIDTH * 2;
-      // 선택 틀과 핸들은 회전한 얼굴을 추종
+      const displayBounds = isMultiSelection
+        ? previewByElement.get(`${element.type}:${element.id}`) ?? bounds
+        : previewBounds ?? bounds;
+      const borderWidth = isMultiSelection
+        ? GROUP_SELECTION_BORDER_WIDTH
+        : SELECTION_BORDER_WIDTH;
       const rotation = getElementRotation(
         element,
         positions,
@@ -127,19 +167,48 @@ const GridSelectionOverlays = ({
         mode,
         spritePositions,
       );
+      const edges = getSelectionOutlineEdges(
+        displayBounds,
+        rotation,
+        groupOutlineFrame,
+      );
+      const nonResizable =
+        isMultiSelection &&
+        !isElementResizable(
+          element,
+          positions,
+          statPositions,
+          graphPositions,
+          knobPositions,
+          mode,
+          pluginElements,
+        );
+      const color = nonResizable
+        ? 'rgba(251, 146, 60, 0.9)'
+        : isMultiSelection
+        ? GROUP_SELECTION_BORDER_COLOR
+        : 'var(--ui-selection-border)';
       selectionOutlines.push(
         <div
-          key={element.id}
+          key={`${element.type}:${element.id}`}
           data-grid-selection-outline=""
+          data-grid-selection-element-id={element.id}
+          data-grid-selection-element-type={element.type}
           style={{
             position: 'absolute',
-            left: outlineLeft,
-            top: outlineTop,
-            width: outlineWidth,
-            height: outlineHeight,
+            left: displayBounds.x * zoom + panX - SELECTION_BORDER_WIDTH,
+            top: displayBounds.y * zoom + panY - SELECTION_BORDER_WIDTH,
+            width: displayBounds.width * zoom + SELECTION_BORDER_WIDTH * 2,
+            height: displayBounds.height * zoom + SELECTION_BORDER_WIDTH * 2,
+            boxSizing: 'border-box',
             ...(rotation !== 0 ? { transform: `rotate(${rotation}deg)` } : {}),
-            border: `${SELECTION_BORDER_WIDTH}px solid var(--ui-selection-border)`,
-            borderRadius: '4px',
+            borderWidth,
+            borderStyle: nonResizable ? 'dashed' : 'solid',
+            borderTopColor: edges.top ? color : 'transparent',
+            borderRightColor: edges.right ? color : 'transparent',
+            borderBottomColor: edges.bottom ? color : 'transparent',
+            borderLeftColor: edges.left ? color : 'transparent',
+            borderRadius: isMultiSelection ? 0 : '4px',
             pointerEvents: 'none',
             zIndex: 'var(--z-canvas-selection-outline)',
           }}
@@ -256,23 +325,7 @@ const GridSelectionOverlays = ({
             panX={panX}
             panY={panY}
             previewGroupBounds={previewGroupBounds}
-            rotationFrame={
-              selectionFrame &&
-              (selectionFrame.rotation !== 0 ||
-                selectionFrame.snapshot.hasRotatedContent ||
-                selectionFrame.snapshot.entries.some(
-                  (entry) =>
-                    entry.type === 'sprite' &&
-                    (entry.idleTransform.x !== 0 ||
-                      entry.idleTransform.y !== 0 ||
-                      entry.idleTransform.scale !== 1),
-                ))
-                ? {
-                    bounds: selectionFrame.bounds,
-                    rotation: selectionFrame.rotation,
-                  }
-                : undefined
-            }
+            rotationFrame={rotationFrame}
             onGroupResizeStart={onResizeStart}
             onGroupResize={onGroupResize}
             onGroupResizeEnd={onGroupResizeEnd}

@@ -253,9 +253,9 @@ describe('SpriteCanvasHandles', () => {
       positions: { '4key': [{ ...sprite(), pivot: { x: 1, y: 0 } }] },
     });
     render();
-    // 로컬 (200, 0) → 화면 (210, 20), 테두리 선 중심은 모서리 밖 1px → (211, 19), 히트 26 중심
-    expect(pivotHandle()!.style.left).toBe('198px');
-    expect(pivotHandle()!.style.top).toBe('6px');
+    // 로컬 (200, 0) → 화면 (210, 20), 테두리 선 중심은 모서리 밖 0.5px → (210.5, 19.5), 히트 26 중심
+    expect(pivotHandle()!.style.left).toBe('197.5px');
+    expect(pivotHandle()!.style.top).toBe('6.5px');
 
     act(() =>
       useSpritePoseHandleStore
@@ -276,7 +276,7 @@ describe('SpriteCanvasHandles', () => {
     pointer('pointermove', window, { clientX: 14, clientY: 117 });
     await flushFrame();
 
-    expect(parseFloat(handle.style.left) + 13).toBeCloseTo(9, 6);
+    expect(parseFloat(handle.style.left) + 13).toBeCloseTo(9.5, 6);
     expect(mocks.patchPosition).not.toHaveBeenCalled();
 
     pointer('pointerup', window, { clientX: 14, clientY: 117 });

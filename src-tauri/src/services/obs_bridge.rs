@@ -575,7 +575,7 @@ impl ObsBridgeService {
                     ),
                 }),
             );
-            let _ = ws_tx.send(Message::Text(err_msg.to_string())).await;
+            let _ = ws_tx.send(Message::text(err_msg.to_string())).await;
             self.client_count.fetch_sub(1, Ordering::Relaxed);
             return;
         }
@@ -595,7 +595,7 @@ impl ObsBridgeService {
                     0,
                     serde_json::json!({"code": "AUTH_FAILED", "message": "Invalid token"}),
                 );
-                let _ = ws_tx.send(Message::Text(err_msg.to_string())).await;
+                let _ = ws_tx.send(Message::text(err_msg.to_string())).await;
                 self.client_count.fetch_sub(1, Ordering::Relaxed);
                 return;
             }
@@ -608,7 +608,7 @@ impl ObsBridgeService {
         }
         let ack_msg = protocol.hello_ack(self.server_version.clone());
         if ws_tx
-            .send(Message::Text(ack_msg.to_string()))
+            .send(Message::text(ack_msg.to_string()))
             .await
             .is_err()
         {
@@ -624,7 +624,7 @@ impl ObsBridgeService {
         let snapshot = self.cached_snapshot.read().clone();
         let snapshot_msg = protocol.snapshot(snapshot);
         if ws_tx
-            .send(Message::Text(snapshot_msg.to_string()))
+            .send(Message::text(snapshot_msg.to_string()))
             .await
             .is_err()
         {
@@ -650,7 +650,7 @@ impl ObsBridgeService {
                         Ok(ObsBroadcast::Shutdown) => break,
                         Ok(broadcast) => {
                             let msg = protocol.broadcast(&broadcast);
-                            if ws_tx.send(Message::Text(msg.to_string())).await.is_err() {
+                            if ws_tx.send(Message::text(msg.to_string())).await.is_err() {
                                 break;
                             }
                         }
@@ -658,7 +658,7 @@ impl ObsBridgeService {
                             log::warn!("[ObsBridge] {addr}: {n}개 메시지 누락, 스냅샷 재전송");
                             let snapshot = self.cached_snapshot.read().clone();
                             let msg = protocol.snapshot(snapshot);
-                            if ws_tx.send(Message::Text(msg.to_string())).await.is_err() {
+                            if ws_tx.send(Message::text(msg.to_string())).await.is_err() {
                                 break;
                             }
                         }
@@ -677,14 +677,14 @@ impl ObsBridgeService {
                                 match envelope.msg_type.as_str() {
                                     "ping" => {
                                         let pong = protocol.pong();
-                                        if ws_tx.send(Message::Text(pong.to_string())).await.is_err() {
+                                        if ws_tx.send(Message::text(pong.to_string())).await.is_err() {
                                             break;
                                         }
                                     }
                                     "resync_request" => {
                                         let snapshot = self.cached_snapshot.read().clone();
                                         let msg = protocol.snapshot(snapshot);
-                                        if ws_tx.send(Message::Text(msg.to_string())).await.is_err() {
+                                        if ws_tx.send(Message::text(msg.to_string())).await.is_err() {
                                             break;
                                         }
                                     }
@@ -712,7 +712,7 @@ impl ObsBridgeService {
                         break;
                     }
                     let msg = protocol.invoke_response(request_id, result);
-                    if ws_tx.send(Message::Text(msg.to_string())).await.is_err() {
+                    if ws_tx.send(Message::text(msg.to_string())).await.is_err() {
                         break;
                     }
                 }
@@ -722,7 +722,7 @@ impl ObsBridgeService {
                         break;
                     }
                     let ping_msg = protocol.ping();
-                    if ws_tx.send(Message::Text(ping_msg.to_string())).await.is_err() {
+                    if ws_tx.send(Message::text(ping_msg.to_string())).await.is_err() {
                         break;
                     }
                 }
