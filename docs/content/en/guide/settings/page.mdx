@@ -78,7 +78,7 @@ Select the reference point when resizing the overlay window:
 - **center**: Fixed center, expand all directions
 - **fixed-position**: Preserve existing elements' screen positions when the window size or content origin changes
 
-The default, top-left, fixes the window corner. When a sprite extends beyond the left or top edge and changes the content origin, existing elements can move on screen. Choose fixed-position to preserve their screen positions.
+The default, top-left, keeps the window's top-left corner fixed. If you move an element past the left or top edge of the content, or delete the leftmost or topmost element, the remaining elements shift on screen. Choose fixed-position to preserve their screen positions. Sprites extending past the left or top edge are compensated under every anchor, so they do not move existing elements.
 
 ## Custom CSS/JS
 
