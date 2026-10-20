@@ -60,6 +60,16 @@ updates:
       # windows 0.62+: Tauri가 쓰는 windows 버전과 HWND 타입이 어긋난다 — Tauri와 함께 올린다 (#165)
       - dependency-name: windows
         versions: ['>=0.62']
+      # Tauri 2.12 계열(tauri-build 2.7·single-instance 2.5 포함): windows 0.62·webview2-com 0.39로 넘어간다
+      # — 위 windows, npm @tauri-apps/api·cli와 함께 올린다. 일부만 올리면 tauri가 컴파일되지 않는다 (#209)
+      - dependency-name: tauri
+        versions: ['>=2.12']
+      - dependency-name: tauri-runtime-wry
+        versions: ['>=2.12']
+      - dependency-name: tauri-build
+        versions: ['>=2.7']
+      - dependency-name: tauri-plugin-single-instance
+        versions: ['>=2.5']
       # cpal 0.18+: rodio 포크(lee-sihun/rodio)가 같은 cpal을 써야 한다 — 포크와 함께 올린다
       - dependency-name: cpal
         versions: ['>=0.18']
