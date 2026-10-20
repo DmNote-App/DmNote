@@ -55,6 +55,7 @@ describe('배경색 저장 실패 복원', () => {
     await act(async () => palette.handleColorChange('#222222'));
 
     expect(useSettingsStore.getState().backgroundColor).toBe('#111111');
+    expect(palette.backgroundColor).toBe('#111111');
     expect(palette.color).toBe('#222222');
     expect(palette.saveError).toBe('common.saveFailed');
     expect(palette.isSaving).toBe(false);
@@ -116,6 +117,7 @@ describe('배경색 저장 실패 복원', () => {
     await act(async () => finishRead({ backgroundColor: '#111111' }));
 
     expect(useSettingsStore.getState().backgroundColor).toBe('#444444');
+    expect(palette.backgroundColor).toBe('#444444');
     expect(palette.color).toBe('#222222');
   });
 });

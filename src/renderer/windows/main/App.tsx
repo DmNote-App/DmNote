@@ -173,6 +173,7 @@ export default function App() {
     handleRedo,
   } = useKeyManager();
   const {
+    backgroundColor,
     color,
     palette,
     setPalette,
@@ -436,7 +437,7 @@ export default function App() {
             <Grid
               keyMappings={keyMappings}
               positions={positions}
-              color={color}
+              color={backgroundColor}
               activeTool={activeTool}
               showConfirm={showConfirm}
               showAlert={showAlert}

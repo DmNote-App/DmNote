@@ -60,6 +60,8 @@ export function usePalette() {
   };
 
   return {
+    // 캔버스 배경은 적용값, 팝업 입력은 실패 초안 포함
+    backgroundColor,
     color,
     saveError,
     isSaving,
