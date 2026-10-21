@@ -189,6 +189,8 @@ export function useNoteSystem({
   const subscribers = useRef<Set<NoteSubscriber>>(new Set());
   const notePoolRef = useRef<Note[]>([]);
   const noteLookupRef = useRef<Map<string, Note>>(new Map());
+  // 같은 키·같은 시작 시각의 연속 노트(휠 다중 칸)도 id가 겹치지 않도록
+  const noteSeqRef = useRef<number>(0);
   const noteBufferRef = useRef<NoteBuffer>(createNoteBuffer());
   const finalizeTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map(),
@@ -432,7 +434,8 @@ export function useNoteSystem({
 
   const createNote = (keyName: string, startTimeOverride?: number): string => {
     const startTime = startTimeOverride ?? performance.now();
-    const noteId = `${keyName}_${startTime}`;
+    noteSeqRef.current += 1;
+    const noteId = `${keyName}_${startTime}_${noteSeqRef.current}`;
     const currentNotes = notesRef.current;
     let keyNotes = currentNotes[keyName];
     if (!keyNotes) {

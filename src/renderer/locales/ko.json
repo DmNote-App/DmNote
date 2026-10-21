@@ -565,6 +565,8 @@
     "graphShowAverageLine": "평균선 표시",
     "knobAxis": "노브 매핑",
     "knobAxisUnset": "미지정",
+    "knobAxisWheelVertical": "마우스 휠",
+    "knobAxisWheelHorizontal": "마우스 가로 휠",
     "knobCapture": "클릭하여 설정",
     "knobCapturing": "노브를 돌리세요",
     "knobSensitivity": "민감도",

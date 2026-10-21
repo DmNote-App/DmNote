@@ -63,6 +63,11 @@ class AxisEventBus {
     });
   }
 
+  /** 축별 직전 값 폐기 - 송신 측이 재시작·유실되면 다음 값부터 새 기준 */
+  resetBaselines() {
+    this.lastValue.clear();
+  }
+
   /** raw 축 페이로드 구독 (매핑 UI의 축 캡처용) */
   subscribe(listener: AxisEventListener): () => void {
     this.listeners.add(listener);

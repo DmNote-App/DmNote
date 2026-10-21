@@ -368,6 +368,32 @@ describe('useNoteSystem 길이 연속성', () => {
     // holdDurationMs와 무관하게 도착(보정) 시각으로 종료
     expect(note!.endTime).toBe(60);
   });
+
+  it('같은 키·같은 시작 시각의 연속 노트도 서로 다른 id로 각자 종료한다', async () => {
+    await render({ ...DELAY_SETTINGS, delayedNoteEnabled: false });
+
+    // 휠 한 보고서에 두 칸: Down·Up·Down이 같은 시각
+    result.handleKeyDown('W', { displayTime: 10, physTime: 10 });
+    result.handleKeyUp('W', {
+      displayTime: 10,
+      physTime: 10,
+      holdDurationMs: 0,
+    });
+    result.handleKeyDown('W', { displayTime: 10, physTime: 10 });
+    await advance(50);
+    result.handleKeyUp('W', {
+      displayTime: 60,
+      physTime: 60,
+      holdDurationMs: 50,
+    });
+
+    const first = noteOf('W', 0)!;
+    const second = noteOf('W', 1)!;
+    expect(first.id).not.toBe(second.id);
+    expect(first.endTime).toBe(10);
+    expect(second.startTime).toBe(10);
+    expect(second.endTime).toBe(60);
+  });
 });
 
 describe('useNoteSystem 반환 API 안정성 (#111)', () => {

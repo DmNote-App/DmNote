@@ -24,9 +24,6 @@ use windows::Win32::UI::Input::{
 
 use crate::ipc::{HidAxisMessage, HookKeyState, HookMessage, InputDeviceKind};
 
-/// 축 값 전송 최소 간격(ms) — 고빈도 노브 입력이 파이프/입력 스레드를 막지 않도록.
-const AXIS_THROTTLE_MS: u64 = 12;
-
 /// 디바이스별 정적 정보 (preparsed data + caps 캐시)
 struct DeviceCaps {
     preparsed: Vec<u8>,
@@ -247,7 +244,7 @@ impl HidProcessor {
         for (page, usage, value, full) in axis_values {
             let th = state.axis.entry((page, usage)).or_default();
             let changed = !th.sent || th.last_value != value;
-            if changed && now.saturating_sub(th.last_emit_ms) >= AXIS_THROTTLE_MS {
+            if changed && now.saturating_sub(th.last_emit_ms) >= super::AXIS_THROTTLE_MS {
                 th.last_value = value;
                 th.last_emit_ms = now;
                 th.sent = true;
