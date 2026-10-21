@@ -24,6 +24,17 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | gh secret set APPLE_API_KEY_P8_BASE64
 
 `APPLE_CERTIFICATE` / `APPLE_CERTIFICATE_PASSWORD`(Tauri 내장 흐름)는 **사용하지 않는다** — Tauri의 임시 키체인은 번들 단계에서 생성되어, 그 전에 헬퍼를 서명하는 `scripts/sign-macos-helper.sh` 훅이 identity를 찾지 못한다.
 
+공증도 Tauri에 맡기지 않는다. Tauri 번들러는 `stapler staple` 실패를 종료 코드째 무시하고, staple 직후 같은 빌드 호출에서 그 앱으로 DMG를 만든다. 그래서 빌드 스텝에는 공증 자격 증명을 넘기지 않고(Tauri는 서명과 DMG 생성만 함) 이후를 워크플로가 순서대로 처리한다.
+
+1. 앱 공증 + staple (`scripts/notarize-macos.sh`, staple은 최대 6회 재시도)
+2. Tauri DMG 안의 앱을 staple된 앱으로 교체하고 재서명 (`scripts/repack-macos-dmg.sh`)
+3. DMG 공증 + staple
+4. 업로드할 DMG와 그 안쪽 앱을 최종 검증 (`scripts/verify-macos-dmg.sh`)
+
+안쪽 앱 staple까지 확인하는 이유는 앱 내 자동 업데이트가 DMG를 `hdiutil`로 마운트해 앱을 꺼내 설치하기 때문이다. 이 경로에서는 DMG 티켓이 앱으로 이어지지 않는다.
+
+위 세 스크립트는 앱 소스(`release_sha`)가 아니라 워크플로와 같은 커밋에서 따로 체크아웃한다. 수동 재빌드는 이전 버전 커밋을 빌드하는데, 그 커밋에는 스크립트가 없을 수 있기 때문이다.
+
 ## 2. 드라이런 (워크플로 변경 후 권장)
 
 Actions → **Release macOS** → Run workflow → ref: `main`, `dry_run: true`
@@ -67,6 +78,7 @@ node scripts/refresh-release-notes.js 2.0.2 --apply  # 반영
 | preflight `버전 불일치` | `npm run sync-version` 후 커밋하고 다시 태깅 |
 | `임시 키체인에 Developer ID Application identity 없음` | `.p12`를 개인 키 없이 내보냄 → 키체인 접근 "내 인증서"에서 인증서+키를 함께 선택해 다시 내보내기 |
 | 헬퍼 훅 `키체인에서 identity를 찾을 수 없음` | 키체인 스텝 실패 또는 `APPLE_CERTIFICATE` 흐름을 섞어 씀 |
-| DMG 공증 `Invalid`/타임아웃 | 워크플로가 `notarytool log`를 스텝 로그에 출력함 — issues 항목 확인. 앱 공증(Tauri 내부)이 실패하면 빌드 스텝 로그의 issues 확인. 헬퍼 미서명이면 `scripts/sign-macos-helper.sh` 훅 동작 확인 |
-| 공증 `In Progress`로 장시간 대기 | 신규 계정 첫 제출은 수 시간 걸릴 수 있음. 재제출하지 말 것 (병렬 보류만 늘어남) |
-| `stapler validate` 실패 | `APPLE_API_*` 값이 잘못되면 Tauri가 공증을 조용히 건너뜀 — 시크릿 값·팀 키 여부 확인 (누락은 preflight가 먼저 잡음) |
+| 앱·DMG 공증 `Invalid`/타임아웃 | `scripts/notarize-macos.sh`가 `notarytool log`를 스텝 로그에 출력함. issues 항목 확인. 헬퍼 미서명이면 `scripts/sign-macos-helper.sh` 훅 동작 확인 |
+| 공증 `In Progress`로 장시간 대기 | 대기 상한은 45분(`NOTARY_TIMEOUT`). 스텝 로그의 submission id로 `xcrun notarytool info <id>` 확인. job 재실행은 새로 제출하므로 Apple 쪽 처리가 끝난 뒤에 할 것 (신규 계정 첫 제출은 수 시간 걸릴 수 있음) |
+| `staple` 6회 실패 | 스텝 로그의 stapler 오류 확인. `Record not found`면 notary log의 `ticketContents` cdhash와 `codesign -dvvv`의 앱 cdhash를 비교 |
+| 최종 DMG 검증에서 안쪽 앱 `stapler validate` 실패 | DMG 재조립 스텝이 staple된 앱으로 교체했는지 확인 |

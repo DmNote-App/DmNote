@@ -200,7 +200,7 @@ jobs:
       group: release-macos
       cancel-in-progress: false
     runs-on: macos-15
-    # 콜드 빌드(~45분) + 앱 공증(Tauri 내부, 타임아웃 없음) + DMG 공증(60분)이 직렬로 쌓임
+    # 콜드 빌드(~45분) + 앱·DMG 공증(각 최대 45분) + staple 재시도(각 최대 ~4분)가 직렬로 쌓임
     timeout-minutes: 180
     permissions:
       contents: write # draft 릴리즈 생성·자산 업로드
@@ -299,34 +299,52 @@ jobs:
           printf '%s' "$APPLE_API_KEY_P8_BASE64" | base64 --decode > "$KEY_PATH"
           chmod 600 "$KEY_PATH"
           grep -q "BEGIN PRIVATE KEY" "$KEY_PATH" || { echo "::error::.p8 디코딩 결과가 개인 키가 아님"; exit 1; }
-          echo "APPLE_API_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+          # Tauri가 읽는 APPLE_API_KEY_PATH 이름을 피함 (빌드 스텝에 공증 자격 증명이 닿지 않게)
+          echo "NOTARY_API_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
 
-      # APPLE_SIGNING_IDENTITY / APPLE_API_KEY_PATH는 앞 스텝의 GITHUB_ENV로 주입됨
-      # APPLE_API_ISSUER는 App Store Connect "팀 키"에만 존재 — 개인 키는 사용 불가
+      # APPLE_SIGNING_IDENTITY는 앞 스텝의 GITHUB_ENV로 주입됨
+      # 공증 자격 증명(APPLE_API_KEY/APPLE_API_ISSUER)이 없으면 Tauri는 서명만 하고 공증을 건너뜀
+      # Tauri의 앱 공증은 stapler 실패를 무시한 채 그 앱으로 DMG까지 만들므로 공증·staple은 뒤 스텝이 소유
       # TAURI_BUNDLER_DMG_IGNORE_CI: CI=true면 Tauri가 DMG 스크립트에 --skip-jenkins를 넘겨
       # Finder 아이콘 배치(.DS_Store)를 건너뜀 → 로컬과 동일한 DMG 외형을 위해 해제
-      - name: 유니버설 빌드 (서명 + 앱 공증 + staple)
+      - name: 유니버설 빌드 (서명)
         env:
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
           TAURI_BUNDLER_DMG_IGNORE_CI: "1"
         run: npm run tauri:build:mac:universal -- --ci -- --locked
 
-      # spctl은 파이프에 물리면 종료 코드가 가려지므로 단독 실행
+      # 공증 전 구성·서명 검사. staple·Gatekeeper는 공증 뒤 최종 DMG에서 확인
       - name: 앱 번들 검증
         run: |
           set -euo pipefail
           APP="$BUNDLE_DIR/macos/DM NOTE.app"
           bash scripts/verify-macos-bundle.sh "$APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
-          xcrun stapler validate "$APP"
-          spctl -a -vvv -t exec "$APP"
 
-      # Tauri는 DMG를 서명만 하므로 DMG 자체 공증·staple은 여기서 수행
-      - name: DMG 공증 + staple
+      # 공증·재조립·최종 검증 스크립트는 워크플로와 같은 커밋에서 가져옴
+      # 수동 재빌드(dry_run 해제)는 이전 버전 커밋을 체크아웃해 그 커밋에 스크립트가 없을 수 있음
+      - name: 릴리즈 스크립트 체크아웃
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: release-tools
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/notarize-macos.sh
+            scripts/repack-macos-dmg.sh
+            scripts/verify-macos-dmg.sh
+
+      # NOTARY_API_ISSUER_ID는 App Store Connect "팀 키"에만 존재, 개인 키는 사용 불가
+      - name: 앱 공증 + staple
         env:
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          NOTARY_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          NOTARY_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: bash release-tools/scripts/notarize-macos.sh "$BUNDLE_DIR/macos/DM NOTE.app"
+
+      # Tauri DMG 안의 앱은 staple 전 사본이라 staple된 앱으로 교체한 뒤 재서명
+      # 자산 이름은 GitHub의 공백→점 치환에 맡기지 않고 고정
+      # — 앱 내 자동 업데이트(update_macos.rs asset_candidates)가 이 이름에 의존
+      - name: DMG 재조립 + 서명
         run: |
           set -euo pipefail
           DMG="$BUNDLE_DIR/dmg/DM NOTE_${VERSION}_universal.dmg"
@@ -335,32 +353,23 @@ jobs:
             ls -la "$BUNDLE_DIR/dmg" || true
             exit 1
           fi
-          # notarytool은 Invalid/타임아웃 시 비정상 종료 — set -e에 죽지 않게 종료 코드를 잡아 진단 로그를 남김
-          set +e
-          RESULT="$(xcrun notarytool submit "$DMG" \
-            --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" \
-            --wait --timeout 60m --output-format json)"
-          SUBMIT_RC=$?
-          set -e
-          SUBMISSION_ID="$(jq -r '.id // empty' <<<"$RESULT" 2>/dev/null || true)"
-          STATUS="$(jq -r '.status // "Unknown"' <<<"$RESULT" 2>/dev/null || echo Unknown)"
-          echo "submission=${SUBMISSION_ID:-?} status=$STATUS rc=$SUBMIT_RC"
-          if [ "$SUBMIT_RC" -ne 0 ] || [ "$STATUS" != "Accepted" ]; then
-            [ -n "$SUBMISSION_ID" ] && xcrun notarytool log "$SUBMISSION_ID" \
-              --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" || true
-            echo "::error::DMG 공증 실패: status=$STATUS rc=$SUBMIT_RC"
-            exit 1
-          fi
-          xcrun stapler staple "$DMG"
-          xcrun stapler validate "$DMG"
-          spctl -a -vvv -t open --context context:primary-signature "$DMG"
-
-          # 자산 이름은 GitHub의 공백→점 치환에 맡기지 않고 고정
-          # — 앱 내 자동 업데이트(update_macos.rs asset_candidates)가 이 이름에 의존
           ASSET_PATH="$RUNNER_TEMP/DM.NOTE_${VERSION}_universal.dmg"
-          cp "$DMG" "$ASSET_PATH"
-          shasum -a 256 "$ASSET_PATH"
+          bash release-tools/scripts/repack-macos-dmg.sh "$DMG" "$BUNDLE_DIR/macos/DM NOTE.app" "$ASSET_PATH"
+          codesign --force --timestamp -s "$APPLE_SIGNING_IDENTITY" "$ASSET_PATH"
           echo "ASSET_PATH=$ASSET_PATH" >> "$GITHUB_ENV"
+
+      - name: DMG 공증 + staple
+        env:
+          NOTARY_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          NOTARY_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: bash release-tools/scripts/notarize-macos.sh "$ASSET_PATH"
+
+      # 업로드할 파일 자체를 검사 (안쪽 앱 티켓 포함)
+      - name: 최종 DMG 검증
+        run: |
+          set -euo pipefail
+          bash release-tools/scripts/verify-macos-dmg.sh "$ASSET_PATH"
+          shasum -a 256 "$ASSET_PATH"
 
       - name: 산출물 업로드 (드라이런)
         if: needs.preflight.outputs.release != 'true'
