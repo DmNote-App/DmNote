@@ -225,6 +225,26 @@ const extraGlobalKeyMap: Record<string, KeyInfo> = {
   },
   MOUSE4: { browserKey: 'Mouse4', globalKey: 'MOUSE4', displayName: 'Mouse 4' },
   MOUSE5: { browserKey: 'Mouse5', globalKey: 'MOUSE5', displayName: 'Mouse 5' },
+  WHEELUP: {
+    browserKey: 'WheelUp',
+    globalKey: 'WHEELUP',
+    displayName: 'Wheel Up',
+  },
+  WHEELDOWN: {
+    browserKey: 'WheelDown',
+    globalKey: 'WHEELDOWN',
+    displayName: 'Wheel Down',
+  },
+  WHEELLEFT: {
+    browserKey: 'WheelLeft',
+    globalKey: 'WHEELLEFT',
+    displayName: 'Wheel Left',
+  },
+  WHEELRIGHT: {
+    browserKey: 'WheelRight',
+    globalKey: 'WHEELRIGHT',
+    displayName: 'Wheel Right',
+  },
   GP_A: { browserKey: 'GamepadA', globalKey: 'GP_A', displayName: 'Pad A' },
   GP_B: { browserKey: 'GamepadB', globalKey: 'GP_B', displayName: 'Pad B' },
   GP_X: { browserKey: 'GamepadX', globalKey: 'GP_X', displayName: 'Pad X' },

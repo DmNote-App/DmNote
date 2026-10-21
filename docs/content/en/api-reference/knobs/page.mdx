@@ -11,26 +11,36 @@ description: dmn.knobItems API reference for HID knob elements
 </Callout>
 
 Manage knob elements: rotary visualization elements bound to HID device axes
-(e.g., rhythm game controller knobs). While HID device **buttons** are mapped
+(e.g., rhythm game controller knobs) or the mouse wheel. While HID device **buttons** are mapped
 and visualized exactly like keyboard keys, **axes** are visualized with
 dedicated knob elements that rotate along with the physical knob.
 
 <Callout type="info">
-  HID input recognition is currently supported on **Windows** only.
+  HID input recognition is currently supported on **Windows** only. The mouse
+  wheel axis works on both **Windows** and **macOS**.
 </Callout>
 
 ## Identifiers
 
 DmNote assigns stable string identifiers to HID inputs:
 
-| Kind   | Format                         | Example               |
-| ------ | ------------------------------ | --------------------- |
-| Button | `HIDB:vid:pid:usagePage:usage` | `HIDB:1ccf:101c:9:3`  |
-| Axis   | `HIDA:vid:pid:usagePage:usage` | `HIDA:1ccf:101c:1:48` |
+| Kind             | Format                                | Example               |
+| ---------------- | ------------------------------------- | --------------------- |
+| Button           | `HIDB:vid:pid:usagePage:usage`        | `HIDB:1ccf:101c:9:3`  |
+| Axis             | `HIDA:vid:pid:usagePage:usage`        | `HIDA:1ccf:101c:1:48` |
+| Mouse wheel axis | `WHEEL:VERTICAL` / `WHEEL:HORIZONTAL` | `WHEEL:VERTICAL`      |
 
 Button identifiers appear as key labels (mappable like any keyboard key and
 delivered through `dmn.keys.onRawInput` with `device: 'gamepad'`). Axis
 identifiers are stored in a knob element's `axisId`.
+
+The mouse wheel axis is a virtual axis where 24 wheel notches make one
+revolution, so with `sensitivity` 1 a knob turns 360° every 24 notches. Wheel
+up (away from you) and tilt right are the positive direction. The horizontal
+axis uses the same unit but has no physical revolution behind it. On macOS the
+wheel is read from the mouse's HID reports, so trackpad and touch-surface
+scrolling is not recognized, and a mouse utility that takes over the wheel can
+prevent it from being recognized.
 
 ## Types
 
@@ -39,7 +49,7 @@ identifiers are stored in a knob element's `axisId`.
 // including the stable element `id` (UUID): it keeps identifying the same knob
 // across reorders and mode switches, and full preset loads reissue new IDs (tab presets only for collections they include)
 type KnobItemPosition = KeyPosition & {
-  axisId: string; // bound HID axis ("HIDA:..."), empty if unbound
+  axisId: string; // bound axis ("HIDA:..." or "WHEEL:..."), empty if unbound
   sensitivity: number; // rotation multiplier (default 1)
   reverse: boolean; // invert rotation direction
 };

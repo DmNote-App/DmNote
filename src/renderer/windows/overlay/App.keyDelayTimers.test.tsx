@@ -95,7 +95,7 @@ vi.mock('@hooks/shared/useLayoutComputation', () => ({
   }),
 }));
 vi.mock('@utils/input/axisEventBus', () => ({
-  axisEventBus: { initialize: vi.fn() },
+  axisEventBus: { initialize: vi.fn(), resetBaselines: vi.fn() },
 }));
 vi.mock('@utils/input/keyEventBus', () => ({
   keyEventBus: {

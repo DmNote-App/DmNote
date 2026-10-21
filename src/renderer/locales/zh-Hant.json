@@ -574,6 +574,8 @@
     "clickToSet": "單擊設定",
     "knobAxis": "旋鈕對應",
     "knobAxisUnset": "未設定",
+    "knobAxisWheelVertical": "滑鼠滾輪",
+    "knobAxisWheelHorizontal": "滑鼠水平滾輪",
     "knobCapture": "單擊設定",
     "knobCapturing": "轉動旋鈕",
     "knobSensitivity": "靈敏度",

@@ -569,6 +569,8 @@
     "graphShowAverageLine": "Show Average Line",
     "knobAxis": "Knob Mapping",
     "knobAxisUnset": "Unset",
+    "knobAxisWheelVertical": "Mouse Wheel",
+    "knobAxisWheelHorizontal": "Mouse Horizontal Wheel",
     "knobCapture": "Click to set",
     "knobCapturing": "Turn the knob",
     "knobSensitivity": "Sensitivity",

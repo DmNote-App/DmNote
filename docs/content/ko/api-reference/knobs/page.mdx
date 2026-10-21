@@ -10,27 +10,36 @@ description: HID 노브 요소를 위한 dmn.knobItems API 레퍼런스
   coordinator를 거쳐 노브 레이아웃을 쓸 수 있습니다.
 </Callout>
 
-노브 요소를 관리합니다. HID 기기 축(예: 리듬게임 컨트롤러의 노브)에 바인딩되어
-물리 노브와 함께 회전하는 시각화 요소입니다. HID 기기의 **버튼**은
+노브 요소를 관리합니다. HID 기기 축(예: 리듬게임 컨트롤러의 노브)이나 마우스 휠에
+바인딩되어 물리 노브와 함께 회전하는 시각화 요소입니다. HID 기기의 **버튼**은
 키보드 키와 완전히 동일하게 매핑·시각화되고, **축**은 전용 노브 요소로
 시각화됩니다.
 
 <Callout type="info">
-  HID 입력 인식은 현재 **Windows**에서만 지원됩니다.
+  HID 입력 인식은 현재 **Windows**에서만 지원됩니다. 마우스 휠 축은
+  **Windows**와 **macOS** 모두에서 동작합니다.
 </Callout>
 
 ## 식별자
 
 DmNote는 HID 입력에 고정 문자열 식별자를 부여합니다:
 
-| 종류 | 형식                           | 예시                  |
-| ---- | ------------------------------ | --------------------- |
-| 버튼 | `HIDB:vid:pid:usagePage:usage` | `HIDB:1ccf:101c:9:3`  |
-| 축   | `HIDA:vid:pid:usagePage:usage` | `HIDA:1ccf:101c:1:48` |
+| 종류         | 형식                                  | 예시                  |
+| ------------ | ------------------------------------- | --------------------- |
+| 버튼         | `HIDB:vid:pid:usagePage:usage`        | `HIDB:1ccf:101c:9:3`  |
+| 축           | `HIDA:vid:pid:usagePage:usage`        | `HIDA:1ccf:101c:1:48` |
+| 마우스 휠 축 | `WHEEL:VERTICAL` / `WHEEL:HORIZONTAL` | `WHEEL:VERTICAL`      |
 
 버튼 식별자는 키 라벨로 사용되며(일반 키보드 키처럼 매핑 가능,
 `dmn.keys.onRawInput`에서 `device: 'gamepad'`로 전달) 축 식별자는 노브
 요소의 `axisId`에 저장됩니다.
+
+마우스 휠 축은 휠 24칸을 1회전으로 보는 가상 축입니다. `sensitivity`가 1이면
+24칸마다 노브가 360° 돕니다. 휠을 앞쪽(사용자 반대쪽)으로 굴리거나 오른쪽으로
+기울이는 방향이 양수입니다. 가로 축도 같은 단위를 쓰지만 실제 회전량과는
+관계가 없습니다. macOS에서는 마우스의 HID 보고를 직접 읽기 때문에 트랙패드나
+터치 표면 스크롤은 인식하지 않습니다. 휠을 가로채는 마우스 유틸리티를 쓰면
+인식되지 않을 수 있습니다.
 
 ## 타입
 
@@ -39,7 +48,7 @@ DmNote는 HID 입력에 고정 문자열 식별자를 부여합니다:
 // 요소 안정 id(UUID)도 포함: 재정렬·모드 전환에도 같은 노브를 가리키며,
 // 전체 프리셋 로드 시에는 새 ID가 발급됩니다 (탭 프리셋은 담긴 컬렉션만)
 type KnobItemPosition = KeyPosition & {
-  axisId: string; // 바인딩된 HID 축("HIDA:..."), 미바인딩이면 빈 문자열
+  axisId: string; // 바인딩된 축("HIDA:..." 또는 "WHEEL:..."), 미바인딩이면 빈 문자열
   sensitivity: number; // 회전 배율 (기본 1)
   reverse: boolean; // 회전 방향 반전
 };

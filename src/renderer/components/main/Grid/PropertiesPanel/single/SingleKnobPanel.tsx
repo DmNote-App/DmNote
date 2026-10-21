@@ -180,9 +180,17 @@ export const SingleKnobPanel: React.FC<SingleKnobPanelProps> = ({
   };
 
   const knobTitle = singleKnobPosition.layerName || 'Knob';
-  const axisLabel = singleKnobPosition.axisId
-    ? singleKnobPosition.axisId.replace(/^HIDA:/, '')
-    : t('propertiesPanel.knobAxisUnset') || '미지정';
+  const axisLabel = (() => {
+    const { axisId } = singleKnobPosition;
+    if (!axisId) return t('propertiesPanel.knobAxisUnset') || '미지정';
+    if (axisId === 'WHEEL:VERTICAL') {
+      return t('propertiesPanel.knobAxisWheelVertical');
+    }
+    if (axisId === 'WHEEL:HORIZONTAL') {
+      return t('propertiesPanel.knobAxisWheelHorizontal');
+    }
+    return axisId.replace(/^HIDA:/, '');
+  })();
 
   // 그림자·이미지 피커의 캔버스 상태 프리뷰 대상 (색 피커는 세션 훅이 발행)
   const knobPreviewAnchor: EditStateAnchor | null =

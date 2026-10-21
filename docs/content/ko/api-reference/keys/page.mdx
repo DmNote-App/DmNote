@@ -433,7 +433,7 @@ dmn.keys.onKeysReset(({ reason }) => {
 ```typescript
 interface RawInputPayload {
   device: 'keyboard' | 'mouse' | 'gamepad' | 'unknown';
-  label: string; // "D", "MOUSE1", "HIDB:1ccf:101c:9:3" 등
+  label: string; // "D", "MOUSE1", "WHEELUP", "HIDB:1ccf:101c:9:3" 등
   labels: string[]; // 모든 레이블 목록
   state: string; // "DOWN" | "UP"
 }
@@ -448,6 +448,12 @@ const unsub = dmn.keys.onRawInput(({ device, label, state }) => {
 HID 기기 버튼(Windows)은 `device: 'gamepad'`와
 `HIDB:vid:pid:usagePage:usage` 형식의 레이블로 전달됩니다. HID 축(노브)
 요소는 [노브 API](/docs/api-reference/knobs)를 참고하세요.
+
+마우스 휠은 `device: 'mouse'`와 `WHEELUP`·`WHEELDOWN`·`WHEELLEFT`·`WHEELRIGHT`
+레이블로 전달됩니다. 휠에는 떼는 동작이 없어서 한 칸마다 DOWN을 보내고 50ms 뒤에
+UP을 보내는 짧은 탭으로 합성합니다. 50ms 안에 다음 칸이 오면 UP과 DOWN을 바로
+이어 보내므로 DOWN 수는 언제나 칸 수와 같습니다. 휠은 노브 요소의 축으로도 쓸 수
+있습니다.
 
 <Callout type="info">
   구독자가 없으면 백엔드에서 이벤트를 emit하지 않아 성능 오버헤드가 없습니다.
