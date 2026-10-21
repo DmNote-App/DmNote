@@ -1,7 +1,8 @@
 version: 2
 updates:
   - package-ecosystem: github-actions
-    directory: /
+    # 워크플로와 함께 .github/actions 아래 composite 액션도 갱신 대상에 포함
+    directories: ['/', '/.github/actions/*']
     schedule:
       interval: weekly
     groups:
