@@ -1,7 +1,8 @@
 version: 2
 updates:
   - package-ecosystem: github-actions
-    directory: /
+    # 워크플로와 함께 .github/actions 아래 composite 액션도 갱신 대상에 포함
+    directories: ['/', '/.github/actions/*']
     schedule:
       interval: weekly
     groups:
@@ -39,6 +40,12 @@ updates:
       # .node-version(22)과 맞춘다 — Node 메이저를 올릴 때 함께 올린다
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
+      # Tauri 2.12 계열: tauri CLI가 npm 패키지와 Rust tauri 크레이트의 major.minor 불일치 시 빌드를 막는다
+      # — cargo 쪽 tauri 2.12 전환(windows 0.62, #165)과 함께 올린다 (#209)
+      - dependency-name: '@tauri-apps/api'
+        versions: ['>=2.12']
+      - dependency-name: '@tauri-apps/cli'
+        versions: ['>=2.12']
     groups:
       # 서로 정확히 같은 버전을 peer로 요구해 따로 올리면 npm ci가 실패한다
       vitest:
@@ -60,6 +67,16 @@ updates:
       # windows 0.62+: Tauri가 쓰는 windows 버전과 HWND 타입이 어긋난다 — Tauri와 함께 올린다 (#165)
       - dependency-name: windows
         versions: ['>=0.62']
+      # Tauri 2.12 계열(tauri-build 2.7·single-instance 2.5 포함): windows 0.62·webview2-com 0.39로 넘어간다
+      # — 위 windows, npm @tauri-apps/api·cli와 함께 올린다. 일부만 올리면 tauri가 컴파일되지 않는다 (#209)
+      - dependency-name: tauri
+        versions: ['>=2.12']
+      - dependency-name: tauri-runtime-wry
+        versions: ['>=2.12']
+      - dependency-name: tauri-build
+        versions: ['>=2.7']
+      - dependency-name: tauri-plugin-single-instance
+        versions: ['>=2.5']
       # cpal 0.18+: rodio 포크(lee-sihun/rodio)가 같은 cpal을 써야 한다 — 포크와 함께 올린다
       - dependency-name: cpal
         versions: ['>=0.18']

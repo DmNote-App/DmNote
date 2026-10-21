@@ -134,19 +134,33 @@ describe('computeLayout 스프라이트 오버행', () => {
 
     // 배경 박스는 콘텐츠 바운즈 기준 위치·크기 유지
     expect(layout.backgroundBox?.x).toBeCloseTo(41.4214, 3);
-    expect(layout.backgroundBox?.y).toBeCloseTo(41.4214, 3);
     expect(layout.backgroundBox?.width).toBe(260);
     expect(layout.backgroundBox?.height).toBe(410);
 
     // 아이템 오프셋은 창 바운즈 기준이라 콘텐츠가 여유만큼 안쪽으로 밀린다
     expect(layout.positionOffset.x).toBeCloseTo(30 - 58.5786, 3);
-    expect(layout.positionOffset.y).toBeCloseTo(180 - 8.5786, 3);
     expect(layout.displaySpritePositions[0].dx).toBeCloseTo(71.4214, 3);
-
-    // 트랙 시작은 콘텐츠 상단을 따라간다
-    expect(layout.topMostY).toBeCloseTo(221.4214, 3);
-    // 왼쪽 오버행도 같은 방식 - 네이티브 x 보정이 이 delta를 소비한다
+    // 위쪽 오버행 41.42는 트랙 밴드(150) 안이라 창을 위로 키우지 않는다
+    expect(layout.positionOffset.y).toBe(130);
+    expect(layout.backgroundBox?.y).toBe(0);
+    expect(layout.topMostY).toBe(180);
+    // 왼쪽 오버행 - 네이티브 x 보정이 이 delta를 소비한다
     expect(layout.leftMostX).toBeCloseTo(71.4214, 3);
+  });
+
+  it('트랙 밴드를 넘는 위쪽 오버행만 창을 위로 키우고 원점 보정 delta가 된다', () => {
+    const layout = computeLayout({
+      ...makeInput([
+        makeSprite({ idleTransform: makeTransform({ rotation: 45 }) }),
+      ]),
+      trackHeight: 20,
+    });
+    // 밴드 상단 30보다 오버행 상단 8.58이 더 위
+    expect(layout.positionOffset.y).toBeCloseTo(30 - 8.5786, 3);
+    expect(layout.backgroundBox?.y).toBeCloseTo(21.4214, 3);
+    expect(layout.backgroundBox?.height).toBe(280);
+    // 밴드 아래 콘텐츠 상단(50)의 창 좌표가 오버행만큼 내려간다
+    expect(layout.topMostY).toBeCloseTo(71.4214, 3);
   });
 
   it('이미지 없는 스프라이트는 회전해도 창을 넓히지 않는다', () => {
@@ -703,5 +717,239 @@ describe('computeLayout 회전 키 자동 시작선 세부', () => {
     // 회전 얼굴 AABB만큼만 커진다: 60×60 45° → 84.85
     expect(layout.contentSize?.width).toBeLessThan(1060 + 60 + 30);
     expect(layout.contentSize?.height).toBeLessThan(1060 + 60 + 30);
+  });
+});
+
+describe('computeLayout 히트라인과 비키 요소', () => {
+  // 노트 열은 x 0~240, 키 상변 y=300, 트랙 밴드는 y 0~300
+  const makeInput = (
+    extra: {
+      plugins?: Array<{ x: number; y: number; width: number; height: number }>;
+      stats?: Array<{ dx: number; dy: number; width: number; height: number }>;
+      noteOffsetYA?: number;
+      hideKeys?: boolean;
+      rotation?: number;
+    } = {},
+  ) => ({
+    currentKeys: ['A', 'B', 'C', 'D'],
+    currentPositions: ['A', 'B', 'C', 'D'].map(
+      (id, index) =>
+        ({
+          id,
+          dx: index * 60,
+          dy: 300,
+          width: 60,
+          height: 60,
+          rotation: extra.rotation ?? 0,
+          noteOffsetY: index === 0 ? extra.noteOffsetYA : undefined,
+          hidden: extra.hideKeys,
+        } as never),
+    ),
+    currentStatPositions: (extra.stats ?? []) as never[],
+    currentGraphPositions: [],
+    currentKnobPositions: [],
+    currentSpritePositions: [],
+    trackHeight: 300,
+    noteSettings: DEFAULT_NOTE_SETTINGS,
+    selectedKeyType: '4key',
+    pluginElements: (extra.plugins ?? []).map((plugin) => ({
+      position: { x: plugin.x, y: plugin.y },
+      measuredSize: { width: plugin.width, height: plugin.height },
+    })),
+  });
+  const tracksOf = (layout: ReturnType<typeof computeLayout>) =>
+    layout.webglTracks as Array<{ position: { dx: number; dy: number } }>;
+  const keyTopOf = (layout: ReturnType<typeof computeLayout>) =>
+    (layout.displayPositions[0] as { dy: number }).dy;
+
+  it('키만 있으면 창은 키 + 트랙 높이 + 패딩이다', () => {
+    const layout = computeLayout(makeInput());
+    expect(layout.contentSize).toEqual({ width: 300, height: 420 });
+    expect(keyTopOf(layout)).toBe(330);
+    expect(tracksOf(layout)[0].position.dy).toBe(330);
+  });
+
+  it('노트 열 밖 패널은 트랙 밴드 안에 있으면 창 높이를 키우지 않는다', () => {
+    const layout = computeLayout(
+      makeInput({ plugins: [{ x: 260, y: 100, width: 200, height: 260 }] }),
+    );
+    expect(layout.contentSize).toEqual({ width: 520, height: 420 });
+    expect(keyTopOf(layout)).toBe(330);
+    for (const track of tracksOf(layout)) {
+      expect(track.position.dy).toBe(330);
+    }
+  });
+
+  it('노트 열 밖 패널을 밴드 안에서 옮겨도 키·시작선·창 기준점이 그대로다', () => {
+    const upper = computeLayout(
+      makeInput({ plugins: [{ x: 260, y: 50, width: 200, height: 260 }] }),
+    );
+    const lower = computeLayout(
+      makeInput({ plugins: [{ x: 260, y: 150, width: 200, height: 260 }] }),
+    );
+    expect(keyTopOf(lower)).toBe(keyTopOf(upper));
+    expect(tracksOf(lower)[0].position.dy).toBe(tracksOf(upper)[0].position.dy);
+    expect(lower.topMostY).toBe(upper.topMostY);
+    expect(lower.contentOrigin).toEqual(upper.contentOrigin);
+    // 아래로 나간 만큼만 창이 아래로 자란다
+    expect(lower.contentSize!.height - upper.contentSize!.height).toBe(50);
+  });
+
+  it('밴드 위로 나간 열 밖 패널은 나간 만큼만 창을 키우고 노트는 키에서 시작한다', () => {
+    const layout = computeLayout(
+      makeInput({ plugins: [{ x: 260, y: -100, width: 200, height: 200 }] }),
+    );
+    expect(layout.contentSize!.height).toBe(360 + 100 + 60);
+    expect(keyTopOf(layout)).toBe(430);
+    expect(tracksOf(layout)[0].position.dy).toBe(430);
+  });
+
+  it('노트 열 밖 통계 카운터도 같은 규칙을 따른다', () => {
+    const layout = computeLayout(
+      makeInput({ stats: [{ dx: 260, dy: 100, width: 60, height: 200 }] }),
+    );
+    expect(layout.contentSize).toEqual({ width: 380, height: 420 });
+    expect(tracksOf(layout)[0].position.dy).toBe(keyTopOf(layout));
+  });
+
+  // top-left 앵커는 topMostY delta만큼 창을 되당긴다 - 0이면 키가 화면에서 제자리
+  const keyScreenShift = (
+    before: ReturnType<typeof computeLayout>,
+    after: ReturnType<typeof computeLayout>,
+  ) => keyTopOf(after) - keyTopOf(before) - (after.topMostY - before.topMostY);
+
+  it('패널이 밴드 안에 머무는 동안 트랙 높이를 바꾸면 키는 화면에서 제자리다', () => {
+    const plugins = [{ x: 260, y: 150, width: 200, height: 210 }];
+    const tall = computeLayout(makeInput({ plugins }));
+    const short = computeLayout({
+      ...makeInput({ plugins }),
+      trackHeight: 200,
+    });
+    expect(keyScreenShift(tall, short)).toBe(0);
+  });
+
+  it('밴드 위로 나간 패널을 옮기면 창 원점은 그대로고 fixed-position만 따라간다', () => {
+    const upper = computeLayout(
+      makeInput({ plugins: [{ x: 260, y: -200, width: 200, height: 200 }] }),
+    );
+    const lower = computeLayout(
+      makeInput({ plugins: [{ x: 260, y: -100, width: 200, height: 200 }] }),
+    );
+    // 창 위쪽을 정하는 요소의 이동은 기존처럼 창 원점 보정이 없다
+    expect(lower.topMostY).toBe(upper.topMostY);
+    expect(lower.contentOrigin!.y - upper.contentOrigin!.y).toBe(100);
+  });
+
+  it('노트 효과를 끈 채 키 위에 요소가 있으면 키 배치가 달라져도 창 원점 보정이 없다', () => {
+    // 탭 전환·키 이동처럼 키 상단만 다른 두 배치
+    const stats = [{ dx: 260, dy: 100, width: 60, height: 60 }];
+    const a = computeLayout({ ...makeInput({ stats }), trackHeight: 0 });
+    const moved = makeInput({ stats });
+    const b = computeLayout({
+      ...moved,
+      currentPositions: moved.currentPositions.map(
+        (pos) => ({ ...(pos as object), dy: 200 } as never),
+      ),
+      trackHeight: 0,
+    });
+    expect(b.topMostY).toBe(a.topMostY);
+  });
+
+  it('보이는 키가 있으면 숨긴 키의 위치는 창에 영향을 주지 않는다', () => {
+    const base = makeInput({
+      stats: [{ dx: 260, dy: 100, width: 60, height: 60 }],
+    });
+    const withHidden = computeLayout({
+      ...base,
+      currentKeys: [...base.currentKeys, 'E'],
+      currentPositions: [
+        ...base.currentPositions,
+        {
+          id: 'E',
+          dx: 0,
+          dy: -1000,
+          width: 60,
+          height: 60,
+          hidden: true,
+        } as never,
+      ],
+    });
+    const without = computeLayout(base);
+    expect(withHidden.topMostY).toBe(without.topMostY);
+    expect(withHidden.contentSize).toEqual(without.contentSize);
+    expect(withHidden.contentOrigin).toEqual(without.contentOrigin);
+  });
+
+  const sideExtra = {
+    stats: [{ dx: 0, dy: 100, width: 60, height: 60 }],
+    plugins: [{ x: 260, y: 100, width: 200, height: 260 }],
+  };
+
+  it('노트 효과를 끈 채 키를 모두 숨겨도 남은 요소는 화면에서 제자리다', () => {
+    const shown = computeLayout({ ...makeInput(sideExtra), trackHeight: 0 });
+    const hidden = computeLayout({
+      ...makeInput({ ...sideExtra, hideKeys: true }),
+      trackHeight: 0,
+    });
+    const statTopOf = (layout: ReturnType<typeof computeLayout>) =>
+      (layout.displayStatPositions[0] as { dy: number }).dy;
+    expect(
+      statTopOf(hidden) - statTopOf(shown) - (hidden.topMostY - shown.topMostY),
+    ).toBe(0);
+  });
+
+  it('키를 모두 숨기면 키가 없는 배치와 같고 숨긴 키 자리는 창을 넓히지 않는다', () => {
+    const hidden = makeInput({ ...sideExtra, hideKeys: true });
+    const withFarHidden = computeLayout({
+      ...hidden,
+      currentKeys: [...hidden.currentKeys, 'E'],
+      currentPositions: [
+        ...hidden.currentPositions,
+        {
+          id: 'E',
+          dx: 0,
+          dy: -1000,
+          width: 60,
+          height: 60,
+          hidden: true,
+        } as never,
+      ],
+    });
+    const noKeys = computeLayout({
+      ...hidden,
+      currentKeys: [],
+      currentPositions: [],
+    });
+    expect(withFarHidden.contentSize).toEqual(noKeys.contentSize);
+    expect(withFarHidden.topMostY).toBe(noKeys.topMostY);
+    expect(computeLayout(hidden).contentSize).toEqual(noKeys.contentSize);
+  });
+
+  it.each([0.1, -0.1, 5])(
+    '옆 패널이 밴드 안에 있을 때 키를 %s° 돌려도 키는 화면에서 제자리다',
+    (rotation) => {
+      const plugins = [{ x: 260, y: 100, width: 200, height: 260 }];
+      const flat = computeLayout(makeInput({ plugins }));
+      const tilted = computeLayout(makeInput({ plugins, rotation }));
+      // 회전으로 밴드 예약이 꺼져도 트랙은 거의 같은 높이로 뻗는다
+      expect(keyScreenShift(flat, tilted)).toBeCloseTo(0, 6);
+    },
+  );
+
+  it('밴드 밖 패널이 있어도 한 키의 노트 오프셋을 바꾸면 키는 화면에서 제자리다', () => {
+    const plugins = [{ x: 260, y: -300, width: 200, height: 660 }];
+    const before = computeLayout(makeInput({ plugins }));
+    const after = computeLayout(makeInput({ plugins, noteOffsetYA: -100 }));
+    expect(keyScreenShift(before, after)).toBe(0);
+  });
+
+  it('음수 노트 Y 오프셋은 자기 키의 노트만 그만큼 올린다', () => {
+    const layout = computeLayout(makeInput({ noteOffsetYA: -100 }));
+    const [trackA, trackB] = tracksOf(layout);
+    const keyTop = keyTopOf(layout);
+    expect(trackA.position.dy).toBe(keyTop - 100);
+    expect(trackB.position.dy).toBe(keyTop);
+    // 오프셋 트랙 끝까지만 창이 자란다
+    expect(layout.contentSize!.height).toBe(420 + 100);
   });
 });
