@@ -370,7 +370,7 @@ const SoundTrimModal = ({
       if (isPlaying) return;
       redrawWaveformStatic(pausedAtRatioRef.current);
     });
-  }, [isOpen, isPlaying]);
+  }, [isOpen, isPlaying, redrawWaveformStatic]);
 
   const selectFile = () => {
     fileInputRef.current?.click();
