@@ -172,8 +172,16 @@ export default function App() {
     handleUndo,
     handleRedo,
   } = useKeyManager();
-  const { color, palette, setPalette, handleColorChange, handlePaletteClose } =
-    usePalette();
+  const {
+    backgroundColor,
+    color,
+    palette,
+    setPalette,
+    handleColorChange,
+    handlePaletteClose,
+    saveError,
+    isSaving,
+  } = usePalette();
 
   const [activeTool, setActiveTool] = useState('move');
   const [toolbarAddRequest, setToolbarAddRequest] = useState<{
@@ -429,7 +437,7 @@ export default function App() {
             <Grid
               keyMappings={keyMappings}
               positions={positions}
-              color={color}
+              color={backgroundColor}
               activeTool={activeTool}
               showConfirm={showConfirm}
               showAlert={showAlert}
@@ -501,6 +509,19 @@ export default function App() {
         contentMountStrategy="after-paint"
       >
         <Palette color={color} onColorChange={handleColorChange} />
+        {saveError && (
+          <div className="mt-2 flex w-[142px] flex-col gap-2 text-xs">
+            <p role="alert">{saveError}</p>
+            <button
+              type="button"
+              className="rounded border px-2 py-1 disabled:opacity-50"
+              disabled={isSaving}
+              onClick={() => handleColorChange(color)}
+            >
+              {t(isSaving ? 'editorSave.retrying' : 'editorSave.retrySave')}
+            </button>
+          </div>
+        )}
       </FloatingPopup>
       {noteSettingPresence.mounted && shownNoteSettings && (
         <NoteSettingModal
