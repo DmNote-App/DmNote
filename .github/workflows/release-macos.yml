@@ -305,11 +305,9 @@ jobs:
       # APPLE_SIGNING_IDENTITY는 앞 스텝의 GITHUB_ENV로 주입됨
       # 공증 자격 증명(APPLE_API_KEY/APPLE_API_ISSUER)이 없으면 Tauri는 서명만 하고 공증을 건너뜀
       # Tauri의 앱 공증은 stapler 실패를 무시한 채 그 앱으로 DMG까지 만들므로 공증·staple은 뒤 스텝이 소유
-      # TAURI_BUNDLER_DMG_IGNORE_CI: CI=true면 Tauri가 DMG 스크립트에 --skip-jenkins를 넘겨
-      # Finder 아이콘 배치(.DS_Store)를 건너뜀 → 로컬과 동일한 DMG 외형을 위해 해제
+      # CI=true면 Tauri가 Finder 창 배치(.DS_Store) 단계를 건너뜀. 러너 Finder 자동화에 릴리즈를 묶지 않도록
+      # 그대로 두고, 배치는 DMG 재조립 때 src-tauri/dmg-layout.dsstore를 복사
       - name: 유니버설 빌드 (서명)
-        env:
-          TAURI_BUNDLER_DMG_IGNORE_CI: "1"
         run: npm run tauri:build:mac:universal -- --ci -- --locked
 
       # 공증 전 구성·서명 검사. staple·Gatekeeper는 공증 뒤 최종 DMG에서 확인
@@ -320,8 +318,8 @@ jobs:
           bash scripts/verify-macos-bundle.sh "$APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
 
-      # 공증·재조립·최종 검증 스크립트는 워크플로와 같은 커밋에서 가져옴
-      # 수동 재빌드(dry_run 해제)는 이전 버전 커밋을 체크아웃해 그 커밋에 스크립트가 없을 수 있음
+      # 공증·재조립·최종 검증 스크립트와 DMG 창 배치는 워크플로와 같은 커밋에서 가져옴
+      # 수동 재빌드(dry_run 해제)는 이전 버전 커밋을 체크아웃해 그 커밋에 파일이 없을 수 있음
       - name: 릴리즈 스크립트 체크아웃
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -333,6 +331,7 @@ jobs:
             scripts/notarize-macos.sh
             scripts/repack-macos-dmg.sh
             scripts/verify-macos-dmg.sh
+            src-tauri/dmg-layout.dsstore
 
       # NOTARY_API_ISSUER_ID는 App Store Connect "팀 키"에만 존재, 개인 키는 사용 불가
       - name: 앱 공증 + staple
@@ -341,7 +340,7 @@ jobs:
           NOTARY_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: bash release-tools/scripts/notarize-macos.sh "$BUNDLE_DIR/macos/DM NOTE.app"
 
-      # Tauri DMG 안의 앱은 staple 전 사본이라 staple된 앱으로 교체한 뒤 재서명
+      # Tauri DMG 안의 앱은 staple 전 사본이라 staple된 앱으로 교체하고 창 배치를 넣은 뒤 재서명
       # 자산 이름은 GitHub의 공백→점 치환에 맡기지 않고 고정
       # — 앱 내 자동 업데이트(update_macos.rs asset_candidates)가 이 이름에 의존
       - name: DMG 재조립 + 서명
@@ -354,7 +353,8 @@ jobs:
             exit 1
           fi
           ASSET_PATH="$RUNNER_TEMP/DM.NOTE_${VERSION}_universal.dmg"
-          bash release-tools/scripts/repack-macos-dmg.sh "$DMG" "$BUNDLE_DIR/macos/DM NOTE.app" "$ASSET_PATH"
+          bash release-tools/scripts/repack-macos-dmg.sh "$DMG" "$BUNDLE_DIR/macos/DM NOTE.app" \
+            release-tools/src-tauri/dmg-layout.dsstore "$ASSET_PATH"
           codesign --force --timestamp -s "$APPLE_SIGNING_IDENTITY" "$ASSET_PATH"
           echo "ASSET_PATH=$ASSET_PATH" >> "$GITHUB_ENV"
 

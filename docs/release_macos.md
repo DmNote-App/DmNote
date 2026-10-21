@@ -27,13 +27,15 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | gh secret set APPLE_API_KEY_P8_BASE64
 공증도 Tauri에 맡기지 않는다. Tauri 번들러는 `stapler staple` 실패를 종료 코드째 무시하고, staple 직후 같은 빌드 호출에서 그 앱으로 DMG를 만든다. 그래서 빌드 스텝에는 공증 자격 증명을 넘기지 않고(Tauri는 서명과 DMG 생성만 함) 이후를 워크플로가 순서대로 처리한다.
 
 1. 앱 공증 + staple (`scripts/notarize-macos.sh`, staple은 최대 6회 재시도)
-2. Tauri DMG 안의 앱을 staple된 앱으로 교체하고 재서명 (`scripts/repack-macos-dmg.sh`)
+2. Tauri DMG 안의 앱을 staple된 앱으로 교체하고 창 배치를 넣은 뒤 재서명 (`scripts/repack-macos-dmg.sh`)
 3. DMG 공증 + staple
 4. 업로드할 DMG와 그 안쪽 앱을 최종 검증 (`scripts/verify-macos-dmg.sh`)
 
 안쪽 앱 staple까지 확인하는 이유는 앱 내 자동 업데이트가 DMG를 `hdiutil`로 마운트해 앱을 꺼내 설치하기 때문이다. 이 경로에서는 DMG 티켓이 앱으로 이어지지 않는다.
 
-위 세 스크립트는 앱 소스(`release_sha`)가 아니라 워크플로와 같은 커밋에서 따로 체크아웃한다. 수동 재빌드는 이전 버전 커밋을 빌드하는데, 그 커밋에는 스크립트가 없을 수 있기 때문이다.
+DMG 창 배치(창 크기, 앱·Applications 아이콘 위치)는 Finder가 DMG 루트에 쓰는 `.DS_Store`로 정해진다. Tauri는 CI에서 이 Finder 단계를 건너뛰고, 러너의 Finder 자동화는 GitHub 이미지 변경에 따라 멈춘 전례가 있어 켜지 않는다. 대신 `src-tauri/dmg-layout.dsstore`를 재조립 때 복사한다. 값은 로컬 Tauri 빌드에서 Finder가 쓰는 기본 배치와 같다. 앱 이름이나 `bundle.macOS.dmg` 설정을 바꾸면 `scripts/generate-dmg-layout.py`의 값을 고치고 파일 머리 주석의 방법으로 다시 생성한다.
+
+위 스크립트와 배치 파일은 앱 소스(`release_sha`)가 아니라 워크플로와 같은 커밋에서 따로 체크아웃한다. 수동 재빌드는 이전 버전 커밋을 빌드하는데, 그 커밋에는 이 파일들이 없을 수 있기 때문이다.
 
 ## 2. 드라이런 (워크플로 변경 후 권장)
 
