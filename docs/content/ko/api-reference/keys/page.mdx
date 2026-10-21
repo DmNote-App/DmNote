@@ -111,13 +111,24 @@ interface KeyPosition {
   dy: number;
   width: number;
   height: number;
+  rotation: number; // 도, -180~180. 생략하면 0. 상자 중심 기준 콘텐츠 회전
   activeImage?: string;
   inactiveImage?: string;
   activeTransparent?: boolean;
   idleTransparent?: boolean;
   imageMode?: 'replace' | 'overlay'; // 이미지 배치. 없으면 replace(이미지가 키를 대체)
-  idleImageTransform?: { offsetX: number; offsetY: number; rotation: number; scale: number }; // 없으면 identity
-  activeImageTransform?: { offsetX: number; offsetY: number; rotation: number; scale: number };
+  idleImageTransform?: {
+    offsetX: number;
+    offsetY: number;
+    rotation: number;
+    scale: number;
+  }; // 없으면 identity
+  activeImageTransform?: {
+    offsetX: number;
+    offsetY: number;
+    rotation: number;
+    scale: number;
+  };
   count: number;
   noteColor: string | { type: 'gradient'; top: string; bottom: string };
   noteOpacity: number;
@@ -178,9 +189,11 @@ interface ElementShadowSpec {
 ```
 
 모든 요소 위치(`keyPositions`, `statPositions`, `graphPositions`,
-`knobPositions`)는 안정 `id`를 가집니다. 불투명 값으로 다루세요. 읽은 값을
-그대로 되돌려 보내고, 직접 만들지 마세요. `id`가 없거나 미확인인 쓰기는
-백엔드가 새 값을 발급합니다. 같은 `id`가 여러 번 나오면(읽은 요소를 복사해
+`knobPositions`, `spritePositions`)는 안정 `id`를 가집니다. 불투명 값으로 다루세요. 읽은 값을
+그대로 되돌려 보내고, 직접 만들지 마세요. `id`가 없거나 미확인인 쓰기는 나머지
+필드가 같은 기존 요소의 신원을 승계합니다. 맞는 항목이 없으면 백엔드가
+새 값을 발급합니다. `id`를 빼는 것이 새 신원을 보장하지는 않고, 값을 바꾸면서
+`id`까지 빼면 새 신원이 될 수 있습니다. 같은 `id`가 여러 번 나오면(읽은 요소를 복사해
 덧붙이는 경우처럼) 원래 자리의 요소가 신원을 지키고 나머지 사본이 새 값을
 받습니다. 전체 프리셋을 불러오면 모든 `id`가 재발급되고, 탭 프리셋은 그
 프리셋이 위치를 준 컬렉션만 재발급됩니다. 재정렬을 가로질러 요소를 추적할
@@ -217,6 +230,16 @@ interface ElementShadowSpec {
 `shadow`와 `activeShadow`는 대기·입력 그림자를 각각 제어합니다. 필드를
 생략하면 기존 기본 그림자가 유지되며, 그림자를 명시적으로 끄려면
 `enabled: false`인 spec을 저장하세요.
+
+`rotation`은 요소 회전(도)입니다. 키·통계·그래프·노브가 같은 필드를 쓰며
+`dx`/`dy`/`width`/`height` 논리 상자는 축 정렬 그대로 두고 얼굴, 노트
+트랙, 외부 카운터가 상자 중심을 축으로 함께 돕니다. 생략하면 0이고
+`null`, 비유한값, `-180~180` 밖의 값은 거절됩니다. 자동 히트라인
+보정(`noteAutoYCorrection`)은 회전 0인 키는 콘텐츠 상단에, 회전한 키는
+같은 방향(각도 차 0.5° 이내)으로 도는 키끼리 가장 앞선 상변에 시작선을
+맞춥니다. 혼자 돌린 키는 자기 상변에서 시작하고 노트 오프셋은 그 뒤에
+적용됩니다. 스프라이트도 요소 배치용 `rotation`을 가지며 대기·자세별 회전과
+독립적으로 적용합니다. [스프라이트 위치 타입](/docs/api-reference/editor#스프라이트-위치-타입)을 참고하세요.
 
 ```javascript
 const positions = await dmn.keys.getPositions();
@@ -510,10 +533,16 @@ const tabs = await dmn.keys.customTabs.list();
 
 새 커스텀 탭을 생성합니다.
 
+이름은 앞뒤 공백을 다듬은 뒤 검사합니다. 비어 있거나(`invalid-name`), UTF-16 기준
+10자를 넘거나(`name-too-long`), `4key`·`5key`·`6key`·`8key`와 같거나(`reserved-name`),
+이미 쓰는 이름이면(`duplicate-name`) 거절됩니다. 탭이 30개면 `max-reached`입니다.
+
 ```javascript
 const result = await dmn.keys.customTabs.create('My Keys');
 if (result.error) {
-  console.error(result.error); // "invalid-name", "duplicate-name", "max-reached"
+  // "invalid-name" | "name-too-long" | "reserved-name"
+  // "duplicate-name" | "max-reached"
+  console.error(result.error);
 } else {
   console.log('생성됨:', result.result);
 }
@@ -537,10 +566,15 @@ await dmn.keys.customTabs.select('custom-123');
 
 ### restore(customTabs, selectedKeyType)
 
-이미 존재하는 커스텀 탭의 이름·순서와 선택 모드를 원자적으로 복원합니다. 모든
+이미 존재하는 커스텀 탭의 이름과 선택 모드를 원자적으로 복원합니다. 모든
 탭 ID에는 짝이 맞는 `keys`와 `keyPositions`가 이미 있어야 합니다. 탭 추가·삭제나
 키 구조 변경에는 `create`, `delete`, `updateWithPositions`를 사용하세요. 고아 탭
 정보나 잘못된 입력은 저장 데이터를 바꾸지 않고 거절됩니다.
+
+<Callout type="warning">
+  표시 순서는 `tabOrder`가 소유하며 `restore`는 건드리지 않습니다. 넘긴 배열의
+  순서는 무시되고 저장된 순서가 그대로 유지됩니다.
+</Callout>
 
 ```javascript
 await dmn.keys.customTabs.restore(
@@ -553,10 +587,27 @@ await dmn.keys.customTabs.restore(
 
 커스텀 탭 변경 이벤트를 구독합니다.
 
+페이로드에는 `customTabs`와 `selectedKeyType` 외에 `tabOrder`, `barCount`,
+`selectionAuthoritative`가 함께 실립니다. `tabOrder`는 내장 모드와 커스텀 탭을
+합친 표시 순서로 각 탭 ID가 정확히 한 번씩 들어가고, `barCount`는 그중 툴바 바에
+나오는 앞쪽 개수입니다(1~4). 이름 변경과 순서 변경 이벤트에서는
+`selectionAuthoritative`가 `false`이며, 이때 `selectedKeyType`은 트랜잭션
+스냅샷일 뿐 선택 변경을 뜻하지 않습니다. 선택 모드를 소유하는 이벤트에서는
+`selectionAuthoritative`가 `true`입니다. `list()`는 배열만 돌려주므로 표시 순서는
+`tabOrder`로 확인하세요.
+
 ```javascript
 const unsub = dmn.keys.customTabs.onChanged(
-  ({ customTabs, selectedKeyType }) => {
+  ({
+    customTabs,
+    tabOrder,
+    barCount,
+    selectedKeyType,
+    selectionAuthoritative,
+  }) => {
     console.log('선택된 탭:', selectedKeyType);
+    console.log('바에 있는 탭:', tabOrder.slice(0, barCount));
+    console.log('이벤트가 선택을 소유함:', selectionAuthoritative);
   },
 );
 ```

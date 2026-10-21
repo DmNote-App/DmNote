@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import React, { useEffect, useRef, useState } from 'react';
+import { ACTION_BUTTON_CHROME_CLASS } from '@utils/cardRecipes';
 import { createPortal } from 'react-dom';
 import type { CounterTabContentProps } from '../types';
 import type { KeyCounterAnimationSettings } from '@src/types/key/keys';
@@ -9,33 +10,33 @@ import {
   FontStyleToggle,
   NumberInput,
   PropertySection,
-} from '../PropertyInputs';
-import Checkbox from '@components/main/common/Checkbox';
-import Dropdown from '@components/main/common/Dropdown';
-import ColorPicker from '@components/main/Modal/content/pickers/ColorPicker';
+} from '../controls/PropertyInputs';
+import Checkbox from '@components/main/common/checkbox/Checkbox';
+import Dropdown from '@components/main/common/dropdown/Dropdown';
+import ColorPicker from '@components/main/Modal/content/pickers/color/ColorPicker';
 import PopupExit from '@components/main/Modal/PopupExit';
-import FontPicker from '@components/main/Modal/content/pickers/FontPicker';
-import FontPickerOpenButton from '@components/main/Modal/content/pickers/FontPickerOpenButton';
-import FontWeightDropdown from '../FontWeightDropdown';
+import FontPicker from '@components/main/Modal/content/pickers/font/FontPicker';
+import FontPickerOpenButton from '@components/main/Modal/content/pickers/font/FontPickerOpenButton';
+import FontWeightDropdown from '../controls/FontWeightDropdown';
 import CounterAnimationPicker from '@components/main/Modal/content/pickers/CounterAnimationPicker';
-import { usePanelNav } from '../PanelNavContext';
-import { ColorSwatchButton } from '@components/main/Modal/content/pickers/ColorSwatch';
+import { usePanelNav } from '../navigation/PanelNavContext';
+import { ColorSwatchButton } from '@components/main/Modal/content/pickers/color/ColorSwatch';
 import {
   DEFAULT_COUNTER_FONT_SIZE,
   DEFAULT_COUNTER_FONT_WEIGHT,
-} from '@utils/core/elementDefaults';
+} from '@utils/element/elementDefaults';
 import { useGradientColorState } from '@hooks/pickers/useGradientColorState';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useFontStore } from '@stores/useFontStore';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
-import { editGestureController } from '@src/renderer/editor/runtime/editGestureController';
+import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import { createCounterAnimationPresetIntent } from '@src/types/key/counterAnimation';
 import {
   counterFillPair,
   gradientToCss,
   type ColorModeValue,
 } from '@src/types/color';
-import { resolveSupportedFontWeight } from '@utils/core/fontWeights';
+import { resolveSupportedFontWeight } from '@utils/typography/fontWeights';
 
 // 인-패널 서브 페이지 키 — 트리거 사이트별 유니크
 const FONT_PAGE_KEY = 'single-counter:font';
@@ -424,7 +425,7 @@ const CounterTabContent: React.FC<CounterTabContentProps> = ({
         <PropertyRow label={t('counterSetting.animation') || '애니메이션 설정'}>
           <button
             type="button"
-            className={`px-[8px] h-[23px] bg-fill hover:bg-fill-hover active:bg-fill-active transition-colors duration-fast rounded-md flex items-center justify-center ${
+            className={`${ACTION_BUTTON_CHROME_CLASS} ${
               activePageKey === ANIMATION_PAGE_KEY ? 'shadow-focus-ring' : ''
             } text-fg text-body`}
             onClick={() => {

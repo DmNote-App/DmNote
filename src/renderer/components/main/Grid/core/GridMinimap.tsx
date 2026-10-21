@@ -1,4 +1,4 @@
-import { beginDragCursor, endDragCursor } from '@utils/core/dragCursor';
+import { beginDragCursor, endDragCursor } from '@utils/dom/dragCursor';
 import { MINIMAP_SURFACE_CLASS } from './minimapChrome';
 import React, { useState, useRef, useEffect } from 'react';
 import { useGridViewStore } from '@stores/grid/useGridViewStore';
@@ -32,6 +32,7 @@ interface GridMinimapProps {
   statPositions?: Position[];
   graphPositions?: Position[];
   knobPositions?: Position[];
+  spritePositions?: Position[];
   zoom: number;
   panX: number;
   panY: number;
@@ -88,6 +89,7 @@ const GridMinimap = ({
   statPositions = [],
   graphPositions = [],
   knobPositions = [],
+  spritePositions = [],
   zoom,
   panX,
   panY,
@@ -198,6 +200,7 @@ const GridMinimap = ({
       statPositions.length === 0 &&
       graphPositions.length === 0 &&
       knobPositions.length === 0 &&
+      spritePositions.length === 0 &&
       pluginPositions.length === 0
     ) {
       return { minX: 0, minY: 0, maxX: 100, maxY: 100 };
@@ -257,6 +260,20 @@ const GridMinimap = ({
       const y = pos.dy || 0;
       const w = pos.width || 60;
       const h = pos.height || 60;
+
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + w);
+      maxY = Math.max(maxY, y + h);
+    });
+
+    // 스프라이트 요소 bounds
+    spritePositions.forEach((pos) => {
+      if (pos.hidden) return;
+      const x = pos.dx || 0;
+      const y = pos.dy || 0;
+      const w = pos.width || 200;
+      const h = pos.height || 200;
 
       minX = Math.min(minX, x);
       minY = Math.min(minY, y);
@@ -405,6 +422,7 @@ const GridMinimap = ({
     statPositions.length === 0 &&
     graphPositions.length === 0 &&
     knobPositions.length === 0 &&
+    spritePositions.length === 0 &&
     pluginPositions.length === 0
   ) {
     return null;
@@ -572,6 +590,11 @@ const GridMinimap = ({
           })}
           {/* 노브 요소 표시 */}
           {renderElementRects('knob', knobPositions, { round: true })}
+          {/* 스프라이트 요소 표시 */}
+          {renderElementRects('sprite', spritePositions, {
+            defaultW: 200,
+            defaultH: 200,
+          })}
           {/* 플러그인 요소 표시 */}
           {renderElementRects(
             'plugin',

@@ -7,9 +7,9 @@ import {
   normalizeFontFamilyName,
   validateWebFontFaceCss,
 } from '@src/types/settings/fonts';
-import { settingsApi } from '@api/modules/settingsApi';
-import { fontApi } from '@api/modules/resourceApi';
-import { canLoadFont } from '@utils/core/assetProbe';
+import { settingsApi } from '@api/modules/app/settingsApi';
+import { fontApi } from '@api/modules/resources/resourceApi';
+import { canLoadFont } from '@utils/media/assetProbe';
 
 // 폰트 라이브러리 CRUD — 낙관적 스토어 갱신 + 설정 영속화
 // CSS 반영은 settings:changed 라운드트립(useAppBootstrap의 syncFontCSS)이 담당
@@ -98,6 +98,26 @@ export const useFontLibrary = () => {
       })
       .catch((error) => {
         console.error('Failed to open invalid font alert:', error);
+      });
+  };
+
+  const showEditTargetMissingAlert = () => {
+    void window.api.ui.dialog
+      .alert(t('fontPicker.editTargetMissing'), {
+        confirmText: t('common.ok') || '확인',
+      })
+      .catch((error) => {
+        console.error('Failed to open missing edit target alert:', error);
+      });
+  };
+
+  const showFontFamilyChangeAlert = () => {
+    void window.api.ui.dialog
+      .alert(t('webFontInput.familyChangeNotAllowed'), {
+        confirmText: t('common.ok') || '확인',
+      })
+      .catch((error) => {
+        console.error('Failed to open font-family change alert:', error);
       });
   };
 
@@ -191,10 +211,30 @@ export const useFontLibrary = () => {
     }
 
     const currentCustomFonts = useFontStore.getState().customFonts;
+    const editingWebFont = editingWebFontId
+      ? currentCustomFonts.find(
+          (font) => font.id === editingWebFontId && font.type === 'web',
+        )
+      : null;
+    // 편집 중 다른 창이 대상을 지웠다 - 아무것도 못 바꾸면서 저장 성공으로 닫으면 안 된다
+    if (editingWebFontId && !editingWebFont) {
+      showEditTargetMissingAlert();
+      return false;
+    }
+    if (
+      editingWebFont &&
+      normalizeFontFamilyName(editingWebFont.name) !==
+        normalizeFontFamilyName(fontFamily)
+    ) {
+      showFontFamilyChangeAlert();
+      return false;
+    }
+    // 대소문자만 다른 CSS 이름은 같은 family다 - 저장된 참조 문자열은 그대로 유지한다
+    const storedFontFamily = editingWebFont?.name ?? fontFamily;
     const newWebFont: CustomFont = {
       id: generateFontId(),
       type: 'web',
-      name: fontFamily,
+      name: storedFontFamily,
       displayName: displayName || fontFamily,
       enabled: true,
       cssContent: css,
@@ -206,7 +246,7 @@ export const useFontLibrary = () => {
           font.id === editingWebFontId
             ? {
                 ...font,
-                name: fontFamily,
+                name: storedFontFamily,
                 displayName: displayName || fontFamily,
                 cssContent: css,
                 weightRanges: validation.detectedWeights,

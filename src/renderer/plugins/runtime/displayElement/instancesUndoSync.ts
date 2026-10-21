@@ -7,7 +7,7 @@
 import {
   pluginInstancesApi,
   type SavedPluginInstanceWire,
-} from '@api/modules/pluginInstancesApi';
+} from '@api/modules/plugin/pluginInstancesApi';
 import { noteBackendPluginRevision } from '@plugins/runtime/pluginModelRevision';
 import { pruneStalePluginSelection } from '@stores/grid/useGridSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
@@ -55,7 +55,7 @@ export const registerPluginInstancesReapplier = (
   };
 };
 
-const cancelPendingPluginInstanceSaves = (pluginId: string): void => {
+export const cancelPendingPluginInstanceSaves = (pluginId: string): void => {
   reappliers.get(pluginId)?.forEach((handlers) => {
     handlers.cancelPendingSave();
   });

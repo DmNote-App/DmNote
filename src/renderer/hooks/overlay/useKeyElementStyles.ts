@@ -3,7 +3,7 @@
  * 오버레이에서 키/통계 요소의 스타일을 일관되게 계산
  */
 
-import { resolveImageSource } from '@utils/core/imageSource';
+import { resolveImageSource } from '@utils/media/imageSource';
 import {
   gradientToCss,
   gradientRingStyle,
@@ -20,14 +20,14 @@ import {
   DEFAULT_ELEMENT_FONT_BOLD,
   DEFAULT_ELEMENT_SHADOW_SPEC,
   DEFAULT_ELEMENT_ACTIVE_SHADOW_SPEC,
-} from '@utils/core/elementDefaults';
-import { resolveElementBorder } from '@utils/core/elementBorder';
+} from '@utils/element/elementDefaults';
+import { resolveElementBorder } from '@utils/element/elementBorder';
 import {
   elementShadowToCss,
   resolveElementShadow,
   type ElementShadowSpec,
 } from '@src/types/key/shadows';
-import { resolveEffectiveFontWeight } from '@utils/core/fontWeights';
+import { resolveEffectiveFontWeight } from '@utils/typography/fontWeights';
 import {
   DEFAULT_IMAGE_MODE,
   IDENTITY_IMAGE_TRANSFORM,
@@ -35,6 +35,7 @@ import {
   type ImageMode,
   type ImageTransform,
 } from '@src/types/key/imageLayer';
+import { elementRotationTransform } from '@utils/element/rotation';
 
 export interface KeyElementPosition {
   hidden?: boolean;
@@ -42,6 +43,8 @@ export interface KeyElementPosition {
   dy: number;
   width: number;
   height?: number;
+  // 요소 회전(도) - 논리 상자 중심 기준, 루트 transform에 합성
+  rotation?: number;
   activeImage?: string;
   inactiveImage?: string;
   activeTransparent?: boolean;
@@ -125,6 +128,7 @@ export function computeKeyElementStyles({
     dy,
     width,
     height = 60,
+    rotation = 0,
     activeImage,
     inactiveImage,
     activeTransparent = false,
@@ -292,7 +296,9 @@ export function computeKeyElementStyles({
   const keyStyle: React.CSSProperties = {
     width: `${width}px`,
     height: `${height}px`,
-    transform: `translate3d(calc(${dx}px + var(--key-offset-x, 0px)), calc(${dy}px + var(--key-offset-y, 0px)), 0)`,
+    transform: `translate3d(calc(${dx}px + var(--key-offset-x, 0px)), calc(${dy}px + var(--key-offset-y, 0px)), 0)${elementRotationTransform(
+      rotation,
+    )}`,
     ...(useInline
       ? {
           // 인라인 우선 모드만 속성 패널 값을 실제 inline declaration으로 승격

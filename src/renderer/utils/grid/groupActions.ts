@@ -8,12 +8,13 @@ import { useKeyStore } from '@stores/data/useKeyStore';
 import { useStatItemStore } from '@stores/data/useStatItemStore';
 import { useGraphItemStore } from '@stores/data/useGraphItemStore';
 import { useKnobItemStore } from '@stores/data/useKnobItemStore';
+import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import {
   selectPropertyPanelPluginElements,
   usePluginDisplayElementStore,
 } from '@stores/plugin/usePluginDisplayElementStore';
-import { setMixedElementGroups } from '@src/renderer/editor/runtime/mixedElementGroups';
+import { setMixedElementGroups } from '@src/renderer/editor/runtime/intent/mixedElementGroups';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
@@ -33,7 +34,8 @@ const splitGroupTargets = (
     element.type === 'key' ||
     element.type === 'stat' ||
     element.type === 'graph' ||
-    element.type === 'knob'
+    element.type === 'knob' ||
+    element.type === 'sprite'
       ? [{ elementType: element.type, id: element.id }]
       : [],
   );
@@ -56,6 +58,12 @@ const currentNativeGroupId = (
 ): string | undefined => {
   const locator = resolveElementById(target.elementType, target.id);
   if (!locator || locator.mode !== mode) return undefined;
+  if (target.elementType === 'sprite') {
+    return (
+      useSpriteStore.getState().positions[mode]?.[locator.index]?.groupId ??
+      undefined
+    );
+  }
   const record =
     target.elementType === 'key'
       ? useKeyStore.getState().canonicalPositions

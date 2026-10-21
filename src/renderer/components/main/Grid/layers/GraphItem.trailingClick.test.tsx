@@ -19,22 +19,19 @@ const hookState = vi.hoisted(() => ({ wasMoved: false, pressMoved: false }));
 // 수식키 판별을 ctrlKey로 고정
 vi.mock('@utils/core/platform', () => ({ isMac: () => false }));
 
-vi.mock('@hooks/Grid', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@hooks/Grid')>();
-  return {
-    ...actual,
-    useDraggable: () => ({
-      ref: () => {},
-      dx: 0,
-      dy: 0,
-      wasMoved: hookState.wasMoved,
-      isDragging: false,
-      recentPressMovedRef: { current: false },
-    }),
-  };
-});
+// 공용 상호작용 훅은 배럴이 아니라 소스 모듈을 직접 쓴다
+vi.mock('@hooks/Grid/drag/useDraggable', () => ({
+  useDraggable: () => ({
+    ref: () => {},
+    dx: 0,
+    dy: 0,
+    wasMoved: hookState.wasMoved,
+    isDragging: false,
+    recentPressMovedRef: { current: false },
+  }),
+}));
 
-vi.mock('@hooks/Grid/useSelectionDrag', () => ({
+vi.mock('@hooks/Grid/drag/useSelectionDrag', () => ({
   useSelectionDrag: () => ({
     handlePointerDown: () => {},
     movedDuringPressRef: { current: false },
@@ -44,7 +41,7 @@ vi.mock('@hooks/Grid/useSelectionDrag', () => ({
 
 // 컴파일러 메모이제이션이 없는 테스트 환경에서 실 GraphPanel은 history
 // 이펙트가 재렌더 루프를 돌므로 이벤트 배선만 보존한 스텁으로 교체
-vi.mock('@components/shared/GraphPanel', async () => {
+vi.mock('@components/shared/graph/GraphPanel', async () => {
   const { createElement, forwardRef } = await import('react');
   return {
     default: forwardRef<HTMLDivElement, Record<string, unknown>>((props, ref) =>

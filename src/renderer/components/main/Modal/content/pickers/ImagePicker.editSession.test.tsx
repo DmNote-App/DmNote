@@ -23,26 +23,30 @@ const apiMocks = vi.hoisted(() => ({
   canDecodeImage: vi.fn(),
 }));
 
-vi.mock('@api/modules/resourceApi', () => ({
+vi.mock('@api/modules/resources/resourceApi', () => ({
   imageApi: {
     load: (...args: unknown[]) => apiMocks.imageLoad(...args),
   },
 }));
 
-vi.mock('@utils/core/assetProbe', () => ({
+vi.mock('@utils/media/assetProbe', () => ({
   canDecodeImage: (...args: unknown[]) => apiMocks.canDecodeImage(...args),
 }));
 
 vi.mock('@contexts/useTranslation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-vi.mock('@components/main/Grid/PropertiesPanel/PickerSurface', () => ({
+vi.mock('@components/main/Grid/PropertiesPanel/controls/PickerSurface', () => ({
   default: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
 }));
-vi.mock('@components/main/common/Checkbox', () => ({ default: () => null }));
-vi.mock('@components/main/common/Dropdown', () => ({ default: () => null }));
+vi.mock('@components/main/common/checkbox/Checkbox', () => ({
+  default: () => null,
+}));
+vi.mock('@components/main/common/dropdown/Dropdown', () => ({
+  default: () => null,
+}));
 vi.mock('@components/main/common/TabSwitch', () => ({ default: () => null }));
 
 // 네이티브 파일 대화상자가 떠 있는 동안 편집 대상이 갈릴 수 있다.
@@ -127,6 +131,39 @@ describe('ImagePicker 비동기 완료와 대상 전환', () => {
     await finishLoad();
 
     expect(onIdleImageChange).toHaveBeenCalledWith('/tmp/picked.png');
+  });
+
+  // 연결 콜백이 던져도 재진입 가드는 반드시 풀려야 한다.
+  // 안 풀리면 그 뒤로 이미지 선택 버튼이 영영 죽는다
+  it('연결 콜백이 던져도 로그만 남기고 다음 선택이 가능하다', async () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+    onIdleImageChange.mockImplementationOnce(() => {
+      throw new Error('boom');
+    });
+    mount(true);
+    clickPreview();
+    await finishLoad();
+
+    expect(consoleError).toHaveBeenCalled();
+
+    clickPreview();
+    await finishLoad({ success: true, imagePath: '/tmp/second.png' });
+    expect(onIdleImageChange).toHaveBeenLastCalledWith('/tmp/second.png');
+    consoleError.mockRestore();
+  });
+
+  // 콜백 안에서 다시 누르는 경로 - 가드가 콜백보다 먼저 풀리면 두 번째 파일창이 뜬다
+  it('연결 콜백 중 다시 눌러도 두 번째 파일창을 열지 않는다', async () => {
+    onIdleImageChange.mockImplementationOnce(() => {
+      clickPreview();
+    });
+    mount(true);
+    clickPreview();
+    await finishLoad();
+
+    expect(apiMocks.imageLoad).toHaveBeenCalledTimes(1);
   });
 
   it('대기 중 모드가 바뀌면 연결하지 않는다', async () => {

@@ -337,9 +337,20 @@ gradient siblings:
 interface KeyPosition {
   id?: string; // stable element identity (UUID), assigned and owned by the app
   // ...position, image, note, and counter fields...
+  rotation: number; // degrees, -180 to 180. Defaults to 0. Content rotation about the box center
   imageMode?: 'replace' | 'overlay'; // image placement, defaults to replace (image replaces the key)
-  idleImageTransform?: { offsetX: number; offsetY: number; rotation: number; scale: number }; // identity when absent
-  activeImageTransform?: { offsetX: number; offsetY: number; rotation: number; scale: number };
+  idleImageTransform?: {
+    offsetX: number;
+    offsetY: number;
+    rotation: number;
+    scale: number;
+  }; // identity when absent
+  activeImageTransform?: {
+    offsetX: number;
+    offsetY: number;
+    rotation: number;
+    scale: number;
+  };
   noteOpacityTop?: number;
   noteOpacityBottom?: number;
   noteGradient?: GradientSpec | null;
@@ -387,10 +398,25 @@ interface ElementShadowSpec {
 }
 ```
 
+`rotation` is the element rotation in degrees. Keys, stats, graphs, and knobs
+share the field. The logical box (`dx`/`dy`/`width`/`height`) stays axis
+aligned while the face, the note track, and the outside counter rotate
+together about the box center. Omitting the field means 0; `null`, non-finite
+values, and values outside `-180..180` are rejected. Automatic hitline
+correction (`noteAutoYCorrection`) aligns unrotated keys to the content top,
+and aligns rotated keys that flow in the same direction (within 0.5°) to the
+top edge that is furthest along that direction. A key rotated on its own
+starts at its own top edge, and note offsets apply after the correction.
+Sprites also have an element-level placement `rotation`, independent of their
+idle and per-pose rotations. See [Sprite Position Types](/docs/api-reference/editor#sprite-position-types).
+
 Every element position (`keyPositions`, `statPositions`, `graphPositions`,
-`knobPositions`) carries a stable `id`. Treat it as opaque: echo back the value
-you read and never invent one. A write whose `id` is missing or unknown gets a
-fresh one assigned by the backend. When the same `id` appears more than once,
+`knobPositions`, `spritePositions`) carries a stable `id`. Treat it as opaque: echo back the value
+you read and never invent one. A write whose `id` is missing or unknown
+inherits the `id` of an existing element whose remaining fields match; with no
+match, the backend assigns a fresh one. Omitting an `id` does not guarantee a
+fresh identity, and editing an element's values while omitting its `id` may
+give it one. When the same `id` appears more than once,
 for example when you copy an element you read and append it, the element in
 its original slot keeps the identity and the remaining copies get fresh ones.
 Loading a full preset re-issues every `id`; a tab preset re-issues only the
@@ -527,8 +553,15 @@ Creates and selects a new custom tab.
 
 ```javascript
 const result = await dmn.keys.customTabs.create('My Keys');
+// error: "invalid-name" | "name-too-long" | "reserved-name"
+//        | "duplicate-name" | "max-reached"
 console.log(result.result?.id, result.error);
 ```
+
+The name is trimmed before validation. It is rejected when empty
+(`invalid-name`), longer than 10 UTF-16 code units (`name-too-long`), equal to
+`4key`, `5key`, `6key`, or `8key` (`reserved-name`), or already in use
+(`duplicate-name`). Reaching 30 tabs yields `max-reached`.
 
 ### `dmn.keys.customTabs.delete(id): Promise<CustomTabDeleteResult>`
 
@@ -549,10 +582,15 @@ await dmn.keys.customTabs.select('custom-123');
 
 ### `dmn.keys.customTabs.restore(customTabs, selectedKeyType): Promise<void>`
 
-Restores the names/order of existing custom tabs and the selected mode
-atomically. Every tab ID must already have paired `keys` and `keyPositions`;
-use `create`, `delete`, and `updateWithPositions` for topology changes. Invalid
-or orphaned tab metadata is rejected without changing stored data.
+Restores the names of existing custom tabs and the selected mode atomically.
+Every tab ID must already have paired `keys` and `keyPositions`; use `create`,
+`delete`, and `updateWithPositions` for topology changes. Invalid or orphaned
+tab metadata is rejected without changing stored data.
+
+<Callout type="warning">
+  Display order is owned by `tabOrder` and `restore` never touches it. The order
+  of the array you pass is ignored; the stored order is kept as is.
+</Callout>
 
 ```javascript
 await dmn.keys.customTabs.restore(
@@ -563,12 +601,32 @@ await dmn.keys.customTabs.restore(
 
 ### `dmn.keys.customTabs.onChanged(callback): Unsubscribe`
 
-Subscribes to custom tab create, delete, select, and restore changes.
+Subscribes to custom tab create, delete, restore, rename, and reorder
+changes.
+
+Alongside `customTabs` and `selectedKeyType`, the payload carries `tabOrder`,
+`barCount`, and `selectionAuthoritative`. `tabOrder` is the combined display
+order of built-in modes and custom tabs, containing every tab ID exactly once;
+`barCount` is how many of the leading entries appear in the toolbar bar (1 to 4).
+`selectionAuthoritative` is `false` for rename and reorder events, whose
+`selectedKeyType` is only a transaction snapshot, and `true` when the event owns
+the selected mode. Since `list()` returns only an array, read the display order
+from `tabOrder`.
 
 ```javascript
-const unsub = dmn.keys.customTabs.onChanged((payload) => {
-  console.log(payload.customTabs, payload.selectedKeyType);
-});
+const unsub = dmn.keys.customTabs.onChanged(
+  ({
+    customTabs,
+    tabOrder,
+    barCount,
+    selectedKeyType,
+    selectionAuthoritative,
+  }) => {
+    console.log(customTabs, selectedKeyType);
+    console.log('in the bar:', tabOrder.slice(0, barCount));
+    console.log('selected mode belongs to event:', selectionAuthoritative);
+  },
+);
 ```
 
 ---

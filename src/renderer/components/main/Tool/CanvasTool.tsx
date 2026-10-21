@@ -7,14 +7,14 @@ import BroomIcon from '@assets/svgs/broom.svg';
 import LayerStackIcon from './icons/LayerStackIcon';
 import PaletteIcon from './icons/PaletteIcon';
 import IconMotion from './icons/IconMotion';
-import FloatingTooltip from '../Modal/FloatingTooltip';
-import { TooltipGroup } from '../Modal/TooltipGroup';
-import ListPopup from '../Modal/ListPopup';
+import FloatingTooltip from '../Modal/tooltip/FloatingTooltip';
+import { TooltipGroup } from '../Modal/tooltip/TooltipGroup';
+import ListPopup from '../Modal/listPopup/ListPopup';
 import { useIconMotion } from '@hooks/useIconMotion';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 
 type SelectableTool = 'move' | 'eraser';
-type AddItemType = 'key' | 'stat' | 'graph' | 'knob';
+type AddItemType = 'key' | 'stat' | 'graph' | 'knob' | 'sprite';
 
 interface CanvasToolProps {
   onAddItem: (type: AddItemType) => void;
@@ -183,6 +183,7 @@ const CanvasTool = ({
           { id: 'addStat', label: t('toolbar.addStat') },
           { id: 'addGraph', label: t('toolbar.addGraph') },
           { id: 'addKnob', label: t('toolbar.addKnob') },
+          { id: 'addSprite', label: t('toolbar.addSprite') },
         ]}
         onSelect={(id) => {
           if (id === 'addKey') {
@@ -193,6 +194,8 @@ const CanvasTool = ({
             onAddItem('graph');
           } else if (id === 'addKnob') {
             onAddItem('knob');
+          } else if (id === 'addSprite') {
+            onAddItem('sprite');
           }
           setIsAddPopupOpen(false);
         }}

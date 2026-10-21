@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   commitPatch: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock('@src/renderer/editor/runtime/elementOps', () => ({
+vi.mock('@src/renderer/editor/runtime/operations/elementOps', () => ({
   patchElementHiddenById: mocks.patchHidden,
   patchElementLayerNameById: mocks.patchLayerName,
   setLayerGroupHidden: mocks.setGroupHidden,
@@ -36,10 +36,10 @@ vi.mock('@src/renderer/editor/runtime/elementOps', () => ({
   setElementGroupsByTargets: mocks.setElementGroups,
   renameLayerGroupById: mocks.renameLayerGroup,
 }));
-vi.mock('@src/renderer/editor/runtime/deleteFrozenSelection', () => ({
+vi.mock('@src/renderer/editor/runtime/intent/deleteFrozenSelection', () => ({
   deleteFrozenSelection: vi.fn(),
 }));
-vi.mock('@src/renderer/editor/runtime/mixedElementGroups', () => ({
+vi.mock('@src/renderer/editor/runtime/intent/mixedElementGroups', () => ({
   setMixedElementGroups: mocks.setMixedElementGroups,
   setMixedLayerGroupHidden: mocks.setMixedGroupHidden,
 }));
@@ -50,15 +50,18 @@ vi.mock('@plugins/runtime/displayElement/pluginElementActions', () => ({
   renameLayerGroupViaAuthority: mocks.renameLayerGroupViaAuthority,
   setPluginElementsHidden: mocks.setPluginHidden,
 }));
-vi.mock('@src/renderer/editor/runtime/elementIntent', () => ({
+vi.mock('@src/renderer/editor/runtime/intent/elementIntent', () => ({
   reportElementOpSkipped: mocks.reportSkipped,
 }));
-vi.mock('@api/modules/keysApi', () => ({
+vi.mock('@api/modules/editor/keysApi', () => ({
   keysApi: { updatePositions: mocks.updateKeyPositions },
 }));
-vi.mock('@src/renderer/editor/runtime/editorStateCoordinator', () => ({
-  editorCoordinator: { commitPatch: mocks.commitPatch },
-}));
+vi.mock(
+  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
+  () => ({
+    editorCoordinator: { commitPatch: mocks.commitPatch },
+  }),
+);
 
 import { useLayerActions } from './useLayerActions';
 
@@ -83,8 +86,10 @@ const Harness = ({
     setLastClickedDisplayIndex: () => {},
     t: (key) => key,
   });
+  // eslint-disable-next-line react-hooks/refs -- 반환 ref를 포함한 공개 훅 계약 노출
   expose(actions);
-  return null;
+  // eslint-disable-next-line react-hooks/refs -- 반환된 rename input ref 연결 계약 검증
+  return <input ref={actions.renameInputRef} aria-label="rename input" />;
 };
 
 describe('useLayerActions visibility routing', () => {
@@ -170,6 +175,24 @@ describe('useLayerActions visibility routing', () => {
     });
   };
 
+  it('미선택 스프라이트 행 우클릭은 그 행을 선택한다', async () => {
+    const item: LayerItem = {
+      type: 'sprite',
+      id: STABLE_ID,
+      index: 0,
+      name: '스프라이트 1',
+      zIndex: 0,
+      hidden: false,
+    };
+
+    await act(async () => actions.handleContextMenu(click, item, 0));
+
+    // 종류 분기 누락 시 clearSelection만 남아 Delete가 조용히 무시된다
+    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+      { type: 'sprite', id: STABLE_ID, index: 0 },
+    ]);
+  });
+
   it('stable native는 index가 틀려도 ID와 literal hidden으로 semantic op를 호출한다', async () => {
     const item: LayerItem = {
       type: 'key',
@@ -236,6 +259,21 @@ describe('useLayerActions visibility routing', () => {
       { fullId: 'plugin-a:one', hidden: false },
     ]);
     expect(mocks.reportSkipped).not.toHaveBeenCalled();
+  });
+
+  it('플러그인 이름 변경은 직접 메뉴 액션으로도 시작하지 않는다', async () => {
+    const item: LayerItem = {
+      type: 'plugin',
+      id: 'plugin-a:one',
+      name: 'plugin',
+      zIndex: 0,
+      hidden: false,
+    };
+    await act(async () => actions.handleContextMenu(click, item, 0));
+    await act(async () => actions.handleContextMenuSelect('rename'));
+
+    expect(actions.renamingItemId).toBeNull();
+    expect(mocks.patchLayerName).not.toHaveBeenCalled();
   });
 
   it('main stable group은 allHidden에서 계산한 absolute literal만 semantic helper에 넘긴다', async () => {
@@ -611,5 +649,147 @@ describe('useLayerActions visibility routing', () => {
     );
     expect(mocks.setGroupHidden).not.toHaveBeenCalled();
     expect(mocks.setPluginHidden).not.toHaveBeenCalled();
+  });
+
+  it('컨텍스트 메뉴는 item·group 상태별 exact 항목 순서를 유지한다', async () => {
+    const item: LayerItem = {
+      type: 'key',
+      id: STABLE_ID,
+      index: 0,
+      name: 'A',
+      zIndex: 0,
+      hidden: false,
+    };
+    const contextEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clientX: 10,
+      clientY: 20,
+    } as unknown as React.MouseEvent;
+
+    act(() => actions.handleContextMenu(contextEvent, item, 0));
+    expect(actions.contextMenuItems.map(({ id }) => id)).toEqual([
+      'rename',
+      'delete',
+    ]);
+
+    useGridSelectionStore.setState({
+      selectedElements: [
+        { type: 'key', id: STABLE_ID, index: 0 },
+        {
+          type: 'stat',
+          id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          index: 0,
+        },
+      ],
+    });
+    await exposeWithItems([]);
+    act(() => actions.handleContextMenu(contextEvent, item, 0));
+    expect(actions.contextMenuItems.map(({ id }) => id)).toEqual([
+      'rename',
+      'groupSelected',
+      'delete',
+    ]);
+
+    act(() =>
+      actions.handleContextMenu(
+        contextEvent,
+        { ...item, groupId: 'group-a' },
+        0,
+      ),
+    );
+    expect(actions.contextMenuItems.map(({ id }) => id)).toEqual([
+      'rename',
+      'removeFromGroup',
+      'delete',
+    ]);
+
+    act(() => actions.handleGroupHeaderContextMenu(contextEvent, 'group-a'));
+    expect(actions.contextMenuItems.map(({ id }) => id)).toEqual([
+      'renameGroup',
+      'ungroup',
+    ]);
+  });
+
+  it('rename 선택은 먼저 메뉴 상태를 닫고 다음 RAF에 input focus·select를 실행한다', async () => {
+    const item: LayerItem = {
+      type: 'key',
+      id: STABLE_ID,
+      index: 0,
+      name: 'Layer A',
+      zIndex: 0,
+      hidden: false,
+    };
+    const contextEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clientX: 10,
+      clientY: 20,
+    } as unknown as React.MouseEvent;
+    let scheduled: FrameRequestCallback | undefined;
+    const raf = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        scheduled = callback;
+        return 1;
+      });
+    const input = host.querySelector<HTMLInputElement>(
+      '[aria-label="rename input"]',
+    )!;
+    const focus = vi.spyOn(input, 'focus');
+    const select = vi.spyOn(input, 'select');
+
+    act(() => actions.handleContextMenu(contextEvent, item, 0));
+    await act(async () => actions.handleContextMenuSelect('rename'));
+
+    expect(actions.contextMenuOpen).toBe(false);
+    expect(actions.renamingItemId).toBe(STABLE_ID);
+    expect(actions.renameValue).toBe('Layer A');
+    expect(focus).not.toHaveBeenCalled();
+    expect(select).not.toHaveBeenCalled();
+
+    act(() => scheduled?.(0));
+    expect(focus).toHaveBeenCalledOnce();
+    expect(select).toHaveBeenCalledOnce();
+    raf.mockRestore();
+  });
+
+  it('group ungroup 비동기 실패는 reject를 전파하고 메뉴·group 상태를 열린 채 유지한다', async () => {
+    await exposeWithItems([
+      {
+        type: 'key',
+        id: STABLE_ID,
+        index: 0,
+        name: 'A',
+        zIndex: 0,
+        hidden: false,
+        groupId: 'group-a',
+      },
+    ]);
+    const contextEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clientX: 10,
+      clientY: 20,
+    } as unknown as React.MouseEvent;
+    const failure = new Error('ungroup failed');
+    mocks.setMixedElementGroups.mockRejectedValueOnce(failure);
+
+    act(() => actions.handleGroupHeaderContextMenu(contextEvent, 'group-a'));
+    let rejected: unknown;
+    await act(async () => {
+      try {
+        await actions.handleContextMenuSelect('ungroup');
+      } catch (error) {
+        rejected = error;
+      }
+    });
+
+    expect(rejected).toBe(failure);
+    expect(actions.contextMenuOpen).toBe(true);
+    expect(actions.contextMenuItems.map(({ id }) => id)).toEqual([
+      'renameGroup',
+      'ungroup',
+    ]);
   });
 });

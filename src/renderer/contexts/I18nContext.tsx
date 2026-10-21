@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { SettingsDiff, SettingsState } from '@src/types/settings/settings';
 import { I18nContext } from './I18nContextDef';
 import type { SupportedLocale, I18nContextValue } from './I18nContextDef';
-import { settingsApi } from '@api/modules/settingsApi';
+import { settingsApi } from '@api/modules/app/settingsApi';
 
 export type { SupportedLocale } from './I18nContextDef';
 
@@ -213,12 +213,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const changeLocale = (next: SupportedLocale) => {
+  const changeLocale = async (next: SupportedLocale): Promise<void> => {
+    await settingsApi.update({ language: next });
     setLocaleState(next);
     safeLocalStorageSet(STORAGE_KEY, next);
-    settingsApi.update({ language: next }).catch((error) => {
-      console.error('Failed to update language', error);
-    });
   };
 
   const t = function translate(

@@ -51,7 +51,7 @@ export interface PropertyRowProps {
 export type {
   NumberInputProps,
   OptionalNumberInputProps,
-} from '@components/main/common/NumberInput';
+} from '@components/main/common/numberInput/NumberInput';
 
 export interface ColorInputProps {
   value: string;
@@ -244,7 +244,7 @@ export interface KeyData {
 // ============================================================================
 
 export interface LayerItem {
-  type: 'key' | 'stat' | 'graph' | 'knob' | 'plugin';
+  type: 'key' | 'stat' | 'graph' | 'knob' | 'sprite' | 'plugin';
   id: string;
   index?: number;
   name: string;

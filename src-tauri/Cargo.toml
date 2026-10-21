@@ -1,6 +1,6 @@
 [package]
 name = "dm-note"
-version = "2.0.0"
+version = "2.0.2"
 edition = "2021"
 rust-version = "1.88"
 default-run = "dm-note"
@@ -16,21 +16,21 @@ zip = "0.6"
 [dependencies]
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-base64 = "0.22"
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
+base64 = "0.23"
 minisign-verify = "0.2.5"
-thiserror = "1.0"
+thiserror = "2.0"
 parking_lot = "0.12"
 log = "0.4"
-notify = "6.1"
-notify-debouncer-mini = "0.4"
-fern = { version = "0.6", features = ["colored"] }
+notify = "8.2"
+notify-debouncer-mini = "0.7"
+fern = { version = "0.7", features = ["colored"] }
 tauri = { version = "~2.11.5", features = ["wry", "devtools", "macos-private-api", "protocol-asset", "tray-icon"] }
 tauri-runtime-wry = { version = "~2.11.4", features = ["devtools"] }
 tauri-plugin-single-instance = "2"
 once_cell = "1.19"
 open = "5.1"
-rfd = "0.14"
+rfd = "0.17"
 dirs-next = "2.0"
 uuid = { version = "1", features = ["v4"] }
 # 자동 업데이트 (Windows exe 교체 / macOS DMG 교체 공통)
@@ -41,13 +41,14 @@ plist = "1"
 url = "2"
 unicode-normalization = "0.1"
 zip = "0.6"
-sha2 = "0.10"
-quick-xml = "0.38"
-infer = "0.19"
+sha2 = "0.11"
+quick-xml = { version = "0.42", features = ["encoding"] }
+infer = "0.22"
+imagesize = "0.15"
 rodio = { git = "https://github.com/lee-sihun/rodio", rev = "7b771e15", default-features = false, features = ["playback"] }
 symphonia = { version = "0.5", default-features = false, features = ["ogg", "vorbis", "wav", "aiff", "mp3", "isomp4", "aac", "pcm", "adpcm", "flac", "alac"] }
 tokio = { version = "1", features = ["rt", "net", "sync", "time", "macros"] }
-tokio-tungstenite = "0.24"
+tokio-tungstenite = "0.30"
 futures-util = "0.3"
 local-ip-address = "0.6.10"
 ttf-parser = "0.25.1"
@@ -55,6 +56,9 @@ wuff = "0.2.8"
 
 [dev-dependencies]
 libc = "0.2"
+
+[target."cfg(unix)".dependencies]
+tokio = { version = "1", features = ["signal"] }
 
 [target."cfg(windows)".dependencies]
 cpal = { version = "0.17.3", optional = true, default-features = false, features = ["asio"] }
@@ -75,7 +79,7 @@ windows = { version = "0.61.3", features = [
 	"Win32_Security",
 	"Win32_UI_Shell"
 ] }
-thread-priority = "1.2"
+thread-priority = "3.1"
 self-replace = "1.5"
 
 [target."cfg(target_os = \"macos\")".dependencies]
@@ -85,7 +89,7 @@ objc = "0.2"
 objc2 = "0.6"
 objc-foundation = "0.1"
 cocoa = "0.22"
-thread-priority = "1.2"
+thread-priority = "3.1"
 
 # objc 크레이트의 매크로에서 발생하는 cfg 경고 억제
 [lints.rust]
@@ -97,9 +101,20 @@ lto = true
 codegen-units = 1
 opt-level = "z"  # 's'보다 더 공격적인 크기 최적화
 strip = true
-panic = "unwind" # macOS Objective-C 예외 포착에 필요
+panic = "unwind" # macOS Objective-C 예외 포착용 기본값 (Windows 배포 빌드는 abort로 재정의)
 
 # 빌드 시 release 의존성도 최적화
 [profile.release.package."*"]
 opt-level = "z"
 strip = true
+
+# Windows 반복 검증용 빠른 최적화 빌드 (설치 번들 생성 없음)
+[profile.release-fast]
+inherits = "release"
+codegen-units = 16
+incremental = true
+lto = false
+opt-level = 2
+
+[profile.release-fast.package."*"]
+opt-level = 2

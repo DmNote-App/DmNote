@@ -15,6 +15,8 @@ interface MockKeyState {
   selectedKeyType: string;
   isBootstrapped: boolean;
   customTabs: unknown[];
+  tabOrder?: string[];
+  barCount?: number;
 }
 
 type MockKeyStoreListener = (
@@ -44,7 +46,44 @@ vi.mock('@contexts/useTranslation', () => ({
 }));
 vi.mock('@stores/data/useKeyStore', () => ({
   useKeyStore: {
-    getState: vi.fn(() => mocks.keyState),
+    getState: vi.fn(() => ({
+      ...mocks.keyState,
+      // keys:mode-changed 수신부가 쓴다. 선택만 바꾸는 실제 동작을 흉내 낸다
+      commitSelectedKeyType: (selectedKeyType: string) => {
+        const previousState = mocks.keyState;
+        mocks.keyState = { ...previousState, selectedKeyType };
+        mocks.keyStoreListeners.forEach((listener) => {
+          listener(mocks.keyState, previousState);
+        });
+      },
+      adoptTabMetadataEvent: ({
+        customTabs,
+        tabOrder,
+        barCount,
+        selectedKeyType,
+        selectionAuthoritative,
+      }: {
+        customTabs: unknown[];
+        tabOrder: string[];
+        barCount: number;
+        selectedKeyType: string;
+        selectionAuthoritative: boolean;
+      }) => {
+        const previousState = mocks.keyState;
+        mocks.keyState = {
+          ...previousState,
+          customTabs,
+          tabOrder,
+          barCount,
+          selectedKeyType: selectionAuthoritative
+            ? selectedKeyType
+            : previousState.selectedKeyType,
+        };
+        mocks.keyStoreListeners.forEach((listener) => {
+          listener(mocks.keyState, previousState);
+        });
+      },
+    })),
     setState: vi.fn(
       (
         update:
@@ -99,7 +138,7 @@ vi.mock('@stores/useFontStore', () => ({
 vi.mock('@api/pluginDisplayElements', () => ({
   getUndoRedoInProgress: vi.fn(() => false),
 }));
-vi.mock('@api/modules/obsApi', () => ({
+vi.mock('@api/modules/window/obsApi', () => ({
   obsApi: {
     onResync: vi.fn((listener: () => void) => {
       mocks.resyncListener = listener;
@@ -116,24 +155,27 @@ vi.mock('@api/modules/shared', () => ({
     return vi.fn();
   }),
 }));
-vi.mock('@api/modules/appApi', () => ({
+vi.mock('@api/modules/app/appApi', () => ({
   acknowledgeLifecycleAfterEditorFlush: vi.fn(),
   cancelLifecycleEditorFlush: vi.fn(),
 }));
-vi.mock('@src/renderer/editor/runtime/editorStateCoordinator', () => ({
-  editorCoordinator: {
-    subscribe: vi.fn(() => vi.fn()),
-    getState: vi.fn(() => ({
-      conflict: null,
-      failureKind: null,
-      error: null,
-    })),
-    resolveConflict: vi.fn(),
-    start: vi.fn(),
-    sync: vi.fn(),
-  },
-}));
-vi.mock('@api/modules/panelWindowApi', () => ({
+vi.mock(
+  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
+  () => ({
+    editorCoordinator: {
+      subscribe: vi.fn(() => vi.fn()),
+      getState: vi.fn(() => ({
+        conflict: null,
+        failureKind: null,
+        error: null,
+      })),
+      resolveConflict: vi.fn(),
+      start: vi.fn(),
+      sync: vi.fn(),
+    },
+  }),
+);
+vi.mock('@api/modules/window/panelWindowApi', () => ({
   panelWindowApi: {
     onVisibility: vi.fn(() => vi.fn()),
     onCloseRequested: vi.fn(() => vi.fn()),
@@ -144,21 +186,24 @@ vi.mock('@api/modules/panelWindowApi', () => ({
 vi.mock('@plugins/runtime/displayElement/instancesUndoSync', () => ({
   initPluginInstancesUndoSync: vi.fn(),
 }));
-vi.mock('@api/modules/historyApi', () => ({
+vi.mock('@api/modules/editor/historyApi', () => ({
   historyApi: { onStatus: vi.fn(() => vi.fn()) },
 }));
 vi.mock('@stores/data/useHistoryStatusStore', () => ({
   useHistoryStatusStore: { getState: vi.fn(() => ({ applyStatus: vi.fn() })) },
   syncHistoryStatus: vi.fn(),
 }));
-vi.mock('@src/renderer/editor/runtime/lifecycleEditorFlush', () => ({
+vi.mock('@src/renderer/editor/runtime/lifecycle/lifecycleEditorFlush', () => ({
   flushFocusedEditor: vi.fn(),
 }));
-vi.mock('@src/renderer/editor/runtime/historyEditorFlushLock', () => ({
-  acquireHistoryEditorFlushLock: vi.fn(),
-  releaseHistoryEditorFlushLock: vi.fn(),
-  resetHistoryEditorFlushLock: vi.fn(),
-}));
+vi.mock(
+  '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock',
+  () => ({
+    acquireHistoryEditorFlushLock: vi.fn(),
+    releaseHistoryEditorFlushLock: vi.fn(),
+    resetHistoryEditorFlushLock: vi.fn(),
+  }),
+);
 vi.mock('@src/renderer/defaults', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@src/renderer/defaults')>()),
   initDefaults: vi.fn(),
@@ -240,6 +285,8 @@ const makeBootstrap = (
     graphPositions: {},
     knobPositions: {},
     customTabs: [],
+    tabOrder: ['4key', '5key', '6key', '8key'],
+    barCount: 4,
     selectedKeyType: '4key',
     currentMode: '4key',
     activeKeys: [],
@@ -666,6 +713,106 @@ describe('카운터 지연 타이머', () => {
     expect(getKeyCounterSignal('4key', 'KeyK').value).toBe(0);
     vi.advanceTimersByTime(1);
     expect(getKeyCounterSignal('4key', 'KeyK').value).toBe(1);
+  });
+
+  it('진행 중 연속 OBS 재동기화 요청을 한 번으로 합쳐 순서대로 적용한다', async () => {
+    let resolveFirst!: (bootstrap: BootstrapPayload) => void;
+    let resolveSecond!: (bootstrap: BootstrapPayload) => void;
+    const first = new Promise<BootstrapPayload>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const second = new Promise<BootstrapPayload>((resolve) => {
+      resolveSecond = resolve;
+    });
+    mocks.bootstrap.mockReset();
+    mocks.bootstrap.mockReturnValueOnce(first).mockReturnValueOnce(second);
+
+    act(() => {
+      mocks.resyncListener?.();
+      mocks.resyncListener?.();
+      mocks.resyncListener?.();
+    });
+
+    expect(mocks.bootstrap).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFirst(makeBootstrap({ '4key': { KeyK: 1 } }, 30000, 10));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mocks.bootstrap).toHaveBeenCalledTimes(2);
+    expect(getKeyCounterSignal('4key', 'KeyK').value).toBe(1);
+
+    await act(async () => {
+      resolveSecond(makeBootstrap({ '4key': { KeyK: 2 } }, 30000, 11));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mocks.bootstrap).toHaveBeenCalledTimes(2);
+    expect(getKeyCounterSignal('4key', 'KeyK').value).toBe(2);
+  });
+
+  it('초기 gate 전 queued resync는 bootstrap 실패 뒤 한 번만 실행해 복구한다', async () => {
+    act(() => root.unmount());
+    mounted = false;
+
+    let rejectInitial!: (reason?: unknown) => void;
+    const initialBootstrap = new Promise<BootstrapPayload>(
+      (_resolve, reject) => {
+        rejectInitial = reject;
+      },
+    );
+    const failure = new Error('initial bootstrap failed');
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mocks.bootstrap.mockReset();
+    mocks.bootstrap
+      .mockReturnValueOnce(initialBootstrap)
+      .mockResolvedValueOnce(makeBootstrap({ '4key': { KeyK: 6 } }, 30000, 20));
+    mocks.resyncListener = null;
+    mocks.keyState = {
+      ...mocks.keyState,
+      isBootstrapped: false,
+    };
+    setKeyCounter('4key', 'KeyK', 0);
+
+    root = createRoot(container);
+    mounted = true;
+    act(() => {
+      root.render(<Harness />);
+    });
+    expect(mocks.bootstrap).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      mocks.resyncListener?.();
+      mocks.resyncListener?.();
+      mocks.resyncListener?.();
+    });
+    expect(mocks.bootstrap).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      rejectInitial(failure);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(consoleError).toHaveBeenCalledWith('초기 부트스트랩 실패', failure);
+    expect(mocks.bootstrap).toHaveBeenCalledTimes(2);
+    expect(mocks.keyState.isBootstrapped).toBe(true);
+    expect(getKeyCounterSignal('4key', 'KeyK').value).toBe(6);
+  });
+
+  it('같은 세션에서 최신 revision보다 오래된 delta를 무시한다', () => {
+    emitCounter(5, '4key', 'KeyK', 5);
+    emitCounter(4, '4key', 'KeyK', 4);
+
+    expect(vi.getTimerCount()).toBe(1);
+    vi.advanceTimersByTime(30000);
+    expect(getKeyCounterSignal('4key', 'KeyK').value).toBe(5);
   });
 
   it('unmount 시 모든 카운터 타이머를 취소한다', () => {

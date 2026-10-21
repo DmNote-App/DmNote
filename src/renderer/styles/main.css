@@ -44,8 +44,8 @@ body {
 }
 
 /* 커스텀 커서 미리보기 */
-body.dmn-custom-cursor,
-body.dmn-custom-cursor * {
+html body.dmn-custom-cursor,
+html body.dmn-custom-cursor * {
   cursor: none !important;
 }
 
@@ -90,6 +90,106 @@ body.dmn-dragging,
 body.dmn-dragging * {
   cursor: -webkit-grabbing !important;
   cursor: grabbing !important;
+}
+
+/* ===== 탭 드래그 ===== */
+
+/* 개별 transform 속성을 쓴다. 한 덩어리 transform이면 위치는 즉시 따라가면서
+   집는 배율만 전이를 거는 게 불가능하다.
+   위치에는 전이가 없다 - 칩이 커서 뒤를 따라오면 드롭 슬롯을 겨눌 수 없다.
+   기울기도 전이를 걸지 않는다. 추종 스프링이 이미 늦춰서 주는데 여기서 또
+   늦추면 두 번 지연된다.
+   색에도 전이를 걸지 않는다 - 소켓을 켠 상대가 놓는 순간 반대편 자리로 옮겨가는데,
+   전이가 있으면 밝은 필이 그 자리까지 따라가 스르륵 꺼진다. 아무것도 없어야 할
+   자리에서 뭔가 번쩍이는 걸로 읽힌다 */
+.dmn-tab-chip {
+  position: relative;
+  translate: var(--tab-drag-x, 0px) var(--tab-drag-y, 0px);
+  rotate: var(--tab-tilt, 0deg);
+  scale: var(--tab-lift, 1);
+  transition: scale var(--ui-tab-lift-duration) var(--ui-tab-lift-ease);
+}
+
+/* 원본은 자리를 지키되 물러나 있는다 - 어디서 집었는지 보여야 한다 */
+.dmn-tab-chip[data-dragging='true'] {
+  opacity: 0.3;
+}
+
+/* 잡은 칩의 복제본. 팝업의 overflow·contain·마스크 밖으로 나와야 해서 body에 붙는다.
+   원본을 그대로 끌면 팝업 안에 갇힌다 - z-index로는 못 푸는 클리핑이다 */
+.dmn-tab-ghost {
+  z-index: var(--z-chrome-drag);
+  cursor: grabbing;
+  background-color: var(--ui-bg-elevated);
+  box-shadow: var(--ui-shadow-3);
+  /* 밑이 비쳐야 어디에 놓을지 보인다 */
+  opacity: var(--ui-tab-ghost-opacity);
+}
+
+/* 빗나가서 제자리로 돌아갈 때만 위치와 기울기에도 전이를 건다 */
+.dmn-tab-chip.dmn-tab-returning {
+  transition: translate var(--ui-tab-return-duration) var(--ui-tab-return-ease),
+    rotate var(--ui-tab-return-duration) var(--ui-tab-return-ease),
+    scale var(--ui-tab-return-duration) var(--ui-tab-return-ease);
+}
+
+/* 내용물이 뒤처지며 기운다. bend 변수는 드래그 컨트롤러가 rAF로 직접 쓴다.
+   xn/yn은 정규화값이 아니라 calc()에 넣으려고 단위만 뺀 같은 수다 */
+.dmn-tab-chip > * {
+  transform: translate(
+      calc(var(--tab-bend-x, 0px) * var(--ui-tab-bend-strength) * 2.4),
+      calc(var(--tab-bend-y, 0px) * var(--ui-tab-bend-strength) * 2.4)
+    )
+    skew(calc(var(--tab-bend-xn, 0) * var(--ui-tab-bend-strength) * -0.55deg))
+    scaleX(
+      calc(1 - var(--tab-bend-xn, 0) * var(--ui-tab-bend-strength) * 0.014)
+    );
+  transform-origin: center;
+}
+
+/* 자리에 내려앉는 순간. 눌렸다 살짝 넘어갔다 선다 - 이게 '탁' 하는 느낌을 만든다.
+   집혀 있던 배율에서 시작해야 튀지 않는다 */
+@keyframes dmn-tab-land {
+  0% {
+    scale: var(--ui-tab-lift-scale);
+  }
+  22% {
+    scale: 0.955;
+  }
+  58% {
+    scale: 1.018;
+  }
+  100% {
+    scale: 1;
+  }
+}
+
+.dmn-tab-chip.dmn-tab-landed {
+  animation: dmn-tab-land var(--ui-tab-land-duration) var(--ui-tab-land-ease)
+    both;
+}
+
+/* 교체 상대가 내주는 자리. 톤만 바꾼다 - 배율이나 이동을 넣으면 라운딩과
+   1px 인셋 링이 같이 줄어 패딩 공식이 깨지고 글자도 뭉갠다.
+   깊이는 위쪽 안쪽 그림자가 만든다 - 파인 자리로 읽힌다 */
+.dmn-tab-swap-target {
+  background-color: var(--ui-tab-socket-fill);
+  box-shadow: var(--ui-tab-socket-shadow);
+}
+
+:root[data-dmn-reduced-motion] .dmn-tab-chip,
+:root[data-dmn-reduced-motion] .dmn-tab-chip.dmn-tab-returning {
+  transition: none;
+  rotate: none;
+  scale: none;
+}
+
+:root[data-dmn-reduced-motion] .dmn-tab-chip > * {
+  transform: none;
+}
+
+:root[data-dmn-reduced-motion] .dmn-tab-chip.dmn-tab-landed {
+  animation: none;
 }
 
 /* ===== 글래스 백드롭 ===== */
@@ -171,39 +271,11 @@ body.dmn-dragging * {
   pointer-events: none;
 }
 
-/* 투명도 축소 설정 존중 — 남는 라이브 글래스(모달 카드·팝오버)를 고알파 솔리드로 강등
-   틴트 토큰만 요소 스코프에서 승격해 라운딩·인셋 링 재질은 그대로 유지.
-   값은 캔버스 위 라이브 합성 결과 기준 — 고알파 솔리드는 뒷면을 거의 안 받으므로
-   스크림 위 모달에서는 라이브보다 한 톤 밝게 뜬다. blur 없이는 맥락 반영이 불가능.
-   승격 값을 리터럴로 두면 요소 스코프가 테마 루트를 이겨 라이트에서도 다크 면이 뜬다 -
-   반드시 테마가 소유한 *-reduced 토큰을 거칠 것 */
-@media (prefers-reduced-transparency: reduce) {
-  .backdrop-glass,
-  .backdrop-glass-popup {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    --ui-glass: var(--ui-glass-reduced);
-    --ui-glass-heavy: var(--ui-glass-heavy-reduced);
-    --ui-glass-dim: var(--ui-glass-dim-reduced);
-  }
-
-  /* 스크림은 블러만 끄고 알파 딤으로 폴백 */
-  .backdrop-glass-scrim {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-
-  /* 루미노시티 캡은 블러 없는 표면에서 무의미 — 블렌드 패스도 함께 제거 */
-  .backdrop-glass::after,
-  .backdrop-glass-popup::after {
-    content: none;
-  }
-
-  /* 글래스 패널 틴트 사용처(사이드 패널 프레임·캔버스 팝업)도 동일 승격 */
-  .bg-glass-panel {
-    --ui-glass-panel: var(--ui-glass-panel-reduced);
-  }
-}
+/* 투명도 축소 설정(prefers-reduced-transparency)은 재질 결정에 쓰지 않는다.
+   Windows 쪽은 접근성 항목이 아니라 개인 설정 > 색의 토글이고 배터리 절약 모드가 임의로 끈다.
+   macOS는 WebKit이 지문 채취를 이유로 미구현이라 이 쿼리가 애초에 걸리지 않는다.
+   대신 앱 크롬에는 솔리드 폴백이 남지 않는다. 메인 창 유저 CSS는 그리드 미리보기로
+   스코프되므로(App.tsx의 USER_CSS_SCOPE_SELECTOR) 모달·패널을 덮지 못한다 */
 
 /* ===== 스크롤바 ===== */
 
@@ -395,10 +467,8 @@ body.dmn-dragging * {
   pointer-events: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dmn-icon-swap > [data-icon] {
-    transition: none;
-  }
+:root[data-dmn-reduced-motion] .dmn-icon-swap > [data-icon] {
+  transition: none;
 }
 
 /* 글자 스왑 — 바뀌는 부분만 겹쳐두고 크로스페이드.
@@ -444,10 +514,8 @@ body.dmn-dragging * {
   pointer-events: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dmn-text-swap > [data-text] {
-    transition: none;
-  }
+:root[data-dmn-reduced-motion] .dmn-text-swap > [data-text] {
+  transition: none;
 }
 
 /* 직접 클릭이 아닌 외부 상태 변경은 즉시 전환 —
@@ -470,11 +538,15 @@ body.dmn-dragging * {
    외부 상태 변경의 차단은 위 data-dmn-instant 규칙이 이미 소유 */
 .dmn-toggle-thumb {
   translate: 0 0;
-  /* 손을 뗀 뒤 원형으로 돌아오는 clock. 크기는 Tailwind 유틸이 소유하고
+  scale: 1;
+  /* 반지름은 눌림 안무의 일부라 CSS가 소유한다 (Tailwind rounded-full 대신).
+     9999px로 두면 전환이 클램프 구간에 갇혀 끝에서 툭 꺾인다 */
+  border-radius: calc(var(--ui-toggle-thumb-size) / 2);
+  /* 손을 뗀 뒤 원형으로 돌아오는 clock. 치수는 Tailwind 유틸이 소유하고
      여기서는 전환만 건다 */
   transition: translate var(--ui-toggle-duration) var(--ui-toggle-ease),
-    height var(--ui-toggle-release-duration) var(--ui-ease-out),
-    margin-top var(--ui-toggle-release-duration) var(--ui-ease-out);
+    scale var(--ui-toggle-release-duration) var(--ui-ease-out),
+    border-radius var(--ui-toggle-release-duration) var(--ui-ease-out);
 }
 
 [role='switch'][aria-checked='true'] .dmn-toggle-thumb {
@@ -482,58 +554,69 @@ body.dmn-dragging * {
 }
 
 /* 누르고 있는 동안 노브가 캡슐로 눌린다. 들어갈 때는 천천히, 나올 때는 빠르게 -
-   duration을 :active 쪽에 따로 걸어 비대칭으로 만든다.
-   커진 만큼 margin으로 절반씩 되밀어 제자리에서 퍼지게 한다. 진행 방향으로
-   퍼뜨리려면 기준변이 aria-checked를 따라가야 하는데, 손을 떼는 순간 기준이
-   뒤집히면서 아직 원형으로 안 돌아온 상태라 노브가 툭 튄다.
-   중심 유지면 그 충돌이 생기지 않고, 양쪽 다 인셋 안에서 끝난다.
-   이동은 translate라 크기 전환과 속성이 갈려 서로 덮어쓰지 않는다 */
-[role='switch']:active .dmn-toggle-thumb {
-  height: var(--ui-toggle-press-height);
-  /* 줄어든 만큼 되밀어 제자리에서 눌리게 한다 */
-  margin-top: calc(
-    (var(--ui-toggle-thumb-size) - var(--ui-toggle-press-height)) / 2
-  );
+   duration을 누름 쪽에 따로 걸어 비대칭으로 만든다.
+   누름 표면은 둘이다. :active는 행 전체가 role=switch인 설정 행에서 행을 눌렀을 때를
+   맡고, data-dmn-pressed는 노브를 직접 잡은 드래그 세션이 소유한다.
+   :active만으로는 부족하다 - 크로뮴은 포인터 캡처 중에도 :active를 히트테스트로 정해
+   트랙(28×16) 밖으로 커서가 나가는 순간 캡슐이 풀린다. 웹킷은 캡처 대상에 남겨
+   두 플랫폼이 갈리므로, 세션이 소유하는 표식으로 눌린 동안을 못 박는다.
+   눌림은 scale이 만든다 - 레이아웃 height는 정수 픽셀로 스냅돼 계단이 진다(토큰 주석).
+   scale 기준점이 중심이라 제자리에서 눌린다. 진행 방향으로 퍼뜨리려 기준변을
+   aria-checked에 묶던 옛 방식과 달리, 손을 떼는 순간 기준이 뒤집혀 노브가 툭 튀는
+   일이 없고 양쪽 다 인셋 안에서 끝난다.
+   translate와 scale은 각각 독립 변형 속성이라 이동과 눌림이 서로 덮어쓰지 않는다 */
+[role='switch']:active .dmn-toggle-thumb,
+[role='switch'][data-dmn-pressed] .dmn-toggle-thumb {
+  scale: 1 var(--ui-toggle-press-scale-y);
+  /* 반지름을 축별 배율로 나눠 되돌린다. 세로는 scale-y를 먹고 나면 press-height/2로
+     내려앉아 가로와 같아진다 - 그래서 눌린 노브가 타원이 아니라 캡슐이다 */
+  border-radius: calc(var(--ui-toggle-press-height) / 2) /
+    calc(var(--ui-toggle-thumb-size) / 2);
   transition: translate var(--ui-toggle-duration) var(--ui-toggle-ease),
-    height var(--ui-toggle-press-duration) var(--ui-toggle-press-ease),
-    margin-top var(--ui-toggle-press-duration) var(--ui-toggle-press-ease);
+    scale var(--ui-toggle-press-duration) var(--ui-toggle-press-ease),
+    border-radius var(--ui-toggle-press-duration) var(--ui-toggle-press-ease);
 }
 
 /* 노브를 끌고 있는 동안 - 손끝을 그대로 따라가야 하므로 이동 전환만 끈다.
    data-dmn-instant로 통째 끄면 트랙 색이 계단으로 튀고 누름 캡슐도 같이 죽는다.
-   위 :active 규칙이 transition 숏핸드를 다시 선언하므로 그보다 한 단계 위에서 잡는다.
+   위 누름 규칙이 transition 숏핸드를 다시 선언하므로 그보다 세게 잡는다. 첫 선택자는
+   누름 규칙과 특이도가 같아 소스 순서로만 이기니 순서를 바꾸면 조용히 진다.
    transition-property만 덮으면 안 된다 - 남은 duration·easing 목록이 인덱스로
-   다시 짝지어져 높이가 이동용 스프링 커브를 타고 캡슐이 튄다. 숏핸드로 다시 쓴다 */
+   다시 짝지어져 눌림이 이동용 스프링 커브를 타고 캡슐이 튄다. 숏핸드로 다시 쓴다.
+   scale과 border-radius는 반드시 같은 clock으로 묶는다 - 갈리면 중간 프레임에서
+   반지름이 높이 절반에서 어긋나 캡슐이 잠깐 타원이 된다 */
 [role='switch'][data-dmn-dragging] .dmn-toggle-thumb,
-[role='switch'][data-dmn-dragging]:active .dmn-toggle-thumb {
-  transition: height var(--ui-toggle-press-duration) var(--ui-toggle-press-ease),
-    margin-top var(--ui-toggle-press-duration) var(--ui-toggle-press-ease);
+[role='switch'][data-dmn-dragging]:active .dmn-toggle-thumb,
+[role='switch'][data-dmn-dragging][data-dmn-pressed] .dmn-toggle-thumb {
+  transition: scale var(--ui-toggle-press-duration) var(--ui-toggle-press-ease),
+    border-radius var(--ui-toggle-press-duration) var(--ui-toggle-press-ease);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  /* 트랙도 함께 꺼야 한다. 노브만 멈추면 노브는 즉시 점프하는데
-     트랙 색만 180ms 동안 흐르며 두 clock이 갈라진다.
-     Tailwind 유틸(transition-colors)을 이기려면 특이도가 한 단계 높아야 한다 */
-  [role='switch'].dmn-toggle-track {
-    transition: none;
-  }
+/* 트랙도 함께 꺼야 한다. 노브만 멈추면 노브는 즉시 점프하는데
+   트랙 색만 180ms 동안 흐르며 두 clock이 갈라진다.
+   Tailwind 유틸(transition-colors)을 이기려면 특이도가 한 단계 높아야 한다 */
+:root[data-dmn-reduced-motion] [role='switch'].dmn-toggle-track {
+  transition: none;
+}
 
-  .dmn-toggle-thumb,
-  [role='switch']:active .dmn-toggle-thumb {
-    transition: none;
-    /* 전환이 없으면 눌림이 깜빡임으로 읽히므로 변형 자체를 끈다 */
-    height: var(--ui-toggle-thumb-size);
-    margin-top: 0;
-  }
+:root[data-dmn-reduced-motion] .dmn-toggle-thumb,
+:root[data-dmn-reduced-motion] [role='switch']:active .dmn-toggle-thumb,
+:root[data-dmn-reduced-motion]
+  [role='switch'][data-dmn-pressed]
+  .dmn-toggle-thumb {
+  transition: none;
+  /* 전환이 없으면 눌림이 깜빡임으로 읽히므로 변형 자체를 끈다 */
+  scale: 1;
+  border-radius: calc(var(--ui-toggle-thumb-size) / 2);
+}
 
-  /* 세그먼트 인디케이터 — 토글 노브와 같은 성격의 슬라이딩이라 함께 끈다.
-     전이를 소유한 .dmn-segment-thumb 규칙이 이 블록보다 아래에 있어 같은 특이도로는
-     밀린다. 속성 선택자로 한 단계 올려 순서와 무관하게 이기게 한다.
-     승격(will-change)은 유지 — 모션을 끄는 것과 레이어 승격은 별개고,
-     끈 상태에서도 페인트 비용은 낮은 쪽이 낫다 */
-  .dmn-segment-thumb[aria-hidden] {
-    transition: none;
-  }
+/* 세그먼트 인디케이터 — 토글 노브와 같은 성격의 슬라이딩이라 함께 끈다.
+   전이를 소유한 .dmn-segment-thumb 규칙이 이 블록보다 아래에 있어 같은 특이도로는
+   밀린다. 속성 선택자로 한 단계 올려 순서와 무관하게 이기게 한다.
+   승격(will-change)은 유지 — 모션을 끄는 것과 레이어 승격은 별개고,
+   끈 상태에서도 페인트 비용은 낮은 쪽이 낫다 */
+:root[data-dmn-reduced-motion] .dmn-segment-thumb[aria-hidden] {
+  transition: none;
 }
 
 /* 세그먼트 인디케이터 — 전역 모션 다이얼과 분리. 근거는 tokens.css 참조.
@@ -571,11 +654,9 @@ body.dmn-dragging * {
   transform: translateX(0);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dmn-panel-toggle-divider,
-  .dmn-panel-toggle-lines {
-    transition: none;
-  }
+:root[data-dmn-reduced-motion] .dmn-panel-toggle-divider,
+:root[data-dmn-reduced-motion] .dmn-panel-toggle-lines {
+  transition: none;
 }
 
 @keyframes tooltipFadeIn {
@@ -727,12 +808,10 @@ body.dmn-dragging * {
     var(--ui-popup-ease);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dmn-motion,
-  .dmn-motion-content > *,
-  .dmn-scrim-motion {
-    transition: none;
-  }
+:root[data-dmn-reduced-motion] .dmn-motion,
+:root[data-dmn-reduced-motion] .dmn-motion-content > *,
+:root[data-dmn-reduced-motion] .dmn-scrim-motion {
+  transition: none;
 }
 
 /* 스테이지 콘텐츠 등장 — 비동기 준비(파형 디코드 등)를 마친 콘텐츠의 한 박자 페이드 */
@@ -870,24 +949,23 @@ body.dmn-dragging * {
   background: var(--ui-scrollbar-thumb-active);
 }
 
-/* 모션 축소 설정 존중 — 이동은 제거, 표시 자체는 유지 */
-@media (prefers-reduced-motion: reduce) {
-  .tooltip-fade-in,
-  .animate-stage-in,
-  .animate-pulse {
-    animation: none;
-  }
+/* 모션 축소 모드 — 이동은 제거, 표시 자체는 유지 */
+:root[data-dmn-reduced-motion] .tooltip-fade-in,
+:root[data-dmn-reduced-motion] .animate-stage-in,
+:root[data-dmn-reduced-motion] .animate-pulse,
+:root[data-dmn-reduced-motion] .dmn-reload-spin {
+  animation: none;
+}
 
-  /* 비활성 상태 셀렉터가 자체 transition을 가지므로 같은 특이도로 함께 무효화 */
-  .dmn-panel-page,
-  .dmn-panel-page[data-active='false'] {
-    transition: none;
-  }
+/* 비활성 상태 셀렉터가 자체 transition을 가지므로 같은 특이도로 함께 무효화 */
+:root[data-dmn-reduced-motion] .dmn-panel-page,
+:root[data-dmn-reduced-motion] .dmn-panel-page[data-active='false'] {
+  transition: none;
+}
 
-  .dmn-panel-page[data-active='false'] {
-    transform: none;
-    filter: none;
-  }
+:root[data-dmn-reduced-motion] .dmn-panel-page[data-active='false'] {
+  transform: none;
+  filter: none;
 }
 
 /* ===== 툴바 아이콘 호버 모션 =====
@@ -1086,10 +1164,8 @@ svg [data-dmn-icon-motion] {
   transition-timing-function: ease-out;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dmn-icon-press > .dmn-icon-motion {
-    transition: none;
-  }
+:root[data-dmn-reduced-motion] .dmn-icon-press > .dmn-icon-motion {
+  transition: none;
 }
 
 /* 문지르는 물건이라 툴바에서 유일하게 여러 번 왕복한다 */
@@ -1409,10 +1485,8 @@ svg [data-dmn-icon-motion] {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  [data-dmn-icon-play] [data-dmn-icon-motion] {
-    animation-name: none;
-  }
+:root[data-dmn-reduced-motion] [data-dmn-icon-play] [data-dmn-icon-motion] {
+  animation-name: none;
 }
 
 /* 숫자 스텝 팝인 - 방향키로 값이 바뀐 자릿수만 재생한다.
@@ -1462,10 +1536,8 @@ svg [data-dmn-icon-motion] {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dmn-digit-pop > span[data-dmn-digit-changed] {
-    animation-name: none;
-  }
+:root[data-dmn-reduced-motion] .dmn-digit-pop > span[data-dmn-digit-changed] {
+  animation-name: none;
 }
 
 /* 확정할 수 없는 입력 - 값으로 만들 수 없다는 걸 한 번 털어서 알린다.
@@ -1503,8 +1575,6 @@ svg [data-dmn-icon-motion] {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dmn-field-shake {
-    animation-name: none;
-  }
+:root[data-dmn-reduced-motion] .dmn-field-shake {
+  animation-name: none;
 }

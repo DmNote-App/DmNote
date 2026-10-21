@@ -5,17 +5,17 @@ import TabTool from './TabTool';
 import Github from '@assets/svgs/github.svg';
 import Bug from '@assets/svgs/code.svg';
 import FaderIcon from './icons/FaderIcon';
-import { TooltipGroup } from '../Modal/TooltipGroup';
+import { TooltipGroup } from '../Modal/tooltip/TooltipGroup';
 import { useTranslation } from '@contexts/useTranslation';
-import FloatingTooltip from '../Modal/FloatingTooltip';
+import FloatingTooltip from '../Modal/tooltip/FloatingTooltip';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { useSingleFlightAction } from '@hooks/useSingleFlightAction';
 import { useIconMotion } from '@hooks/useIconMotion';
-import { appApi } from '@api/modules/appApi';
+import { appApi } from '@api/modules/app/appApi';
 import { useModalLayerActive } from '../Modal/popupLayer';
 
 interface ToolBarProps {
-  onAddItem: (type: 'key' | 'stat' | 'graph' | 'knob') => void;
+  onAddItem: (type: 'key' | 'stat' | 'graph' | 'knob' | 'sprite') => void;
   onTogglePalette: () => void;
   onClosePalette: () => void;
   isPaletteOpen: boolean;
@@ -68,7 +68,10 @@ const ToolBar = ({
       data-dmn-modal-locked={modalLayerActive ? 'true' : undefined}
       aria-disabled={modalLayerActive || undefined}
       inert={modalLayerActive ? true : undefined}
-      className="relative flex flex-row items-center w-full h-[60px] min-h-[60px] p-[10px] bg-app border-t border-line justify-between"
+      // justify-between이 만드는 간격은 남는 공간이 있을 때만 생긴다. 탭 이름이
+      // 길어 좌측이 예산을 다 쓰면 0이 되어 좌우 그룹이 맞붙는다.
+      // gap은 남는 공간과 무관하게 먼저 떼어놓는 자리라 하한이 된다
+      className="relative flex flex-row items-center w-full h-[60px] min-h-[60px] p-[10px] gap-[8px] bg-app border-t border-line justify-between"
     >
       {isSettingsOpen ? (
         <TooltipGroup>

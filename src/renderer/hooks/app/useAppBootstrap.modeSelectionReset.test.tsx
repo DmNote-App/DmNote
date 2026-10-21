@@ -3,7 +3,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import type { BootstrapPayload } from '@src/types/app';
-import type { EditorCoordinatorState } from '@src/renderer/editor/runtime/editorCoordinator';
+import type { EditorCoordinatorState } from '@src/renderer/editor/runtime/coordinator/editorCoordinator';
+import {
+  isHistoryEditorFlushLocked,
+  subscribeHistoryEditorFlushStart,
+} from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -11,6 +15,9 @@ interface MockKeyState {
   selectedKeyType: string;
   isBootstrapped: boolean;
   customTabs: unknown[];
+  tabOrder?: string[];
+  barCount?: number;
+  deferredTabPlacement?: { tabOrder: string[]; barCount: number } | null;
 }
 
 type MockKeyStoreListener = (
@@ -18,17 +25,32 @@ type MockKeyStoreListener = (
   previousState: MockKeyState,
 ) => void;
 
+interface MockCustomTabsPayload {
+  customTabs: unknown[];
+  tabOrder: string[];
+  barCount: number;
+  selectedKeyType: string;
+  selectionAuthoritative: boolean;
+}
+
 const mocks = vi.hoisted(() => ({
   counterStateListener: null as null | ((payload: unknown) => void),
-  customTabsListener: null as
-    | null
-    | ((payload: { customTabs: unknown[]; selectedKeyType: string }) => void),
+  customTabsListener: null as null | ((payload: MockCustomTabsPayload) => void),
   presetSnapshotListener: null as null | ((payload: unknown) => void),
   resyncListener: null as null | (() => void),
   bootstrap: vi.fn(),
   syncHistoryStatus: vi.fn(),
-  dialogAlert: vi.fn(() => Promise.resolve()),
+  dialogAlert: vi.fn<(message: string, options?: unknown) => Promise<void>>(
+    () => Promise.resolve(),
+  ),
   editorStateListener: null as null | ((state: EditorCoordinatorState) => void),
+  closeListener: null as
+    | null
+    | ((payload: { handshakeId: string; action: 'history' | 'quit' }) => void),
+  releaseListener: null as null | ((payload: { handshakeId: string }) => void),
+  settle: vi.fn(),
+  ack: vi.fn(),
+  cancel: vi.fn(),
   editorState: {
     conflict: null,
     failureKind: null,
@@ -38,8 +60,11 @@ const mocks = vi.hoisted(() => ({
     selectedKeyType: '4key',
     isBootstrapped: true,
     customTabs: [],
+    tabOrder: ['4key', '5key', '6key', '8key'],
+    barCount: 4,
   } as MockKeyState,
   keyStoreListeners: new Set<MockKeyStoreListener>(),
+  adoptTabMetadataEvent: vi.fn<(payload: MockCustomTabsPayload) => void>(),
 }));
 
 vi.mock('@contexts/useTranslation', () => ({
@@ -47,7 +72,10 @@ vi.mock('@contexts/useTranslation', () => ({
 }));
 vi.mock('@stores/data/useKeyStore', () => ({
   useKeyStore: {
-    getState: vi.fn(() => mocks.keyState),
+    getState: vi.fn(() => ({
+      ...mocks.keyState,
+      adoptTabMetadataEvent: mocks.adoptTabMetadataEvent,
+    })),
     setState: vi.fn(
       (
         update:
@@ -102,7 +130,7 @@ vi.mock('@stores/useFontStore', () => ({
 vi.mock('@api/pluginDisplayElements', () => ({
   getUndoRedoInProgress: vi.fn(() => false),
 }));
-vi.mock('@api/modules/obsApi', () => ({
+vi.mock('@api/modules/window/obsApi', () => ({
   obsApi: {
     onResync: vi.fn((listener: () => void) => {
       mocks.resyncListener = listener;
@@ -116,26 +144,33 @@ vi.mock('@api/modules/shared', () => ({
     if (event === 'keys:counters-state') {
       mocks.counterStateListener = listener;
     }
+    if (event === 'app:close-requested') mocks.closeListener = listener;
+    if (event === 'app:history-flush-released')
+      mocks.releaseListener = listener;
     return vi.fn();
   }),
 }));
-vi.mock('@api/modules/appApi', () => ({
-  acknowledgeLifecycleAfterEditorFlush: vi.fn(),
-  cancelLifecycleEditorFlush: vi.fn(),
+vi.mock('@api/modules/app/appApi', () => ({
+  acknowledgeLifecycleAfterEditorFlush: mocks.ack,
+  cancelLifecycleEditorFlush: mocks.cancel,
+  windowApi: { showMain: vi.fn(async () => {}) },
 }));
-vi.mock('@src/renderer/editor/runtime/editorStateCoordinator', () => ({
-  editorCoordinator: {
-    subscribe: vi.fn((listener: (state: EditorCoordinatorState) => void) => {
-      mocks.editorStateListener = listener;
-      return vi.fn();
-    }),
-    getState: vi.fn(() => mocks.editorState),
-    resolveConflict: vi.fn(),
-    start: vi.fn(),
-    sync: vi.fn(),
-  },
-}));
-vi.mock('@api/modules/panelWindowApi', () => ({
+vi.mock(
+  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
+  () => ({
+    editorCoordinator: {
+      subscribe: vi.fn((listener: (state: EditorCoordinatorState) => void) => {
+        mocks.editorStateListener = listener;
+        return vi.fn();
+      }),
+      getState: vi.fn(() => mocks.editorState),
+      resolveConflict: vi.fn(),
+      start: vi.fn(),
+      sync: vi.fn(),
+    },
+  }),
+);
+vi.mock('@api/modules/window/panelWindowApi', () => ({
   panelWindowApi: {
     onVisibility: vi.fn(() => vi.fn()),
     onCloseRequested: vi.fn(() => vi.fn()),
@@ -157,20 +192,15 @@ vi.mock('@stores/grid/useGridSelectionStore', () => ({
 vi.mock('@plugins/runtime/displayElement/instancesUndoSync', () => ({
   initPluginInstancesUndoSync: vi.fn(),
 }));
-vi.mock('@api/modules/historyApi', () => ({
+vi.mock('@api/modules/editor/historyApi', () => ({
   historyApi: { onStatus: vi.fn(() => vi.fn()) },
 }));
 vi.mock('@stores/data/useHistoryStatusStore', () => ({
   useHistoryStatusStore: { getState: vi.fn(() => ({ applyStatus: vi.fn() })) },
   syncHistoryStatus: mocks.syncHistoryStatus,
 }));
-vi.mock('@src/renderer/editor/runtime/lifecycleEditorFlush', () => ({
-  flushFocusedEditor: vi.fn(),
-}));
-vi.mock('@src/renderer/editor/runtime/historyEditorFlushLock', () => ({
-  acquireHistoryEditorFlushLock: vi.fn(),
-  releaseHistoryEditorFlushLock: vi.fn(),
-  resetHistoryEditorFlushLock: vi.fn(),
+vi.mock('@src/renderer/editor/runtime/lifecycle/lifecycleEditorFlush', () => ({
+  flushFocusedEditor: mocks.settle,
 }));
 vi.mock('@src/renderer/defaults', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@src/renderer/defaults')>()),
@@ -266,12 +296,7 @@ const makeApiMock = () =>
       onCounterChanged: vi.fn(() => vi.fn()),
       customTabs: {
         onChanged: vi.fn(
-          (
-            listener: (payload: {
-              customTabs: unknown[];
-              selectedKeyType: string;
-            }) => void,
-          ) => {
+          (listener: (payload: MockCustomTabsPayload) => void) => {
             mocks.customTabsListener = listener;
             return vi.fn();
           },
@@ -290,7 +315,11 @@ const makeApiMock = () =>
       }),
     },
     ui: { dialog: { alert: mocks.dialogAlert } },
-    overlay: { onLock: vi.fn(() => vi.fn()), onAnchor: vi.fn(() => vi.fn()) },
+    overlay: {
+      get: vi.fn(async () => ({ visible: false })),
+      onLock: vi.fn(() => vi.fn()),
+      onAnchor: vi.fn(() => vi.fn()),
+    },
     css: { onUse: vi.fn(() => vi.fn()), onContent: vi.fn(() => vi.fn()) },
     js: { onUse: vi.fn(() => vi.fn()), onState: vi.fn(() => vi.fn()) },
   } as unknown as Window['api']);
@@ -308,6 +337,18 @@ describe('모드 전환 선택 리셋', () => {
     customTabs: [],
     selectedKeyType,
     tabNoteOverrides: {},
+  });
+
+  const customTabsPayload = (
+    selectedKeyType: string,
+    selectionAuthoritative = true,
+    customTabs: unknown[] = [],
+  ): MockCustomTabsPayload => ({
+    customTabs,
+    tabOrder: ['4key', '5key', '6key', '8key'],
+    barCount: 4,
+    selectedKeyType,
+    selectionAuthoritative,
   });
 
   const mount = async () => {
@@ -332,6 +373,11 @@ describe('모드 전환 선택 리셋', () => {
     mocks.presetSnapshotListener = null;
     mocks.dialogAlert.mockClear();
     mocks.editorStateListener = null;
+    mocks.closeListener = null;
+    mocks.releaseListener = null;
+    mocks.settle.mockReset().mockResolvedValue(true);
+    mocks.ack.mockReset().mockResolvedValue(undefined);
+    mocks.cancel.mockReset().mockResolvedValue(undefined);
     mocks.editorState = {
       conflict: null,
       failureKind: null,
@@ -343,6 +389,30 @@ describe('모드 전환 선택 리셋', () => {
       customTabs: [],
     };
     mocks.keyStoreListeners.clear();
+    mocks.adoptTabMetadataEvent.mockReset();
+    mocks.adoptTabMetadataEvent.mockImplementation(
+      ({
+        customTabs,
+        tabOrder,
+        barCount,
+        selectedKeyType,
+        selectionAuthoritative,
+      }) => {
+        const previousState = mocks.keyState;
+        mocks.keyState = {
+          ...previousState,
+          customTabs,
+          tabOrder,
+          barCount,
+          selectedKeyType: selectionAuthoritative
+            ? selectedKeyType
+            : previousState.selectedKeyType,
+        };
+        mocks.keyStoreListeners.forEach((listener) => {
+          listener(mocks.keyState, previousState);
+        });
+      },
+    );
     mocks.bootstrap.mockResolvedValue(makeBootstrap());
     clearSelection.mockClear();
 
@@ -362,23 +432,143 @@ describe('모드 전환 선택 리셋', () => {
 
   it('customTabs 변경이 모드를 바꾸면 선택을 리셋한다', () => {
     act(() => {
-      mocks.customTabsListener?.({ customTabs: [], selectedKeyType: '8key' });
+      mocks.customTabsListener?.(customTabsPayload('8key'));
     });
 
     expect(clearSelection).toHaveBeenCalledTimes(1);
     expect(mocks.keyState.selectedKeyType).toBe('8key');
   });
 
+  it.each(['history', 'quit'] as const)(
+    '%s 정산 실패를 취소하고 사용자에게 알린다',
+    async (action) => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      mocks.settle.mockResolvedValue(false);
+      await act(async () => {
+        mocks.closeListener?.({ handshakeId: 'failed-save', action });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(mocks.cancel).toHaveBeenCalledWith('failed-save');
+      expect(mocks.ack).not.toHaveBeenCalled();
+      expect(mocks.dialogAlert).toHaveBeenCalledOnce();
+      expect(mocks.dialogAlert.mock.calls[0][0]).toContain('저장에 실패해');
+    },
+  );
+
+  it('취소 리스너 예외는 즉시 취소 응답으로 연결하고 해제 후 다시 실행할 수 있다', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failure = new Error('gesture cancellation failed');
+    const cancelNext = vi.fn();
+    const unsubscribeFailure = subscribeHistoryEditorFlushStart(() => {
+      throw failure;
+    });
+    const unsubscribeNext = subscribeHistoryEditorFlushStart(cancelNext);
+    let finishCancel!: () => void;
+    mocks.cancel.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishCancel = resolve;
+        }),
+    );
+    try {
+      await act(async () => {
+        expect(() =>
+          mocks.closeListener?.({
+            handshakeId: 'failed-cancellation',
+            action: 'history',
+          }),
+        ).not.toThrow();
+        expect(document.documentElement.inert).toBe(true);
+        await Promise.resolve();
+      });
+      expect(cancelNext).toHaveBeenCalledOnce();
+      expect(mocks.cancel).toHaveBeenCalledExactlyOnceWith(
+        'failed-cancellation',
+      );
+      expect(mocks.settle).not.toHaveBeenCalled();
+      expect(mocks.ack).not.toHaveBeenCalled();
+      expect(mocks.dialogAlert).not.toHaveBeenCalled();
+      await act(async () => {
+        mocks.releaseListener?.({ handshakeId: 'failed-cancellation' });
+        finishCancel();
+      });
+      expect(isHistoryEditorFlushLocked()).toBe(false);
+      expect(document.documentElement.inert).toBe(false);
+      expect(mocks.dialogAlert).toHaveBeenCalledOnce();
+      expect(mocks.dialogAlert.mock.calls[0][0]).toContain('실행 취소');
+      unsubscribeFailure();
+      mocks.settle.mockImplementationOnce(async () => {
+        expect(document.documentElement.inert).toBe(true);
+        return true;
+      });
+      await act(async () => {
+        mocks.closeListener?.({
+          handshakeId: 'next-history',
+          action: 'history',
+        });
+      });
+      expect(mocks.settle).toHaveBeenCalledOnce();
+      expect(mocks.ack).toHaveBeenCalledExactlyOnceWith('next-history');
+      mocks.releaseListener?.({ handshakeId: 'next-history' });
+      expect(isHistoryEditorFlushLocked()).toBe(false);
+    } finally {
+      unsubscribeFailure();
+      unsubscribeNext();
+    }
+  });
+
+  it('재시도할 초안이 없는 transient 오류도 한 번 안내한다', () => {
+    const state = {
+      ...mocks.editorState,
+      phase: 'error',
+      dirty: false,
+      failureKind: 'transient',
+      error: { errorCode: 'IO_ERROR', message: 'failed', retryable: true },
+    } as EditorCoordinatorState;
+    act(() => {
+      mocks.editorStateListener?.(state);
+      mocks.editorStateListener?.(state);
+    });
+    expect(mocks.dialogAlert).toHaveBeenCalledOnce();
+    expect(mocks.dialogAlert.mock.calls[0][0]).toContain(
+      '편집 저장 중 문제가 생겼습니다',
+    );
+  });
+
+  it('보존된 transient 초안은 상태 안내에 맡기고 대화상자를 중복 표시하지 않는다', () => {
+    const state = {
+      ...mocks.editorState,
+      phase: 'error',
+      dirty: true,
+      failureKind: 'transient',
+      error: { errorCode: 'IO_ERROR', message: 'failed', retryable: true },
+    } as EditorCoordinatorState;
+    act(() => {
+      mocks.editorStateListener?.(state);
+    });
+    expect(mocks.dialogAlert).not.toHaveBeenCalled();
+  });
+
   it('customTabs만 바뀌고 모드가 같으면 선택을 건드리지 않는다', () => {
     act(() => {
-      mocks.customTabsListener?.({
-        customTabs: [{ id: 'tab-a' }],
-        selectedKeyType: '4key',
-      });
+      mocks.customTabsListener?.(
+        customTabsPayload('4key', true, [{ id: 'tab-a' }]),
+      );
     });
 
     expect(clearSelection).not.toHaveBeenCalled();
     expect(mocks.keyState.customTabs).toEqual([{ id: 'tab-a' }]);
+  });
+
+  it('선택 비권위 이벤트는 진행 중인 선택과 그리드 선택을 보존한다', () => {
+    mocks.keyState = { ...mocks.keyState, selectedKeyType: '8key' };
+
+    act(() => {
+      mocks.customTabsListener?.(customTabsPayload('4key', false));
+    });
+
+    expect(clearSelection).not.toHaveBeenCalled();
+    expect(mocks.keyState.selectedKeyType).toBe('8key');
   });
 
   it('프리셋 스냅샷이 모드를 바꾸면 선택을 리셋한다', () => {
@@ -395,6 +585,42 @@ describe('모드 전환 선택 리셋', () => {
     });
 
     expect(clearSelection).not.toHaveBeenCalled();
+  });
+
+  it('OBS 재동기화 탭 스냅샷도 store 채택 관문을 지난다', async () => {
+    const bootstrap = {
+      ...makeBootstrap(),
+      customTabs: [{ id: 'tab-a', name: 'A' }],
+      tabOrder: ['tab-a', '4key', '5key', '6key', '8key'],
+      barCount: 3,
+      selectedKeyType: 'tab-a',
+    } as unknown as BootstrapPayload;
+    mocks.bootstrap.mockResolvedValueOnce(bootstrap);
+    mocks.keyState = {
+      ...mocks.keyState,
+      customTabs: bootstrap.customTabs,
+      tabOrder: bootstrap.tabOrder,
+      barCount: bootstrap.barCount,
+      selectedKeyType: bootstrap.selectedKeyType,
+      deferredTabPlacement: {
+        tabOrder: ['8key', '6key', '5key', '4key'],
+        barCount: 2,
+      },
+    };
+    mocks.adoptTabMetadataEvent.mockClear();
+
+    await act(async () => {
+      mocks.resyncListener?.();
+      await Promise.resolve();
+    });
+
+    expect(mocks.adoptTabMetadataEvent).toHaveBeenCalledWith({
+      customTabs: bootstrap.customTabs,
+      tabOrder: bootstrap.tabOrder,
+      barCount: bootstrap.barCount,
+      selectedKeyType: bootstrap.selectedKeyType,
+      selectionAuthoritative: true,
+    });
   });
 
   it('OBS 런타임에서는 편집 히스토리 상태를 조회하지 않는다', async () => {
@@ -425,7 +651,7 @@ describe('모드 전환 선택 리셋', () => {
     await mount();
 
     act(() => {
-      mocks.customTabsListener?.({ customTabs: [], selectedKeyType: '8key' });
+      mocks.customTabsListener?.(customTabsPayload('8key'));
     });
 
     expect(clearSelection).not.toHaveBeenCalled();

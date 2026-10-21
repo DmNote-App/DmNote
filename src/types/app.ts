@@ -8,6 +8,7 @@ import {
 import type { StatItemPositions } from '@src/types/key/statItems';
 import type { GraphItemPositions } from '@src/types/key/graphItems';
 import type { KnobItemPositions } from '@src/types/key/knobs';
+import type { SpritePositions } from '@src/types/key/sprites';
 import type { DefaultsPayload } from '@src/renderer/defaults';
 import type { LayerGroups } from '@src/types/layerGroups';
 import type { TabNoteOverrides } from '@src/types/settings/noteSettings';
@@ -22,7 +23,10 @@ export interface BootstrapPayload {
   statPositions: StatItemPositions;
   graphPositions: GraphItemPositions;
   knobPositions: KnobItemPositions;
+  spritePositions: SpritePositions;
   customTabs: CustomTab[];
+  tabOrder: string[];
+  barCount: number;
   selectedKeyType: string;
   currentMode: string;
   // 부트스트랩 시점에 눌려 있던 키 (오버레이 지연 생성 시 DOWN 상태 복원용)
@@ -44,10 +48,15 @@ export interface BootstrapPayload {
 export interface CanonicalBootstrapPayload
   extends Omit<
     BootstrapPayload,
-    'positions' | 'statPositions' | 'graphPositions' | 'knobPositions'
+    | 'positions'
+    | 'statPositions'
+    | 'graphPositions'
+    | 'knobPositions'
+    | 'spritePositions'
   > {
   positions: CanonicalEditorDocumentV1['keyPositions'];
   statPositions: CanonicalEditorDocumentV1['statPositions'];
   graphPositions: CanonicalEditorDocumentV1['graphPositions'];
   knobPositions: CanonicalEditorDocumentV1['knobPositions'];
+  spritePositions: CanonicalEditorDocumentV1['spritePositions'];
 }

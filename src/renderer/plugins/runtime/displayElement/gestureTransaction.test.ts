@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { drainEditorWrites } from '@src/renderer/editor/runtime/editorWriteBarrier';
+import { drainEditorWrites } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
 import { EDITOR_OPS_VERSION } from '@src/types/editor';
 import {
   beginMixedGestureTransaction,
@@ -38,6 +38,7 @@ const mocks = vi.hoisted(() => {
       (_pluginId?: string, _gestureId?: string) => false,
     ),
     applyCanonical: vi.fn(() => Promise.resolve()),
+    cancelPending: vi.fn(),
     noteMutation: vi.fn(),
     noteRevision: vi.fn(),
     buildSaved: vi.fn(
@@ -62,11 +63,14 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@src/renderer/editor/runtime/editorStateCoordinator', () => ({
-  editorCoordinator: { commitGesture: mocks.commitGesture },
-}));
+vi.mock(
+  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
+  () => ({
+    editorCoordinator: { commitGesture: mocks.commitGesture },
+  }),
+);
 
-vi.mock('@api/modules/gestureApi', () => ({
+vi.mock('@api/modules/editor/gestureApi', () => ({
   gestureApi: { commit: mocks.commitApi },
 }));
 
@@ -81,6 +85,7 @@ vi.mock('./instancesCommitQueue', () => ({
 
 vi.mock('./instancesUndoSync', () => ({
   applyCanonicalPluginInstances: mocks.applyCanonical,
+  cancelPendingPluginInstanceSaves: mocks.cancelPending,
   notePluginInstancesMutation: mocks.noteMutation,
 }));
 
@@ -149,6 +154,29 @@ describe('mixed gesture transaction lifecycle', () => {
 
     await expect(drainEditorWrites()).resolves.toBe(true);
     expect(mocks.unstage).toHaveBeenCalledWith('plugin-a', gestureId);
+  });
+
+  it('history cleanup은 커밋이 소유한 staged와 projection을 건드리지 않는다', async () => {
+    const work = deferred<void>();
+    const rollback = vi.fn();
+    mocks.commitGesture.mockReturnValueOnce(work.promise);
+    const committing = commitMixedGestureTransaction(
+      gestureId,
+      { schemaVersion: 1, statPositions: {} },
+      ['plugin-a'],
+    );
+
+    cancelUncommittedMixedGestureTransaction(gestureId, {
+      discardPendingSave: true,
+      beforeDiscard: rollback,
+    });
+
+    expect(mocks.cancelPending).not.toHaveBeenCalled();
+    expect(rollback).not.toHaveBeenCalled();
+    expect(mocks.unstage).not.toHaveBeenCalled();
+    work.resolve(undefined);
+    await committing;
+    await expect(drainEditorWrites()).resolves.toBe(true);
   });
 
   it('queue 대기 중 후속 plugin 편집을 실행 시점 스냅샷으로 커밋한다', async () => {

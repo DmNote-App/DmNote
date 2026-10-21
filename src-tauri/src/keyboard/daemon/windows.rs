@@ -185,6 +185,28 @@ fn vk_from_key_code(code: &str) -> Option<u32> {
         "Backquote" => Some(0xC0),
         "Minus" => Some(0xBD),
         "Equal" => Some(0xBB),
+        "CapsLock" => Some(0x14),
+        "ScrollLock" => Some(0x91),
+        "NumLock" => Some(0x90),
+        "Pause" => Some(0x13),
+        "PrintScreen" => Some(0x2C),
+        "ContextMenu" => Some(0x5D),
+        // 넘패드 숫자 — NumLock 켜짐 기준 VK
+        "Numpad0" => Some(0x60),
+        "Numpad1" => Some(0x61),
+        "Numpad2" => Some(0x62),
+        "Numpad3" => Some(0x63),
+        "Numpad4" => Some(0x64),
+        "Numpad5" => Some(0x65),
+        "Numpad6" => Some(0x66),
+        "Numpad7" => Some(0x67),
+        "Numpad8" => Some(0x68),
+        "Numpad9" => Some(0x69),
+        "NumpadMultiply" => Some(0x6A),
+        "NumpadAdd" => Some(0x6B),
+        "NumpadSubtract" => Some(0x6D),
+        "NumpadDecimal" => Some(0x6E),
+        "NumpadDivide" => Some(0x6F),
         _ => None,
     }
 }
@@ -632,4 +654,37 @@ pub(super) fn run_raw_input() -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn binding(key: &str, ctrl: bool) -> ShortcutBinding {
+        ShortcutBinding {
+            key: key.to_string(),
+            ctrl,
+            shift: false,
+            alt: false,
+            meta: false,
+        }
+    }
+
+    #[test]
+    fn ctrl_capslock_toggles_overlay() {
+        let unbound = binding("", false);
+        let mut state = HotkeyState::new(binding("CapsLock", true), unbound.clone(), unbound);
+        assert!(state.update(0x14, true).is_none());
+        assert!(state.update(0xA2, true).is_none());
+        assert!(matches!(
+            state.update(0x14, true),
+            Some(DaemonCommand::ToggleOverlay)
+        ));
+    }
+
+    #[test]
+    fn unknown_key_code_stays_unbound() {
+        assert_eq!(vk_from_key_code("Lang1"), None);
+        assert!(ParsedHotkey::from_binding(&binding("", false)).is_none());
+    }
 }

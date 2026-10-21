@@ -1,8 +1,8 @@
-import { gestureApi } from '@api/modules/gestureApi';
-import { editorApi } from '@api/modules/editorApi';
-import { editorCoordinator } from '@src/renderer/editor/runtime/editorStateCoordinator';
-import { trackEditorWrite } from '@src/renderer/editor/runtime/editorWriteBarrier';
-import { ElementIntentAbort } from '@src/renderer/editor/runtime/elementIntent';
+import { gestureApi } from '@api/modules/editor/gestureApi';
+import { editorApi } from '@api/modules/editor/editorApi';
+import { editorCoordinator } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
+import { trackEditorWrite } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
+import { ElementIntentAbort } from '@src/renderer/editor/runtime/intent/elementIntent';
 import { stableStringify } from '@utils/core/stableStringify';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useHistoryStatusStore } from '@stores/data/useHistoryStatusStore';
@@ -13,6 +13,7 @@ import {
 } from '@plugins/runtime/pluginModelRevision';
 import {
   applyCanonicalPluginInstances,
+  cancelPendingPluginInstanceSaves,
   notePluginInstancesMutation,
 } from './instancesUndoSync';
 import { buildSavedPluginInstances } from '../api/defineElement';
@@ -29,7 +30,7 @@ import { EDITOR_OPS_VERSION } from '@src/types/editor';
 import type {
   EditorGestureOpsMutation,
   EditorPatchGenerator,
-} from '@src/renderer/editor/runtime/editorCoordinator';
+} from '@src/renderer/editor/runtime/coordinator/editorCoordinator';
 import type {
   CanonicalEditorDocumentV1,
   EditorOpV1,
@@ -109,9 +110,21 @@ export const cancelMixedGestureTransaction = (gestureId: string): void => {
 // staged가 남으면 barrier가 영구 대기하므로, 커밋이 시작되지 않은 것만 정산
 export const cancelUncommittedMixedGestureTransaction = (
   gestureId: string,
+  options: {
+    discardPendingSave?: boolean;
+    beforeDiscard?: (pluginId: string) => void;
+  } = {},
 ): void => {
   const staged = stagedGestures.get(gestureId);
   if (!staged || staged.committing) return;
+  if (options.discardPendingSave) {
+    staged.pluginIds.forEach((pluginId) => {
+      if (getStagedPluginInstancesGestureId(pluginId) === gestureId) {
+        options.beforeDiscard?.(pluginId);
+        cancelPendingPluginInstanceSaves(pluginId);
+      }
+    });
+  }
   settleMixedGestureTransaction(gestureId);
 };
 

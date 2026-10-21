@@ -152,7 +152,7 @@ mod tests {
             serde_json::json!({ "token": token, "protocol": OBS_PROTOCOL_VERSION }),
         );
         websocket
-            .send(Message::Text(hello.to_string()))
+            .send(Message::text(hello.to_string()))
             .await
             .expect("OBS hello 전송 실패");
 

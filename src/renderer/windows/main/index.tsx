@@ -1,6 +1,9 @@
 import '@styles/tokens.css';
 import '@styles/global.css';
 import '@styles/main.css';
+import { initializeMotionPreferences } from '@utils/animation/motionPreferences';
+
+initializeMotionPreferences();
 
 const benchmarkName = new URLSearchParams(window.location.search).get(
   'benchmark',
@@ -9,7 +12,7 @@ const benchmarkName = new URLSearchParams(window.location.search).get(
 const bootstrapBenchmark = async (): Promise<boolean> => {
   if (benchmarkName === 'shadow-toggle') {
     const { mountShadowToggleBenchmark } = await import(
-      '../../benchmarks/shadowToggleBenchmark'
+      '../../benchmarks/controls/shadowToggleBenchmark'
     );
     mountShadowToggleBenchmark();
     return true;

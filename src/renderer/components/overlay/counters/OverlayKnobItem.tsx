@@ -1,9 +1,10 @@
 'use no memo';
 import React, { useEffect, useState } from 'react';
+import KnobFace from '@components/shared/KnobFace';
 import { useSignals } from '@preact/signals-react/runtime';
 import { getAxisSignal } from '@stores/signals/axisSignals';
-import { resolveImageSource } from '@utils/core/imageSource';
-import { warmupImageSource } from '@utils/core/imageWarmup';
+import { resolveImageSource } from '@utils/media/imageSource';
+import { warmupImageSource } from '@utils/media/imageWarmup';
 import {
   DEFAULT_ELEMENT_BG,
   DEFAULT_ELEMENT_ACTIVE_BG,
@@ -11,11 +12,10 @@ import {
   DEFAULT_ELEMENT_ACTIVE_FONT,
   DEFAULT_ELEMENT_SHADOW_SPEC,
   DEFAULT_ELEMENT_ACTIVE_SHADOW_SPEC,
-} from '@utils/core/elementDefaults';
-import { resolveElementBorder } from '@utils/core/elementBorder';
+} from '@utils/element/elementDefaults';
+import { resolveElementBorder } from '@utils/element/elementBorder';
 import {
   gradientToCss,
-  gradientRingStyle,
   resolveStatePair,
   type GradientSpec,
 } from '@src/types/color';
@@ -24,6 +24,7 @@ import {
   resolveElementShadow,
   type ElementShadowSpec,
 } from '@src/types/key/shadows';
+import { elementRotationTransform } from '@utils/element/rotation';
 
 interface KnobPosition {
   hidden?: boolean;
@@ -34,6 +35,7 @@ interface KnobPosition {
   dy?: number;
   width?: number;
   height?: number;
+  rotation?: number;
   className?: string;
   zIndex?: number;
   activeImage?: string;
@@ -216,11 +218,15 @@ const OverlayKnobItem = ({ position, index = 0 }: OverlayKnobItemProps) => {
     }),
   );
 
-  const transform = `translate3d(calc(${dx}px + var(--key-offset-x, 0px)), calc(${dy}px + var(--key-offset-y, 0px)), 0)`;
+  // 요소 회전은 배치 div에만 - 안쪽 KnobFace의 rotate는 HID 값 표시라 섞지 않는다
+  const transform = `translate3d(calc(${dx}px + var(--key-offset-x, 0px)), calc(${dy}px + var(--key-offset-y, 0px)), 0)${elementRotationTransform(
+    position.rotation,
+  )}`;
 
   return (
     <div
       className={`absolute select-none ${className || ''}`}
+      data-overlay-hit="true"
       style={{
         width: `${width}px`,
         height: `${height}px`,
@@ -229,84 +235,26 @@ const OverlayKnobItem = ({ position, index = 0 }: OverlayKnobItemProps) => {
         contain: 'layout style',
       }}
     >
-      <div
-        style={
-          {
-            width: '100%',
-            height: '100%',
-            overflow: 'hidden',
-            position: 'relative',
-            ...(useInline
-              ? {
-                  borderRadius: resolvedRadius,
-                  background: resolvedBackground,
-                  backgroundClip: 'padding-box',
-                  border: resolvedBorder,
-                  padding: showBorderRing
-                    ? `${gradientRingWidth}px`
-                    : undefined,
-                  boxShadow: resolvedShadow,
-                }
-              : {
-                  '--dmn-knob-bg-default': resolvedBackground,
-                  '--dmn-knob-border-default': resolvedBorder,
-                  '--dmn-knob-radius-default': resolvedRadius,
-                  '--dmn-knob-padding-default': showBorderRing
-                    ? `${gradientRingWidth}px`
-                    : '0px',
-                  '--dmn-knob-shadow-default': resolvedShadow,
-                  '--dmn-knob-indicator-default': stateBorderColor,
-                }),
-            boxSizing: 'border-box',
-            transform: `rotate(${angle}deg)`,
-            transition: 'transform 0.1s linear',
-            willChange: 'transform',
-            backfaceVisibility: 'hidden',
-          } as React.CSSProperties
-        }
-        data-knob-element="true"
-        data-knob-state={isActive ? 'active' : 'inactive'}
-      >
-        {showBorderRing && borderSpec && (
-          <span
-            aria-hidden="true"
-            data-gradient-border-ring="true"
-            style={{
-              ...gradientRingStyle(borderSpec, gradientRingWidth),
-              ...(useInline ? { background: gradientToCss(borderSpec) } : {}),
-            }}
-          />
-        )}
-        {imageSrc ? (
-          <img
-            src={imageSrc}
-            alt=""
-            draggable={false}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: resolvedFit,
-              pointerEvents: 'none',
-              userSelect: 'none',
-            }}
-          />
-        ) : (
-          // 기본 원형 + 회전 인식용 중앙 일자 막대
-          <div
-            style={{
-              position: 'absolute',
-              top: '12%',
-              left: '50%',
-              width: '8%',
-              height: '76%',
-              transform: 'translateX(-50%)',
-              background: useInline ? stateBorderColor : undefined,
-              borderRadius: '4px',
-            }}
-            data-knob-indicator="true"
-          />
-        )}
-      </div>
+      <KnobFace
+        active={isActive}
+        useInlineStyles={useInline}
+        background={resolvedBackground}
+        border={resolvedBorder}
+        borderRadius={resolvedRadius}
+        shadow={resolvedShadow}
+        indicatorColor={stateBorderColor}
+        borderGradient={borderSpec}
+        borderWidth={gradientRingWidth}
+        showBorderRing={showBorderRing}
+        imageSrc={imageSrc}
+        imageFit={resolvedFit}
+        motionStyle={{
+          transform: `rotate(${angle}deg)`,
+          transition: 'transform 0.1s linear',
+          willChange: 'transform',
+          backfaceVisibility: 'hidden',
+        }}
+      />
     </div>
   );
 };

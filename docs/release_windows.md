@@ -40,7 +40,7 @@ git push origin main
 - `DM.NOTE.exe`
 - `DM.NOTE.v.X.Y.Z.zip`
 
-이미 publish된 릴리즈는 자동으로 덮어쓰지 않는다. 운영 인증서 활성화 전 Windows 자산은 미서명이므로 publish 전에 릴리즈 노트에 이 사실을 명시한다. 테스트 인증서로 서명된 파일을 대신 배포하지 않는다.
+이미 publish된 릴리즈는 자동으로 덮어쓰지 않는다. 운영 인증서 활성화 전 Windows 자산은 미서명이다. 릴리즈 본문에는 이 사실을 따로 표기하지 않는다. 테스트 인증서로 서명된 파일을 대신 배포하지 않는다.
 
 ## 3. SignPath Artifact Configuration
 

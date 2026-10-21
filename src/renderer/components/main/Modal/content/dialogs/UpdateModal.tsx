@@ -3,7 +3,7 @@ import { useTranslation } from '@contexts/useTranslation';
 import Modal from '../../Modal';
 import { useSingleFlightAction } from '@hooks/useSingleFlightAction';
 import { useModalPresence } from '@hooks/ui/usePopupPresence';
-import { appApi } from '@api/modules/appApi';
+import { appApi } from '@api/modules/app/appApi';
 
 interface UpdateInfo {
   currentVersion: string;
@@ -93,9 +93,7 @@ const UpdateModal = ({
     <Modal
       motionState={motionState}
       onClick={handleClose}
-      ariaLabel={
-        isLatestVersion ? t('update.latestAlready') : t('update.title')
-      }
+      ariaLabel={t(isLatestVersion ? 'update.latestAlready' : 'update.title')}
       contentMountStrategy="after-paint"
     >
       <div

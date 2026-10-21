@@ -23,10 +23,10 @@ vi.mock('./TabTool', () => ({
 vi.mock('@assets/svgs/github.svg', () => ({ default: () => null }));
 vi.mock('@assets/svgs/code.svg', () => ({ default: () => null }));
 vi.mock('./icons/FaderIcon', () => ({ default: () => null }));
-vi.mock('../Modal/TooltipGroup', () => ({
+vi.mock('../Modal/tooltip/TooltipGroup', () => ({
   TooltipGroup: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock('../Modal/FloatingTooltip', () => ({
+vi.mock('../Modal/tooltip/FloatingTooltip', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock('@contexts/useTranslation', () => ({

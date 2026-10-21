@@ -2,7 +2,7 @@ import React, { act, useEffect, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PopupExit from './PopupExit';
-import FloatingPopup from './FloatingPopup';
+import FloatingPopup from './floatingPopup/FloatingPopup';
 
 // 피커를 대신하는 최소 자식.
 // commitOnUnmount는 colorPickerPrimitives의 "드래그 중 언마운트돼도 마지막 값을
@@ -125,6 +125,37 @@ describe('PopupExit', () => {
     expect(panel()?.dataset.open).toBe('true');
     expect(onMount).toHaveBeenCalledTimes(2);
     expect(onCommit).toHaveBeenCalledWith('fill');
+  });
+
+  it('splits the session when the child key changes while open', async () => {
+    const onMount = vi.fn();
+    const onCommit = vi.fn();
+
+    const renderKeyed = async (target: string) => {
+      await act(async () => {
+        root.render(
+          <PopupExit open>
+            <Panel
+              key={target}
+              open
+              target={target}
+              onMount={onMount}
+              onCommit={onCommit}
+            />
+          </PopupExit>,
+        );
+      });
+    };
+
+    await renderKeyed('fill');
+    expect(onMount).toHaveBeenCalledTimes(1);
+
+    // 닫힘 없이 대상만 교체 (상태 행 전환) - 세션이 끊겨 새 인스턴스가 마운트된다
+    await renderKeyed('stroke');
+    expect(onMount).toHaveBeenCalledTimes(2);
+    // 이전 세션의 언마운트 커밋은 자기 대상으로 간다
+    expect(onCommit).toHaveBeenCalledWith('fill');
+    expect(onCommit).not.toHaveBeenCalledWith('stroke');
   });
 
   // 이 조합이 실제 payoff다 - 호출부가 대상을 비워도 팝업이 퇴장 상태를 거친다

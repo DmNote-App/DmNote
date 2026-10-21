@@ -1,13 +1,24 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Rollup } from 'vite';
 import react from '@vitejs/plugin-react';
 import svgr from 'vite-plugin-svgr';
 import path from 'path';
-import { visualizer } from 'rollup-plugin-visualizer';
 import analyzer from 'rollup-plugin-analyzer';
 import removeConsole from './vite-plugin-remove-console.js';
 import pkg from './package.json';
 
-export default defineConfig(() => {
+const onRollupWarning: Rollup.WarningHandlerWithDefault = (warning, warn) => {
+  const isReactCompilerDirective =
+    warning.code === 'MODULE_LEVEL_DIRECTIVE' &&
+    warning.message.includes('"use no memo"') &&
+    /[\\/]src[\\/]renderer[\\/]/.test(warning.id ?? '');
+
+  // React Compiler 제어 지시문은 번들 실행 시 의미가 없고 소스 변환 단계에서만 소비됨
+  if (isReactCompilerDirective) return;
+
+  warn(warning);
+};
+
+export default defineConfig(async () => {
   const projectRoot = __dirname;
   const rendererRoot = path.resolve(projectRoot, 'src/renderer');
   const windowsRoot = path.resolve(rendererRoot, 'windows');
@@ -55,7 +66,7 @@ export default defineConfig(() => {
           summaryOnly: true,
         }),
       isAnalyze &&
-        visualizer({
+        (await import('rollup-plugin-visualizer')).visualizer({
           filename: path.resolve(projectRoot, 'dist', 'stats.html'),
           template: 'treemap',
           gzipSize: true,
@@ -94,7 +105,10 @@ export default defineConfig(() => {
     build: {
       outDir: path.resolve(projectRoot, 'dist/renderer'),
       emptyOutDir: true,
+      // 데스크톱 앱에 내장되는 메인 UI 청크의 현재 상한
+      chunkSizeWarningLimit: 700,
       rollupOptions: {
+        onwarn: onRollupWarning,
         input: {
           main: path.resolve(windowsRoot, 'main/index.html'),
           overlay: path.resolve(windowsRoot, 'overlay/index.html'),
