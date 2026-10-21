@@ -156,6 +156,7 @@ fn full_preset_settings_patch_preserves_custom_css_history() {
     }];
     let mut store = AppStoreData {
         custom_css_history: history.clone(),
+        ui_theme: crate::models::UiTheme::Light,
         ..AppStoreData::default()
     };
     let mut preset = PresetFile {
@@ -167,6 +168,8 @@ fn full_preset_settings_patch_preserves_custom_css_history() {
         ..PresetFile::default()
     };
     let resolved = resolve_full_preset_settings(&mut preset, &store);
+    let preset_wire = serde_json::to_value(&preset).expect("preset 직렬화");
+    assert!(preset_wire.get("uiTheme").is_none());
     let patch = SettingsPatchInput {
         use_custom_css: Some(resolved.use_custom_css),
         custom_css: Some(CustomCssPatch {
@@ -176,9 +179,10 @@ fn full_preset_settings_patch_preserves_custom_css_history() {
         ..SettingsPatchInput::default()
     };
 
-    apply_patch_to_store(&mut store, &patch);
+    apply_patch_to_store(&mut store, &patch).expect("preset 설정 적용");
 
     assert_eq!(store.custom_css_history, history);
+    assert_eq!(store.ui_theme, crate::models::UiTheme::Light);
 }
 
 #[test]

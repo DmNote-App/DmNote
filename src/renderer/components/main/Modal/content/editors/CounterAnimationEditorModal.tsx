@@ -199,7 +199,7 @@ const CounterAnimationEditorModal = ({
       onClose={onClose}
       title={headerTitle}
       headerInfo={
-        <div className="min-w-0 flex items-center gap-[6px] text-fg-faint">
+        <div className="min-w-0 flex items-center gap-[6px] text-fg-caption">
           <svg
             className="w-[14px] h-[14px] shrink-0"
             viewBox="0 0 24 24"

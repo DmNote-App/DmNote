@@ -184,7 +184,7 @@ const GridSelectionOverlays = ({
           pluginElements,
         );
       const color = nonResizable
-        ? 'rgba(251, 146, 60, 0.9)'
+        ? 'var(--ui-warning)'
         : isMultiSelection
         ? GROUP_SELECTION_BORDER_COLOR
         : 'var(--ui-selection-border)';

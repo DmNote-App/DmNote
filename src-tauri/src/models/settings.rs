@@ -1,10 +1,44 @@
 use super::*;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum UiTheme {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl TryFrom<&str> for UiTheme {
+    type Error = ();
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "system" => Ok(Self::System),
+            "light" => Ok(Self::Light),
+            "dark" => Ok(Self::Dark),
+            _ => Err(()),
+        }
+    }
+}
+
+impl UiTheme {
+    pub(crate) fn as_tauri_theme(self) -> Option<tauri::Theme> {
+        match self {
+            Self::System => None,
+            Self::Light => Some(tauri::Theme::Light),
+            Self::Dark => Some(tauri::Theme::Dark),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsState {
     pub hardware_acceleration: bool,
     pub always_on_top: bool,
+    #[serde(default)]
+    pub ui_theme: UiTheme,
     pub overlay_locked: bool,
     pub note_effect: bool,
     #[serde(default)]
@@ -73,6 +107,7 @@ pub struct NoteSettingsPatch {
 pub struct SettingsPatchInput {
     pub hardware_acceleration: Option<bool>,
     pub always_on_top: Option<bool>,
+    pub ui_theme: Option<String>,
     pub overlay_locked: Option<bool>,
     pub note_effect: Option<bool>,
     pub note_settings: Option<NoteSettingsPatch>,
@@ -134,6 +169,7 @@ impl SettingsDiff {
         [
             p.hardware_acceleration.is_some(),
             p.always_on_top.is_some(),
+            p.ui_theme.is_some(),
             p.overlay_locked.is_some(),
             p.note_effect.is_some(),
             p.note_settings.is_some(),
@@ -168,6 +204,8 @@ pub struct SettingsPatch {
     pub hardware_acceleration: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub always_on_top: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_theme: Option<UiTheme>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub overlay_locked: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

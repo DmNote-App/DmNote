@@ -5,6 +5,7 @@ pub(crate) mod macos_termination;
 #[cfg(target_os = "macos")]
 pub(crate) mod macos_window_corners;
 pub(crate) mod panel_drag;
+pub(crate) mod window_theme;
 #[cfg(target_os = "windows")]
 pub(crate) mod windows_window_corners;
 

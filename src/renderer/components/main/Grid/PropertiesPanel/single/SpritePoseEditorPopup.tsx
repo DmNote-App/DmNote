@@ -274,7 +274,7 @@ const SpritePoseEditorPopup: React.FC<SpritePoseEditorPopupProps> = ({
 
         {/* 담당 키 - 미리보기·변환 아래가 정위치, 신규 상태도 카드가 작아 한눈에 보인다 */}
         {poseControls.keyOptions.length === 0 && deadTriggers.length === 0 ? (
-          <p className="text-fg-faint text-label">
+          <p className="text-fg-caption text-label">
             {t('propertiesPanel.spriteNoKeys') ||
               '이 모드에 키 요소가 없습니다'}
           </p>

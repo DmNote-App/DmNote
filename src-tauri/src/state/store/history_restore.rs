@@ -584,7 +584,8 @@ impl AppStore {
         let settings_diff = crate::services::settings::apply_patch_to_store(
             &mut scratch,
             &preset_history_settings_patch(&target.settings),
-        );
+        )
+        .map_err(crate::services::settings::settings_patch_validation_error)?;
         crate::state::migration::canonicalize_gradient_pairs(&mut scratch);
         crate::state::migration::canonicalize_image_modes(&mut scratch);
         crate::state::migration::normalize_sprite_triggers(&mut scratch);

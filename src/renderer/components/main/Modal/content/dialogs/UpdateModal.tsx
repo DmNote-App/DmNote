@@ -131,7 +131,7 @@ const UpdateModal = ({
             <div className="flex flex-col gap-[2px]">
               <h2 className="text-fg text-title">{t('update.title')}</h2>
               {publishedLabel && (
-                <p className="text-fg-faint text-caption tabular-nums">
+                <p className="text-fg-caption text-caption tabular-nums">
                   {publishedLabel}
                 </p>
               )}

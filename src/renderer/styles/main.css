@@ -200,33 +200,43 @@ body.dmn-dragging * {
    글래스는 일시 표면(모달·팝업) 전용 유지. 표면 transform은 등퇴장 한 번만
    허용하고, 상주 중 반복 애니메이션은 금지 (프레임마다 재필터를 부름) */
 .backdrop-glass {
-  -webkit-backdrop-filter: blur(32px) brightness(var(--ui-glass-backdrop-dim))
+  -webkit-backdrop-filter: blur(32px)
+    contrast(var(--ui-glass-backdrop-contrast))
+    brightness(var(--ui-glass-backdrop-dim))
     saturate(var(--ui-glass-backdrop-sat));
-  backdrop-filter: blur(32px) brightness(var(--ui-glass-backdrop-dim))
+  backdrop-filter: blur(32px) contrast(var(--ui-glass-backdrop-contrast))
+    brightness(var(--ui-glass-backdrop-dim))
     saturate(var(--ui-glass-backdrop-sat));
 }
 
 .backdrop-glass-popup {
-  -webkit-backdrop-filter: blur(24px) brightness(var(--ui-glass-backdrop-dim))
+  -webkit-backdrop-filter: blur(24px)
+    contrast(var(--ui-glass-backdrop-contrast))
+    brightness(var(--ui-glass-backdrop-dim))
     saturate(var(--ui-glass-backdrop-sat));
-  backdrop-filter: blur(24px) brightness(var(--ui-glass-backdrop-dim))
+  backdrop-filter: blur(24px) contrast(var(--ui-glass-backdrop-contrast))
+    brightness(var(--ui-glass-backdrop-dim))
     saturate(var(--ui-glass-backdrop-sat));
 }
 
 /* canvas 위 표면은 배경색이 재질을 지배하지 않게 clamp 강화 */
 :where(.backdrop-glass-canvas).backdrop-glass {
   -webkit-backdrop-filter: blur(32px)
+    contrast(var(--ui-glass-canvas-backdrop-contrast))
     brightness(var(--ui-glass-canvas-backdrop-dim))
     saturate(var(--ui-glass-canvas-backdrop-sat));
-  backdrop-filter: blur(32px) brightness(var(--ui-glass-canvas-backdrop-dim))
+  backdrop-filter: blur(32px) contrast(var(--ui-glass-canvas-backdrop-contrast))
+    brightness(var(--ui-glass-canvas-backdrop-dim))
     saturate(var(--ui-glass-canvas-backdrop-sat));
 }
 
 :where(.backdrop-glass-canvas).backdrop-glass-popup {
   -webkit-backdrop-filter: blur(24px)
+    contrast(var(--ui-glass-canvas-backdrop-contrast))
     brightness(var(--ui-glass-canvas-backdrop-dim))
     saturate(var(--ui-glass-canvas-backdrop-sat));
-  backdrop-filter: blur(24px) brightness(var(--ui-glass-canvas-backdrop-dim))
+  backdrop-filter: blur(24px) contrast(var(--ui-glass-canvas-backdrop-contrast))
+    brightness(var(--ui-glass-canvas-backdrop-dim))
     saturate(var(--ui-glass-canvas-backdrop-sat));
 }
 
@@ -236,7 +246,7 @@ body.dmn-dragging * {
    블러는 첫 프레임부터 상수, 틴트만 페이드. Windows에서 모달 연 채
    키 연타 프레임 실측이 유지 조건 */
 .backdrop-glass-scrim {
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--ui-scrim);
   -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
 }
@@ -877,7 +887,7 @@ body.dmn-dragging * {
    램프를 올릴 때마다 거터만 유독 깊게 파인다 */
 .webfont-cm-editor .cm-gutters {
   background: var(--ui-bg-app);
-  color: var(--ui-fg-faint);
+  color: var(--ui-fg-caption);
   border: none;
 }
 
@@ -927,16 +937,16 @@ body.dmn-dragging * {
 }
 
 .webfont-cm-editor .cm-scroller::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--ui-scrollbar-thumb);
   border-radius: 2px;
 }
 
 .webfont-cm-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--ui-scrollbar-thumb-hover);
 }
 
 .webfont-cm-editor .cm-scroller::-webkit-scrollbar-thumb:active {
-  background: rgba(255, 255, 255, 0.26);
+  background: var(--ui-scrollbar-thumb-active);
 }
 
 /* 모션 축소 모드 — 이동은 제거, 표시 자체는 유지 */

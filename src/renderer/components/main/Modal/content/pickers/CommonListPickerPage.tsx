@@ -147,7 +147,7 @@ export default function CommonListPickerPage<T>({
               strokeLinejoin="round"
             />
           </svg>
-          <span className="text-fg group-hover:text-white text-label leading-none truncate transition-colors duration-fast">
+          <span className="text-fg group-hover:text-fg-strong text-label leading-none truncate transition-colors duration-fast">
             {pageTitle}
           </span>
         </button>
@@ -187,7 +187,7 @@ export default function CommonListPickerPage<T>({
               <div
                 className={`${
                   addRowPlacement === 'end' ? '' : 'flex-1 '
-                }flex items-center justify-center py-[14px] text-fg-faint text-body`}
+                }flex items-center justify-center py-[14px] text-fg-caption text-body`}
               >
                 {emptyText}
               </div>

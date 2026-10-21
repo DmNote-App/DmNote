@@ -78,11 +78,17 @@ const removeDraftPreviewCSS = () => {
 };
 
 const WEBFONT_EDITOR_HIGHLIGHT_STYLE = HighlightStyle.define([
-  { tag: tags.comment, color: '#6A9955' },
-  { tag: [tags.string, tags.special(tags.string)], color: '#CE9178' },
-  { tag: tags.keyword, color: '#C586C0' },
-  { tag: [tags.propertyName], color: '#9CDCFE' },
-  { tag: [tags.bracket, tags.punctuation], color: '#D4D4D4' },
+  { tag: tags.comment, color: 'var(--ui-syntax-comment)' },
+  {
+    tag: [tags.string, tags.special(tags.string)],
+    color: 'var(--ui-syntax-string)',
+  },
+  { tag: tags.keyword, color: 'var(--ui-syntax-keyword)' },
+  { tag: [tags.propertyName], color: 'var(--ui-syntax-property)' },
+  {
+    tag: [tags.bracket, tags.punctuation],
+    color: 'var(--ui-syntax-punctuation)',
+  },
 ]);
 
 // 활성 줄 하이라이트는 제외 — 여러 줄 placeholder가 한 줄에 담겨
@@ -368,7 +374,7 @@ const WebFontInputModal = ({
         {/* CSS 입력 섹션 */}
         <div className="flex-[5] min-w-0 bg-fill-faint rounded-surface p-[10px] flex flex-col gap-[8px]">
           <div className="shrink-0 px-[2px]">
-            <p className="text-caption text-fg-faint">
+            <p className="text-caption text-fg-caption">
               {t('webFontInput.cssLabel') || '@font-face CSS'}
             </p>
           </div>
@@ -383,7 +389,7 @@ const WebFontInputModal = ({
         {/* 미리보기 섹션 — 검증 상태는 결과 옆이 제자리, 색은 무채색 유지 */}
         <div className="flex-[3] min-w-[220px] max-w-[340px] bg-fill-faint rounded-surface p-[10px] flex flex-col gap-[8px]">
           <div className="shrink-0 flex items-center justify-between gap-[8px] px-[2px]">
-            <p className="text-caption text-fg-faint">
+            <p className="text-caption text-fg-caption">
               {t('webFontInput.previewLabel') || '미리보기'}
             </p>
             <span role="status" className="text-caption text-fg-muted truncate">
@@ -421,7 +427,7 @@ const WebFontInputModal = ({
                         key={weight}
                         className="min-w-0 flex items-baseline gap-[6px]"
                       >
-                        <span className="shrink-0 w-[30px] text-caption text-fg-faint tabular-nums">
+                        <span className="shrink-0 w-[30px] text-caption text-fg-caption tabular-nums">
                           {weight}
                         </span>
                         {failedWeights.has(weight) ? (

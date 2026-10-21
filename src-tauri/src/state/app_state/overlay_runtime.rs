@@ -909,6 +909,22 @@ impl AppState {
         // 오버레이가 보이는 상태일 때만 설정 적용
         let is_visible = *self.overlay_visible.read();
 
+        // 메인·분리 패널만 앱 테마를 따른다. 오버레이는 사용자 콘텐츠 창이라 제외
+        if let Some(value) = diff.changed.ui_theme {
+            if let Some(window) = app.get_webview_window("main") {
+                if let Err(err) =
+                    crate::state::window::window_theme::apply_main_window_theme(&window, value)
+                {
+                    log::warn!("failed to synchronize main window theme: {err:#}");
+                }
+            }
+            if let Some(window) = app.get_webview_window(PANEL_LABEL) {
+                if let Err(err) = window.set_theme(value.as_tauri_theme()) {
+                    log::warn!("failed to apply panel window theme: {err}");
+                }
+            }
+        }
+
         if let Some(value) = diff.changed.always_on_top {
             if is_visible {
                 if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {

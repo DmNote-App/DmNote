@@ -118,7 +118,7 @@ describe('GooeyThumb 스프링 복원력', () => {
     expect(body?.closest('svg')).not.toBeNull();
     expect(body?.getAttribute('filter')).toBeNull();
     expect(body?.getAttribute('shape-rendering')).toBe('geometricPrecision');
-    expect(body?.getAttribute('stroke')).toBe('#fff');
+    expect(body?.getAttribute('stroke')).toBe('var(--ui-handle-fill)');
     expect(shadow?.getAttribute('filter')).toMatch(/^url\(#goo-shadow-/);
     expect(host.querySelector('feGaussianBlur')).toBeNull();
     expect(host.querySelector('feColorMatrix')).toBeNull();

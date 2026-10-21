@@ -17,6 +17,8 @@ description: 앱 설정 조회, 변경, 구독 API
 interface SettingsState {
   hardwareAcceleration: boolean;
   alwaysOnTop: boolean;
+  // 앱 UI 테마. "system"은 OS 설정을 따른다
+  uiTheme: "system" | "light" | "dark";
   overlayLocked: boolean;
   noteEffect: boolean;
   noteSettings: NoteSettings;

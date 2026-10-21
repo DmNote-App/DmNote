@@ -75,7 +75,7 @@ describe('BatchPanelHeader 이름 변경 계약', () => {
     expect(labels[0]?.textContent).toBe('propertiesPanel.multiSelection');
     expect(labels[0]?.className).toBe('text-fg text-label leading-none');
     expect(labels[1]?.textContent).toBe('(4)');
-    expect(labels[1]?.className).toBe('text-fg-faint text-body');
+    expect(labels[1]?.className).toBe('text-fg-caption text-body');
     expect(container.querySelector('button')).toBeNull();
   });
 

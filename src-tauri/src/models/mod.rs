@@ -678,6 +678,8 @@ pub type LayerGroups = HashMap<String, Vec<LayerGroupDef>>;
 pub struct AppStoreData {
     pub hardware_acceleration: bool,
     pub always_on_top: bool,
+    #[serde(default)]
+    pub ui_theme: UiTheme,
     pub overlay_locked: bool,
     #[serde(default)]
     pub overlay_visible: bool,
@@ -786,6 +788,7 @@ impl Default for AppStoreData {
         Self {
             hardware_acceleration: true,
             always_on_top: true,
+            ui_theme: UiTheme::default(),
             overlay_locked: false,
             overlay_visible: false,
             note_effect: false,
@@ -850,6 +853,7 @@ impl AppStoreData {
         SettingsState {
             hardware_acceleration: self.hardware_acceleration,
             always_on_top: self.always_on_top,
+            ui_theme: self.ui_theme,
             overlay_locked: self.overlay_locked,
             note_effect: self.note_effect,
             note_settings: self.note_settings.clone(),

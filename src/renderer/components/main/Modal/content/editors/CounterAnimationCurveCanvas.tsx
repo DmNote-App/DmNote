@@ -177,7 +177,7 @@ const CounterAnimationCurveCanvas = ({
             cy={p2w.y}
             r={COUNTER_ANIMATION_HANDLE_RADIUS * uns}
             fill="var(--ui-bg-inset-solid)"
-            stroke="rgba(255, 255, 255, 0.85)"
+            stroke="var(--ui-handle-fill)"
             strokeWidth={2 * uns}
             style={{ pointerEvents: 'none' }}
           />

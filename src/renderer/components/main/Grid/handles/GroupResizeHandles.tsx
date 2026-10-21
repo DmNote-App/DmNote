@@ -109,7 +109,7 @@ const getHandleStyle = (
   type: GroupResizeHandle['type'],
 ): React.CSSProperties => {
   const baseStyle: React.CSSProperties = {
-    backgroundColor: 'white',
+    backgroundColor: 'var(--ui-handle-fill)',
     border: '2px solid var(--ui-selection-border-strong)',
     pointerEvents: 'none',
   };

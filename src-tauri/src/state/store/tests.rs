@@ -26,7 +26,7 @@ use crate::{
         PluginInstancesReconcileRequest, PluginPoint, ReactiveSpritePosition, SavedPluginInstance,
         SettingsPatchInput, SlotMatch, SoundLibraryEntry, SoundSource, SpriteActivation,
         SpriteAnchor, SpriteImageMetrics, SpritePose, SpriteReferenceNaturalSize, SpriteTransform,
-        StatPosition, StatType, TabCss, TabNoteSettings, EDITOR_COMMIT_SCHEMA_VERSION_V2,
+        StatPosition, StatType, TabCss, TabNoteSettings, UiTheme, EDITOR_COMMIT_SCHEMA_VERSION_V2,
         EDITOR_OPS_VERSION, EDITOR_SCHEMA_VERSION,
     },
     services::{css_watcher::commit_css_reload, settings::apply_patch_to_store},
@@ -13621,7 +13621,8 @@ fn unrecorded_preset_overlap_mutations_clear_redo_only_when_overlap_changes() {
                             background_color: Some(format!("#{:06x}", index + 1)),
                             ..SettingsPatchInput::default()
                         },
-                    );
+                    )
+                    .expect("설정 patch 적용");
                 }
                 Ok(())
             })
@@ -13634,6 +13635,62 @@ fn unrecorded_preset_overlap_mutations_clear_redo_only_when_overlap_changes() {
         );
         drop(transaction);
     }
+
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn ui_theme_change_does_not_invalidate_editor_history() {
+    let dir = test_directory("ui-theme-history-exclusion-test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let store = AppStore::initialize_in_dir(&dir).unwrap();
+    let initial_dx = store.editor_get().document.key_positions["4key"][0].dx;
+
+    store
+        .commit_editor_document(editor_request(
+            store.editor_get().revision,
+            uuid::Uuid::new_v4().to_string(),
+            position_patch(&store, initial_dx + 1.0),
+        ))
+        .unwrap();
+    let operation_id = uuid::Uuid::new_v4().to_string();
+    let gate = store.history_gate();
+    let barrier = gate.close(&operation_id).unwrap();
+    let current_counters = store.snapshot().key_counters;
+    store
+        .apply_history_operation(
+            HistoryDirection::Undo,
+            &operation_id,
+            &current_counters,
+            || {},
+        )
+        .unwrap();
+    drop(barrier);
+    let before = store.history_status();
+    assert!(before.can_redo);
+
+    let transaction = store
+        .commit_history_overlap_mutation(|data| {
+            apply_patch_to_store(
+                data,
+                &SettingsPatchInput {
+                    ui_theme: Some("light".to_string()),
+                    ..SettingsPatchInput::default()
+                },
+            )
+            .map_err(crate::services::settings::settings_patch_validation_error)
+        })
+        .unwrap();
+
+    assert!(transaction.history_status.is_none());
+    assert_eq!(store.snapshot().ui_theme, UiTheme::Light);
+    let after = store.history_status();
+    assert_eq!(after.history_revision, before.history_revision);
+    assert_eq!(after.history_epoch, before.history_epoch);
+    assert_eq!(after.can_undo, before.can_undo);
+    assert_eq!(after.can_redo, before.can_redo);
+    assert_eq!(after.truncated, before.truncated);
 
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(dir);
@@ -16527,7 +16584,8 @@ fn preset_style_layout_and_settings_commit_in_one_writer_revision() {
                         background_color: Some("#123456".to_string()),
                         ..SettingsPatchInput::default()
                     },
-                );
+                )
+                .expect("설정 patch 적용");
                 Ok(())
             },
         )
@@ -16553,7 +16611,8 @@ fn preset_style_layout_and_settings_commit_in_one_writer_revision() {
                     background_color: Some("#FFFFFF".to_string()),
                     ..SettingsPatchInput::default()
                 },
-            );
+            )
+            .expect("설정 patch 적용");
             Ok(())
         },
     );
@@ -17005,6 +17064,22 @@ fn panel_detached_missing_field_defaults_to_docked() {
 
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     assert!(!store.snapshot().panel_detached);
+    store.flush_and_shutdown().unwrap();
+    drop(store);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn ui_theme_missing_field_defaults_to_system() {
+    let dir = test_directory("ui-theme-default-test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("store.json");
+    let mut fixture = serde_json::to_value(AppStoreData::default()).unwrap();
+    assert!(fixture.as_object_mut().unwrap().remove("uiTheme").is_some());
+    std::fs::write(&path, serde_json::to_vec_pretty(&fixture).unwrap()).unwrap();
+
+    let store = AppStore::initialize_in_dir(&dir).unwrap();
+    assert_eq!(store.snapshot().ui_theme, UiTheme::System);
     store.flush_and_shutdown().unwrap();
     drop(store);
     let _ = std::fs::remove_dir_all(dir);

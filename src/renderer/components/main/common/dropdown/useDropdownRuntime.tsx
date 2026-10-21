@@ -471,7 +471,7 @@ export const useDropdownRuntime = ({
             }}
           >
             {options.length === 0 ? (
-              <div className="px-[8px] py-[6px] text-body text-fg-faint">
+              <div className="px-[8px] py-[6px] text-body text-fg-caption">
                 옵션 없음
               </div>
             ) : (

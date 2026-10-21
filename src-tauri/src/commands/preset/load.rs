@@ -326,7 +326,8 @@ fn preset_load_from_path(
                 }
                 rekey_full_preset_elements(store);
                 crate::state::migration::clear_dangling_group_ids(store);
-                let diff = apply_patch_to_store(store, &settings_patch);
+                let diff = apply_patch_to_store(store, &settings_patch)
+                    .map_err(crate::services::settings::settings_patch_validation_error)?;
                 Ok((
                     diff,
                     previous_tab_css_overrides,
@@ -638,7 +639,9 @@ fn preset_load_tab_from_path(
                                 ..SettingsPatchInput::default()
                             },
                         )
-                    });
+                    })
+                    .transpose()
+                    .map_err(crate::services::settings::settings_patch_validation_error)?;
                 crate::state::migration::clear_dangling_group_ids(store);
                 Ok((
                     settings_diff,

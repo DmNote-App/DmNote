@@ -39,7 +39,11 @@ import { isMac } from '@utils/core/platform';
 import { useUpdateCheck } from '@hooks/app/useUpdateCheck';
 import { useObsSettingsController } from '@components/main/useObsSettingsController';
 import { useOverlayResizeAnchorController } from '@components/main/useOverlayResizeAnchorController';
-import type { OverlayResizeAnchor } from '@src/types/settings/settings';
+import {
+  isUiThemePreference,
+  type OverlayResizeAnchor,
+  type UiThemePreference,
+} from '@src/types/settings/settings';
 import type { ShortcutsState } from '@src/types/settings/shortcuts';
 import type { SupportedLocale } from '@contexts/I18nContextDef';
 import type { KeysResetAllResponse } from '@src/types/plugin/api';
@@ -98,6 +102,7 @@ const Settings = ({
     jsPlugins,
     language,
     setLanguage,
+    uiTheme,
     overlayResizeAnchor,
     setOverlayResizeAnchor,
     keyCounterEnabled,
@@ -176,6 +181,12 @@ const Settings = ({
     handleObsCopyUrl,
     handleObsRegenerateToken,
   } = useObsSettingsController({ t, showAlert, showConfirm });
+
+  const UI_THEME_OPTIONS: { value: UiThemePreference; label: string }[] = [
+    { value: 'system', label: t('settings.themeSystem') },
+    { value: 'light', label: t('settings.themeLight') },
+    { value: 'dark', label: t('settings.themeDark') },
+  ];
 
   const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
     { value: 'ko', label: '한국어' },
@@ -481,6 +492,15 @@ const Settings = ({
     }
   };
 
+  // 백엔드가 확정한 값만 반영해 저장 실패가 첫 화면 캐시까지 남지 않게 한다
+  const handleUiThemeChange = (val: string): void => {
+    if (!isUiThemePreference(val)) return;
+    void settingsApi.update({ uiTheme: val }).catch((error) => {
+      console.error('Failed to update ui theme', error);
+      showAlert(t('common.saveFailed'));
+    });
+  };
+
   const { run: handleLanguageChange, pending: languagePending } =
     useSingleFlightAction(async (val: string) => {
       try {
@@ -661,6 +681,14 @@ const Settings = ({
             />
             {/* 기타 설정 */}
             <SettingCard>
+              <SettingRow label={t('settings.appTheme')}>
+                <Dropdown
+                  options={UI_THEME_OPTIONS}
+                  value={uiTheme}
+                  onChange={handleUiThemeChange}
+                  align="right"
+                />
+              </SettingRow>
               <SettingRow label={t('settings.language')}>
                 <Dropdown
                   options={LANGUAGE_OPTIONS}

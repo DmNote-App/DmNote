@@ -1,14 +1,14 @@
 import type { CSSProperties } from 'react';
 
 interface SpriteImagePlaceholderProps {
-  /** 아이콘 색 - 캔버스는 어두운 바탕 고정값, 패널은 테마 토큰 */
+  /** 아이콘 색 - 캔버스는 캔버스 전용 토큰, 패널은 텍스트 위계 토큰 */
   color?: CSSProperties['color'];
 }
 
 // 그릴 이미지가 없거나 유실된 스프라이트 자리표시자. 캔버스 아이템·복제 고스트·
 // 설정 카드가 같은 그림을 쓴다 - 깨진 img 노드를 남기지 않는 공통 규칙
 const SpriteImagePlaceholder = ({
-  color = 'rgba(237, 238, 242, 0.45)',
+  color = 'var(--ui-canvas-placeholder)',
 }: SpriteImagePlaceholderProps) => (
   <div
     style={{

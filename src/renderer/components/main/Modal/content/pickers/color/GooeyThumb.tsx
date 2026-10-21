@@ -4,6 +4,7 @@ import { createGooeyPath } from '@utils/ui/gooeyPath';
 
 const RING_WIDTH = 2;
 const SHADOW_BLUR = 2;
+// 노브 안쪽 알파 타일. 링이 두 테마 모두 흰색(--ui-handle-fill)이라 타일도 고정
 const CHECKER_CELL = 4;
 
 interface GooeyThumbProps {
@@ -208,7 +209,7 @@ const GooeyThumb = ({
             href={`#${shapeId}`}
             fill={checker ? `url(#${checkerId})` : color}
             fillOpacity={checker ? 1 : colorOpacity}
-            stroke="#fff"
+            stroke="var(--ui-handle-fill)"
             strokeWidth={RING_WIDTH}
             strokeLinejoin="round"
             vectorEffect="non-scaling-stroke"

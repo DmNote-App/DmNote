@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn attach_main_window_close_handler(
+pub(super) fn attach_main_window_event_handler(
     window: WebviewWindow,
     overlay_force_close: Arc<AtomicBool>,
     app_handle: AppHandle,
@@ -13,8 +13,18 @@ pub(super) fn attach_main_window_close_handler(
     }
 
     let main_window = window.clone();
-    window.on_window_event(move |event| {
-        if let WindowEvent::CloseRequested { api, .. } = event {
+    window.on_window_event(move |event| match event {
+        WindowEvent::ThemeChanged(theme)
+            if app_handle.state::<AppState>().store.snapshot().ui_theme == UiTheme::System =>
+        {
+            if let Err(err) = crate::state::window::window_theme::apply_main_window_background(
+                &main_window,
+                *theme,
+            ) {
+                log::warn!("failed to follow system theme for main window: {err:#}");
+            }
+        }
+        WindowEvent::CloseRequested { api, .. } => {
             if overlay_force_close.load(Ordering::SeqCst) {
                 return;
             }
@@ -38,6 +48,7 @@ pub(super) fn attach_main_window_close_handler(
             api.prevent_close();
             state.request_frontend_shutdown(app_handle.clone());
         }
+        _ => {}
     });
 }
 

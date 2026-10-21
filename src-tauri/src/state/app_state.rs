@@ -64,7 +64,7 @@ use keyboard_runtime::{
     KEYBOARD_RECOVERY_DELAYS_MS,
 };
 use lifecycle_runtime::{
-    attach_main_window_close_handler, dispatch_remove_tray_icon, execute_frontend_lifecycle,
+    attach_main_window_event_handler, dispatch_remove_tray_icon, execute_frontend_lifecycle,
     remove_tray_icon, tray_menu_labels,
 };
 #[cfg(target_os = "macos")]
@@ -128,7 +128,7 @@ use crate::{
         HistoryStatus, KeyCounterSettings, KeyCounters, KeyMappings, KeyPositions, KeySlot,
         KeySoundOutputBackendPersist, OverlayBounds, OverlayResizeAnchor, PanelBounds,
         SettingsDiff, SettingsState, StoredOverlayBounds, StoredOverlayNativePosition,
-        TabCssOverrides,
+        TabCssOverrides, UiTheme,
     },
     services::{
         css_watcher::CssWatcher,
@@ -939,7 +939,7 @@ impl AppState {
     fn attach_main_window_handlers(&self, app: &AppHandle) {
         let overlay_force_close = self.overlay_force_close.clone();
         if let Some(window) = app.get_webview_window("main") {
-            attach_main_window_close_handler(window, overlay_force_close, app.clone());
+            attach_main_window_event_handler(window, overlay_force_close, app.clone());
             return;
         }
 
@@ -948,7 +948,7 @@ impl AppState {
         thread::spawn(move || {
             for _ in 0..15 {
                 if let Some(window) = app_handle.get_webview_window("main") {
-                    attach_main_window_close_handler(
+                    attach_main_window_event_handler(
                         window,
                         overlay_force_close.clone(),
                         app_handle.clone(),

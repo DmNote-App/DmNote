@@ -277,7 +277,7 @@ export const createPluginSettingsDialogContent = async ({
       normalizedSections.some((section) => section.renderVisible)
         ? 'display:none'
         : ''
-    }" class="text-fg-faint text-body text-center">${noSettingsText}</div>`;
+    }" class="text-fg-caption text-body text-center">${noSettingsText}</div>`;
 
     htmlContent += '</div>';
 

@@ -618,6 +618,11 @@ fn apply_main_window_configuration(
         log::debug!("failed to hide main window before configuration: {err}");
     }
 
+    let preference = app.state::<AppState>().store.snapshot().ui_theme;
+    if let Err(err) = state::window::window_theme::apply_main_window_theme(&window, preference) {
+        log::warn!("failed to synchronize main window theme: {err:#}");
+    }
+
     if cfg!(target_os = "windows") {
         if let Err(err) = window.set_decorations(false) {
             log::warn!("failed to disable decorations: {err}");

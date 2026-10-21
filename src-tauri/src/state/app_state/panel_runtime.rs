@@ -440,6 +440,11 @@ impl AppState {
         let snapshot = self.store.snapshot();
         let stored_bounds = snapshot.panel_bounds;
         let layout = resolve_panel_window_layout(stored_bounds, main_rect, monitors, None);
+        let native_theme = app
+            .get_webview_window("main")
+            .and_then(|window| window.theme().ok());
+        let resolved_theme =
+            crate::state::window::window_theme::resolve_theme(snapshot.ui_theme, native_theme);
 
         // about:blank는 runtime-wry가 초기 네비게이션을 건너뛴다 - opener가 문서를 채우고,
         // WebView2의 "NewWindow는 네비게이션 전이어야 함" 요건도 이걸로 맞는다.
@@ -470,6 +475,7 @@ impl AppState {
         // (유틸리티 패널 관례 - 버튼이 첫 클릭에 바로 동작)
         .accept_first_mouse(true)
         .visible(false)
+        .theme(snapshot.ui_theme.as_tauri_theme())
         .inner_size(PANEL_WIDTH, layout.height)
         .min_inner_size(PANEL_WIDTH, layout.min_height)
         .max_inner_size(PANEL_WIDTH, layout.max_height)
@@ -479,8 +485,9 @@ impl AppState {
         // 이미 내비게이션이 시작된 뒤라 늦다. 실제 색은 렌더러가 토큰을 읽어 덮는다
         #[cfg(target_os = "windows")]
         {
-            builder =
-                builder.background_color(crate::state::window::windows_window_corners::SEED_FILL);
+            builder = builder.background_color(
+                crate::state::window::windows_window_corners::seed_fill(resolved_theme),
+            );
         }
 
         #[cfg(not(target_os = "windows"))]
@@ -514,7 +521,7 @@ impl AppState {
             }
         }
 
-        self.configure_panel_window(&window, app, layout.max_height);
+        self.configure_panel_window(&window, app, layout.max_height, resolved_theme);
         Ok(window)
     }
 
@@ -523,6 +530,7 @@ impl AppState {
         window: &WebviewWindow,
         app: &AppHandle,
         initial_max_height: f64,
+        _resolved_theme: tauri::Theme,
     ) {
         // 웹 콘텐츠가 그리는 라운딩은 리사이즈 프레임을 못 따라옴 - 실루엣은 컴포지터가 소유
         #[cfg(target_os = "macos")]
@@ -530,7 +538,7 @@ impl AppState {
         // Windows는 DWM이 이미 자기 반경으로 자르고 있어 웹 라운딩과 어긋난다 - 반경 지정이
         // 불가능하므로 실루엣을 DWM에 넘기고 웹은 사각으로 채운다 (메인 창과 같은 처리)
         #[cfg(target_os = "windows")]
-        crate::state::window::windows_window_corners::apply_initial_chrome(window);
+        crate::state::window::windows_window_corners::apply_initial_chrome(window, _resolved_theme);
 
         let bounds_session = self
             .panel_bounds_persistence

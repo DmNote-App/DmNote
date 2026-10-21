@@ -1,6 +1,11 @@
 import { panelWindowApi } from '@api/modules/window/panelWindowApi';
 import { registerHistoryEditorFlushDocument } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 import { initializeMotionPreferences } from '@utils/animation/motionPreferences';
+import {
+  applyThemeToDocument,
+  getResolvedTheme,
+  subscribeResolvedTheme,
+} from '@utils/theme/applyTheme';
 
 import {
   mirrorDocumentStyles,
@@ -70,9 +75,12 @@ const prepareChildDocument = (source: Document, target: Document) => {
   if (!target.querySelector('meta[name="color-scheme"]')) {
     const colorScheme = target.createElement('meta');
     colorScheme.name = 'color-scheme';
-    colorScheme.content = 'dark';
     target.head.appendChild(colorScheme);
   }
+  // 스타일 복제는 head 노드만 옮긴다 - html 속성은 따라오지 않는다.
+  // 테마 토큰이 data-theme 아래에만 있어 여기서 직접 실어야 팔레트가 뜬다.
+  // 창 자체가 transparent라 바탕색은 넘기지 않는다
+  applyThemeToDocument(target, getResolvedTheme());
   if (!target.querySelector('base')) {
     // 상대 url()·폰트 경로가 opener 문서 기준으로 풀리게
     const base = target.createElement('base');
@@ -128,6 +136,13 @@ const createPanelChildWindow = async (): Promise<PanelChildWindow> => {
   };
   return current;
 };
+
+// 전환은 opener에서 일어나므로 자식 문서는 구독으로 따라간다
+subscribeResolvedTheme((theme) => {
+  const child = getPanelChildWindow();
+  if (!child) return;
+  applyThemeToDocument(child.document, theme);
+});
 
 export const openPanelChildWindow = (): Promise<PanelChildWindow> => {
   const existing = getPanelChildWindow();

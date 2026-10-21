@@ -17,6 +17,8 @@ Returns the complete current settings object.
 interface SettingsState {
   hardwareAcceleration: boolean;
   alwaysOnTop: boolean;
+  // App UI theme. 'system' follows the OS appearance
+  uiTheme: 'system' | 'light' | 'dark';
   overlayLocked: boolean;
   noteEffect: boolean;
   noteSettings: NoteSettings;

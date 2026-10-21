@@ -66,7 +66,9 @@ const Checkbox = ({
       aria-checked={visualChecked}
       aria-label={ariaLabel}
       className={`dmn-toggle-track relative w-[28px] h-[16px] rounded-full cursor-pointer transition-colors duration-base ease-out-expo ${
-        displayChecked ? 'bg-accent' : 'bg-line-strong hover:bg-white/[0.19]'
+        displayChecked
+          ? 'bg-accent'
+          : 'bg-control-track-off hover:bg-control-track-off-hover'
       }`}
       onClick={handleClick}
       {...drag.handlers}
@@ -75,7 +77,7 @@ const Checkbox = ({
           드래그 훅이 이 클래스로 노브를 찾으므로 클래스명은 계약.
           반지름은 rounded-full이 아니라 CSS가 소유한다 - 누름 캡슐이 scale과
           짝지어 반지름을 되돌려야 해서 전환 가능한 값이어야 한다 */}
-      <div className="dmn-toggle-thumb absolute top-[2px] left-[2px] w-[12px] h-[12px] bg-white shadow-elevation-1" />
+      <div className="dmn-toggle-thumb absolute top-[2px] left-[2px] w-[12px] h-[12px] bg-control-knob shadow-elevation-1" />
     </div>
   );
 };

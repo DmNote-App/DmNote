@@ -168,7 +168,7 @@ const HANDLES: HandleDef[] = [
 // 핸들 시각적 스타일 반환
 const getHandleStyle = (type: string): React.CSSProperties => {
   const baseStyle: React.CSSProperties = {
-    backgroundColor: 'white',
+    backgroundColor: 'var(--ui-handle-fill)',
     border: '1.5px solid var(--ui-selection-border-strong)',
     pointerEvents: 'none',
   };

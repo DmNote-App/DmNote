@@ -256,7 +256,7 @@ const CounterAnimationPreviewStage = ({
         </div>
         {/* 하단 안내 — 스크림 없이 흐린 캡션만 */}
         <div className="absolute inset-x-0 bottom-[10px] z-20 text-center pointer-events-none">
-          <span className="text-caption text-fg-faint">
+          <span className="text-caption text-fg-caption">
             {t('counterSetting.pressToPreview') || '눌러서 미리보기'}
           </span>
         </div>
