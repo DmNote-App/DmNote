@@ -2,12 +2,88 @@
 
 [한국어](https://github.com/DmNote-App/DmNote/blob/main/CHANGELOG.md) | **English**
 
-[2.0.2](#202) · [2.0.1](#201) · [2.0.0](#200) · [1.6.1](#161) · [1.6.0](#160) · [1.5.2](#152) · [1.5.1](#151) · [1.5.0](#150)
+[2.1.0](#210) · [2.0.2](#202) · [2.0.1](#201) · [2.0.0](#200) · [1.6.1](#161) · [1.6.0](#160) · [1.5.2](#152) · [1.5.1](#151) · [1.5.0](#150)
 
 <!-- Release bodies link here with an anchor derived from the version (2.0.1 -> #201).
      Changing the version heading format silently breaks links in existing releases.
      Two-digit segments collide (1.2.10 / 1.21.0 both -> #1210); introduce explicit
      anchors in scripts/lib/release-notes.js and the headings if that day comes. -->
+
+---
+
+## [2.1.0](https://github.com/DmNote-App/DmNote/releases/tag/2.1.0)
+
+`2026-10-21`
+
+### New
+
+#### Sprites and Element Rotation
+
+- Added sprite elements
+  - Use `Add Sprite` in the toolbar or the grid context menu to place an image element that changes its pose with key input.
+  - Each pose has its own image, position, rotation, scale, pivot, transition time, and motion.
+  - Choose how a sprite reacts: `While held` keeps the pose while the key is down, and `One-shot` plays it once.
+  - The overlay window grows automatically when a sprite extends past its edges, and saved presets include the sprite images.
+
+- Added element rotation
+  - Keys, stats, graphs, knobs, and sprites can be rotated.
+  - Drag just outside a corner of the selection box or enter an angle in the properties panel. Hold Shift to snap to 15° steps.
+  - Selecting several elements rotates them together around a shared center.
+  - Rotating a key also rotates its note track and outer counter.
+
+#### Light Mode
+
+- Added light mode
+  - Choose `System`, `Light`, or `Dark` under `Appearance` in Settings. The default is `System`, which follows the OS theme.
+  - The theme applies to the main window and the detached properties panel. The overlay and OBS view stay the same regardless of the theme.
+
+#### Mouse Wheel Input
+
+- Added mouse wheel key mapping [Issues 197](https://github.com/DmNote-App/DmNote/issues/197)
+  - Wheel up/down and tilt left/right can be mapped like keys and appear as `Wheel Up`, `Wheel Down`, `Wheel Left`, and `Wheel Right`.
+  - Each wheel notch counts as one short key press, so the counter and KPS match the number of notches scrolled.
+  - Knobs linked to the wheel turn in the scroll direction, one full turn per 24 notches at sensitivity 1.
+  - Trackpad and Magic Mouse scrolling is not treated as wheel input.
+  - [@Bluebleaon](https://github.com/Bluebleaon) suggested [mouse wheel mapping support](https://github.com/DmNote-App/DmNote/issues/197). 🎉
+
+#### Save Failure Recovery
+
+- Added a prompt to retry edits that failed to save
+  - When edits fail to save, press `Save again` in the notice at the bottom of the screen to retry.
+  - Note settings, renames, background color, and plugin settings keep the entered values when saving fails.
+  - If the background color fails to save, the screen returns to the saved color while the color popup keeps your entry so you can save it again.
+
+#### Plugins and Custom CSS
+
+- Added sprite (`spritePositions`) and element rotation (`rotation`) data to the Editor API and preset snapshots
+- Added the app theme (`uiTheme`) to `dmn.settings`
+- Added wheel input labels to `onRawInput` and wheel axes (`WHEEL:VERTICAL`, `WHEEL:HORIZONTAL`) to knob axes
+- Added sprite variables (`--sprite-transform`, `--sprite-transition`) and selectors to Custom CSS
+
+### Fix
+
+- Fixed a large gap in the overlay window and notes starting away from the key when a panel or counter taller than the key was placed beside it [Issues 212](https://github.com/DmNote-App/DmNote/issues/212)
+  - Elements placed in the note path directly above a key now overlap the notes. Use the note Y offset to move them apart.
+  - On the first launch after updating, the overlay window and OBS source size of existing layouts may change once.
+  - [@song-jiyun](https://github.com/song-jiyun) reported the [gap that appeared after adding a V-Archive panel](https://github.com/DmNote-App/DmNote/issues/212). 🎉
+- Fixed a negative note Y offset on one key also raising the notes of other keys
+- Fixed OBS window capture picking up the main window instead of the overlay on Windows
+  - Window capture sources in existing OBS scenes need the window selected again once.
+- Fixed BMP, ICO, and AVIF images not showing in OBS mode
+- Fixed shortcuts bound to CapsLock, ScrollLock, NumLock, Pause, PrintScreen, the Menu key, or numpad keys not working on Windows
+- Fixed the Accessibility permission prompt not appearing at launch on macOS
+- Fixed the overlay drifting slightly each time it was toggled on macOS
+- Fixed elements missing from a tab preset remaining in the tab after loading it
+- Fixed Custom CSS saved without a file not appearing in the list and being impossible to remove
+- Fixed `set()` not reporting an error when saving plugin settings failed
+- Fixed edits going out of sync when undoing or redoing during a drag or number scrub
+- The app now finishes any in-progress save before quitting
+
+### Etc
+
+- Each selected element now shows its own outline when several are selected
+- Presets saved in this version load without sprite and rotation values in earlier versions
+- Internal code restructuring and stability improvements
 
 ---
 
