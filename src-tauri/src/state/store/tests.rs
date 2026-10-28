@@ -19455,3 +19455,91 @@ fn orphan_sweep_continues_recovery_and_protects_failed_backup() {
 
     let _ = std::fs::remove_dir_all(dir);
 }
+
+// 커스텀 탭을 지웠다 되돌려도(다시 지우고 또 되돌려도) 그 탭의 트리 전용 요소가 돌아온다
+#[test]
+fn custom_tab_delete_undo_restores_tree_only_elements() {
+    let dir = test_directory("custom-tab-tree-only-history-test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let store = AppStore::initialize_in_dir(&dir).unwrap();
+    let tab_id = "tree-tab".to_string();
+    let created = tab_id.clone();
+    drop(
+        store
+            .commit_aux_editor_transaction(
+                HistoryScope::CustomTabs,
+                None,
+                EditorCommitOrigin::LegacyAdapter("tree_tab_create".to_string()),
+                &[EditorField::Keys, EditorField::KeyPositions],
+                |data| {
+                    data.custom_tabs.push(CustomTab {
+                        id: created.clone(),
+                        name: "Tree".to_string(),
+                    });
+                    data.keys.insert(created.clone(), Vec::new());
+                    data.key_positions.insert(created.clone(), Vec::new());
+                    Ok(())
+                },
+            )
+            .unwrap(),
+    );
+    let insert: element_document::Op = serde_json::from_value(serde_json::json!({
+        "op": "insert", "scene": tab_id, "parent": null, "index": null,
+        "node": { "type": "element", "id": "tracker-in-tab", "kind": "cursorTracker",
+                  "frame": { "x": 0, "y": 0, "width": 120, "height": 120 } }
+    }))
+    .unwrap();
+    assert!(matches!(
+        store.commit_element_document(&[insert]).unwrap(),
+        crate::state::ElementDocumentCommitResult::Committed { .. }
+    ));
+
+    let delete = |store: &AppStore| {
+        let deleted = tab_id.clone();
+        drop(
+            store
+                .commit_aux_editor_transaction(
+                    HistoryScope::CustomTabs,
+                    None,
+                    EditorCommitOrigin::LegacyAdapter("tree_tab_delete".to_string()),
+                    &[EditorField::Keys, EditorField::KeyPositions],
+                    |data| {
+                        data.custom_tabs.retain(|tab| tab.id != deleted);
+                        data.keys.remove(&deleted);
+                        data.key_positions.remove(&deleted);
+                        data.selected_key_type = "4key".to_string();
+                        Ok(())
+                    },
+                )
+                .unwrap(),
+        );
+    };
+    let history = |direction: HistoryDirection| {
+        let gate = store.history_gate();
+        let id = uuid::Uuid::new_v4().to_string();
+        let barrier = gate.close(&id).unwrap();
+        let counters = store.snapshot().key_counters;
+        store
+            .apply_history_operation(direction, &id, &counters, || {})
+            .unwrap();
+        drop(barrier);
+    };
+    let has_tracker = |store: &AppStore| {
+        store
+            .element_document_snapshot()
+            .1
+            .scenes
+            .get("tree-tab")
+            .is_some_and(|scene| scene.element("tracker-in-tab").is_some())
+    };
+
+    delete(&store);
+    assert!(!has_tracker(&store));
+    history(HistoryDirection::Undo);
+    assert!(has_tracker(&store), "첫 되돌리기");
+    history(HistoryDirection::Redo);
+    assert!(!has_tracker(&store));
+    history(HistoryDirection::Undo);
+    assert!(has_tracker(&store), "다시 하기 뒤 되돌리기");
+    store.flush_and_shutdown().unwrap();
+}

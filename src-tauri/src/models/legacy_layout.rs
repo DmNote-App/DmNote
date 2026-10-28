@@ -553,6 +553,16 @@ fn build_scene(entries: Vec<LegacyEntry>, groups: &[LayerGroupDef], present: Vec
     }
 }
 
+/// 두 옛 모양 사이 내용이 다른 탭 - 탭 추가·삭제 포함
+pub(crate) fn changed_modes(left: LegacyRef<'_>, right: LegacyRef<'_>) -> Vec<String> {
+    let mut modes = legacy_modes(left);
+    modes.extend(legacy_modes(right));
+    modes
+        .into_iter()
+        .filter(|mode| ModeView::of(left, mode) != ModeView::of(right, mode))
+        .collect()
+}
+
 fn import_scene(legacy: LegacyRef<'_>, mode: &str) -> Result<Scene> {
     let view = ModeView::of(legacy, mode);
     let entries = scene_entries(&view)?;
@@ -881,68 +891,66 @@ fn take_elements(nodes: &[Node]) -> HashMap<String, Element> {
 
 // 트리에만 있는 노드를 새 구조에 다시 끼운다 - 바로 아래 옛 종류 요소 뒤에 둔다
 pub(crate) fn graft_tree_only(previous: &Scene, next: &mut Scene) {
-    // (속한 그룹, 같은 그룹 안 바로 아래 옛 종류 요소, 장면 전체에서 바로 아래 옛 종류 요소, 요소)
+    // 트리 전용 요소마다 (부모 그룹, 같은 부모 안 바로 아래 형제(옛 종류 요소나 그룹),
+    // 장면 전체에서 바로 아래 옛 종류 요소)
     struct Graft {
-        group: Option<String>,
-        below_in_group: Option<String>,
+        parent: Option<String>,
+        sibling_below: Option<String>,
         below: Option<String>,
         element: Element,
     }
     let mut grafts: Vec<Graft> = Vec::new();
     let mut ancestors: Vec<(usize, String)> = Vec::new();
-    let mut last_legacy: HashMap<Option<String>, String> = HashMap::new();
+    // 부모(그룹 id, 맨 위는 None)별 마지막으로 본 형제 기준점
+    let mut last_sibling: HashMap<Option<String>, String> = HashMap::new();
     let mut below: Option<String> = None;
     walk(&previous.nodes, &mut |node, path| {
         ancestors.retain(|(depth, _)| *depth < path.len());
+        let parent = ancestors.last().map(|(_, id)| id.clone());
         match node {
-            Node::Group(group) => ancestors.push((path.len(), group.id.clone())),
-            Node::Element(element) => {
-                let group = ancestors.last().map(|(_, id)| id.clone());
-                if is_legacy_kind(&element.kind) {
-                    below = Some(element.id.clone());
-                    last_legacy.insert(None, element.id.clone());
-                    for (_, ancestor) in &ancestors {
-                        last_legacy.insert(Some(ancestor.clone()), element.id.clone());
-                    }
-                } else {
-                    grafts.push(Graft {
-                        below_in_group: group
-                            .as_ref()
-                            .and_then(|group| last_legacy.get(&Some(group.clone())).cloned()),
-                        group,
-                        below: below.clone(),
-                        element: element.clone(),
-                    });
-                }
+            Node::Group(group) => {
+                last_sibling.insert(parent, group.id.clone());
+                ancestors.push((path.len(), group.id.clone()));
             }
+            Node::Element(element) if is_legacy_kind(&element.kind) => {
+                below = Some(element.id.clone());
+                last_sibling.insert(parent, element.id.clone());
+            }
+            Node::Element(element) => grafts.push(Graft {
+                sibling_below: last_sibling.get(&parent).cloned(),
+                parent,
+                below: below.clone(),
+                element: element.clone(),
+            }),
         }
     });
     // 같은 자리에 여럿이면 원래 순서대로 이어 붙인다
     let mut offsets: HashMap<(Option<String>, Option<String>), usize> = HashMap::new();
     for graft in grafts {
-        // 원래 그룹이 남아 있으면 그 안에 - 같은 그룹 안 아래 이웃 뒤, 없으면 그룹 맨 아래
-        let in_group = graft
-            .group
-            .as_ref()
-            .and_then(|group| next.find_path(group).map(|path| (group.clone(), path)));
-        let (key, parent, index) = match in_group {
-            Some((group, group_path)) => {
+        // 원래 부모가 남아 있으면 그 안에서 같은 형제 뒤, 형제가 없어졌으면 그 부모 맨 아래
+        let parent_path = match &graft.parent {
+            None => Some(Vec::new()),
+            Some(group) => next.find_path(group),
+        };
+        let (key, parent, index) = match parent_path {
+            Some(parent_path) => {
                 let anchor = graft
-                    .below_in_group
+                    .sibling_below
                     .as_ref()
                     .and_then(|anchor| next.find_path(anchor))
                     .filter(|path| {
-                        path.len() == group_path.len() + 1 && path.starts_with(&group_path)
+                        path.len() == parent_path.len() + 1 && path.starts_with(&parent_path)
                     });
                 match anchor {
                     Some(path) => (
-                        (Some(group), graft.below_in_group.clone()),
-                        group_path,
+                        (graft.parent.clone(), graft.sibling_below.clone()),
+                        parent_path,
                         path.last().copied().unwrap_or(0) + 1,
                     ),
-                    None => ((Some(group), None), group_path, 0),
+                    None => ((graft.parent.clone(), None), parent_path, 0),
                 }
             }
+            // 부모 그룹이 없어졌으면 장면 전체에서 바로 아래 옛 종류 요소 뒤
             None => match graft
                 .below
                 .as_ref()
@@ -950,7 +958,10 @@ pub(crate) fn graft_tree_only(previous: &Scene, next: &mut Scene) {
             {
                 Some(path) => {
                     let (last, parent) = path.split_last().expect("not empty");
-                    ((None, graft.below.clone()), parent.to_vec(), last + 1)
+                    let parent_id = (!parent.is_empty())
+                        .then(|| next.node_at(parent).map(|node| node.id().to_string()))
+                        .flatten();
+                    ((parent_id, graft.below.clone()), parent.to_vec(), last + 1)
                 }
                 None => ((None, None), Vec::new(), 0),
             },

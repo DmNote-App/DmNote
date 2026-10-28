@@ -90,15 +90,10 @@ impl CustomTabsHistorySnapshot {
                 .into_iter()
                 .filter(|(key, _)| is_plugin_instances_storage_key(key))
                 .collect(),
+            // 트리는 커밋 때 맞춰지므로 옛 모양에서 바뀐 탭으로 고른다
             element_tree: crate::state::store::element_tree_snapshot(
                 &before.element_document,
-                before
-                    .element_document
-                    .scenes
-                    .iter()
-                    .filter_map(|(id, scene)| {
-                        (after.element_document.scenes.get(id) != Some(scene)).then_some(id)
-                    }),
+                crate::models::legacy_layout::changed_modes(before.into(), after.into()).iter(),
             ),
         }
     }
@@ -123,10 +118,16 @@ impl CustomTabsHistorySnapshot {
                 &store.plugin_data,
                 target.plugin_instances_patch.keys(),
             ),
-            element_tree: crate::state::store::element_tree_snapshot(
-                &store.element_document,
-                target.element_tree.scenes.keys(),
-            ),
+            // 되돌릴 대상이 바꿀 탭 - 목표의 탭과 지금 옛 모양이 목표와 다른 탭
+            element_tree: {
+                let mut modes: std::collections::BTreeSet<String> =
+                    target.element_tree.scenes.keys().cloned().collect();
+                modes.extend(crate::models::legacy_layout::changed_modes(
+                    store.into(),
+                    (&target.document).into(),
+                ));
+                crate::state::store::element_tree_snapshot(&store.element_document, modes.iter())
+            },
         }
     }
 

@@ -504,3 +504,25 @@ fn 구조가_바뀌어도_트리_전용_요소는_원래_그룹_안에_남는다
         Some(Some("g1".to_string()))
     );
 }
+
+#[test]
+fn 그룹_바로_위의_맨_위_트리_요소는_구조가_바뀌어도_그룹에_들어가지_않는다() {
+    let legacy = sample();
+    let mut document = import_document(&legacy).unwrap();
+    let probe: Node = serde_json::from_value(json!({
+        "type": "element", "id": "probe-1", "kind": "probe",
+        "frame": { "x": 0, "y": 0, "width": 10, "height": 10 }
+    }))
+    .unwrap();
+    let scene = document.scenes.get_mut("4key").unwrap();
+    let group_at = scene.find_path("g1").unwrap()[0];
+    scene.nodes.insert(group_at + 1, probe);
+    let mut edited = legacy.clone();
+    edited.key_positions.get_mut("4key").unwrap()[1].z_index = Some(999);
+    let next = reconcile_document(&document, Some(LegacyRef::from(&legacy)), &edited).unwrap();
+    let scene = &next.scenes["4key"];
+    assert_eq!(scene.parent_of("probe-1"), Some(None));
+    // 그룹 바로 위 자리를 지킨다
+    let path = scene.find_path("probe-1").unwrap();
+    assert_eq!(scene.nodes[path[0] - 1].id(), "g1");
+}
