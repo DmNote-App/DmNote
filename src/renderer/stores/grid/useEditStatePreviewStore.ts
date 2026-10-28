@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { create } from 'zustand';
 import { supportsActiveVisualState } from './useGradientEditStore';
+import type { SurfaceStyledElementType } from '@src/types/elementKinds';
 
 /**
  * 편집 상태 프리뷰 - 상태 스위치를 가진 피커가 열려 있는 동안 어느 요소를
@@ -10,7 +11,7 @@ import { supportsActiveVisualState } from './useGradientEditStore';
  */
 
 export type EditStateAnchor =
-  | { kind: 'key' | 'stat' | 'graph' | 'knob'; id: string }
+  | { kind: SurfaceStyledElementType; id: string }
   | { kind: 'batch' };
 
 export type EditPreviewState = 'idle' | 'active';
@@ -107,7 +108,7 @@ export function useEditStatePreviewPublisher(
  * batch 발행은 선택 포함 + active 시각 능력(key/knob)일 때만 참
  */
 export function useEditStatePreviewActive(
-  kind: 'key' | 'stat' | 'graph' | 'knob',
+  kind: SurfaceStyledElementType,
   id: string,
   isInBatchSelection = false,
 ): boolean {

@@ -17,6 +17,7 @@ import { getKeyInfoByGlobalKey } from '@utils/input/KeyMaps';
 import { aggregateMixedValue } from '@src/renderer/components/main/Grid/PropertiesPanel/batch/mixedValue';
 import { slotCanonical, slotDisplayName } from '@utils/keySlot';
 import { getStatTypeLabel } from '@utils/grid/statTypeLabel';
+import type { SurfaceStyledElementType } from '@src/types/elementKinds';
 
 interface BatchSelectedElement<Type extends string> {
   type: Type;
@@ -77,9 +78,7 @@ export interface BatchSelectionModelInput {
   selectedKeyLikeElements: readonly BatchSelectedElement<'key' | 'stat'>[];
   selectedGraphElements: readonly BatchSelectedElement<'graph'>[];
   selectedKnobElements: readonly BatchSelectedElement<'knob'>[];
-  selectedBatchStyleElements: readonly BatchSelectedElement<
-    'key' | 'stat' | 'graph' | 'knob'
-  >[];
+  selectedBatchStyleElements: readonly BatchSelectedElement<SurfaceStyledElementType>[];
   // resize가 실제로 조절하는 집합 - 스타일 집합에 sprite가 더해진다
   selectedBatchGeometryElements: readonly BatchSelectedElement<EditorElementTypeV1>[];
 }

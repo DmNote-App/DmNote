@@ -1,5 +1,6 @@
 import {
   EDITOR_BOUNDS_LIMITS,
+  EDITOR_ELEMENT_POSITION_FIELDS,
   isEditorElementType,
   type EditorDocumentV1,
   type EditorElementTypeV1,
@@ -75,13 +76,6 @@ export interface SelectionRotationSnapshot {
 export interface SelectionRotationUpdate extends SelectionRotationTarget {
   patch: Record<string, unknown>;
 }
-
-const NATIVE_POSITION_FIELDS = {
-  key: 'keyPositions',
-  stat: 'statPositions',
-  graph: 'graphPositions',
-  knob: 'knobPositions',
-} as const;
 
 const inRange = (value: number, min: number, max: number): boolean =>
   Number.isFinite(value) && value >= min && value <= max;
@@ -248,10 +242,7 @@ export const createSelectionRotationSnapshot = (
   >();
   for (const target of sorted) {
     if (positionsByType.has(target.type)) continue;
-    const field =
-      target.type === 'sprite'
-        ? 'spritePositions'
-        : NATIVE_POSITION_FIELDS[target.type];
+    const field = EDITOR_ELEMENT_POSITION_FIELDS[target.type];
     const positions = new Map<string, SelectionRotationPosition | null>();
     for (const position of document[field][mode] ?? []) {
       if (!position.id) continue;

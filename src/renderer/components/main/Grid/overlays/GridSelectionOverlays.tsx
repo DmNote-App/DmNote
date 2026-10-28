@@ -7,7 +7,7 @@ import NativeRotateHandle from '../handles/NativeRotateHandle';
 import SpriteRotateHandle from '../handles/SpriteRotateHandle';
 import SelectionRotateHandle from '../handles/SelectionRotateHandle';
 import { useSelectionRotationFrame } from '@hooks/Grid/selection/useSelectionRotationFrame';
-import { isRotatableElementType } from '../handles/rotatableElement';
+import { isRotatableElementType } from '@src/types/elementKinds';
 import {
   getSelectionOutlineEdges,
   GROUP_SELECTION_BORDER_WIDTH,

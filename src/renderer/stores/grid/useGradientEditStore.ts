@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { GradientSpec } from '@src/types/color';
+import type { SurfaceStyledElementType } from '@src/types/elementKinds';
 
 /**
  * 온캔버스 그라데이션 편집 세션 - 피커가 그라데이션 형식으로 열려 있는 동안
@@ -7,7 +8,7 @@ import type { GradientSpec } from '@src/types/color';
  */
 
 export type GradientCanvasAnchor =
-  | { kind: 'key' | 'stat' | 'graph' | 'knob'; id: string }
+  | { kind: SurfaceStyledElementType; id: string }
   | { kind: 'batch' };
 
 /** 편집 중인 표면 - 캔버스 일시 페인트가 어느 필드를 덮을지 결정 */
@@ -155,7 +156,7 @@ export const useGradientEditStore = create<GradientEditState>((set) => ({
  * 화면에 반영되는 경로. 비대상 요소는 항상 null이라 리렌더 없음
  */
 export function useGradientPreviewSpec(
-  kind: 'key' | 'stat' | 'graph' | 'knob',
+  kind: SurfaceStyledElementType,
   id: string,
   surface: GradientPreviewSurface,
   isInBatchSelection = false,
@@ -169,7 +170,7 @@ export function useGradientPreviewSpec(
  * 소비해 배경·보더·글자·카운터가 한 상태로 렌더되게 한다
  */
 export function useGradientPreviewSession(
-  kind: 'key' | 'stat' | 'graph' | 'knob',
+  kind: SurfaceStyledElementType,
   id: string,
   isInBatchSelection = false,
 ): GradientEditSession | null {

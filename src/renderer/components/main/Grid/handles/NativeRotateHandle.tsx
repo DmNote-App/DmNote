@@ -3,7 +3,7 @@ import { patchStylePropertyById } from '@src/renderer/editor/runtime/operations/
 import { previewSingleStyleProperty } from '../PropertiesPanel/selection/previewPatchForwarders';
 import CanvasRotateHandle from './CanvasRotateHandle';
 import type { Bounds } from './groupResizeUtils';
-import type { RotatableElementType } from './rotatableElement';
+import type { RotatableElementType } from '@src/types/elementKinds';
 
 interface NativeRotateHandleProps {
   elementType: RotatableElementType;

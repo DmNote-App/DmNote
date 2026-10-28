@@ -27,8 +27,9 @@ import {
   DEFAULT_ELEMENT_SHADOW_SPEC,
   DEFAULT_ELEMENT_ACTIVE_SHADOW_SPEC,
 } from '@utils/element/elementDefaults';
+import type { SurfaceStyledElementType } from '@src/types/elementKinds';
 
-type PreviewTargetType = 'key' | 'stat' | 'graph' | 'knob';
+type PreviewTargetType = SurfaceStyledElementType;
 
 interface PreviewTarget {
   elementType: PreviewTargetType;

@@ -31,6 +31,7 @@ import {
   createShadowCommitHandler,
   createStylePropertyHandlers,
 } from './batchPanelShared';
+import type { SurfaceStyledElementType } from '@src/types/elementKinds';
 
 interface UseBatchKeyLikeCommitRuntimeOptions {
   selectedBatchStyleElements: SelectedElement[];
@@ -68,7 +69,7 @@ export const useBatchKeyLikeCommitRuntime = ({
       : null;
   const textPropertyTargets = selectedBatchStyleElements.map(
     ({ type, id }) => ({
-      elementType: type as 'key' | 'stat' | 'graph' | 'knob',
+      elementType: type as SurfaceStyledElementType,
       id,
     }),
   );

@@ -1,5 +1,6 @@
 import type React from 'react';
 import { z } from 'zod';
+import type { SurfaceStyledElementType } from '@src/types/elementKinds';
 
 /**
  * GradientSpec — 그라데이션 색 값 (api-contract v2.3)
@@ -651,7 +652,7 @@ export function inheritedPaintMaterialization(
 
 export function projectPaintDescriptor(
   current: Record<string, unknown>,
-  elementType: 'key' | 'stat' | 'graph' | 'knob',
+  elementType: SurfaceStyledElementType,
   field: PaintPropertyNameV1,
   descriptor: PaintDescriptorV1,
 ): Record<string, unknown> {

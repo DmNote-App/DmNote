@@ -24,12 +24,19 @@ import {
   previewBatchPaint,
   previewBatchStyleProperty,
 } from '../selection/previewPatchForwarders';
+import { EDITOR_ELEMENT_TYPES } from '@src/types/editor';
+import {
+  isSurfaceStyledElementType,
+  type SurfaceStyledElementType,
+} from '@src/types/elementKinds';
 
-const NATIVE_IMAGE_TYPES = ['key', 'stat', 'graph', 'knob'] as const;
+const NATIVE_IMAGE_TYPES = EDITOR_ELEMENT_TYPES.filter(
+  isSurfaceStyledElementType,
+);
 
 export const createStylePropertyHandlers = (
   targets: readonly {
-    elementType: 'key' | 'stat' | 'graph' | 'knob';
+    elementType: SurfaceStyledElementType;
     id: string;
   }[],
   selectedKeyType: string,
@@ -67,7 +74,7 @@ export const createStylePropertyHandlers = (
 
 // 표면별 허용 타깃 - font는 라벨 렌더러가 있는 키·스탯(active는 키만)
 const paintRelevantTargets = <
-  T extends { elementType: 'key' | 'stat' | 'graph' | 'knob' },
+  T extends { elementType: SurfaceStyledElementType },
 >(
   targets: readonly T[],
   patch: EditorPaintPropertyPatchV1,
@@ -89,7 +96,7 @@ const paintRelevantTargets = <
 
 export const createPaintHandlers = (
   targets: readonly {
-    elementType: 'key' | 'stat' | 'graph' | 'knob';
+    elementType: SurfaceStyledElementType;
     id: string;
   }[],
   selectedKeyType: string,
@@ -204,7 +211,6 @@ export type {
   BatchLocalColors,
   BatchPickerTarget,
 } from './style/batchPickerTypes';
-
 export type MixedValueResult<T> = { isMixed: boolean; value: T };
 export type MixedValueGetter<P> = <T>(
   getter: (position: P) => T | undefined,
