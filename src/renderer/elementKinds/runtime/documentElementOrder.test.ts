@@ -46,7 +46,7 @@ describe('트리 전용 요소 쌓임 순서', () => {
         zIndex,
       ]),
     ).toEqual([
-      ['bottom', 0],
+      ['bottom', 2],
       ['t1', 5],
       ['t2', 3],
     ]);

@@ -21,7 +21,7 @@ import IconSwap from '@components/main/common/IconSwap';
 import CloseEyeIcon from '@assets/svgs/close_eye.svg';
 import OpenEyeIcon from '@assets/svgs/open_eye.svg';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
-import type { LayerItem } from '../types';
+import type { DisplayItem, LayerItem } from '../types';
 import { buildLayerItems, buildDisplayItems } from './layerPanelModel';
 import {
   FolderIcon,
@@ -36,6 +36,10 @@ import {
 import { useLayerActions } from './useLayerActions';
 import { useLayerDnD } from './useLayerDnD';
 import LayerRenameInput from './LayerRenameInput';
+import DocumentLayerRow from './DocumentLayerRow';
+import { placeDocumentLayerRows } from './documentLayerRows';
+import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documentElementOrder';
 import { useOptimisticBooleanCommit } from '@hooks/useOptimisticBooleanCommit';
 import {
   layerItemToSelectedElement,
@@ -222,6 +226,12 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
     layerGroupsForMode,
   });
 
+  // 트리 문서에만 있는 요소(커서 트래커 등) - 그릴 때만 겹침 순서 자리에 끼운다
+  const documentScene = useElementDocumentScene(selectedKeyType);
+  const documentSlots = documentElementSlots(documentScene, {
+    includeHidden: true,
+  });
+
   // 디스플레이 아이템
   const displayItems = buildDisplayItems({
     layerItems,
@@ -229,6 +239,7 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
     collapsedGroups,
     defaultGroupName: t('layerGroup.defaultName'),
   });
+  const documentPlacement = placeDocumentLayerRows(displayItems, documentSlots);
 
   // Refs (이벤트 핸들러에서 최신 값 참조)
   const layerItemsRef = useRef(layerItems);
@@ -492,48 +503,31 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
   // 렌더링
   // ──────────────────────────────────────────────────────────────────────────
 
-  return (
-    <div
-      className="flex-1 properties-panel-overlay-scroll group/panel"
-      onMouseDown={handleEmptySpaceMouseDown}
-    >
-      <div
-        ref={setScrollRef}
-        className="properties-panel-overlay-viewport"
-        onMouseDown={handleEmptySpaceMouseDown}
-      >
-        {layerItems.length === 0 ? (
-          <div className="flex items-center justify-center h-full p-[16px]">
-            <p className="text-fg-caption text-body text-center">
-              {t('propertiesPanel.noLayers') || 'No layers'}
-            </p>
-          </div>
-        ) : (
-          <div className="relative">
-            {displayItems.map((displayItem, displayIndex) => {
-              // ── 그룹 헤더 렌더링 ──
-              if (displayItem.displayType === 'group-header') {
-                const gh = displayItem;
-                const isRenamingGroup =
-                  actions.renamingItemId === `group:${gh.groupId}`;
-                const isBeingDragged = dnd.draggedGroupId === gh.groupId;
-                const isSelected = isGroupHeaderSelected(gh.groupId);
-                // 그룹 진입 존 - 행 전체를 hover 토큰으로 하이라이트
-                const isDropInto =
-                  dnd.draggedItemId != null &&
-                  dnd.dragOverIntoGroupId === gh.groupId;
+  const renderDisplayItem = (
+    displayItem: DisplayItem,
+    displayIndex: number,
+  ) => {
+    // ── 그룹 헤더 렌더링 ──
+    if (displayItem.displayType === 'group-header') {
+      const gh = displayItem;
+      const isRenamingGroup = actions.renamingItemId === `group:${gh.groupId}`;
+      const isBeingDragged = dnd.draggedGroupId === gh.groupId;
+      const isSelected = isGroupHeaderSelected(gh.groupId);
+      // 그룹 진입 존 - 행 전체를 hover 토큰으로 하이라이트
+      const isDropInto =
+        dnd.draggedItemId != null && dnd.dragOverIntoGroupId === gh.groupId;
 
-                return (
-                  <div
-                    key={`group:${gh.groupId}`}
-                    onMouseDown={(e) => dnd.handleGroupMouseDown(e, gh.groupId)}
-                    onContextMenu={(e) =>
-                      actions.handleGroupHeaderContextMenu(e, gh.groupId)
-                    }
-                    onClick={(e) => {
-                      handleGroupHeaderClick(gh.groupId, e);
-                    }}
-                    className={`
+      return (
+        <div
+          key={`group:${gh.groupId}`}
+          onMouseDown={(e) => dnd.handleGroupMouseDown(e, gh.groupId)}
+          onContextMenu={(e) =>
+            actions.handleGroupHeaderContextMenu(e, gh.groupId)
+          }
+          onClick={(e) => {
+            handleGroupHeaderClick(gh.groupId, e);
+          }}
+          className={`
                       group relative flex items-center gap-[8px] pl-[12px] pr-[4px] h-[34px]
                       select-none dmn-row-grabbable
                       ${gh.allHidden && !isBeingDragged ? 'opacity-60' : ''}
@@ -548,73 +542,68 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
                           : 'hover:bg-fill text-fg-muted'
                       }
                     `}
-                  >
-                    {/* 아이템 드래그 드롭 인디케이터 */}
-                    {dnd.draggedItemId &&
-                      dnd.dragOverItemDisplayIndex === displayIndex && (
-                        <div
-                          className={`absolute ${itemIndicatorIndentClass} right-0 top-0 h-[2px] bg-accent z-10`}
-                        />
-                      )}
-                    {/* 그룹 드래그 드롭 인디케이터 */}
-                    {dnd.draggedGroupId &&
-                      dnd.dragOverDisplayIndex === displayIndex &&
-                      dnd.draggedGroupId !== gh.groupId && (
-                        <div className="absolute left-0 right-0 top-0 h-[2px] bg-accent z-10" />
-                      )}
-                    <LayerGroupDisclosure
-                      collapsed={gh.isCollapsed}
-                      onToggle={() => toggleCollapsed(gh.groupId)}
-                    />
+        >
+          {/* 아이템 드래그 드롭 인디케이터 */}
+          {dnd.draggedItemId &&
+            dnd.dragOverItemDisplayIndex === displayIndex && (
+              <div
+                className={`absolute ${itemIndicatorIndentClass} right-0 top-0 h-[2px] bg-accent z-10`}
+              />
+            )}
+          {/* 그룹 드래그 드롭 인디케이터 */}
+          {dnd.draggedGroupId &&
+            dnd.dragOverDisplayIndex === displayIndex &&
+            dnd.draggedGroupId !== gh.groupId && (
+              <div className="absolute left-0 right-0 top-0 h-[2px] bg-accent z-10" />
+            )}
+          <LayerGroupDisclosure
+            collapsed={gh.isCollapsed}
+            onToggle={() => toggleCollapsed(gh.groupId)}
+          />
 
-                    {/* 그룹 이름 */}
-                    {isRenamingGroup ? (
-                      <LayerRenameInput
-                        inputRef={actions.renameInputRef}
-                        value={actions.renameValue}
-                        cancelledRef={actions.renameCancelledRef}
-                        onChange={actions.setRenameValue}
-                        onCommit={(value) =>
-                          actions.handleGroupRenameCommit(gh.groupId, value)
-                        }
-                        onCancel={() => actions.setRenamingItemId(null)}
-                      />
-                    ) : (
-                      <span className="flex-1 text-body truncate font-medium">
-                        {gh.groupName}
-                      </span>
-                    )}
-
-                    {/* 그룹 표시/숨김 토글 */}
-                    <LayerGroupVisibilityButton
-                      groupId={gh.groupId}
-                      allHidden={gh.allHidden}
-                      onToggle={actions.handleToggleGroupVisibility}
-                    />
-                  </div>
-                );
+          {/* 그룹 이름 */}
+          {isRenamingGroup ? (
+            <LayerRenameInput
+              inputRef={actions.renameInputRef}
+              value={actions.renameValue}
+              cancelledRef={actions.renameCancelledRef}
+              onChange={actions.setRenameValue}
+              onCommit={(value) =>
+                actions.handleGroupRenameCommit(gh.groupId, value)
               }
+              onCancel={() => actions.setRenamingItemId(null)}
+            />
+          ) : (
+            <span className="flex-1 text-body truncate font-medium">
+              {gh.groupName}
+            </span>
+          )}
 
-              // ── 레이어 아이템 렌더링 ──
-              const { item, groupDepth, flatIndex } = displayItem;
-              const paddingLeft = groupDepth > 0 ? 28 : 12;
-              const isInDraggedGroup =
-                dnd.draggedGroupId != null &&
-                item.groupId === dnd.draggedGroupId;
+          {/* 그룹 표시/숨김 토글 */}
+          <LayerGroupVisibilityButton
+            groupId={gh.groupId}
+            allHidden={gh.allHidden}
+            onToggle={actions.handleToggleGroupVisibility}
+          />
+        </div>
+      );
+    }
 
-              return (
-                <div
-                  key={item.id}
-                  onMouseDown={(e) => dnd.handleMouseDown(e, item, flatIndex)}
-                  onClick={(e) => handleItemClick(item, flatIndex, e)}
-                  onDoubleClick={(e) =>
-                    handleItemDoubleClick(item, flatIndex, e)
-                  }
-                  onContextMenu={(e) =>
-                    actions.handleContextMenu(e, item, flatIndex)
-                  }
-                  style={{ paddingLeft }}
-                  className={`
+    // ── 레이어 아이템 렌더링 ──
+    const { item, groupDepth, flatIndex } = displayItem;
+    const paddingLeft = groupDepth > 0 ? 28 : 12;
+    const isInDraggedGroup =
+      dnd.draggedGroupId != null && item.groupId === dnd.draggedGroupId;
+
+    return (
+      <div
+        key={item.id}
+        onMouseDown={(e) => dnd.handleMouseDown(e, item, flatIndex)}
+        onClick={(e) => handleItemClick(item, flatIndex, e)}
+        onDoubleClick={(e) => handleItemDoubleClick(item, flatIndex, e)}
+        onContextMenu={(e) => actions.handleContextMenu(e, item, flatIndex)}
+        style={{ paddingLeft }}
+        className={`
                     group relative flex items-center gap-[8px] pr-[4px] h-[34px]
                     select-none dmn-row-grabbable
                     ${item.hidden && !isInDraggedGroup ? 'opacity-60' : ''}
@@ -627,99 +616,134 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
                         : 'hover:bg-fill text-fg-muted'
                     }
                   `}
-                >
-                  {/* 드롭 인디케이터 */}
-                  {dnd.draggedItemId &&
-                    dnd.dragOverItemDisplayIndex === displayIndex && (
-                      <div
-                        className={`absolute ${itemIndicatorIndentClass} right-0 top-0 h-[2px] bg-accent z-10`}
-                      />
-                    )}
-                  {dnd.draggedGroupId &&
-                    dnd.dragOverDisplayIndex === displayIndex &&
-                    item.groupId !== dnd.draggedGroupId && (
-                      <div className="absolute left-0 right-0 top-0 h-[2px] bg-accent z-10" />
-                    )}
+      >
+        {/* 드롭 인디케이터 */}
+        {dnd.draggedItemId && dnd.dragOverItemDisplayIndex === displayIndex && (
+          <div
+            className={`absolute ${itemIndicatorIndentClass} right-0 top-0 h-[2px] bg-accent z-10`}
+          />
+        )}
+        {dnd.draggedGroupId &&
+          dnd.dragOverDisplayIndex === displayIndex &&
+          item.groupId !== dnd.draggedGroupId && (
+            <div className="absolute left-0 right-0 top-0 h-[2px] bg-accent z-10" />
+          )}
 
-                  {/* 아이콘 */}
-                  <div className="flex-shrink-0">
-                    {item.type === 'key' ? (
-                      <KeyIcon />
-                    ) : item.type === 'stat' ? (
-                      <StatIcon />
-                    ) : item.type === 'graph' ? (
-                      <GraphIcon />
-                    ) : item.type === 'knob' ? (
-                      <KnobIcon />
-                    ) : item.type === 'sprite' ? (
-                      <SpriteIcon />
-                    ) : (
-                      <PluginIcon />
-                    )}
-                  </div>
+        {/* 아이콘 */}
+        <div className="flex-shrink-0">
+          {item.type === 'key' ? (
+            <KeyIcon />
+          ) : item.type === 'stat' ? (
+            <StatIcon />
+          ) : item.type === 'graph' ? (
+            <GraphIcon />
+          ) : item.type === 'knob' ? (
+            <KnobIcon />
+          ) : item.type === 'sprite' ? (
+            <SpriteIcon />
+          ) : (
+            <PluginIcon />
+          )}
+        </div>
 
-                  {/* 이름 */}
-                  {actions.renamingItemId === item.id ? (
-                    <LayerRenameInput
-                      inputRef={actions.renameInputRef}
-                      value={actions.renameValue}
-                      cancelledRef={actions.renameCancelledRef}
-                      onChange={actions.setRenameValue}
-                      onCommit={(value) =>
-                        actions.handleLayerRenameCommit(item, value)
-                      }
-                      onCancel={() => actions.setRenamingItemId(null)}
+        {/* 이름 */}
+        {actions.renamingItemId === item.id ? (
+          <LayerRenameInput
+            inputRef={actions.renameInputRef}
+            value={actions.renameValue}
+            cancelledRef={actions.renameCancelledRef}
+            onChange={actions.setRenameValue}
+            onCommit={(value) => actions.handleLayerRenameCommit(item, value)}
+            onCancel={() => actions.setRenamingItemId(null)}
+          />
+        ) : (
+          <span className="flex-1 text-body truncate">{item.name}</span>
+        )}
+
+        {/* 표시/숨김 토글 */}
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onDoubleClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onClick={(e) => actions.handleToggleVisibility(e, item)}
+          title={
+            item.hidden
+              ? t('propertiesPanel.showLayer') || 'Show'
+              : t('propertiesPanel.hideLayer') || 'Hide'
+          }
+          className={`flex-shrink-0 w-[28px] h-[28px] flex items-center justify-center rounded-md cursor-pointer ${
+            item.hidden
+              ? ''
+              : 'opacity-0 group-hover:opacity-60 hover:!opacity-100'
+          }`}
+        >
+          <IconSwap
+            active={item.hidden}
+            activeIcon={
+              <CloseEyeIcon width={14} height={14} fill="currentColor" />
+            }
+            inactiveIcon={
+              <OpenEyeIcon width={14} height={14} fill="currentColor" />
+            }
+          />
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className="flex-1 properties-panel-overlay-scroll group/panel"
+      onMouseDown={handleEmptySpaceMouseDown}
+    >
+      <div
+        ref={setScrollRef}
+        className="properties-panel-overlay-viewport"
+        onMouseDown={handleEmptySpaceMouseDown}
+      >
+        {layerItems.length === 0 && documentSlots.length === 0 ? (
+          <div className="flex items-center justify-center h-full p-[16px]">
+            <p className="text-fg-caption text-body text-center">
+              {t('propertiesPanel.noLayers') || 'No layers'}
+            </p>
+          </div>
+        ) : (
+          <div className="relative">
+            {displayItems.map((displayItem, displayIndex) => (
+              <React.Fragment
+                key={
+                  displayItem.displayType === 'group-header'
+                    ? `group:${displayItem.groupId}`
+                    : displayItem.item.id
+                }
+              >
+                {documentPlacement.before
+                  .get(displayIndex)
+                  ?.map(({ element }) => (
+                    <DocumentLayerRow
+                      key={`document:${element.id}`}
+                      sceneId={selectedKeyType}
+                      element={element}
+                      t={t}
                     />
-                  ) : (
-                    <span className="flex-1 text-body truncate">
-                      {item.name}
-                    </span>
-                  )}
-
-                  {/* 표시/숨김 토글 */}
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onDoubleClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onClick={(e) => actions.handleToggleVisibility(e, item)}
-                    title={
-                      item.hidden
-                        ? t('propertiesPanel.showLayer') || 'Show'
-                        : t('propertiesPanel.hideLayer') || 'Hide'
-                    }
-                    className={`flex-shrink-0 w-[28px] h-[28px] flex items-center justify-center rounded-md cursor-pointer ${
-                      item.hidden
-                        ? ''
-                        : 'opacity-0 group-hover:opacity-60 hover:!opacity-100'
-                    }`}
-                  >
-                    <IconSwap
-                      active={item.hidden}
-                      activeIcon={
-                        <CloseEyeIcon
-                          width={14}
-                          height={14}
-                          fill="currentColor"
-                        />
-                      }
-                      inactiveIcon={
-                        <OpenEyeIcon
-                          width={14}
-                          height={14}
-                          fill="currentColor"
-                        />
-                      }
-                    />
-                  </button>
-                </div>
-              );
-            })}
+                  ))}
+                {renderDisplayItem(displayItem, displayIndex)}
+              </React.Fragment>
+            ))}
+            {documentPlacement.after.map(({ element }) => (
+              <DocumentLayerRow
+                key={`document:${element.id}`}
+                sceneId={selectedKeyType}
+                element={element}
+                t={t}
+              />
+            ))}
 
             {/* 마지막 아이템 뒤 드롭 인디케이터 */}
             {dnd.draggedItemId &&
