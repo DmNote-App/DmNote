@@ -22,33 +22,26 @@ fn validate_aggregate_metric_limits(
         MAX_MODES,
     )?;
 
+    struct ElementCollectionLimits<'a> {
+        current: &'a EditorDocumentV1,
+        candidate: &'a EditorDocumentV1,
+    }
+
+    impl CollectionVisitor for ElementCollectionLimits<'_> {
+        type Error = EditorCommitError;
+
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), EditorCommitError> {
+            validate_collection_limits(
+                C::STORE_KEY,
+                C::positions(self.current),
+                C::positions(self.candidate),
+            )
+        }
+    }
+
     validate_collection_limits("keys", &current.keys, &candidate.keys)?;
     validate_key_member_fanout(&current.keys, &candidate.keys)?;
-    validate_collection_limits(
-        "keyPositions",
-        &current.key_positions,
-        &candidate.key_positions,
-    )?;
-    validate_collection_limits(
-        "statPositions",
-        &current.stat_positions,
-        &candidate.stat_positions,
-    )?;
-    validate_collection_limits(
-        "graphPositions",
-        &current.graph_positions,
-        &candidate.graph_positions,
-    )?;
-    validate_collection_limits(
-        "knobPositions",
-        &current.knob_positions,
-        &candidate.knob_positions,
-    )?;
-    validate_collection_limits(
-        "spritePositions",
-        &current.sprite_positions,
-        &candidate.sprite_positions,
-    )?;
+    visit_collections(&mut ElementCollectionLimits { current, candidate })?;
     validate_collection_limits(
         "layerGroups",
         &current.layer_groups,
@@ -103,19 +96,58 @@ fn grandfather_counterpart<'a, T>(
     mode: &str,
     index: usize,
     id: &str,
-    position_of: impl Fn(&'a T) -> &'a KeyPosition,
-) -> Option<&'a KeyPosition> {
+) -> Option<&'a T> {
     match keying {
-        GrandfatherKeying::StableId => by_id.get(id).map(|element| position_of(element)),
+        GrandfatherKeying::StableId => by_id.get(id).copied(),
         #[cfg(test)]
         GrandfatherKeying::ModeIndex => current_collection
             .get(mode)
-            .and_then(|elements| elements.get(index))
-            .map(position_of),
+            .and_then(|elements| elements.get(index)),
         GrandfatherKeying::LegacyPresetModeIndex => current_collection
             .get(mode)
-            .and_then(|elements| elements.get(index))
-            .map(position_of),
+            .and_then(|elements| elements.get(index)),
+    }
+}
+
+// 요소 치수 관용 - 스프라이트는 자세 수 상한을 같은 순회에서 함께 본다
+struct ElementOwnerLimits<'a> {
+    current: &'a EditorDocumentV1,
+    candidate: &'a EditorDocumentV1,
+    keying: GrandfatherKeying,
+}
+
+impl CollectionVisitor for ElementOwnerLimits<'_> {
+    type Error = EditorCommitError;
+
+    fn visit<C: ElementCollection>(&mut self) -> Result<(), EditorCommitError> {
+        if C::KIND == EditorElementTypeV1::Sprite {
+            return validate_sprite_owner_metric_limits(self.current, self.candidate, self.keying);
+        }
+        let current_collection = C::positions(self.current);
+        let current_by_id = current_collection
+            .values()
+            .flatten()
+            .map(|element| (element.id(), element))
+            .collect::<HashMap<_, _>>();
+        for (mode, elements) in C::positions(self.candidate) {
+            for (index, element) in elements.iter().enumerate() {
+                let counterpart = grandfather_counterpart(
+                    self.keying,
+                    &current_by_id,
+                    current_collection,
+                    mode,
+                    index,
+                    element.id(),
+                );
+                validate_bounds_metrics(
+                    &format!("{} {mode}[{index}]", C::STORE_KEY),
+                    counterpart.map(ElementItem::bounds),
+                    element.bounds(),
+                    self.keying == GrandfatherKeying::LegacyPresetModeIndex,
+                )?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -188,114 +220,18 @@ fn validate_per_owner_metric_limits(
         }
     }
 
-    let current_key_positions = current
-        .key_positions
-        .values()
-        .flatten()
-        .map(|position| (position.id.as_str(), position))
-        .collect::<HashMap<_, _>>();
-    for (mode, positions) in &candidate.key_positions {
-        for (index, position) in positions.iter().enumerate() {
-            validate_position_metrics(
-                "keyPositions",
-                mode,
-                index,
-                grandfather_counterpart(
-                    keying,
-                    &current_key_positions,
-                    &current.key_positions,
-                    mode,
-                    index,
-                    &position.id,
-                    |position| position,
-                ),
-                position,
-                keying == GrandfatherKeying::LegacyPresetModeIndex,
-            )?;
-        }
-    }
+    visit_collections(&mut ElementOwnerLimits {
+        current,
+        candidate,
+        keying,
+    })
+}
 
-    let current_stat_positions = current
-        .stat_positions
-        .values()
-        .flatten()
-        .map(|position| (position.position.id.as_str(), position))
-        .collect::<HashMap<_, _>>();
-    for (mode, positions) in &candidate.stat_positions {
-        for (index, position) in positions.iter().enumerate() {
-            validate_position_metrics(
-                "statPositions",
-                mode,
-                index,
-                grandfather_counterpart(
-                    keying,
-                    &current_stat_positions,
-                    &current.stat_positions,
-                    mode,
-                    index,
-                    &position.position.id,
-                    |element| &element.position,
-                ),
-                &position.position,
-                keying == GrandfatherKeying::LegacyPresetModeIndex,
-            )?;
-        }
-    }
-
-    let current_graph_positions = current
-        .graph_positions
-        .values()
-        .flatten()
-        .map(|position| (position.position.id.as_str(), position))
-        .collect::<HashMap<_, _>>();
-    for (mode, positions) in &candidate.graph_positions {
-        for (index, position) in positions.iter().enumerate() {
-            validate_position_metrics(
-                "graphPositions",
-                mode,
-                index,
-                grandfather_counterpart(
-                    keying,
-                    &current_graph_positions,
-                    &current.graph_positions,
-                    mode,
-                    index,
-                    &position.position.id,
-                    |element| &element.position,
-                ),
-                &position.position,
-                keying == GrandfatherKeying::LegacyPresetModeIndex,
-            )?;
-        }
-    }
-
-    let current_knob_positions = current
-        .knob_positions
-        .values()
-        .flatten()
-        .map(|position| (position.position.id.as_str(), position))
-        .collect::<HashMap<_, _>>();
-    for (mode, positions) in &candidate.knob_positions {
-        for (index, position) in positions.iter().enumerate() {
-            validate_position_metrics(
-                "knobPositions",
-                mode,
-                index,
-                grandfather_counterpart(
-                    keying,
-                    &current_knob_positions,
-                    &current.knob_positions,
-                    mode,
-                    index,
-                    &position.position.id,
-                    |element| &element.position,
-                ),
-                &position.position,
-                keying == GrandfatherKeying::LegacyPresetModeIndex,
-            )?;
-        }
-    }
-
+fn validate_sprite_owner_metric_limits(
+    current: &EditorDocumentV1,
+    candidate: &EditorDocumentV1,
+    keying: GrandfatherKeying,
+) -> Result<(), EditorCommitError> {
     let current_sprite_positions = current
         .sprite_positions
         .values()
@@ -304,24 +240,18 @@ fn validate_per_owner_metric_limits(
         .collect::<HashMap<_, _>>();
     for (mode, sprites) in &candidate.sprite_positions {
         for (index, sprite) in sprites.iter().enumerate() {
-            let current_sprite = match keying {
-                GrandfatherKeying::StableId => {
-                    current_sprite_positions.get(sprite.id.as_str()).copied()
-                }
-                #[cfg(test)]
-                GrandfatherKeying::ModeIndex => current
-                    .sprite_positions
-                    .get(mode)
-                    .and_then(|sprites| sprites.get(index)),
-                GrandfatherKeying::LegacyPresetModeIndex => current
-                    .sprite_positions
-                    .get(mode)
-                    .and_then(|sprites| sprites.get(index)),
-            };
+            let current_sprite = grandfather_counterpart(
+                keying,
+                &current_sprite_positions,
+                &current.sprite_positions,
+                mode,
+                index,
+                &sprite.id,
+            );
             validate_bounds_metrics(
                 &format!("spritePositions {mode}[{index}]"),
-                current_sprite.map(sprite_bounds),
-                sprite_bounds(sprite),
+                current_sprite.map(ElementItem::bounds),
+                sprite.bounds(),
                 keying == GrandfatherKeying::LegacyPresetModeIndex,
             )?;
             validate_count_limit(
@@ -335,15 +265,6 @@ fn validate_per_owner_metric_limits(
     }
 
     Ok(())
-}
-
-fn sprite_bounds(sprite: &ReactiveSpritePosition) -> EditorBoundsV1 {
-    EditorBoundsV1 {
-        dx: sprite.dx,
-        dy: sprite.dy,
-        width: sprite.width,
-        height: sprite.height,
-    }
 }
 
 fn validate_key_slot_label_limits(
@@ -385,38 +306,14 @@ fn editor_modes(document: &EditorDocumentV1) -> BTreeSet<String> {
     document
         .keys
         .keys()
-        .chain(document.key_positions.keys())
-        .chain(document.stat_positions.keys())
-        .chain(document.graph_positions.keys())
-        .chain(document.knob_positions.keys())
-        .chain(document.sprite_positions.keys())
+        .chain(element_collection_modes(document))
         .chain(document.layer_groups.keys())
         .cloned()
         .collect()
 }
 
 fn render_item_count(document: &EditorDocumentV1) -> usize {
-    document.key_positions.values().map(Vec::len).sum::<usize>()
-        + document
-            .stat_positions
-            .values()
-            .map(Vec::len)
-            .sum::<usize>()
-        + document
-            .graph_positions
-            .values()
-            .map(Vec::len)
-            .sum::<usize>()
-        + document
-            .knob_positions
-            .values()
-            .map(Vec::len)
-            .sum::<usize>()
-        + document
-            .sprite_positions
-            .values()
-            .map(Vec::len)
-            .sum::<usize>()
+    element_count(document)
 }
 
 fn validate_collection_limits<T>(
@@ -486,29 +383,9 @@ fn validate_count_limit(
     ))
 }
 
-fn validate_position_metrics(
-    field: &str,
-    mode: &str,
-    index: usize,
-    current: Option<&KeyPosition>,
-    candidate: &KeyPosition,
-    allow_legacy_finite_bounds: bool,
-) -> Result<(), EditorCommitError> {
-    validate_bounds_metrics(
-        &format!("{field} {mode}[{index}]"),
-        current.map(position_bounds),
-        position_bounds(candidate),
-        allow_legacy_finite_bounds,
-    )
-}
-
+#[cfg(test)]
 pub(super) fn position_bounds(position: &KeyPosition) -> EditorBoundsV1 {
-    EditorBoundsV1 {
-        dx: position.dx,
-        dy: position.dy,
-        width: position.width,
-        height: position.height,
-    }
+    position.bounds()
 }
 
 pub(crate) fn validate_editor_op_bounds(

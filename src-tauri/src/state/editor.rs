@@ -6,14 +6,15 @@ use crate::{
     defaults::default_keys,
     errors::EditorCommitError,
     models::{
-        is_renderable_image_ref, AppStoreData, EditorBoundsV1, EditorDocumentV1,
-        EditorElementTypeV1, EditorField, ElementShadowSpec, GraphPosition, KeyCounters,
-        KeyMappings, KeyPosition, KeySlot, KnobPosition, ReactiveSpritePosition, SpriteTransform,
-        StatPosition, EDITOR_SCHEMA_VERSION, MAX_SPRITE_POSES, MAX_SPRITE_POSE_TRIGGERS,
-        SPRITE_IMAGE_DIMENSION_MAX, SPRITE_IMAGE_DIMENSION_MIN, SPRITE_PRESS_DURATION_MS_MAX,
-        SPRITE_PRESS_DURATION_MS_MIN, SPRITE_TRANSFORM_OFFSET_MAX, SPRITE_TRANSFORM_OFFSET_MIN,
-        SPRITE_TRANSFORM_ROTATION_MAX, SPRITE_TRANSFORM_ROTATION_MIN, SPRITE_TRANSFORM_SCALE_MAX,
-        SPRITE_TRANSFORM_SCALE_MIN, SPRITE_TRANSITION_MS_MAX,
+        element_collection_modes, element_count, for_each_element, for_each_key_position,
+        is_renderable_image_ref, visit_collections, AppStoreData, CollectionVisitor,
+        EditorBoundsV1, EditorDocumentV1, EditorElementTypeV1, EditorField, ElementCollection,
+        ElementItem, ElementShadowSpec, KeyCounters, KeyMappings, KeyPosition, KeySlot,
+        ReactiveSpritePosition, SpriteTransform, EDITOR_SCHEMA_VERSION, MAX_SPRITE_POSES,
+        MAX_SPRITE_POSE_TRIGGERS, SPRITE_IMAGE_DIMENSION_MAX, SPRITE_IMAGE_DIMENSION_MIN,
+        SPRITE_PRESS_DURATION_MS_MAX, SPRITE_PRESS_DURATION_MS_MIN, SPRITE_TRANSFORM_OFFSET_MAX,
+        SPRITE_TRANSFORM_OFFSET_MIN, SPRITE_TRANSFORM_ROTATION_MAX, SPRITE_TRANSFORM_ROTATION_MIN,
+        SPRITE_TRANSFORM_SCALE_MAX, SPRITE_TRANSFORM_SCALE_MIN, SPRITE_TRANSITION_MS_MAX,
     },
 };
 

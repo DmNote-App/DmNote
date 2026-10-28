@@ -205,46 +205,36 @@ fn native_id_alias_by_slot(
     current: &EditorDocumentV1,
     candidate: &EditorDocumentV1,
 ) -> NativeIdAliases {
-    let mut aliases = NativeIdAliases::default();
-    {
-        let mut collect = |current_ids: Vec<(&String, Vec<&str>)>,
-                           candidate_ids: Vec<(&String, Vec<&str>)>| {
-            let current_by_mode = current_ids.into_iter().collect::<HashMap<_, _>>();
-            for (mode, ids) in candidate_ids {
-                let Some(current_mode_ids) = current_by_mode.get(mode) else {
+    struct CollectElementAliases<'a> {
+        current: &'a EditorDocumentV1,
+        candidate: &'a EditorDocumentV1,
+        aliases: &'a mut HashMap<String, String>,
+    }
+
+    impl CollectionVisitor for CollectElementAliases<'_> {
+        type Error = std::convert::Infallible;
+
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), Self::Error> {
+            let current_by_mode = C::positions(self.current);
+            for (mode, elements) in C::positions(self.candidate) {
+                let Some(current_elements) = current_by_mode.get(mode) else {
                     continue;
                 };
-                for (index, id) in ids.into_iter().enumerate() {
-                    if let Some(current_id) = current_mode_ids.get(index) {
-                        aliases
-                            .elements
-                            .insert(id.to_string(), current_id.to_string());
-                    }
+                for (element, current_element) in elements.iter().zip(current_elements) {
+                    self.aliases
+                        .insert(element.id().to_string(), current_element.id().to_string());
                 }
             }
-        };
-
-        collect(
-            key_position_ids(&current.key_positions),
-            key_position_ids(&candidate.key_positions),
-        );
-        collect(
-            nested_position_ids(&current.stat_positions),
-            nested_position_ids(&candidate.stat_positions),
-        );
-        collect(
-            nested_position_ids(&current.graph_positions),
-            nested_position_ids(&candidate.graph_positions),
-        );
-        collect(
-            nested_position_ids(&current.knob_positions),
-            nested_position_ids(&candidate.knob_positions),
-        );
-        collect(
-            sprite_position_ids(&current.sprite_positions),
-            sprite_position_ids(&candidate.sprite_positions),
-        );
+            Ok(())
+        }
     }
+
+    let mut aliases = NativeIdAliases::default();
+    let Ok(()) = visit_collections(&mut CollectElementAliases {
+        current,
+        candidate,
+        aliases: &mut aliases.elements,
+    });
     collect_sprite_pose_id_aliases(
         &current.sprite_positions,
         &candidate.sprite_positions,
@@ -269,77 +259,6 @@ fn collect_sprite_pose_id_aliases(
                 aliases.insert(candidate_pose.pose_id.clone(), current_pose.pose_id.clone());
             }
         }
-    }
-}
-
-fn sprite_position_ids(
-    collection: &HashMap<String, Vec<ReactiveSpritePosition>>,
-) -> Vec<(&String, Vec<&str>)> {
-    collection
-        .iter()
-        .map(|(mode, positions)| {
-            (
-                mode,
-                positions
-                    .iter()
-                    .map(|position| position.id.as_str())
-                    .collect(),
-            )
-        })
-        .collect()
-}
-
-fn key_position_ids(collection: &HashMap<String, Vec<KeyPosition>>) -> Vec<(&String, Vec<&str>)> {
-    collection
-        .iter()
-        .map(|(mode, positions)| {
-            (
-                mode,
-                positions
-                    .iter()
-                    .map(|position| position.id.as_str())
-                    .collect(),
-            )
-        })
-        .collect()
-}
-
-fn nested_position_ids<T: HasKeyPosition>(
-    collection: &HashMap<String, Vec<T>>,
-) -> Vec<(&String, Vec<&str>)> {
-    collection
-        .iter()
-        .map(|(mode, positions)| {
-            (
-                mode,
-                positions
-                    .iter()
-                    .map(|element| element.key_position().id.as_str())
-                    .collect(),
-            )
-        })
-        .collect()
-}
-
-trait HasKeyPosition {
-    fn key_position(&self) -> &KeyPosition;
-}
-
-impl HasKeyPosition for StatPosition {
-    fn key_position(&self) -> &KeyPosition {
-        &self.position
-    }
-}
-
-impl HasKeyPosition for GraphPosition {
-    fn key_position(&self) -> &KeyPosition {
-        &self.position
-    }
-}
-
-impl HasKeyPosition for KnobPosition {
-    fn key_position(&self) -> &KeyPosition {
-        &self.position
     }
 }
 
@@ -426,11 +345,7 @@ pub(super) fn collect_violations(
     let all_modes = document
         .keys
         .keys()
-        .chain(document.key_positions.keys())
-        .chain(document.stat_positions.keys())
-        .chain(document.graph_positions.keys())
-        .chain(document.knob_positions.keys())
-        .chain(document.sprite_positions.keys())
+        .chain(element_collection_modes(document))
         .chain(document.layer_groups.keys())
         .cloned()
         .collect::<BTreeSet<_>>();
@@ -449,37 +364,32 @@ pub(super) fn collect_violations(
         }
     }
 
+    struct ElementCollectionViolations<'a> {
+        document: &'a EditorDocumentV1,
+        allowed_modes: &'a HashSet<String>,
+        violations: &'a mut BTreeSet<ValidationViolation>,
+    }
+
+    impl CollectionVisitor for ElementCollectionViolations<'_> {
+        type Error = std::convert::Infallible;
+
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), Self::Error> {
+            collect_collection_violations(
+                C::STORE_KEY,
+                C::positions(self.document),
+                self.allowed_modes,
+                self.violations,
+            );
+            Ok(())
+        }
+    }
+
     collect_collection_violations("keys", &document.keys, allowed_modes, &mut violations);
-    collect_collection_violations(
-        "keyPositions",
-        &document.key_positions,
+    let Ok(()) = visit_collections(&mut ElementCollectionViolations {
+        document,
         allowed_modes,
-        &mut violations,
-    );
-    collect_collection_violations(
-        "statPositions",
-        &document.stat_positions,
-        allowed_modes,
-        &mut violations,
-    );
-    collect_collection_violations(
-        "graphPositions",
-        &document.graph_positions,
-        allowed_modes,
-        &mut violations,
-    );
-    collect_collection_violations(
-        "knobPositions",
-        &document.knob_positions,
-        allowed_modes,
-        &mut violations,
-    );
-    collect_collection_violations(
-        "spritePositions",
-        &document.sprite_positions,
-        allowed_modes,
-        &mut violations,
-    );
+        violations: &mut violations,
+    });
     collect_collection_violations(
         "layerGroups",
         &document.layer_groups,
@@ -551,69 +461,8 @@ fn collect_position_style_violations(
     document: &EditorDocumentV1,
     violations: &mut BTreeSet<ValidationViolation>,
 ) {
-    for (kind, field, mode, index, position) in document
-        .key_positions
-        .iter()
-        .flat_map(|(mode, positions)| {
-            positions.iter().enumerate().map(move |(index, position)| {
-                (
-                    EditorElementTypeV1::Key,
-                    "keyPositions",
-                    mode,
-                    index,
-                    position,
-                )
-            })
-        })
-        .chain(
-            document
-                .stat_positions
-                .iter()
-                .flat_map(|(mode, positions)| {
-                    positions.iter().enumerate().map(move |(index, position)| {
-                        (
-                            EditorElementTypeV1::Stat,
-                            "statPositions",
-                            mode,
-                            index,
-                            &position.position,
-                        )
-                    })
-                }),
-        )
-        .chain(
-            document
-                .graph_positions
-                .iter()
-                .flat_map(|(mode, positions)| {
-                    positions.iter().enumerate().map(move |(index, position)| {
-                        (
-                            EditorElementTypeV1::Graph,
-                            "graphPositions",
-                            mode,
-                            index,
-                            &position.position,
-                        )
-                    })
-                }),
-        )
-        .chain(
-            document
-                .knob_positions
-                .iter()
-                .flat_map(|(mode, positions)| {
-                    positions.iter().enumerate().map(move |(index, position)| {
-                        (
-                            EditorElementTypeV1::Knob,
-                            "knobPositions",
-                            mode,
-                            index,
-                            &position.position,
-                        )
-                    })
-                }),
-        )
-    {
+    for_each_key_position(document, |kind, mode, index, position| {
+        let field = kind.store_key();
         if !position.rotation.is_finite()
             || !(ELEMENT_ROTATION_MIN..=ELEMENT_ROTATION_MAX).contains(&position.rotation)
         {
@@ -673,7 +522,7 @@ fn collect_position_style_violations(
                 );
             }
         }
-    }
+    });
 }
 
 pub(super) fn collect_sprite_violations(
@@ -1261,71 +1110,9 @@ fn collect_group_reference_violations(
     group_ids: &HashMap<String, HashSet<String>>,
     violations: &mut BTreeSet<ValidationViolation>,
 ) {
-    for (kind, field, mode, index, position) in document
-        .key_positions
-        .iter()
-        .flat_map(|(mode, positions)| {
-            positions.iter().enumerate().map(move |(index, position)| {
-                (
-                    EditorElementTypeV1::Key,
-                    "keyPositions",
-                    mode,
-                    index,
-                    position,
-                )
-            })
-        })
-        .chain(
-            document
-                .stat_positions
-                .iter()
-                .flat_map(|(mode, positions)| {
-                    positions.iter().enumerate().map(move |(index, position)| {
-                        (
-                            EditorElementTypeV1::Stat,
-                            "statPositions",
-                            mode,
-                            index,
-                            &position.position,
-                        )
-                    })
-                }),
-        )
-        .chain(
-            document
-                .graph_positions
-                .iter()
-                .flat_map(|(mode, positions)| {
-                    positions.iter().enumerate().map(move |(index, position)| {
-                        (
-                            EditorElementTypeV1::Graph,
-                            "graphPositions",
-                            mode,
-                            index,
-                            &position.position,
-                        )
-                    })
-                }),
-        )
-        .chain(
-            document
-                .knob_positions
-                .iter()
-                .flat_map(|(mode, positions)| {
-                    positions.iter().enumerate().map(move |(index, position)| {
-                        (
-                            EditorElementTypeV1::Knob,
-                            "knobPositions",
-                            mode,
-                            index,
-                            &position.position,
-                        )
-                    })
-                }),
-        )
-    {
-        let Some(group_id) = position.group_id.as_deref() else {
-            continue;
+    for_each_element(document, |kind, mode, index, element| {
+        let Some(group_id) = element.group_id() else {
+            return;
         };
         let exists = group_ids
             .get(mode)
@@ -1334,37 +1121,16 @@ fn collect_group_reference_violations(
             violations.insert(ValidationViolation::new(
                 native_violation_key(
                     kind,
-                    &position.id,
+                    element.id(),
                     "UNKNOWN_GROUP_ID",
                     ViolationPropertyPath::GroupReference,
                     InvalidValueSignature::Text(group_id.to_string()),
                 ),
-                format!("{field} {mode}[{index}] references unknown group '{group_id}'"),
+                format!(
+                    "{} {mode}[{index}] references unknown group '{group_id}'",
+                    kind.store_key()
+                ),
             ));
         }
-    }
-    for (mode, sprites) in &document.sprite_positions {
-        for (index, sprite) in sprites.iter().enumerate() {
-            let Some(group_id) = sprite.group_id.as_deref() else {
-                continue;
-            };
-            if !group_ids
-                .get(mode)
-                .is_some_and(|ids| ids.contains(group_id))
-            {
-                violations.insert(ValidationViolation::new(
-                    native_violation_key(
-                        EditorElementTypeV1::Sprite,
-                        &sprite.id,
-                        "UNKNOWN_GROUP_ID",
-                        ViolationPropertyPath::GroupReference,
-                        InvalidValueSignature::Text(group_id.to_string()),
-                    ),
-                    format!(
-                        "spritePositions {mode}[{index}] references unknown group '{group_id}'"
-                    ),
-                ));
-            }
-        }
-    }
+    });
 }
