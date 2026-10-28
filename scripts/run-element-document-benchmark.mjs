@@ -4,7 +4,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 if (process.platform !== 'darwin') {
   throw new Error('요소 문서 비교 측정은 macOS에서만 실행할 수 있습니다.');
@@ -301,6 +301,7 @@ const result = {
   summary,
   runs: measured,
 };
+await mkdir(dirname(outputPath), { recursive: true });
 await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
 console.info(JSON.stringify(summary, null, 2));
 console.info(`저장: ${outputPath}`);

@@ -131,6 +131,7 @@ const buildSeedChanges = (document: JsonRecord): JsonRecord => {
       { length: BENCHMARK_STATS_PER_TAB },
       (_, index) => ({
         ...place(statTemplate, index, 15),
+        statType: 'kps',
         dy: 800 + Math.floor(index / 15) * 70,
       }),
     );
@@ -145,6 +146,7 @@ const buildSeedChanges = (document: JsonRecord): JsonRecord => {
         statType: 'kps',
         graphType: 'line',
         graphSpeed: 1000,
+        graphColor: '#FFFFFF',
       }),
     );
     knobPositions[tab] = Array.from(
