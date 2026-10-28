@@ -12,3 +12,7 @@ path = "src/lib.rs"
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["float_roundtrip"] }
+
+[dev-dependencies]
+# 테스트 빌드에서만 TS 타입을 만든다 (cargo test가 src/types/generated/elementDocument.ts와 비교)
+ts-rs = { version = "11", features = ["serde-json-impl", "no-serde-warnings"] }

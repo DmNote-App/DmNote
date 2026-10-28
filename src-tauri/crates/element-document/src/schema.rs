@@ -9,6 +9,7 @@ use crate::value::{FieldRule, NoReferences, ValueKind, Violation};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct Size {
     pub width: f64,
     pub height: f64,
@@ -16,6 +17,7 @@ pub struct Size {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct KindSchema {
     pub kind: String,
     pub version: u32,
@@ -42,6 +44,7 @@ fn default_true() -> bool {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct KindMigration {
     // 이 버전에서 다음 버전으로 옮긴다
     pub from: u32,
@@ -50,6 +53,7 @@ pub struct KindMigration {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub enum MigrationStep {
     Rename {
         from: String,
@@ -75,6 +79,7 @@ pub enum MigrationStep {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct DefinitionError {
     pub kind: String,
     pub message: String,

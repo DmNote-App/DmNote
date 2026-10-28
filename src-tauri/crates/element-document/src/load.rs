@@ -18,6 +18,7 @@ pub trait IdSource {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct LoadReport {
     // 값을 고친 요소 (장면, id)
     pub repaired: Vec<(String, String)>,

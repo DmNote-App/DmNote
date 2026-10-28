@@ -9,6 +9,7 @@ use crate::value::Violation;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct PendingEdit {
     pub id: String,
     pub ops: Vec<Op>,

@@ -5,6 +5,7 @@ use serde_json::{Map, Value};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub enum Condition {
     Equals(EqualsCondition),
     OneOf(OneOfCondition),
@@ -15,6 +16,7 @@ pub enum Condition {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct EqualsCondition {
     pub field: String,
     pub equals: Value,
@@ -22,6 +24,7 @@ pub struct EqualsCondition {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct OneOfCondition {
     pub field: String,
     pub one_of: Vec<Value>,
@@ -29,18 +32,21 @@ pub struct OneOfCondition {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct AllCondition {
     pub all: Vec<Condition>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct AnyCondition {
     pub any: Vec<Condition>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct NotCondition {
     pub not: Box<Condition>,
 }

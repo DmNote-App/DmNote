@@ -25,3 +25,5 @@ pub use value::{AssetKind, FieldRule, ValueKind, Violation, ViolationCode};
 
 #[cfg(test)]
 pub(crate) mod test_support;
+#[cfg(test)]
+mod ts_bindings;

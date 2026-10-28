@@ -13,6 +13,7 @@ pub const MAX_SLOT_KEYS: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct Document {
     pub format_version: u32,
     // 종류별 저장 버전 - 같은 종류의 요소는 모두 이 버전으로 저장돼 있다
@@ -37,6 +38,7 @@ impl Default for Document {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct Scene {
     #[serde(default)]
     pub nodes: Vec<Node>,
@@ -46,6 +48,7 @@ pub struct Scene {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub enum Node {
     Group(Group),
     Element(Element),
@@ -53,6 +56,7 @@ pub enum Node {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct Group {
     pub id: String,
     #[serde(default)]
@@ -67,6 +71,7 @@ pub struct Group {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct Frame {
     pub x: f64,
     pub y: f64,
@@ -78,6 +83,7 @@ pub struct Frame {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct Element {
     pub id: String,
     pub kind: String,
@@ -105,6 +111,7 @@ pub struct Element {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub enum InputBinding {
     // 키 슬롯 - 키 이름 하나 또는 {keys, match}
     Key {

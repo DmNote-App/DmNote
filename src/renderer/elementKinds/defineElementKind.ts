@@ -3,76 +3,35 @@
 // 빌드할 때 scripts/extract-element-kinds.mjs가 이 부분만 뽑아 Rust가 읽는다.
 // 함수가 섞이면 추출에서 막는다. 그리기·동작·패널 같은 코드는 같은 정의에 함께 둔다.
 
-export type JsonValue =
-  | null
-  | boolean
-  | number
-  | string
-  | readonly JsonValue[]
-  | { readonly [key: string]: JsonValue };
+import type {
+  AssetKind,
+  Condition,
+  FieldRule,
+  JsonValue as GeneratedJsonValue,
+  KindMigration,
+  MigrationStep,
+  ValueKind,
+} from '@src/types/generated/elementDocument';
 
-export type AssetKind = 'image' | 'sound' | 'font';
+// 규칙표 구조의 원본은 Rust(element-document 크레이트)이고, 아래 타입은 생성된 타입을
+// 정의 파일에서 리터럴(as const)로 쓰기 좋게 읽기 전용으로 감싼 것이다
+type DeepReadonly<T> = T extends (infer U)[]
+  ? readonly DeepReadonly<U>[]
+  : T extends object
+  ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+  : T;
 
-export type ValueKindDecl =
-  | { readonly type: 'bool' }
-  | {
-      readonly type: 'number';
-      readonly min?: number;
-      readonly max?: number;
-      readonly integer?: boolean;
-    }
-  | { readonly type: 'string'; readonly maxLength?: number }
-  | { readonly type: 'enum'; readonly options: readonly string[] }
-  | { readonly type: 'color' }
-  | { readonly type: 'gradient' }
-  | { readonly type: 'file'; readonly asset: AssetKind }
-  | { readonly type: 'elementRef'; readonly kinds?: readonly string[] }
-  | { readonly type: 'id' }
-  | {
-      readonly type: 'list';
-      readonly item: ValueKindDecl;
-      readonly maxItems?: number;
-      readonly unique?: boolean;
-    }
-  | { readonly type: 'object'; readonly fields: readonly FieldDecl[] };
+export type JsonValue = DeepReadonly<GeneratedJsonValue>;
+export type { AssetKind };
 
-export type ConditionDecl =
-  | { readonly field: string; readonly equals: JsonValue }
-  | { readonly field: string; readonly oneOf: readonly JsonValue[] }
-  | { readonly all: readonly ConditionDecl[] }
-  | { readonly any: readonly ConditionDecl[] }
-  | { readonly not: ConditionDecl };
-
-export interface FieldDecl {
-  readonly name: string;
+// json 값 종류는 앱 구조(기능 묶음) 전용이라 종류 정의에서 뺀다
+export type ValueKindDecl = DeepReadonly<Exclude<ValueKind, { type: 'json' }>>;
+export type ConditionDecl = DeepReadonly<Condition>;
+export type FieldDecl = DeepReadonly<Omit<FieldRule, 'value'>> & {
   readonly value: ValueKindDecl;
-  readonly default: JsonValue;
-  readonly nullable?: boolean;
-  // 조건이 맞을 때만 이 규칙으로 검사
-  readonly when?: ConditionDecl;
-}
-
-export type MigrationStepDecl =
-  | { readonly op: 'rename'; readonly from: string; readonly to: string }
-  | {
-      readonly op: 'mapValue';
-      readonly field: string;
-      readonly from: JsonValue;
-      readonly to: JsonValue;
-    }
-  | {
-      readonly op: 'setDefault';
-      readonly field: string;
-      readonly value: JsonValue;
-    }
-  | { readonly op: 'remove'; readonly field: string }
-  // 선언으로 못 옮기는 경우 - hooks의 같은 이름 함수를 편집 창이 돌린다
-  | { readonly op: 'hook'; readonly name: string };
-
-export interface MigrationDecl {
-  readonly from: number;
-  readonly steps: readonly MigrationStepDecl[];
-}
+};
+export type MigrationStepDecl = DeepReadonly<MigrationStep>;
+export type MigrationDecl = DeepReadonly<KindMigration>;
 
 // 앱이 정하는 기능 묶음 - 묶음 하나가 패널 섹션 하나다
 export type BundleName =

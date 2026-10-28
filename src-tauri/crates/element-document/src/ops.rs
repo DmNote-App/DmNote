@@ -13,6 +13,7 @@ use crate::value::{rewrite_values, validate_fields, ValueKind, Violation, Violat
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub enum Op {
     // index가 없으면 맨 위(목록 끝)
     #[serde(rename_all = "camelCase")]
@@ -124,6 +125,7 @@ impl Op {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct FramePatch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub x: Option<f64>,
@@ -143,12 +145,14 @@ pub const ROTATION_MAX: f64 = 180.0;
 /// 바뀐 곳 - 엔진은 바뀐 요소만 알린다
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct ChangeSet {
     pub scenes: BTreeMap<String, SceneChange>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct SceneChange {
     // 값이 바뀌었거나 새로 생긴 노드
     pub changed: BTreeSet<String>,

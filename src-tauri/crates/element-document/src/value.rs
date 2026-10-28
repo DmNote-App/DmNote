@@ -14,6 +14,7 @@ pub const MAX_COLOR_LENGTH: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub enum AssetKind {
     Image,
     Sound,
@@ -22,6 +23,7 @@ pub enum AssetKind {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub enum ValueKind {
     Bool {},
     #[serde(rename_all = "camelCase")]
@@ -70,6 +72,7 @@ pub enum ValueKind {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct FieldRule {
     pub name: String,
     pub value: ValueKind,
@@ -83,6 +86,7 @@ pub struct FieldRule {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct Violation {
     pub code: ViolationCode,
     pub path: String,
@@ -90,6 +94,7 @@ pub struct Violation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub enum ViolationCode {
     ValueTypeMismatch,
     ValueOutOfRange,
