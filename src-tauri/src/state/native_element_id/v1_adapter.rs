@@ -105,21 +105,31 @@ fn validate_supplied_patch_ids(
     patch: &EditorPatchV1,
     require_id: bool,
 ) -> Result<HashSet<String>, EditorCommitError> {
-    let mut seen = HashSet::new();
-    if let Some(collection) = patch.key_positions.as_ref() {
-        validate_supplied_collection_ids(collection, require_id, &mut seen)?;
+    struct ValidateSupplied<'a> {
+        patch: &'a EditorPatchV1,
+        require_id: bool,
+        seen: HashSet<String>,
     }
-    if let Some(collection) = patch.stat_positions.as_ref() {
-        validate_supplied_collection_ids(collection, require_id, &mut seen)?;
+
+    impl CollectionVisitor for ValidateSupplied<'_> {
+        type Error = EditorCommitError;
+
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), EditorCommitError> {
+            if let Some(collection) = C::optional(self.patch).as_ref() {
+                validate_supplied_collection_ids(collection, self.require_id, &mut self.seen)?;
+            }
+            Ok(())
+        }
     }
-    if let Some(collection) = patch.graph_positions.as_ref() {
-        validate_supplied_collection_ids(collection, require_id, &mut seen)?;
-    }
-    if let Some(collection) = patch.knob_positions.as_ref() {
-        validate_supplied_collection_ids(collection, require_id, &mut seen)?;
-    }
+
+    let mut validate = ValidateSupplied {
+        patch,
+        require_id,
+        seen: HashSet::new(),
+    };
+    visit_collections(&mut validate)?;
+    let mut seen = validate.seen;
     if let Some(collection) = patch.sprite_positions.as_ref() {
-        validate_supplied_collection_ids(collection, require_id, &mut seen)?;
         validate_sprite_pose_ids(collection, require_id, &mut seen)?;
     }
     Ok(seen)
@@ -203,20 +213,24 @@ fn sanitize_v1_supplied_patch_ids(
     store: &AppStoreData,
     patch: &mut EditorPatchV1,
 ) -> Result<(), EditorCommitError> {
-    if let Some(collection) = patch.key_positions.as_mut() {
-        sanitize_v1_supplied_collection_ids(collection, &store.key_positions)?;
+    struct SanitizeSupplied<'a> {
+        store: &'a AppStoreData,
+        patch: &'a mut EditorPatchV1,
     }
-    if let Some(collection) = patch.stat_positions.as_mut() {
-        sanitize_v1_supplied_collection_ids(collection, &store.stat_positions)?;
+
+    impl CollectionVisitor for SanitizeSupplied<'_> {
+        type Error = EditorCommitError;
+
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), EditorCommitError> {
+            if let Some(collection) = C::optional_mut(self.patch).as_mut() {
+                sanitize_v1_supplied_collection_ids(collection, C::positions(self.store))?;
+            }
+            Ok(())
+        }
     }
-    if let Some(collection) = patch.graph_positions.as_mut() {
-        sanitize_v1_supplied_collection_ids(collection, &store.graph_positions)?;
-    }
-    if let Some(collection) = patch.knob_positions.as_mut() {
-        sanitize_v1_supplied_collection_ids(collection, &store.knob_positions)?;
-    }
+
+    visit_collections(&mut SanitizeSupplied { store, patch })?;
     if let Some(collection) = patch.sprite_positions.as_mut() {
-        sanitize_v1_supplied_collection_ids(collection, &store.sprite_positions)?;
         let owned = store
             .sprite_positions
             .values()
@@ -656,6 +670,31 @@ fn adapt_v1_key_position_ids(
     );
 }
 
+struct AdaptCollections<'a> {
+    store: &'a AppStoreData,
+    patch: &'a mut EditorPatchV1,
+    canonical_ids: &'a HashSet<String>,
+    consumed_current_ids: &'a mut HashSet<String>,
+    reserved: &'a mut HashSet<String>,
+}
+
+impl CollectionVisitor for AdaptCollections<'_> {
+    type Error = Infallible;
+
+    fn visit<C: ElementCollection>(&mut self) -> Result<(), Infallible> {
+        if let Some(collection) = C::optional_mut(self.patch).as_mut() {
+            adapt_v1_collection(
+                C::positions(self.store),
+                collection,
+                self.canonical_ids,
+                self.consumed_current_ids,
+                self.reserved,
+            );
+        }
+        Ok(())
+    }
+}
+
 fn adapt_v1_patch_ids(
     store: &AppStoreData,
     patch: &mut EditorPatchV1,
@@ -684,41 +723,18 @@ fn adapt_v1_patch_ids(
             &mut reserved,
         );
     }
-    if let Some(collection) = patch.stat_positions.as_mut() {
-        adapt_v1_collection(
-            &store.stat_positions,
-            collection,
-            &canonical_ids,
-            &mut consumed_current_ids,
-            &mut reserved,
-        );
-    }
-    if let Some(collection) = patch.graph_positions.as_mut() {
-        adapt_v1_collection(
-            &store.graph_positions,
-            collection,
-            &canonical_ids,
-            &mut consumed_current_ids,
-            &mut reserved,
-        );
-    }
-    if let Some(collection) = patch.knob_positions.as_mut() {
-        adapt_v1_collection(
-            &store.knob_positions,
-            collection,
-            &canonical_ids,
-            &mut consumed_current_ids,
-            &mut reserved,
-        );
-    }
+    // 키는 keys 슬롯 결합을 신원 단서로 쓰는 위 전용 경로를 탄다
+    let Ok(()) = visit_collections_in(
+        ElementKindSet::ALL.without(EditorElementTypeV1::Key),
+        &mut AdaptCollections {
+            store,
+            patch,
+            canonical_ids: &canonical_ids,
+            consumed_current_ids: &mut consumed_current_ids,
+            reserved: &mut reserved,
+        },
+    );
     if let Some(collection) = patch.sprite_positions.as_mut() {
-        adapt_v1_collection(
-            &store.sprite_positions,
-            collection,
-            &canonical_ids,
-            &mut consumed_current_ids,
-            &mut reserved,
-        );
         adapt_v1_sprite_pose_ids(
             &store.sprite_positions,
             collection,
@@ -765,21 +781,31 @@ fn validate_document_collection_ids<T: NativeElement>(
 pub(crate) fn validate_document_element_ids(
     document: &EditorDocumentV1,
 ) -> Result<(), EditorCommitError> {
-    let mut seen = HashSet::new();
-    validate_document_collection_ids(&document.key_positions, &mut seen)?;
-    validate_document_collection_ids(&document.stat_positions, &mut seen)?;
-    validate_document_collection_ids(&document.graph_positions, &mut seen)?;
-    validate_document_collection_ids(&document.knob_positions, &mut seen)?;
-    validate_document_collection_ids(&document.sprite_positions, &mut seen)?;
-    validate_sprite_pose_ids(&document.sprite_positions, true, &mut seen)
+    struct ValidateDocument<'a> {
+        document: &'a EditorDocumentV1,
+        seen: HashSet<String>,
+    }
+
+    impl CollectionVisitor for ValidateDocument<'_> {
+        type Error = EditorCommitError;
+
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), EditorCommitError> {
+            validate_document_collection_ids(C::positions(self.document), &mut self.seen)
+        }
+    }
+
+    let mut validate = ValidateDocument {
+        document,
+        seen: HashSet::new(),
+    };
+    visit_collections(&mut validate)?;
+    validate_sprite_pose_ids(&document.sprite_positions, true, &mut validate.seen)
 }
 
 fn patch_includes_native_elements(patch: &EditorPatchV1) -> bool {
-    patch.key_positions.is_some()
-        || patch.stat_positions.is_some()
-        || patch.graph_positions.is_some()
-        || patch.knob_positions.is_some()
-        || patch.sprite_positions.is_some()
+    EditorField::ELEMENT_FIELDS
+        .into_iter()
+        .any(|field| patch.includes(field))
 }
 
 pub(crate) fn prepare_commit_patch_element_ids(

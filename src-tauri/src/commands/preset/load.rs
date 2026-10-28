@@ -21,12 +21,12 @@ use crate::{
     models::{
         default_bar_count, default_missing_note_gradient_multipliers, normalize_key_mappings,
         rewrite_coupled_sprite_image_reference, scrub_removed_text_outline_fields, AppStoreData,
-        CustomCss, CustomCssPatch, CustomJs, CustomJsPatch, EditorCommitOrigin, EditorField,
-        FontSettings, FontType, GradientSpec, GraphPositions, KeyMappings, KeyPosition,
-        KeyPositions, KeySlot, KnobPositions, LayerGroups, NoteSettings, NoteSettingsPatch,
-        SettingsPatchInput, SpritePositions, StatPositions, TabCss, TabCssOverrides,
-        TabNoteSettings, POSITION_COLLECTION_FIELDS, SHADOW_BLUR_MAX, SHADOW_BLUR_MIN,
-        SHADOW_OFFSET_MAX, SHADOW_OFFSET_MIN,
+        CustomCss, CustomCssPatch, CustomJs, CustomJsPatch, EditorCommitOrigin,
+        EditorElementTypeV1, EditorField, ElementKindSet, FontSettings, FontType, GradientSpec,
+        GraphPositions, KeyMappings, KeyPosition, KeyPositions, KeySlot, KnobPositions,
+        LayerGroups, NoteSettings, NoteSettingsPatch, SettingsPatchInput, SpritePositions,
+        StatPositions, TabCss, TabCssOverrides, TabNoteSettings, POSITION_COLLECTION_FIELDS,
+        SHADOW_BLUR_MAX, SHADOW_BLUR_MIN, SHADOW_OFFSET_MAX, SHADOW_OFFSET_MIN,
     },
     services::settings::apply_patch_to_store,
     state::{
@@ -601,15 +601,19 @@ fn preset_load_tab_from_path(
                         .sprite_positions
                         .insert(current_tab_id.clone(), positions);
                 }
-                rekey_tab_preset_elements(
-                    store,
-                    &current_tab_id,
-                    key_positions_written,
-                    stat_positions_written,
-                    graph_positions_written,
-                    knob_positions_written,
-                    sprite_positions_written,
-                );
+                let mut written = ElementKindSet::EMPTY;
+                for (kind, is_written) in [
+                    (EditorElementTypeV1::Key, key_positions_written),
+                    (EditorElementTypeV1::Stat, stat_positions_written),
+                    (EditorElementTypeV1::Graph, graph_positions_written),
+                    (EditorElementTypeV1::Knob, knob_positions_written),
+                    (EditorElementTypeV1::Sprite, sprite_positions_written),
+                ] {
+                    if is_written {
+                        written.insert(kind);
+                    }
+                }
+                rekey_tab_preset_collections(store, &current_tab_id, written);
                 apply_tab_note_override(
                     store,
                     &current_tab_id,
@@ -892,6 +896,18 @@ fn rekey_full_preset_elements(store: &mut AppStoreData) {
     crate::state::native_element_id::rekey_store_element_ids(store);
 }
 
+fn rekey_tab_preset_collections(store: &mut AppStoreData, tab_id: &str, written: ElementKindSet) {
+    crate::state::native_element_id::rekey_mode_element_ids_for_collections(store, tab_id, written);
+    // 프리셋이 위치를 주지 않은 컬렉션은 기존 요소가 값 그대로 남는다 -
+    // 신원을 회전시키지 않고 정렬이 덧붙인 빈 항목만 채운다
+    crate::state::native_element_id::backfill_mode_element_ids_for_collections(
+        store,
+        tab_id,
+        written.complement(),
+    );
+}
+
+#[cfg(test)]
 fn rekey_tab_preset_elements(
     store: &mut AppStoreData,
     tab_id: &str,
@@ -901,26 +917,19 @@ fn rekey_tab_preset_elements(
     knob_positions_written: bool,
     sprite_positions_written: bool,
 ) {
-    crate::state::native_element_id::rekey_mode_element_ids_for_collections(
-        store,
-        tab_id,
-        key_positions_written,
-        stat_positions_written,
-        graph_positions_written,
-        knob_positions_written,
-        sprite_positions_written,
-    );
-    // 프리셋이 위치를 주지 않은 컬렉션은 기존 요소가 값 그대로 남는다 -
-    // 신원을 회전시키지 않고 정렬이 덧붙인 빈 항목만 채운다
-    crate::state::native_element_id::backfill_mode_element_ids_for_collections(
-        store,
-        tab_id,
-        !key_positions_written,
-        !stat_positions_written,
-        !graph_positions_written,
-        !knob_positions_written,
-        !sprite_positions_written,
-    );
+    use crate::models::EditorElementTypeV1 as Kind;
+
+    let written = [
+        (Kind::Key, key_positions_written),
+        (Kind::Stat, stat_positions_written),
+        (Kind::Graph, graph_positions_written),
+        (Kind::Knob, knob_positions_written),
+        (Kind::Sprite, sprite_positions_written),
+    ]
+    .into_iter()
+    .filter(|(_, written)| *written)
+    .fold(ElementKindSet::EMPTY, |set, (kind, _)| set.with(kind));
+    rekey_tab_preset_collections(store, tab_id, written);
 }
 
 fn merge_tab_preset_key_pair(
