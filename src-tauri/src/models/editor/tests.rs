@@ -1011,3 +1011,54 @@ fn editor_request_detects_every_direct_key_mapping_mutation() {
     assert_eq!(resize.target_id(), Some(sprite_id.as_str()));
     assert!(!request(None, Some(vec![resize])).may_change_keys());
 }
+
+// TS EDITOR_ELEMENT_TYPES와 공유하는 요소 종류 fixture
+const ELEMENT_KIND_FIXTURE: &str = include_str!("../../../../tests/fixtures/element-kinds.json");
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ElementKindFixtureEntry {
+    #[serde(rename = "type")]
+    element_type: EditorElementTypeV1,
+    position_field: EditorField,
+    preview_domain: crate::services::preview_broker::PreviewDomain,
+}
+
+#[test]
+fn element_kinds_match_shared_fixture() {
+    use crate::services::preview_broker::PreviewDomain;
+
+    let entries: Vec<ElementKindFixtureEntry> =
+        serde_json::from_str(ELEMENT_KIND_FIXTURE).expect("fixture parses");
+    // 변형이 추가되면 이 match가 컴파일 에러로 fixture 갱신을 강제한다
+    let expected = |kind: EditorElementTypeV1| match kind {
+        EditorElementTypeV1::Key => (EditorField::KeyPositions, PreviewDomain::KeyPosition),
+        EditorElementTypeV1::Stat => (EditorField::StatPositions, PreviewDomain::StatPosition),
+        EditorElementTypeV1::Graph => (EditorField::GraphPositions, PreviewDomain::GraphPosition),
+        EditorElementTypeV1::Knob => (EditorField::KnobPositions, PreviewDomain::KnobPosition),
+        EditorElementTypeV1::Sprite => {
+            (EditorField::SpritePositions, PreviewDomain::SpritePosition)
+        }
+    };
+    let kinds: Vec<EditorElementTypeV1> = entries.iter().map(|entry| entry.element_type).collect();
+    assert_eq!(
+        kinds,
+        vec![
+            EditorElementTypeV1::Key,
+            EditorElementTypeV1::Stat,
+            EditorElementTypeV1::Graph,
+            EditorElementTypeV1::Knob,
+            EditorElementTypeV1::Sprite,
+        ]
+    );
+    // 선언 순서(Ord)가 fixture 순서와 같아야 위반 정렬이 프론트 목록 순서와 일치한다
+    let mut sorted = kinds.clone();
+    sorted.sort();
+    assert_eq!(sorted, kinds);
+    for entry in &entries {
+        assert_eq!(
+            (entry.position_field, entry.preview_domain),
+            expected(entry.element_type)
+        );
+    }
+}

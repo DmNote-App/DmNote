@@ -1,0 +1,27 @@
+[
+  {
+    "type": "key",
+    "positionField": "keyPositions",
+    "previewDomain": "keyPosition"
+  },
+  {
+    "type": "stat",
+    "positionField": "statPositions",
+    "previewDomain": "statPosition"
+  },
+  {
+    "type": "graph",
+    "positionField": "graphPositions",
+    "previewDomain": "graphPosition"
+  },
+  {
+    "type": "knob",
+    "positionField": "knobPositions",
+    "previewDomain": "knobPosition"
+  },
+  {
+    "type": "sprite",
+    "positionField": "spritePositions",
+    "previewDomain": "spritePosition"
+  }
+]
