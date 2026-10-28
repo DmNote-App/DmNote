@@ -1,10 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useFontStore, syncFontCSS } from '@stores/useFontStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import {
@@ -64,6 +60,11 @@ import {
   resolveCounterDelayMs,
   type CounterResyncContext,
 } from './appCounterRuntime';
+import { replaceItemStorePositions } from '@src/renderer/editor/model/elementStores';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  ITEM_ELEMENT_TYPES,
+} from '@src/types/editor';
 
 function clonePlugins(source?: CustomJs | null): JsPlugin[] {
   if (!source) return [];
@@ -492,22 +493,12 @@ export function useAppBootstrap() {
           barCount: bootstrap.barCount,
           selectedKeyType: bootstrap.selectedKeyType,
         }));
-        useStatItemStore.setState((state) => ({
-          ...state,
-          positions: bootstrap.statPositions ?? {},
-        }));
-        useGraphItemStore.setState((state) => ({
-          ...state,
-          positions: bootstrap.graphPositions ?? {},
-        }));
-        useKnobItemStore.setState((state) => ({
-          ...state,
-          positions: bootstrap.knobPositions ?? {},
-        }));
-        useSpriteStore.setState((state) => ({
-          ...state,
-          positions: bootstrap.spritePositions ?? {},
-        }));
+        for (const type of ITEM_ELEMENT_TYPES) {
+          replaceItemStorePositions(
+            type,
+            bootstrap[EDITOR_ELEMENT_POSITION_FIELDS[type]] ?? {},
+          );
+        }
         useLayerGroupStore
           .getState()
           .setLayerGroups(bootstrap.layerGroups ?? {});

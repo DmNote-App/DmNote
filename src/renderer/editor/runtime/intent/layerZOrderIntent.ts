@@ -1,10 +1,6 @@
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
 import { assertCanonicalEditorDocument } from '@src/types/editor';
 import {
   applyPropertyIntentsEagerly,
@@ -28,6 +24,11 @@ import type {
   EditorReorderElementsOpV1,
 } from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
+import { captureElementCollections } from '../../model/elementStores';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  EDITOR_ELEMENT_TYPES,
+} from '@src/types/editor';
 
 type NativeType = EditorElementTypeV1;
 type ZOrderAction = 'front' | 'back' | 'forward' | 'backward';
@@ -63,11 +64,7 @@ interface ZOrderPlan {
 const localDocument = (): CanonicalEditorDocumentV1 => ({
   schemaVersion: 1,
   keys: useKeyStore.getState().keyMappings,
-  keyPositions: useKeyStore.getState().canonicalPositions,
-  statPositions: useStatItemStore.getState().positions,
-  graphPositions: useGraphItemStore.getState().positions,
-  knobPositions: useKnobItemStore.getState().positions,
-  spritePositions: useSpriteStore.getState().positions,
+  ...captureElementCollections(),
   layerGroups: useLayerGroupStore.getState().layerGroups,
 });
 
@@ -75,15 +72,12 @@ const nativeEntries = (
   document: CanonicalEditorDocumentV1,
   mode: string,
 ): NativeEntry[] => {
-  const records = [
-    ['key', document.keyPositions],
-    ['stat', document.statPositions],
-    ['graph', document.graphPositions],
-    ['knob', document.knobPositions],
-    ['sprite', document.spritePositions],
-  ] as const;
-  return records.flatMap(([type, record]) =>
-    (record[mode] ?? []).map((position, index) => ({
+  return EDITOR_ELEMENT_TYPES.flatMap((type) =>
+    (
+      (document[EDITOR_ELEMENT_POSITION_FIELDS[type]][mode] ?? []) as Array<
+        NativeEntry['position'] & { id: string; zIndex?: number | null }
+      >
+    ).map((position, index) => ({
       type,
       id: position.id,
       zIndex: position.zIndex ?? index,

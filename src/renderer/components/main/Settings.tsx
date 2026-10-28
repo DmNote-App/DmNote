@@ -5,10 +5,6 @@ import { useTranslation } from '@contexts/useTranslation';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import Dropdown from '@components/main/common/dropdown/Dropdown';
 import ReloadButton from '@components/main/common/ReloadButton';
@@ -55,6 +51,7 @@ import { jsApi } from '@api/modules/plugin/jsApi';
 import { keysApi } from '@api/modules/editor/keysApi';
 import { appApi, windowApi } from '@api/modules/app/appApi';
 import { assertCanonicalEditorDocument } from '@src/types/editor';
+import { captureElementCollections } from '@src/renderer/editor/model/elementStores';
 
 interface SettingsProps {
   showAlert: (msg: string, confirmText?: string) => void;
@@ -437,11 +434,8 @@ const Settings = ({
           const candidate = {
             schemaVersion: 1 as const,
             keys: result.keys,
+            ...captureElementCollections(),
             keyPositions: result.positions,
-            statPositions: useStatItemStore.getState().positions,
-            graphPositions: useGraphItemStore.getState().positions,
-            knobPositions: useKnobItemStore.getState().positions,
-            spritePositions: useSpriteStore.getState().positions,
             layerGroups: useLayerGroupStore.getState().layerGroups,
           };
           assertCanonicalEditorDocument(candidate, 'keys_reset_all response');

@@ -25,6 +25,18 @@ const ITEM_STORES = {
 export const getItemStoreState = (type: ItemElementType) =>
   ITEM_STORES[type].getState();
 
+// 외부 스냅샷 적용 (부트스트랩) - 스토어 상태의 positions만 교체
+export const replaceItemStorePositions = (
+  type: ItemElementType,
+  positions: unknown,
+): void => {
+  (
+    ITEM_STORES[type] as {
+      setState: (partial: { positions: unknown }) => void;
+    }
+  ).setState({ positions });
+};
+
 export type ItemElementCollections = Omit<ElementCollections, 'keyPositions'>;
 
 // 키 외 종류 스토어 변경 구독

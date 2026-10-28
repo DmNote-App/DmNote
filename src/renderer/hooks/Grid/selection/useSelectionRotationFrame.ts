@@ -2,13 +2,11 @@
 // 프리뷰 오버레이(모듈 상태)를 previewVersion으로 다시 읽어야 해서 컴파일러 메모 제외
 import { useLayoutEffect, useMemo, useSyncExternalStore } from 'react';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useSelectionRotationStore } from '@stores/grid/useSelectionRotationStore';
 import {
+  composeItemPreviewCollections,
   composePreviewPositions,
   getPreviewOverlayVersion,
   subscribePreviewOverlay,
@@ -26,10 +24,7 @@ export const useSelectionRotationFrame = () => {
   const mode = useKeyStore((state) => state.selectedKeyType);
   const selected = useGridSelectionStore((state) => state.selectedElements);
   const keys = useKeyStore((state) => state.canonicalPositions);
-  const stats = useStatItemStore((state) => state.positions);
-  const graphs = useGraphItemStore((state) => state.positions);
-  const knobs = useKnobItemStore((state) => state.positions);
-  const sprites = useSpriteStore((state) => state.positions);
+  const itemCollections = useItemElementCollections();
   const previewVersion = useSyncExternalStore(
     subscribePreviewOverlay,
     getPreviewOverlayVersion,
@@ -51,27 +46,14 @@ export const useSelectionRotationFrame = () => {
     return createSelectionRotationSnapshot(
       {
         keyPositions: composePreviewPositions('keyPosition', keys),
-        statPositions: composePreviewPositions('statPosition', stats),
-        graphPositions: composePreviewPositions('graphPosition', graphs),
-        knobPositions: composePreviewPositions('knobPosition', knobs),
-        spritePositions: composePreviewPositions('spritePosition', sprites),
+        ...composeItemPreviewCollections(itemCollections),
       },
       selected,
       mode,
     );
     // canonical 밖 프리뷰 패치가 바뀔 때도 다시 합성
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    selectionKey,
-    selected,
-    mode,
-    keys,
-    stats,
-    graphs,
-    knobs,
-    sprites,
-    previewVersion,
-  ]);
+  }, [selectionKey, selected, mode, keys, itemCollections, previewVersion]);
   const currentReference = snapshot?.referenceRotation ?? 0;
   useLayoutEffect(() => {
     useSelectionRotationStore

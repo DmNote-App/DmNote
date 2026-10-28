@@ -3,13 +3,15 @@
  */
 
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { calculateBounds, type ElementBounds } from '@utils/grid/smartGuides';
-import { DEFAULT_SPRITE_SIZE } from '@src/types/key/sprites';
+import { captureElementCollections } from '@src/renderer/editor/model/elementStores';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  EDITOR_ELEMENT_TYPES,
+  modeArraysOf,
+} from '@src/types/editor';
+import { defaultElementSize } from '@src/types/elementKinds';
 
 /**
  * 특정 요소를 제외한 모든 요소의 bounds를 반환
@@ -22,10 +24,6 @@ const getOtherElementsSnapshot = (
   excludeIds: string | string[],
 ): ElementBounds[] => {
   const { positions, selectedKeyType } = useKeyStore.getState();
-  const statPositions = useStatItemStore.getState().positions;
-  const graphPositions = useGraphItemStore.getState().positions;
-  const knobPositions = useKnobItemStore.getState().positions;
-  const spritePositions = useSpriteStore.getState().positions;
   const pluginElements = usePluginDisplayElementStore.getState().elements;
 
   const bounds: ElementBounds[] = [];
@@ -34,77 +32,38 @@ const getOtherElementsSnapshot = (
     Array.isArray(excludeIds) ? excludeIds : [excludeIds],
   );
 
-  // 키 요소 bounds
-  const keyPositions = positions[selectedKeyType] || [];
-  keyPositions.forEach((pos) => {
-    if (pos.hidden) return;
-    const id = pos.id;
-    if (!excludeSet.has(id)) {
-      bounds.push(
-        calculateBounds(pos.dx, pos.dy, pos.width || 60, pos.height || 60, id),
-      );
-    }
-  });
-
-  // 통계 요소 bounds
-  const stats = statPositions[selectedKeyType] || [];
-  stats.forEach((pos) => {
-    if (!pos || pos.hidden) return;
-    const id = pos.id;
-    if (!excludeSet.has(id)) {
-      bounds.push(
-        calculateBounds(pos.dx, pos.dy, pos.width || 60, pos.height || 60, id),
-      );
-    }
-  });
-
-  // 그래프 요소 bounds
-  const graphs = graphPositions[selectedKeyType] || [];
-  graphs.forEach((pos) => {
-    if (!pos || pos.hidden) return;
-    const id = pos.id;
-    if (!excludeSet.has(id)) {
-      bounds.push(
-        calculateBounds(
-          pos.dx,
-          pos.dy,
-          pos.width || 200,
-          pos.height || 100,
-          id,
-        ),
-      );
-    }
-  });
-
-  // 노브 요소 bounds
-  const knobs = knobPositions[selectedKeyType] || [];
-  knobs.forEach((pos) => {
-    if (!pos || pos.hidden) return;
-    const id = pos.id;
-    if (!excludeSet.has(id)) {
-      bounds.push(
-        calculateBounds(pos.dx, pos.dy, pos.width || 60, pos.height || 60, id),
-      );
-    }
-  });
-
-  // 스프라이트 요소 bounds
-  const sprites = spritePositions[selectedKeyType] || [];
-  sprites.forEach((pos) => {
-    if (!pos || pos.hidden) return;
-    const id = pos.id;
-    if (!excludeSet.has(id)) {
-      bounds.push(
-        calculateBounds(
-          pos.dx,
-          pos.dy,
-          pos.width || DEFAULT_SPRITE_SIZE,
-          pos.height || DEFAULT_SPRITE_SIZE,
-          id,
-        ),
-      );
-    }
-  });
+  // 종류별 요소 bounds - 키는 렌더 positions, 나머지는 스토어 positions
+  const modeArrays = modeArraysOf(
+    { ...captureElementCollections(), keyPositions: positions },
+    selectedKeyType,
+  );
+  for (const type of EDITOR_ELEMENT_TYPES) {
+    const fallback = defaultElementSize(type);
+    (
+      modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]] as ReadonlyArray<{
+        id: string;
+        dx: number;
+        dy: number;
+        width?: number;
+        height?: number;
+        hidden?: boolean;
+      } | null>
+    ).forEach((pos) => {
+      if (!pos || pos.hidden) return;
+      const id = pos.id;
+      if (!excludeSet.has(id)) {
+        bounds.push(
+          calculateBounds(
+            pos.dx,
+            pos.dy,
+            pos.width || fallback.width,
+            pos.height || fallback.height,
+            id,
+          ),
+        );
+      }
+    });
+  }
 
   // 플러그인 요소 bounds (현재 탭에 속하는 요소만)
   pluginElements.forEach((el) => {
