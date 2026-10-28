@@ -61,6 +61,28 @@ fn recording_channel(messages: Arc<Mutex<Vec<PreviewEnvelope>>>) -> Channel<Prev
     })
 }
 
+// 공유 fixture의 종류↔도메인 쌍마다 KeyPosition 공통 스키마 종류만 키 필드 목록을 쓴다
+#[test]
+fn preview_patch_fields_follow_element_kind_schema() {
+    use crate::models::EditorElementTypeV1;
+
+    let entries: Vec<serde_json::Value> = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/element-kinds.json"
+    ))
+    .unwrap();
+    assert_eq!(entries.len(), EditorElementTypeV1::ALL.len());
+    for entry in entries {
+        let kind: EditorElementTypeV1 = serde_json::from_value(entry["type"].clone()).unwrap();
+        let domain: PreviewDomain = serde_json::from_value(entry["previewDomain"].clone()).unwrap();
+        let expected = if kind.has_key_position() {
+            KEY_POSITION_PATCH_FIELDS
+        } else {
+            SPRITE_POSITION_PATCH_FIELDS
+        };
+        assert_eq!(preview_patch_fields(domain), expected, "{kind:?}");
+    }
+}
+
 fn subscribe(broker: &PreviewBroker, label: &str) -> Arc<AtomicUsize> {
     let counter = Arc::new(AtomicUsize::new(0));
     broker

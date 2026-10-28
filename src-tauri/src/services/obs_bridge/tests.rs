@@ -264,6 +264,15 @@ fn public_overlay_events_are_forwarded_to_obs_clients() {
     }
 }
 
+// 요소 컬렉션 변경 이벤트는 OBS 오버레이도 받아야 한다 - 새 종류 등록 누락 방지
+#[test]
+fn every_element_collection_changed_event_is_forwarded_to_obs() {
+    for kind in crate::models::EditorElementTypeV1::ALL {
+        let event = kind.changed_event();
+        assert!(FORWARDED_EVENTS.contains(&event), "missing event: {event}");
+    }
+}
+
 #[tokio::test]
 async fn publish_is_noop_while_server_is_stopped() {
     let bridge = ObsBridgeService::new("test");

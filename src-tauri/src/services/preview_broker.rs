@@ -430,6 +430,17 @@ impl Default for PreviewBroker {
     }
 }
 
+// KeyPosition 공통 스키마 종류는 같은 필드 목록을 쓴다 - 도메인 추가 시 컴파일 에러로 분류 강제
+fn preview_patch_fields(domain: PreviewDomain) -> &'static [&'static str] {
+    match domain {
+        PreviewDomain::KeyPosition
+        | PreviewDomain::StatPosition
+        | PreviewDomain::GraphPosition
+        | PreviewDomain::KnobPosition => KEY_POSITION_PATCH_FIELDS,
+        PreviewDomain::SpritePosition => SPRITE_POSITION_PATCH_FIELDS,
+    }
+}
+
 fn validate_publish_request(request: &PreviewPublishRequest) -> Result<(), String> {
     if request.schema_version != PREVIEW_SCHEMA_VERSION {
         return Err("unsupported preview schema version".to_string());
@@ -443,10 +454,7 @@ fn validate_publish_request(request: &PreviewPublishRequest) -> Result<(), Strin
             "preview target count exceeds {MAX_PREVIEW_TARGETS}"
         ));
     }
-    let allowed_fields = match request.domain {
-        PreviewDomain::SpritePosition => SPRITE_POSITION_PATCH_FIELDS,
-        _ => KEY_POSITION_PATCH_FIELDS,
-    };
+    let allowed_fields = preview_patch_fields(request.domain);
     if let Some(field) = request
         .patch
         .keys()
