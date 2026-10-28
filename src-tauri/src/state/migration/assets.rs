@@ -15,8 +15,8 @@ use super::super::{
 };
 use crate::{
     models::{
-        is_renderable_image_ref, rewrite_coupled_sprite_image_reference, AppStoreData, FontType,
-        FontWeightRange, KeyPosition, SoundLibraryEntry, SpriteImageMetrics, SpritePositions,
+        for_each_element, for_each_element_mut, is_renderable_image_ref, AppStoreData, FontType,
+        FontWeightRange, SoundLibraryEntry, SpriteImageMetrics, SpritePositions,
         SpriteReferenceNaturalSize,
     },
     services::font_metadata::parse_font_metadata,
@@ -189,37 +189,7 @@ pub(crate) fn migrate_local_fonts_to_app_data(
 pub(crate) fn migrate_key_images_to_app_data(app_data_dir: &Path, data: &mut AppStoreData) -> bool {
     let mut changed = false;
 
-    let has_any_images = data.key_positions.values().any(|positions| {
-        positions.iter().any(|position| {
-            option_has_non_empty_text(&position.active_image)
-                || option_has_non_empty_text(&position.inactive_image)
-        })
-    }) || data.stat_positions.values().any(|positions| {
-        positions.iter().any(|stat_position| {
-            option_has_non_empty_text(&stat_position.position.active_image)
-                || option_has_non_empty_text(&stat_position.position.inactive_image)
-        })
-    }) || data.graph_positions.values().any(|positions| {
-        positions.iter().any(|graph_position| {
-            option_has_non_empty_text(&graph_position.position.active_image)
-                || option_has_non_empty_text(&graph_position.position.inactive_image)
-        })
-    }) || data.knob_positions.values().any(|positions| {
-        positions.iter().any(|knob_position| {
-            option_has_non_empty_text(&knob_position.position.active_image)
-                || option_has_non_empty_text(&knob_position.position.inactive_image)
-        })
-    }) || data.sprite_positions.values().any(|sprites| {
-        sprites.iter().any(|sprite| {
-            option_has_non_empty_text(&sprite.base_image)
-                || sprite
-                    .poses
-                    .iter()
-                    .any(|pose| option_has_non_empty_text(&pose.image_override))
-        })
-    });
-
-    if !has_any_images {
+    if !has_any_element_image(data) {
         return false;
     }
 
@@ -232,67 +202,23 @@ pub(crate) fn migrate_key_images_to_app_data(app_data_dir: &Path, data: &mut App
         return false;
     }
 
-    for positions in data.key_positions.values_mut() {
-        for position in positions.iter_mut() {
-            changed |= migrate_image_reference_to_app_data(&images_dir, &mut position.active_image);
-            changed |=
-                migrate_image_reference_to_app_data(&images_dir, &mut position.inactive_image);
-        }
-    }
-
-    for positions in data.stat_positions.values_mut() {
-        for stat_position in positions.iter_mut() {
-            changed |= migrate_image_reference_to_app_data(
-                &images_dir,
-                &mut stat_position.position.active_image,
-            );
-            changed |= migrate_image_reference_to_app_data(
-                &images_dir,
-                &mut stat_position.position.inactive_image,
-            );
-        }
-    }
-
-    for positions in data.graph_positions.values_mut() {
-        for graph_position in positions.iter_mut() {
-            changed |= migrate_image_reference_to_app_data(
-                &images_dir,
-                &mut graph_position.position.active_image,
-            );
-            changed |= migrate_image_reference_to_app_data(
-                &images_dir,
-                &mut graph_position.position.inactive_image,
-            );
-        }
-    }
-
-    for positions in data.knob_positions.values_mut() {
-        for knob_position in positions.iter_mut() {
-            changed |= migrate_image_reference_to_app_data(
-                &images_dir,
-                &mut knob_position.position.active_image,
-            );
-            changed |= migrate_image_reference_to_app_data(
-                &images_dir,
-                &mut knob_position.position.inactive_image,
-            );
-        }
-    }
-
-    for sprites in data.sprite_positions.values_mut() {
-        for sprite in sprites {
-            changed |= rewrite_coupled_sprite_image_reference(sprite, |image_ref| {
-                migrate_image_reference_to_app_data(&images_dir, image_ref)
-            });
-            for pose in &mut sprite.poses {
-                changed |= rewrite_coupled_sprite_image_reference(pose, |image_ref| {
-                    migrate_image_reference_to_app_data(&images_dir, image_ref)
-                });
-            }
-        }
-    }
+    for_each_element_mut(data, |_, _, element| {
+        element.for_each_image_ref_mut(&mut |image_ref| {
+            changed |= migrate_image_reference_to_app_data(&images_dir, image_ref);
+        });
+    });
 
     changed
+}
+
+fn has_any_element_image(data: &AppStoreData) -> bool {
+    let mut has_image = false;
+    for_each_element(data, |_, _, _, element| {
+        element.for_each_image_ref(&mut |image_ref| {
+            has_image |= option_has_non_empty_text(image_ref);
+        });
+    });
+    has_image
 }
 
 /// 다른 기기의 appData 자산 참조를 현재 기기의 실존 파일로 재연결
@@ -302,38 +228,16 @@ pub(crate) fn rehome_foreign_asset_references(
 ) -> bool {
     let mut changed = false;
 
-    for positions in data.key_positions.values_mut() {
-        for position in positions {
-            changed |= rehome_position_asset_references(app_data_dir, position);
-        }
-    }
-    for positions in data.stat_positions.values_mut() {
-        for position in positions {
-            changed |= rehome_position_asset_references(app_data_dir, &mut position.position);
-        }
-    }
-    for positions in data.graph_positions.values_mut() {
-        for position in positions {
-            changed |= rehome_position_asset_references(app_data_dir, &mut position.position);
-        }
-    }
-    for positions in data.knob_positions.values_mut() {
-        for position in positions {
-            changed |= rehome_position_asset_references(app_data_dir, &mut position.position);
-        }
-    }
-    for sprites in data.sprite_positions.values_mut() {
-        for sprite in sprites {
-            changed |= rewrite_coupled_sprite_image_reference(sprite, |image_ref| {
-                rehome_optional_asset_reference(app_data_dir, image_ref)
-            });
-            for pose in &mut sprite.poses {
-                changed |= rewrite_coupled_sprite_image_reference(pose, |image_ref| {
-                    rehome_optional_asset_reference(app_data_dir, image_ref)
-                });
+    for_each_element_mut(data, |kind, _, element| {
+        if kind.has_sound() {
+            if let Some(position) = element.key_position_mut() {
+                changed |= rehome_optional_asset_reference(app_data_dir, &mut position.sound_path);
             }
         }
-    }
+        element.for_each_image_ref_mut(&mut |image_ref| {
+            changed |= rehome_optional_asset_reference(app_data_dir, image_ref);
+        });
+    });
 
     for font in data
         .font_settings
@@ -438,12 +342,6 @@ fn probe_sprite_image_metrics(sprite_id: &str, source: &str) -> Option<(u32, u32
             None
         }
     }
-}
-
-fn rehome_position_asset_references(app_data_dir: &Path, position: &mut KeyPosition) -> bool {
-    rehome_optional_asset_reference(app_data_dir, &mut position.sound_path)
-        | rehome_optional_asset_reference(app_data_dir, &mut position.active_image)
-        | rehome_optional_asset_reference(app_data_dir, &mut position.inactive_image)
 }
 
 fn rehome_optional_asset_reference(app_data_dir: &Path, raw: &mut Option<String>) -> bool {

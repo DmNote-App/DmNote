@@ -221,26 +221,15 @@ fn migrate_note_border_color(color: &mut Option<String>) {
 
 /// store에 #RRGGBB로 변환 가능한 rgba noteBorderColor가 남아 있는지 (디스크 영속 판단용)
 pub(super) fn has_convertible_note_border_color(data: &AppStoreData) -> bool {
-    let convertible = |color: &Option<String>| color.as_deref().and_then(rgba_to_hex).is_some();
-    data.key_positions
-        .values()
-        .flatten()
-        .any(|pos| convertible(&pos.note_border_color))
-        || data
-            .stat_positions
-            .values()
-            .flatten()
-            .any(|stat| convertible(&stat.position.note_border_color))
-        || data
-            .graph_positions
-            .values()
-            .flatten()
-            .any(|graph| convertible(&graph.position.note_border_color))
-        || data
-            .knob_positions
-            .values()
-            .flatten()
-            .any(|knob| convertible(&knob.position.note_border_color))
+    let mut convertible = false;
+    for_each_key_position(data, |_, _, _, position| {
+        convertible |= position
+            .note_border_color
+            .as_deref()
+            .and_then(rgba_to_hex)
+            .is_some();
+    });
+    convertible
 }
 
 /// store 데이터 정규화 및 레거시 마이그레이션 적용
@@ -283,26 +272,9 @@ pub(crate) fn normalize_state(mut data: AppStoreData) -> AppStoreData {
 
     // 마이그레이션: noteBorderColor에 잘못 저장된 rgba(...) → #RRGGBB 복구 (이슈 #73)
     // 배치 편집 경로가 정규화 없이 rgba 문자열을 저장해 오버레이에서 초록색으로 깨짐
-    for positions in data.key_positions.values_mut() {
-        for pos in positions.iter_mut() {
-            migrate_note_border_color(&mut pos.note_border_color);
-        }
-    }
-    for positions in data.stat_positions.values_mut() {
-        for stat in positions.iter_mut() {
-            migrate_note_border_color(&mut stat.position.note_border_color);
-        }
-    }
-    for positions in data.graph_positions.values_mut() {
-        for graph in positions.iter_mut() {
-            migrate_note_border_color(&mut graph.position.note_border_color);
-        }
-    }
-    for positions in data.knob_positions.values_mut() {
-        for knob in positions.iter_mut() {
-            migrate_note_border_color(&mut knob.position.note_border_color);
-        }
-    }
+    for_each_key_position_mut(&mut data, |_, position| {
+        migrate_note_border_color(&mut position.note_border_color);
+    });
 
     // 레거시 마이그레이션: fadePosition enum → 방향별 픽셀 fade 값
     data.note_settings.migrate_fade_position();
@@ -317,21 +289,11 @@ pub(crate) fn normalize_state(mut data: AppStoreData) -> AppStoreData {
 
     // 마이그레이션: 기존 기본 카운터 설정의 반전된 active 색상 보정
     // (레거시 패턴에 해당하는 경우만 적용, 사용자 커스텀은 유지)
-    for positions in data.key_positions.values_mut() {
-        for pos in positions.iter_mut() {
-            pos.counter.migrate_legacy_defaults();
+    for_each_key_position_mut(&mut data, |kind, position| {
+        if kind.has_counter() {
+            position.counter.migrate_legacy_defaults();
         }
-    }
-    for positions in data.stat_positions.values_mut() {
-        for pos in positions.iter_mut() {
-            pos.position.counter.migrate_legacy_defaults();
-        }
-    }
-    for positions in data.graph_positions.values_mut() {
-        for pos in positions.iter_mut() {
-            pos.position.counter.migrate_legacy_defaults();
-        }
-    }
+    });
 
     migrate_legacy_font_weight_state(&mut data);
 
@@ -535,63 +497,24 @@ pub(super) fn repair_native_position_ranges(data: &mut AppStoreData) -> bool {
     }
 
     let mut repaired = false;
-    for position in data.key_positions.values_mut().flatten() {
-        repaired |= repair_position(position);
-    }
-    for position in data.stat_positions.values_mut().flatten() {
-        repaired |= repair_position(&mut position.position);
-    }
-    for position in data.graph_positions.values_mut().flatten() {
-        repaired |= repair_position(&mut position.position);
-    }
-    for position in data.knob_positions.values_mut().flatten() {
-        repaired |= repair_position(&mut position.position);
-    }
+    for_each_key_position_mut(data, |_, position| repaired |= repair_position(position));
     repaired
 }
 
 pub(super) fn has_legacy_font_weight_state(data: &AppStoreData) -> bool {
-    data.key_positions
-        .values()
-        .flatten()
-        .chain(
-            data.stat_positions
-                .values()
-                .flatten()
-                .map(|position| &position.position),
-        )
-        .chain(
-            data.graph_positions
-                .values()
-                .flatten()
-                .map(|position| &position.position),
-        )
-        .chain(
-            data.knob_positions
-                .values()
-                .flatten()
-                .map(|position| &position.position),
-        )
-        .any(|position| {
-            (position.font_bold.is_none() && position.font_weight == Some(700))
-                || (position.counter.font_bold.is_none() && position.counter.font_weight == 700)
-        })
+    let mut legacy = false;
+    for_each_key_position(data, |_, _, _, position| {
+        legacy |= (position.font_bold.is_none() && position.font_weight == Some(700))
+            || (position.counter.font_bold.is_none() && position.counter.font_weight == 700);
+    });
+    legacy
 }
 
 pub(crate) fn migrate_legacy_font_weight_state(data: &mut AppStoreData) -> bool {
     let mut changed = false;
-    for position in data.key_positions.values_mut().flatten() {
+    for_each_key_position_mut(data, |_, position| {
         changed |= position.migrate_legacy_font_weight();
-    }
-    for position in data.stat_positions.values_mut().flatten() {
-        changed |= position.position.migrate_legacy_font_weight();
-    }
-    for position in data.graph_positions.values_mut().flatten() {
-        changed |= position.position.migrate_legacy_font_weight();
-    }
-    for position in data.knob_positions.values_mut().flatten() {
-        changed |= position.position.migrate_legacy_font_weight();
-    }
+    });
     changed
 }
 
@@ -611,36 +534,16 @@ pub(super) fn normalize_blank_font_colors(data: &mut AppStoreData) -> bool {
     }
 
     let mut changed = false;
-    for position in data.key_positions.values_mut().flatten() {
-        changed |= normalize_position(position);
-    }
-    for stat in data.stat_positions.values_mut().flatten() {
-        changed |= normalize_position(&mut stat.position);
-    }
-    for graph in data.graph_positions.values_mut().flatten() {
-        changed |= normalize_position(&mut graph.position);
-    }
-    for knob in data.knob_positions.values_mut().flatten() {
-        changed |= normalize_position(&mut knob.position);
-    }
+    for_each_key_position_mut(data, |_, position| changed |= normalize_position(position));
     changed
 }
 
 // image_mode replace 표현을 None으로 접는다 (KeyPosition::canonicalize_image_mode 참조)
 pub(crate) fn canonicalize_image_modes(data: &mut AppStoreData) -> bool {
     let mut changed = false;
-    for position in data.key_positions.values_mut().flatten() {
+    for_each_key_position_mut(data, |_, position| {
         changed |= position.canonicalize_image_mode();
-    }
-    for stat in data.stat_positions.values_mut().flatten() {
-        changed |= stat.position.canonicalize_image_mode();
-    }
-    for graph in data.graph_positions.values_mut().flatten() {
-        changed |= graph.position.canonicalize_image_mode();
-    }
-    for knob in data.knob_positions.values_mut().flatten() {
-        changed |= knob.position.canonicalize_image_mode();
-    }
+    });
     changed
 }
 
@@ -654,29 +557,11 @@ pub(crate) fn canonicalize_gradient_pairs(data: &mut AppStoreData) -> (bool, boo
     let mut changed = false;
     let mut pair_repaired = false;
 
-    for position in data.key_positions.values_mut().flatten() {
+    for_each_key_position_mut(data, |_, position| {
         let (position_changed, position_pair_repaired) = position.canonicalize_gradient_pairs();
         changed |= position_changed;
         pair_repaired |= position_pair_repaired;
-    }
-    for stat in data.stat_positions.values_mut().flatten() {
-        let (position_changed, position_pair_repaired) =
-            stat.position.canonicalize_gradient_pairs();
-        changed |= position_changed;
-        pair_repaired |= position_pair_repaired;
-    }
-    for graph in data.graph_positions.values_mut().flatten() {
-        let (position_changed, position_pair_repaired) =
-            graph.position.canonicalize_gradient_pairs();
-        changed |= position_changed;
-        pair_repaired |= position_pair_repaired;
-    }
-    for knob in data.knob_positions.values_mut().flatten() {
-        let (position_changed, position_pair_repaired) =
-            knob.position.canonicalize_gradient_pairs();
-        changed |= position_changed;
-        pair_repaired |= position_pair_repaired;
-    }
+    });
 
     (changed, pair_repaired)
 }
@@ -710,83 +595,31 @@ pub(super) fn has_valid_selected_key_type(data: &AppStoreData) -> bool {
 /// 프론트는 positions(groupId 포함)를 먼저 저장하고 layerGroups를 나중에 저장하므로,
 /// normalize_state 같은 부분 저장 경로에서 돌리면 새 그룹 생성이 파괴된다.
 pub(crate) fn clear_dangling_group_ids(data: &mut AppStoreData) -> bool {
-    clear_dangling_group_ids_in(
-        &mut data.key_positions,
-        &mut data.stat_positions,
-        &mut data.graph_positions,
-        &mut data.knob_positions,
-        &mut data.sprite_positions,
-        &data.layer_groups,
-    )
-}
-
-pub(crate) fn clear_dangling_group_ids_in(
-    key_positions: &mut KeyPositions,
-    stat_positions: &mut StatPositions,
-    graph_positions: &mut GraphPositions,
-    knob_positions: &mut KnobPositions,
-    sprite_positions: &mut SpritePositions,
-    layer_groups: &LayerGroups,
-) -> bool {
-    let valid_ids: HashMap<&str, HashSet<&str>> = layer_groups
+    // 요소 컬렉션을 가변으로 도는 동안 layerGroups를 빌릴 수 없어 id만 복제
+    let valid_ids: HashMap<String, HashSet<String>> = data
+        .layer_groups
         .iter()
         .map(|(tab, groups)| {
             (
-                tab.as_str(),
-                groups.iter().map(|group| group.id.as_str()).collect(),
+                tab.clone(),
+                groups.iter().map(|group| group.id.clone()).collect(),
             )
         })
         .collect();
 
-    let is_dangling = |tab: &str, group_id: &Option<String>| {
-        group_id.as_ref().is_some_and(|id| {
+    let mut changed = false;
+    for_each_element_mut(data, |_, tab, element| {
+        let group_id = element.group_id_mut();
+        let dangling = group_id.as_ref().is_some_and(|id| {
             !valid_ids
                 .get(tab)
                 .is_some_and(|ids| ids.contains(id.as_str()))
-        })
-    };
-
-    let mut changed = false;
-    for (tab, positions) in key_positions.iter_mut() {
-        for position in positions.iter_mut() {
-            if is_dangling(tab, &position.group_id) {
-                position.group_id = None;
-                changed = true;
-            }
+        });
+        if dangling {
+            *group_id = None;
+            changed = true;
         }
-    }
-    for (tab, positions) in stat_positions.iter_mut() {
-        for stat in positions.iter_mut() {
-            if is_dangling(tab, &stat.position.group_id) {
-                stat.position.group_id = None;
-                changed = true;
-            }
-        }
-    }
-    for (tab, positions) in graph_positions.iter_mut() {
-        for graph in positions.iter_mut() {
-            if is_dangling(tab, &graph.position.group_id) {
-                graph.position.group_id = None;
-                changed = true;
-            }
-        }
-    }
-    for (tab, positions) in knob_positions.iter_mut() {
-        for knob in positions.iter_mut() {
-            if is_dangling(tab, &knob.position.group_id) {
-                knob.position.group_id = None;
-                changed = true;
-            }
-        }
-    }
-    for (tab, sprites) in sprite_positions.iter_mut() {
-        for sprite in sprites {
-            if is_dangling(tab, &sprite.group_id) {
-                sprite.group_id = None;
-                changed = true;
-            }
-        }
-    }
+    });
     changed
 }
 

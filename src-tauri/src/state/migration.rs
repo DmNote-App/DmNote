@@ -18,21 +18,21 @@ use crate::{
     defaults::{default_keys, default_positions},
     models::{
         default_missing_note_gradient_multipliers, default_sprite_press_duration_ms,
-        default_sprite_transition_ms, is_renderable_image_ref, normalize_key_slot,
+        default_sprite_transition_ms, for_each_element_mut, for_each_key_position,
+        for_each_key_position_mut, is_renderable_image_ref, normalize_key_slot,
         scrub_removed_text_outline_fields, AppStoreData, CounterAnimationPreset, CustomCss,
         CustomCssHistoryEntry, CustomFont, CustomJs, CustomTab, FontType, FontWeightRange,
-        GradientSpec, GraphPosition, GraphPositions, GraphStatType, GraphType, GridSettings,
-        ImageMode, ImageTransform, JsPlugin, KeyCounters, KeyMappings, KeyPosition, KeyPositions,
-        KeySlot, KnobPosition, KnobPositions, LayerGroupDef, LayerGroups, NoteSettings,
-        ReactiveSpritePosition, ShortcutsState, SoundLibraryEntry, SpriteAnchor, SpritePositions,
-        SpriteTransform, StatPosition, StatPositions, StatType, StoredOverlayBounds, TabCss,
-        TabNoteSettings, ELEMENT_ROTATION_MAX, ELEMENT_ROTATION_MIN, IMAGE_TRANSFORM_OFFSET_MAX,
-        IMAGE_TRANSFORM_OFFSET_MIN, IMAGE_TRANSFORM_ROTATION_MAX, IMAGE_TRANSFORM_ROTATION_MIN,
-        IMAGE_TRANSFORM_SCALE_MAX, IMAGE_TRANSFORM_SCALE_MIN, POSITION_COLLECTION_FIELDS,
-        SPRITE_IMAGE_DIMENSION_MAX, SPRITE_IMAGE_DIMENSION_MIN, SPRITE_PRESS_DURATION_MS_MAX,
-        SPRITE_PRESS_DURATION_MS_MIN, SPRITE_TRANSFORM_OFFSET_MAX, SPRITE_TRANSFORM_OFFSET_MIN,
-        SPRITE_TRANSFORM_ROTATION_MAX, SPRITE_TRANSFORM_ROTATION_MIN, SPRITE_TRANSFORM_SCALE_MAX,
-        SPRITE_TRANSFORM_SCALE_MIN, SPRITE_TRANSITION_MS_MAX,
+        GradientSpec, GraphPosition, GraphStatType, GraphType, GridSettings, ImageMode,
+        ImageTransform, JsPlugin, KeyCounters, KeyMappings, KeyPosition, KeyPositions, KeySlot,
+        KnobPosition, LayerGroupDef, NoteSettings, ReactiveSpritePosition, ShortcutsState,
+        SoundLibraryEntry, SpriteAnchor, SpriteTransform, StatPosition, StatType,
+        StoredOverlayBounds, TabCss, TabNoteSettings, ELEMENT_ROTATION_MAX, ELEMENT_ROTATION_MIN,
+        IMAGE_TRANSFORM_OFFSET_MAX, IMAGE_TRANSFORM_OFFSET_MIN, IMAGE_TRANSFORM_ROTATION_MAX,
+        IMAGE_TRANSFORM_ROTATION_MIN, IMAGE_TRANSFORM_SCALE_MAX, IMAGE_TRANSFORM_SCALE_MIN,
+        POSITION_COLLECTION_FIELDS, SPRITE_IMAGE_DIMENSION_MAX, SPRITE_IMAGE_DIMENSION_MIN,
+        SPRITE_PRESS_DURATION_MS_MAX, SPRITE_PRESS_DURATION_MS_MIN, SPRITE_TRANSFORM_OFFSET_MAX,
+        SPRITE_TRANSFORM_OFFSET_MIN, SPRITE_TRANSFORM_ROTATION_MAX, SPRITE_TRANSFORM_ROTATION_MIN,
+        SPRITE_TRANSFORM_SCALE_MAX, SPRITE_TRANSFORM_SCALE_MIN, SPRITE_TRANSITION_MS_MAX,
     },
 };
 
@@ -62,10 +62,6 @@ pub(crate) use normalization::{
     canonicalize_gradient_pairs, canonicalize_image_modes, clear_dangling_group_ids,
     migrate_legacy_sprite_wire, normalize_sprite_triggers, normalize_state,
 };
-#[allow(unused_imports)]
-pub(crate) use normalization::{
-    clear_dangling_group_ids_in, migrate_legacy_font_weight_state, pad_key_position_lengths,
-};
 use normalization::{
     current_unix_millis, default_store_note_gradient_multipliers,
     has_convertible_note_border_color, has_explicit_invalid_element_id,
@@ -75,6 +71,8 @@ use normalization::{
     repair_editor_revision, repair_native_position_ranges, repair_semantic_identities,
     repair_sprite_numeric_ranges,
 };
+#[allow(unused_imports)]
+pub(crate) use normalization::{migrate_legacy_font_weight_state, pad_key_position_lengths};
 #[cfg(test)]
 use recovery::{
     recover_collection_field, recover_key_mapping_entries, recover_local_font_enabled,

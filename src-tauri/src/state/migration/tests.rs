@@ -108,6 +108,19 @@ fn legacy_sprite_wire_absorbs_image_rect_and_removes_retired_fields() {
     assert!(!migrate_legacy_sprite_wire(&mut value));
 }
 
+// 미등록 컬렉션은 손상 시 통째 초기화로 떨어진다 - 요소 종류마다 항목 단위 복구 등록 고정
+#[test]
+fn every_element_collection_has_entry_level_recovery() {
+    for kind in crate::models::EditorElementTypeV1::ALL {
+        let field = kind.store_key();
+        assert_eq!(
+            recover_collection_field(field, &serde_json::json!({ "4key": [] })),
+            Some(serde_json::json!({ "4key": [] })),
+            "{field}"
+        );
+    }
+}
+
 #[test]
 fn legacy_sprite_wire_keeps_outer_bounds_for_invalid_image_rect() {
     let mut sprite = serde_json::to_value(ReactiveSpritePosition {
