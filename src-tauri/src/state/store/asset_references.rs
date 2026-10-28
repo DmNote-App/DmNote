@@ -5,7 +5,9 @@ use std::{
 
 use serde_json::Value;
 
-use crate::models::{AppStoreData, FontType, KeyPosition};
+#[cfg(test)]
+use crate::models::KeyPosition;
+use crate::models::{for_each_element, for_each_key_position, AppStoreData, FontType};
 
 use super::super::{
     assets::local_asset_path::{
@@ -138,16 +140,11 @@ pub(super) fn collect_local_image_paths(
 ) -> AssetReferencePaths {
     let mut paths = AssetReferencePaths::new();
 
-    for position in iter_all_positions(data) {
-        paths.collect(app_data_dir, position.active_image.as_ref());
-        paths.collect(app_data_dir, position.inactive_image.as_ref());
-    }
-    for sprite in data.sprite_positions.values().flatten() {
-        paths.collect(app_data_dir, sprite.base_image.as_ref());
-        for pose in &sprite.poses {
-            paths.collect(app_data_dir, pose.image_override.as_ref());
-        }
-    }
+    for_each_element(data, |_, _, _, element| {
+        element.for_each_image_ref(&mut |image_ref| {
+            paths.collect(app_data_dir, image_ref.as_ref());
+        });
+    });
 
     collect_plugin_managed_asset_paths(app_data_dir, data, "images", &mut paths);
 
@@ -168,9 +165,11 @@ pub(super) fn collect_local_sound_paths(
 ) -> AssetReferencePaths {
     let mut paths = AssetReferencePaths::new();
 
-    for position in iter_all_positions(data) {
-        paths.collect(app_data_dir, position.sound_path.as_ref());
-    }
+    for_each_key_position(data, |kind, _, _, position| {
+        if kind.has_sound() {
+            paths.collect(app_data_dir, position.sound_path.as_ref());
+        }
+    });
 
     // 사운드 라이브러리에 등록된 파일도 보호 (키에 할당 안 되어도 유지)
     for key in data.sound_library.keys() {
@@ -188,28 +187,11 @@ pub(super) fn collect_local_sound_path_keys(
     collect_local_sound_paths(app_data_dir, data).keys
 }
 
+#[cfg(test)]
 pub(super) fn iter_all_positions(data: &AppStoreData) -> impl Iterator<Item = &KeyPosition> {
-    data.key_positions
-        .values()
-        .flatten()
-        .chain(
-            data.stat_positions
-                .values()
-                .flatten()
-                .map(|position| &position.position),
-        )
-        .chain(
-            data.graph_positions
-                .values()
-                .flatten()
-                .map(|position| &position.position),
-        )
-        .chain(
-            data.knob_positions
-                .values()
-                .flatten()
-                .map(|position| &position.position),
-        )
+    let mut positions = Vec::new();
+    for_each_key_position(data, |_, _, _, position| positions.push(position));
+    positions.into_iter()
 }
 
 enum LocalAssetPathResolution {

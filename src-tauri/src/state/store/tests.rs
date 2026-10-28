@@ -17597,6 +17597,97 @@ fn asset_references_include_every_position_kind() {
     }
 }
 
+// 요소 종류 목록 전체가 고아 정리 보호 집합에 들어가는지 - 새 종류는 아래 match가 강제한다
+#[test]
+fn asset_references_protect_every_element_kind_image_and_sound() {
+    use crate::models::{for_each_element_mut, EditorElementTypeV1, ElementKindSet, SpritePose};
+
+    let root = std::env::temp_dir().join("dmnote-element-kind-assets");
+    let mut data = AppStoreData::default();
+    let position = default_positions()["4key"][0].clone();
+    for kind in EditorElementTypeV1::ALL {
+        let mode = "mode".to_string();
+        match kind {
+            EditorElementTypeV1::Key => {
+                data.key_positions.insert(mode, vec![position.clone()]);
+            }
+            EditorElementTypeV1::Stat => {
+                data.stat_positions.insert(
+                    mode,
+                    vec![StatPosition {
+                        stat_type: StatType::Kps,
+                        position: position.clone(),
+                    }],
+                );
+            }
+            EditorElementTypeV1::Graph => {
+                data.graph_positions.insert(
+                    mode,
+                    vec![GraphPosition {
+                        stat_type: GraphStatType::Kps,
+                        graph_type: GraphType::Line,
+                        graph_speed: 1,
+                        graph_color: "#FFFFFF".to_string(),
+                        show_avg_line: true,
+                        position: position.clone(),
+                    }],
+                );
+            }
+            EditorElementTypeV1::Knob => {
+                data.knob_positions.insert(
+                    mode,
+                    vec![KnobPosition {
+                        axis_id: String::new(),
+                        sensitivity: 1.0,
+                        reverse: false,
+                        position: position.clone(),
+                    }],
+                );
+            }
+            EditorElementTypeV1::Sprite => {
+                data.sprite_positions.insert(
+                    mode,
+                    vec![ReactiveSpritePosition {
+                        poses: vec![SpritePose::default()],
+                        ..ReactiveSpritePosition::default()
+                    }],
+                );
+            }
+        }
+    }
+
+    let mut expected_images = Vec::new();
+    let mut expected_sounds = Vec::new();
+    let mut seen_kinds = ElementKindSet::EMPTY;
+    for_each_element_mut(&mut data, |kind, _, element| {
+        seen_kinds.insert(kind);
+        let mut slot = 0;
+        element.for_each_image_ref_mut(&mut |image_ref| {
+            let path = root.join(format!("{kind:?}-{slot}.png"));
+            *image_ref = Some(path.to_string_lossy().to_string());
+            expected_images.push(path);
+            slot += 1;
+        });
+        assert!(slot > 0, "{kind:?} has no image reference");
+        if kind.has_sound() {
+            let path = root.join(format!("{kind:?}.wav"));
+            element.key_position_mut().unwrap().sound_path =
+                Some(path.to_string_lossy().to_string());
+            expected_sounds.push(path);
+        }
+    });
+    assert_eq!(seen_kinds, ElementKindSet::ALL);
+
+    let image_paths = collect_local_image_path_keys(&root, &data);
+    let sound_paths = collect_local_sound_path_keys(&root, &data);
+    for path in expected_images {
+        assert!(image_paths.contains(&path_identity_key(&path)), "{path:?}");
+    }
+    for path in expected_sounds {
+        assert!(sound_paths.contains(&path_identity_key(&path)), "{path:?}");
+    }
+}
+
 #[test]
 fn reactive_sprite_images_survive_explicit_orphan_sweep() {
     let dir = test_directory("reactive-sprite-image-sweep-test");
