@@ -16,9 +16,10 @@ use serde_json::Value;
 
 use super::AppStore;
 use crate::models::legacy_layout::{
-    import_document, is_legacy_kind, project_document, reconcile_document,
+    graft_tree_only, import_document, is_legacy_kind, project_document, reconcile_document,
 };
 use crate::models::{builtin_kind_registry, AppStoreData, EditorDocumentV1};
+use crate::state::history::ElementTreeHistorySnapshot;
 
 // 저장 파일에서 트리 문서가 실리는 칸
 pub(crate) const ELEMENT_DOCUMENT_FIELD: &str = "elementDocument";
@@ -97,13 +98,15 @@ pub enum ElementDocumentCommitResult {
     },
     Rejected {
         revision: u64,
-        // VIOLATION: 규칙에 어긋남, MANAGED_ELSEWHERE: 옛 저장 모양 경로로만 고칠 수 있는 대상
+        // VIOLATION: 규칙에 어긋남, MANAGED_ELSEWHERE: 옛 저장 모양 경로로만 고칠 수 있는 대상,
+        // HISTORY_IN_PROGRESS: 되돌리기 중
         code: &'static str,
         violations: Vec<Violation>,
     },
 }
 
 const MANAGED_ELSEWHERE: &str = "MANAGED_ELSEWHERE";
+const HISTORY_IN_PROGRESS: &str = "HISTORY_IN_PROGRESS";
 const VIOLATION: &str = "VIOLATION";
 
 fn element_kind<'a>(document: &'a Document, scene: &str, id: &str) -> Option<&'a str> {
@@ -147,6 +150,91 @@ fn touches_legacy(document: &Document, op: &Op) -> bool {
     }
 }
 
+// 옛 종류 요소는 id·종류만 남긴 장면 뼈대 - 되돌리기 기록용
+fn tree_skeleton(nodes: &[Node]) -> Vec<Node> {
+    nodes
+        .iter()
+        .map(|node| match node {
+            Node::Group(group) => {
+                let mut group = group.clone();
+                group.children = tree_skeleton(&group.children);
+                Node::Group(group)
+            }
+            Node::Element(element) if is_legacy_kind(&element.kind) => {
+                Node::Element(element_document::Element {
+                    id: element.id.clone(),
+                    kind: element.kind.clone(),
+                    frame: element_document::Frame {
+                        x: 0.0,
+                        y: 0.0,
+                        width: 1.0,
+                        height: 1.0,
+                        rotation: 0.0,
+                    },
+                    name: None,
+                    hidden: false,
+                    class_name: None,
+                    use_inline_styles: None,
+                    bundles: Default::default(),
+                    values: Default::default(),
+                    input: None,
+                    extra: Default::default(),
+                })
+            }
+            Node::Element(_) => node.clone(),
+        })
+        .collect()
+}
+
+pub(crate) fn element_tree_snapshot<'a>(
+    document: &Document,
+    scenes: impl IntoIterator<Item = &'a String>,
+) -> ElementTreeHistorySnapshot {
+    ElementTreeHistorySnapshot {
+        scenes: scenes
+            .into_iter()
+            .filter_map(|scene_id| {
+                let scene = document.scenes.get(scene_id)?;
+                Some((
+                    scene_id.clone(),
+                    element_document::Scene {
+                        nodes: tree_skeleton(&scene.nodes),
+                        extra: Default::default(),
+                    },
+                ))
+            })
+            .collect(),
+    }
+}
+
+fn strip_tree_only(nodes: &mut Vec<Node>) {
+    nodes.retain(|node| match node {
+        Node::Element(element) => is_legacy_kind(&element.kind),
+        Node::Group(_) => true,
+    });
+    for node in nodes {
+        if let Node::Group(group) = node {
+            strip_tree_only(&mut group.children);
+        }
+    }
+}
+
+/// 되돌리기 - 옛 종류 요소는 그대로 두고 트리에만 있는 요소를 기록 시점 자리로 되돌린다
+pub(crate) fn restore_element_tree(
+    document: &Document,
+    snapshot: &ElementTreeHistorySnapshot,
+) -> Document {
+    let mut next = document.clone();
+    for (scene_id, skeleton) in &snapshot.scenes {
+        let Some(scene) = next.scenes.get_mut(scene_id) else {
+            continue;
+        };
+        strip_tree_only(&mut scene.nodes);
+        graft_tree_only(skeleton, scene);
+    }
+    next
+}
+
 impl AppStore {
     pub(crate) fn element_document_revision(&self) -> u64 {
         self.element_document_revision.load(Ordering::Acquire)
@@ -165,8 +253,19 @@ impl AppStore {
         &self,
         ops: &[Op],
     ) -> Result<ElementDocumentCommitResult> {
-        let mut guard = self.lock_for_update()?;
         let revision = self.element_document_revision();
+        let in_progress = ElementDocumentCommitResult::Rejected {
+            revision,
+            code: HISTORY_IN_PROGRESS,
+            violations: Vec::new(),
+        };
+        let Ok(admission) = self.admit_editor_mutation() else {
+            return Ok(in_progress);
+        };
+        let mut guard = self.lock_for_update()?;
+        if admission.revalidate_for(&self.history_gate).is_err() {
+            return Ok(in_progress);
+        }
         let rejected = |code, violations| ElementDocumentCommitResult::Rejected {
             revision,
             code,
@@ -199,8 +298,17 @@ impl AppStore {
         if before != after {
             return Ok(rejected(MANAGED_ELSEWHERE, Vec::new()));
         }
+        if changes.is_empty() {
+            return Ok(ElementDocumentCommitResult::Committed { revision, changes });
+        }
+        let before = element_tree_snapshot(&guard.data.element_document, changes.scenes.keys());
+        let plan = guard
+            .history
+            .prepare_element_tree_entry(before)
+            .map_err(anyhow::Error::msg)?;
         let state = &mut *guard;
         self.commit_locked(state, scratch, ())?;
+        guard.history.apply_record_plan(plan);
         Ok(ElementDocumentCommitResult::Committed {
             revision: self.element_document_revision(),
             changes,

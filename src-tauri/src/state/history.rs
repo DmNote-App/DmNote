@@ -13,9 +13,9 @@ use snapshot::{
     snapshot_contains_plugin_elements, validate_compound_snapshots, HistoryEntryPayload,
 };
 pub(crate) use snapshot::{
-    CustomTabsHistorySnapshot, HistoryDirection, HistoryEntry, HistoryRecordPlan, HistoryScope,
-    HistorySnapshot, PluginElementsHistorySnapshot, PresetFullHistorySnapshot,
-    PresetHistorySettingsSnapshot,
+    CustomTabsHistorySnapshot, ElementTreeHistorySnapshot, HistoryDirection, HistoryEntry,
+    HistoryRecordPlan, HistoryScope, HistorySnapshot, PluginElementsHistorySnapshot,
+    PresetFullHistorySnapshot, PresetHistorySettingsSnapshot,
 };
 
 use crate::models::{
@@ -271,6 +271,18 @@ impl HistoryService {
         self.prepare_snapshot(
             HistoryScope::PluginElements,
             HistorySnapshot::PluginElements(before),
+            None,
+            None,
+        )
+    }
+
+    pub(crate) fn prepare_element_tree_entry(
+        &self,
+        before: ElementTreeHistorySnapshot,
+    ) -> Result<HistoryRecordPlan, String> {
+        self.prepare_snapshot(
+            HistoryScope::ElementTree,
+            HistorySnapshot::ElementTree(before),
             None,
             None,
         )

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::{
-    commands::run_blocking,
+    commands::{editor::state::emit_best_effort, run_blocking},
     errors::{CmdResult, CommandError},
     services::event_publisher::publish_element_document_changes,
     state::ElementDocumentCommitResult,
@@ -43,6 +43,7 @@ pub async fn element_document_commit(
             .map_err(|error| CommandError::msg(format!("{error:#}")))?;
         if matches!(result, ElementDocumentCommitResult::Committed { .. }) {
             publish_element_document_changes(app);
+            emit_best_effort(app, "history:status", &state.store.history_status());
         }
         Ok(result)
     })

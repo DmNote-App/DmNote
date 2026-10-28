@@ -192,3 +192,61 @@ fn 그룹_숨김처럼_트리에만_있는_정보는_커밋하고_리비전이_�
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 트리_전용_요소_편집을_되돌리고_다시_한다() {
+    use crate::state::history::HistoryDirection;
+    let (dir, store) = open_store();
+    let key = store.snapshot().key_positions["4key"][1].id.clone();
+    let insert: Op = serde_json::from_value(serde_json::json!({
+        "op": "insert", "scene": "4key", "parent": null, "index": null,
+        "node": { "type": "element", "id": "tracker-1", "kind": "cursorTracker",
+                  "frame": { "x": 5, "y": 5, "width": 120, "height": 120 } }
+    }))
+    .unwrap();
+    assert!(matches!(
+        store.commit_element_document(&[insert]).unwrap(),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    let inserted = store.element_document_snapshot().1;
+    assert!(inserted.scenes["4key"].element("tracker-1").is_some());
+    // 기본 고유 값과 표면 묶음이 채워진다
+    let tracker = inserted.scenes["4key"].element("tracker-1").unwrap();
+    assert_eq!(tracker.values["mode"], serde_json::json!("motion"));
+    assert!(tracker.bundles.contains_key("surface"));
+
+    // 그 사이 옛 경로 편집은 되돌리기에 휩쓸리지 않는다
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        scratch.key_positions.get_mut("4key").unwrap()[1].dx = 333.0;
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+
+    let counters = Default::default();
+    store
+        .apply_history_operation(
+            HistoryDirection::Undo,
+            &uuid::Uuid::new_v4().to_string(),
+            &counters,
+            || {},
+        )
+        .unwrap();
+    let undone = store.element_document_snapshot().1;
+    assert!(undone.scenes["4key"].element("tracker-1").is_none());
+    assert_eq!(undone.scenes["4key"].element(&key).unwrap().frame.x, 333.0);
+
+    store
+        .apply_history_operation(
+            HistoryDirection::Redo,
+            &uuid::Uuid::new_v4().to_string(),
+            &counters,
+            || {},
+        )
+        .unwrap();
+    assert!(store.element_document_snapshot().1.scenes["4key"]
+        .element("tracker-1")
+        .is_some());
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

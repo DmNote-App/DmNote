@@ -210,6 +210,26 @@ impl AppStore {
                         }),
                     )
                 }
+                HistorySnapshot::ElementTree(before) => {
+                    let current_snapshot = super::element_tree::element_tree_snapshot(
+                        &current_store.element_document,
+                        before.scenes.keys(),
+                    );
+                    if current_snapshot == before {
+                        return Err(HISTORY_TARGET_ALREADY_APPLIED.to_string());
+                    }
+                    let opposite = require_history_entry(
+                        guard.history.prepare_element_tree_entry(current_snapshot)?,
+                    )?;
+                    let mut scratch = current_store;
+                    scratch.element_document = super::element_tree::restore_element_tree(
+                        &scratch.element_document,
+                        &before,
+                    );
+                    self.commit_locked(&mut guard, scratch, ())
+                        .map_err(|error| error.to_string())?;
+                    (opposite, None, None)
+                }
                 HistorySnapshot::Compound { snapshots } => {
                     let current = EditorDocumentV1::from_store(&current_store);
                     let mut opposite_snapshots = Vec::with_capacity(snapshots.len());

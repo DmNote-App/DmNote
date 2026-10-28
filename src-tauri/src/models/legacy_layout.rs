@@ -715,7 +715,7 @@ fn take_elements(nodes: &[Node]) -> HashMap<String, Element> {
 }
 
 // 트리에만 있는 노드를 새 구조에 다시 끼운다 - 바로 아래 옛 종류 요소 뒤에 둔다
-fn graft_tree_only(previous: &Scene, next: &mut Scene) {
+pub(crate) fn graft_tree_only(previous: &Scene, next: &mut Scene) {
     let mut below: Option<String> = None;
     let mut grafts: Vec<(Option<String>, Element)> = Vec::new();
     walk(&previous.nodes, &mut |node, _| {

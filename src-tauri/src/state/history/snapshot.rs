@@ -19,6 +19,7 @@ pub(crate) enum HistoryScope {
     Counters,
     PresetFull,
     PluginElements,
+    ElementTree,
     Compound,
 }
 
@@ -303,9 +304,19 @@ pub(crate) enum HistorySnapshot {
     Counters(KeyCounters),
     PresetFull(Box<PresetFullHistorySnapshot>),
     PluginElements(PluginElementsHistorySnapshot),
+    // 트리 문서에만 있는 정보(새 종류 요소·그룹 숨김) - 장면별 뼈대
+    ElementTree(ElementTreeHistorySnapshot),
     Compound {
         snapshots: Vec<HistorySnapshot>,
     },
+}
+
+/// 장면마다 트리에만 있는 요소는 그대로, 옛 종류 요소는 id·종류만 남긴 뼈대.
+/// 되돌릴 때 옛 종류 요소는 건드리지 않고 트리에만 있는 요소를 그 이웃 자리에 다시 끼운다
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ElementTreeHistorySnapshot {
+    pub(crate) scenes: std::collections::BTreeMap<String, element_document::Scene>,
 }
 
 impl HistorySnapshot {
@@ -317,6 +328,7 @@ impl HistorySnapshot {
             Self::Counters(_) => HistoryScope::Counters,
             Self::PresetFull(_) => HistoryScope::PresetFull,
             Self::PluginElements(_) => HistoryScope::PluginElements,
+            Self::ElementTree(_) => HistoryScope::ElementTree,
             Self::Compound { .. } => HistoryScope::Compound,
         }
     }
@@ -603,6 +615,7 @@ pub(super) fn snapshot_contains_plugin_elements(
         HistorySnapshot::Editor { .. }
         | HistorySnapshot::Mode(_)
         | HistorySnapshot::Counters(_)
-        | HistorySnapshot::PresetFull(_) => false,
+        | HistorySnapshot::PresetFull(_)
+        | HistorySnapshot::ElementTree(_) => false,
     }
 }
