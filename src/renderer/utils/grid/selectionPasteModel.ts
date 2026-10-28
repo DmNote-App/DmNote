@@ -7,6 +7,7 @@ import type {
   CanonicalStatItemPosition,
   EditorElementTypeV1,
   EditorInsertFrozenElementsOpV1,
+  ElementCollections,
 } from '@src/types/editor';
 import type { KeySlot } from '@src/types/key/keys';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
@@ -274,13 +275,16 @@ export const createFrozenPasteModel = ({
     }
 
     // 결합 순서 재구성 + 동결 앵커 재해석 (소실 시 최상단 fallback)
+    const nextCollections = {
+      keyPositions: nextKeyPositions,
+      statPositions: statNext,
+      graphPositions: graphNext,
+      knobPositions: knobNext,
+      spritePositions: spriteNext,
+    } as unknown as ElementCollections;
     const allItems = buildLayerItemsForMode(
       mode,
-      nextKeyPositions as never,
-      statNext as never,
-      graphNext as never,
-      knobNext as never,
-      spriteNext as never,
+      nextCollections,
       combinedProjection,
     );
     const newIdSet = new Set<string>([
@@ -341,15 +345,7 @@ export const createFrozenPasteModel = ({
       ...pastedOrdered,
       ...existingItems.slice(anchorIndex),
     ];
-    const zPatch = applyZIndexToLayerOrder(
-      reordered,
-      mode,
-      nextKeyPositions as never,
-      statNext as never,
-      graphNext as never,
-      knobNext as never,
-      spriteNext as never,
-    );
+    const zPatch = applyZIndexToLayerOrder(reordered, mode, nextCollections);
     const zByFullId = new Map(
       zPatch.pluginUpdates.map((update) => [update.fullId, update.zIndex]),
     );

@@ -1,9 +1,9 @@
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
+import {
+  captureElementCollections,
+  restoreElementCollectionsIfUnchanged,
+  writeElementCollections,
+} from '../../model/elementStores';
 import { isNativeElementId } from '../../model/elementId';
 import type { NativeElementType } from '../../model/elementIdMap';
 import { currentPluginGroupMembers } from '../intent/pluginGroupMembers';
@@ -207,11 +207,7 @@ export const setElementGroupsByTargets = (
     return Promise.resolve(false);
   }
   const before = {
-    keyPositions: useKeyStore.getState().canonicalPositions,
-    statPositions: useStatItemStore.getState().positions,
-    graphPositions: useGraphItemStore.getState().positions,
-    knobPositions: useKnobItemStore.getState().positions,
-    spritePositions: useSpriteStore.getState().positions,
+    ...captureElementCollections(),
     layerGroups: useLayerGroupStore.getState().layerGroups,
   };
   const projected = projectStableElementGroups({
@@ -223,11 +219,7 @@ export const setElementGroupsByTargets = (
   });
   if (!projected) return Promise.resolve(false);
   if (projected.changed) {
-    useKeyStore.getState().setPositions(projected.keyPositions);
-    useStatItemStore.getState().setPositions(projected.statPositions);
-    useGraphItemStore.getState().setPositions(projected.graphPositions);
-    useKnobItemStore.getState().setPositions(projected.knobPositions);
-    useSpriteStore.getState().setPositions(projected.spritePositions);
+    writeElementCollections(projected);
     useLayerGroupStore.getState().setLayerGroups(projected.layerGroups);
   }
   let enrolled = false;
@@ -250,25 +242,7 @@ export const setElementGroupsByTargets = (
     .then((outcome) => outcome.opResults[0]?.status !== 'targetMissing')
     .catch((error) => {
       if (!enrolled && projected.changed) {
-        if (
-          useKeyStore.getState().canonicalPositions === projected.keyPositions
-        ) {
-          useKeyStore.getState().setPositions(before.keyPositions);
-        }
-        if (useStatItemStore.getState().positions === projected.statPositions) {
-          useStatItemStore.getState().setPositions(before.statPositions);
-        }
-        if (
-          useGraphItemStore.getState().positions === projected.graphPositions
-        ) {
-          useGraphItemStore.getState().setPositions(before.graphPositions);
-        }
-        if (useKnobItemStore.getState().positions === projected.knobPositions) {
-          useKnobItemStore.getState().setPositions(before.knobPositions);
-        }
-        if (useSpriteStore.getState().positions === projected.spritePositions) {
-          useSpriteStore.getState().setPositions(before.spritePositions);
-        }
+        restoreElementCollectionsIfUnchanged(projected, before);
         if (
           useLayerGroupStore.getState().layerGroups === projected.layerGroups
         ) {

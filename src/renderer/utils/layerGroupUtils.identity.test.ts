@@ -22,11 +22,13 @@ describe('applyZIndexToLayerOrder stable identity', () => {
         { type: 'key', id: ID_B, index: 1, zIndex: 0 },
       ],
       '4key',
-      keyPositions(),
-      {},
-      {},
-      {},
-      {},
+      {
+        keyPositions: keyPositions(),
+        statPositions: {},
+        graphPositions: {},
+        knobPositions: {},
+        spritePositions: {},
+      },
     );
 
     expect(result.keyPositions['4key']).toMatchObject([

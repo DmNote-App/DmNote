@@ -1,11 +1,7 @@
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
 import { deletePluginElements } from '@plugins/runtime/displayElement/pluginElementActions';
 import {
   beginMixedGestureTransaction,
@@ -28,28 +24,36 @@ import {
 import { normalizeLayerGroupsForMode } from '@utils/layerGroupUtils';
 
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
-import { EDITOR_ELEMENT_POSITION_FIELDS } from '@src/types/editor';
-import type { EditorElementTypeV1, EditorOpV1 } from '@src/types/editor';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  EDITOR_ELEMENT_TYPES,
+  EDITOR_FIELDS,
+  ITEM_ELEMENT_TYPES,
+} from '@src/types/editor';
+import type {
+  EditorElementPositionField,
+  EditorElementTypeV1,
+  EditorOpV1,
+  ElementCollections,
+} from '@src/types/editor';
+import {
+  captureElementCollections,
+  getItemStoreState,
+} from '../../model/elementStores';
 
 type NativeType = EditorElementTypeV1;
 
-interface DeleteDocumentView {
+type DeleteDocumentView = {
   keys: Record<string, unknown[]>;
-  keyPositions: Record<string, Array<{ id: string }>>;
-  statPositions: Record<string, Array<{ id: string }>>;
-  graphPositions: Record<string, Array<{ id: string }>>;
-  knobPositions: Record<string, Array<{ id: string }>>;
-  spritePositions: Record<string, Array<{ id: string }>>;
   layerGroups: Record<string, unknown[]>;
-}
+} & Record<EditorElementPositionField, Record<string, Array<{ id: string }>>>;
 
 const storeView = (): DeleteDocumentView => ({
   keys: useKeyStore.getState().keyMappings as Record<string, unknown[]>,
-  keyPositions: useKeyStore.getState().canonicalPositions as never,
-  statPositions: useStatItemStore.getState().positions as never,
-  graphPositions: useGraphItemStore.getState().positions as never,
-  knobPositions: useKnobItemStore.getState().positions as never,
-  spritePositions: useSpriteStore.getState().positions as never,
+  ...(captureElementCollections() as unknown as Record<
+    EditorElementPositionField,
+    Record<string, Array<{ id: string }>>
+  >),
   layerGroups: useLayerGroupStore.getState().layerGroups as never,
 });
 
@@ -127,11 +131,15 @@ export const deleteFrozenSelection = async (
   ) => {
     const next = {
       keys: { ...document.keys },
-      keyPositions: { ...document.keyPositions },
-      statPositions: { ...document.statPositions },
-      graphPositions: { ...document.graphPositions },
-      knobPositions: { ...document.knobPositions },
-      spritePositions: { ...document.spritePositions },
+      ...(Object.fromEntries(
+        EDITOR_ELEMENT_TYPES.map((type) => {
+          const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
+          return [field, { ...document[field] }];
+        }),
+      ) as Record<
+        EditorElementPositionField,
+        Record<string, Array<{ id: string }>>
+      >),
     };
     const affectedModes = new Set<string>();
     for (const [type, byMode] of removal) {
@@ -178,20 +186,15 @@ export const deleteFrozenSelection = async (
     ];
     for (const mode of affectedModes) {
       const normalized = normalizeLayerGroupsForMode({
+        ...(next as unknown as ElementCollections),
         mode,
-        keyPositions: next.keyPositions as never,
-        statPositions: next.statPositions as never,
-        graphPositions: next.graphPositions as never,
-        knobPositions: next.knobPositions as never,
-        spritePositions: next.spritePositions as never,
         layerGroups: layerGroups as never,
         pluginElements: remainingPluginElements,
       });
-      next.keyPositions = normalized.keyPositions as never;
-      next.statPositions = normalized.statPositions as never;
-      next.graphPositions = normalized.graphPositions as never;
-      next.knobPositions = normalized.knobPositions as never;
-      next.spritePositions = normalized.spritePositions as never;
+      for (const type of EDITOR_ELEMENT_TYPES) {
+        const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
+        next[field] = normalized[field] as never;
+      }
       if (normalized.groupsChanged) {
         layerGroups = normalized.layerGroups as never;
         groupsChanged = true;
@@ -214,15 +217,7 @@ export const deleteFrozenSelection = async (
     const editorReceipt = hasNative
       ? applySealedSliceMutation({
           modes: [...eagerModes],
-          fields: [
-            'keys',
-            'keyPositions',
-            'statPositions',
-            'graphPositions',
-            'knobPositions',
-            'spritePositions',
-            'layerGroups',
-          ],
+          fields: [...EDITOR_FIELDS],
           mutate: () => {
             if (eagerPlan.found === 0) return;
             const applied = applyRemoval(eagerView, eagerPlan.removal);
@@ -232,18 +227,11 @@ export const deleteFrozenSelection = async (
                 applied.next.keys as never,
                 applied.next.keyPositions as never,
               );
-            useStatItemStore
-              .getState()
-              .setPositions(applied.next.statPositions as never);
-            useGraphItemStore
-              .getState()
-              .setPositions(applied.next.graphPositions as never);
-            useKnobItemStore
-              .getState()
-              .setPositions(applied.next.knobPositions as never);
-            useSpriteStore
-              .getState()
-              .setPositions(applied.next.spritePositions as never);
+            for (const type of ITEM_ELEMENT_TYPES) {
+              getItemStoreState(type).setPositions(
+                applied.next[EDITOR_ELEMENT_POSITION_FIELDS[type]] as never,
+              );
+            }
             if (applied.groupsChanged) {
               useLayerGroupStore
                 .getState()

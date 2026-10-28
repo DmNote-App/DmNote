@@ -180,6 +180,45 @@ export const isEditorElementType = (
   typeof value === 'string' &&
   (EDITOR_ELEMENT_TYPES as readonly string[]).includes(value);
 
+// 키 외 요소 종류 - 키는 keys 매핑과 인덱스 결합이라 경로가 다르다
+export type ItemElementType = Exclude<EditorElementTypeV1, 'key'>;
+
+export const ITEM_ELEMENT_TYPES = EDITOR_ELEMENT_TYPES.filter(
+  (type): type is ItemElementType => type !== 'key',
+);
+
+// 문서 형태의 종류별 컬렉션 묶음
+export type ElementCollections = Pick<
+  CanonicalEditorDocumentV1,
+  EditorElementPositionField
+>;
+
+export type CanonicalPositionOf<K extends EditorElementTypeV1> =
+  CanonicalEditorDocumentV1[(typeof EDITOR_ELEMENT_POSITION_FIELDS)[K]][string][number];
+
+// 문서·투영 결과에서 종류별 컬렉션만 뽑는다
+export const pickElementCollections = (
+  source: ElementCollections,
+): ElementCollections =>
+  Object.fromEntries(
+    EDITOR_ELEMENT_TYPES.map((type) => {
+      const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
+      return [field, source[field]];
+    }),
+  ) as unknown as ElementCollections;
+
+// 종류별 컬렉션을 대상 문서에 덮어쓴다
+export const assignElementCollections = (
+  target: ElementCollections,
+  source: ElementCollections,
+): void => {
+  for (const type of EDITOR_ELEMENT_TYPES) {
+    const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
+    (target as Record<EditorElementPositionField, unknown>)[field] =
+      source[field];
+  }
+};
+
 export interface EditorBoundsV1 {
   dx: number;
   dy: number;

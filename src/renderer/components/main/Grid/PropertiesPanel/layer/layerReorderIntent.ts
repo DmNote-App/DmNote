@@ -270,15 +270,7 @@ const modelFrom = (
   const validGroupIds = new Set(
     (document.layerGroups[mode] ?? []).map((group) => group.id),
   );
-  const items = buildLayerItemsForMode(
-    mode,
-    document.keyPositions,
-    document.statPositions,
-    document.graphPositions,
-    document.knobPositions,
-    document.spritePositions,
-    [...pluginElements],
-  ).map(
+  const items = buildLayerItemsForMode(mode, document, [...pluginElements]).map(
     (item): LayerItem => ({
       ...item,
       groupId:

@@ -6,8 +6,9 @@ import type { GraphItemPosition } from '@src/types/key/graphItems';
 import type { KnobItemPosition } from '@src/types/key/knobs';
 import type { ReactiveSpritePosition } from '@src/types/key/sprites';
 import type {
-  CanonicalEditorDocumentV1,
+  CanonicalPositionOf,
   EditorElementTypeV1,
+  ItemElementType,
 } from '@src/types/editor';
 
 export type SelectableElementType = EditorElementTypeV1 | 'plugin';
@@ -17,14 +18,10 @@ export type IndexedSelectableElementType = Exclude<
   'plugin'
 >;
 
-export interface IndexedElementArrays {
+export type IndexedElementArrays = {
   keyMappings: readonly unknown[];
-  keyPositions: readonly CanonicalEditorDocumentV1['keyPositions'][string][number][];
-  stat: readonly CanonicalEditorDocumentV1['statPositions'][string][number][];
-  graph: readonly CanonicalEditorDocumentV1['graphPositions'][string][number][];
-  knob: readonly CanonicalEditorDocumentV1['knobPositions'][string][number][];
-  sprite: readonly CanonicalEditorDocumentV1['spritePositions'][string][number][];
-}
+  keyPositions: readonly CanonicalPositionOf<'key'>[];
+} & { [K in ItemElementType]: readonly CanonicalPositionOf<K>[] };
 
 type NativeSelectedElement = {
   [Type in IndexedSelectableElementType]: {

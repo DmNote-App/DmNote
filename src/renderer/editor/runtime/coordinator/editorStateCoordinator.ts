@@ -1,28 +1,57 @@
 import { editorApi } from '@api/modules/editor/editorApi';
 import { previewApi } from '@api/modules/editor/previewApi';
 import { unstable_batchedUpdates } from 'react-dom';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import {
   composeRenderedPositions,
   useKeyStore,
 } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { invalidateSelectionForChangedIndexedElementArrays } from '@stores/grid/useGridSelectionStore';
+import {
+  invalidateSelectionForChangedIndexedElementArrays,
+  type IndexedElementArrays,
+} from '@stores/grid/useGridSelectionStore';
 import { stableStringify } from '@utils/core/stableStringify';
 
 import { createEditorCoordinator } from './editorCoordinator';
 import { markGestureSessionsDiscarded } from '../gesture/gestureSessionLifecycle';
 import { previewOverlay } from '../gesture/previewOverlay';
 
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
-import { assertCanonicalEditorDocument } from '@src/types/editor';
+import {
+  captureElementCollections,
+  getItemStoreState,
+} from '../../model/elementStores';
+
+import type {
+  CanonicalEditorDocumentV1,
+  ElementCollections,
+} from '@src/types/editor';
+import {
+  assertCanonicalEditorDocument,
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  ITEM_ELEMENT_TYPES,
+} from '@src/types/editor';
 
 const hasChanged = (current: unknown, next: unknown) =>
   stableStringify(current) !== stableStringify(next);
+
+// 선택 보정 입력 - 키는 매핑·positions, 나머지는 종류별 현재 모드 배열
+const indexedArraysFor = (
+  keyMappings: Readonly<Record<string, readonly unknown[] | undefined>>,
+  keyPositions: ElementCollections['keyPositions'],
+  collections: ElementCollections,
+  mode: string,
+): IndexedElementArrays =>
+  ({
+    keyMappings: keyMappings[mode] ?? [],
+    keyPositions: keyPositions[mode] ?? [],
+    ...Object.fromEntries(
+      ITEM_ELEMENT_TYPES.map((type) => [
+        type,
+        collections[EDITOR_ELEMENT_POSITION_FIELDS[type]][mode] ?? [],
+      ]),
+    ),
+  } as unknown as IndexedElementArrays);
 
 let previewSubscribed = false;
 let previewSubscriptionInFlight: Promise<void> | null = null;
@@ -62,11 +91,7 @@ export const captureEditorDocument = (): CanonicalEditorDocumentV1 => {
     schemaVersion: 1,
     keys: keyState.keyMappings,
     // 프리뷰가 섞이지 않은 canonical만 문서로 캡처
-    keyPositions: keyState.canonicalPositions,
-    statPositions: useStatItemStore.getState().positions,
-    graphPositions: useGraphItemStore.getState().positions,
-    knobPositions: useKnobItemStore.getState().positions,
-    spritePositions: useSpriteStore.getState().positions,
+    ...captureElementCollections(),
     layerGroups: useLayerGroupStore.getState().layerGroups,
   };
 };
@@ -78,22 +103,13 @@ export const applyEditorDocument = (
     const keyState = useKeyStore.getState();
     const mode = keyState.selectedKeyType;
     invalidateSelectionForChangedIndexedElementArrays(
-      {
-        keyMappings: keyState.keyMappings[mode] ?? [],
-        keyPositions: keyState.positions[mode] ?? [],
-        stat: useStatItemStore.getState().positions[mode] ?? [],
-        graph: useGraphItemStore.getState().positions[mode] ?? [],
-        knob: useKnobItemStore.getState().positions[mode] ?? [],
-        sprite: useSpriteStore.getState().positions[mode] ?? [],
-      },
-      {
-        keyMappings: document.keys[mode] ?? [],
-        keyPositions: document.keyPositions[mode] ?? [],
-        stat: document.statPositions[mode] ?? [],
-        graph: document.graphPositions[mode] ?? [],
-        knob: document.knobPositions[mode] ?? [],
-        sprite: document.spritePositions[mode] ?? [],
-      },
+      indexedArraysFor(
+        keyState.keyMappings,
+        keyState.positions,
+        captureElementCollections(),
+        mode,
+      ),
+      indexedArraysFor(document.keys, document.keyPositions, document, mode),
     );
     const keyChanges: Partial<
       Pick<typeof keyState, 'keyMappings' | 'positions' | 'canonicalPositions'>
@@ -110,28 +126,12 @@ export const applyEditorDocument = (
       useKeyStore.setState(keyChanges);
     }
 
-    if (
-      hasChanged(useStatItemStore.getState().positions, document.statPositions)
-    ) {
-      useStatItemStore.setState({ positions: document.statPositions });
-    }
-    if (
-      hasChanged(
-        useGraphItemStore.getState().positions,
-        document.graphPositions,
-      )
-    ) {
-      useGraphItemStore.setState({ positions: document.graphPositions });
-    }
-    if (
-      hasChanged(useKnobItemStore.getState().positions, document.knobPositions)
-    ) {
-      useKnobItemStore.setState({ positions: document.knobPositions });
-    }
-    if (
-      hasChanged(useSpriteStore.getState().positions, document.spritePositions)
-    ) {
-      useSpriteStore.setState({ positions: document.spritePositions });
+    for (const type of ITEM_ELEMENT_TYPES) {
+      const next = document[EDITOR_ELEMENT_POSITION_FIELDS[type]];
+      const state = getItemStoreState(type);
+      if (hasChanged(state.positions, next)) {
+        state.setPositions(next as never);
+      }
     }
     if (
       hasChanged(

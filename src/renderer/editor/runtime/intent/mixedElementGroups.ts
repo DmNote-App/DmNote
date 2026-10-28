@@ -2,12 +2,13 @@
 // setElementGroups op, 플러그인 소속은 같은 gestureId의 pluginChanges로
 // 단일 커밋에 실린다 - history compound 병합으로 undo가 원자 복원된다
 
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
+import {
+  captureElementCollections,
+  readAuthorityPositions,
+  restoreElementCollectionsIfUnchanged,
+  writeElementCollections,
+} from '../../model/elementStores';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import {
   beginMixedGestureTransaction,
@@ -43,7 +44,6 @@ import type {
   EditorTargetLayerGroupV1,
 } from '@src/types/editor';
 import type { NativeElementType } from '../../model/elementIdMap';
-import { readAuthorityPositions } from '../../model/elementStores';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
 const validStructuralText = (value: string, maxBytes: number): boolean =>
@@ -189,11 +189,7 @@ export const setMixedElementGroups = (
 
       // eager: native 투영 + 그룹 def 정리는 desired 플러그인 소속 기준
       const before = {
-        keyPositions: useKeyStore.getState().canonicalPositions,
-        statPositions: useStatItemStore.getState().positions,
-        graphPositions: useGraphItemStore.getState().positions,
-        knobPositions: useKnobItemStore.getState().positions,
-        spritePositions: useSpriteStore.getState().positions,
+        ...captureElementCollections(),
         layerGroups: useLayerGroupStore.getState().layerGroups,
       };
       const projected = projectStableElementGroups({
@@ -211,42 +207,12 @@ export const setMixedElementGroups = (
       if (!projected) return false;
       let nativeReceipt: ElementIntentReceipt | null = null;
       if (projected.changed) {
-        useKeyStore.getState().setPositions(projected.keyPositions);
-        useStatItemStore.getState().setPositions(projected.statPositions);
-        useGraphItemStore.getState().setPositions(projected.graphPositions);
-        useKnobItemStore.getState().setPositions(projected.knobPositions);
-        useSpriteStore.getState().setPositions(projected.spritePositions);
+        writeElementCollections(projected);
         useLayerGroupStore.getState().setLayerGroups(projected.layerGroups);
         nativeReceipt = {
           rollback: () => {
             // 참조 CAS: 우리가 쓴 투영 그대로일 때만 복원
-            if (
-              useKeyStore.getState().canonicalPositions ===
-              projected.keyPositions
-            ) {
-              useKeyStore.getState().setPositions(before.keyPositions);
-            }
-            if (
-              useStatItemStore.getState().positions === projected.statPositions
-            ) {
-              useStatItemStore.getState().setPositions(before.statPositions);
-            }
-            if (
-              useGraphItemStore.getState().positions ===
-              projected.graphPositions
-            ) {
-              useGraphItemStore.getState().setPositions(before.graphPositions);
-            }
-            if (
-              useKnobItemStore.getState().positions === projected.knobPositions
-            ) {
-              useKnobItemStore.getState().setPositions(before.knobPositions);
-            }
-            if (
-              useSpriteStore.getState().positions === projected.spritePositions
-            ) {
-              useSpriteStore.getState().setPositions(before.spritePositions);
-            }
+            restoreElementCollectionsIfUnchanged(projected, before);
             if (
               useLayerGroupStore.getState().layerGroups ===
               projected.layerGroups

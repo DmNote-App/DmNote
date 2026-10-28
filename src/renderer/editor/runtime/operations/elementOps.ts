@@ -1,8 +1,4 @@
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import {
@@ -10,8 +6,10 @@ import {
   type NativeElementType,
 } from '../../model/elementIdMap';
 import {
+  captureElementCollections,
   getItemStoreState,
   readAuthorityPositions,
+  writeElementCollections,
 } from '../../model/elementStores';
 import { isNativeElementId } from '../../model/elementId';
 import { currentPluginGroupMembers } from '../intent/pluginGroupMembers';
@@ -103,26 +101,14 @@ export const deleteElementById = (
       useGridSelectionStore.getState().deselectElement(id);
     }
 
-    const keyState = useKeyStore.getState();
     const normalized = normalizeLayerGroupsForMode({
       mode: locator.mode,
-      keyPositions: keyState.canonicalPositions,
-      statPositions: useStatItemStore.getState().positions,
-      graphPositions: useGraphItemStore.getState().positions,
-      knobPositions: useKnobItemStore.getState().positions,
-      spritePositions: useSpriteStore.getState().positions,
+      ...captureElementCollections(),
       layerGroups: useLayerGroupStore.getState().layerGroups,
       pluginElements: currentPluginGroupMembers(),
     });
     if (normalized.positionsChanged) {
-      keyState.setKeyMappingsAndPositions(
-        keyState.keyMappings,
-        normalized.keyPositions,
-      );
-      useStatItemStore.getState().setPositions(normalized.statPositions);
-      useGraphItemStore.getState().setPositions(normalized.graphPositions);
-      useKnobItemStore.getState().setPositions(normalized.knobPositions);
-      useSpriteStore.getState().setPositions(normalized.spritePositions);
+      writeElementCollections(normalized);
     }
     if (normalized.groupsChanged) {
       const remaining = new Set(

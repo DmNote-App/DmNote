@@ -6,7 +6,11 @@ import {
 import { projectSpriteResize } from '@utils/sprite/resizeProjection';
 import { applySemanticElementPatch } from './semanticElementPatchProjection';
 import { currentPluginGroupMembers } from '../intent/pluginGroupMembers';
-import { EDITOR_ELEMENT_POSITION_FIELDS } from '@src/types/editor';
+import {
+  assignElementCollections,
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  pickElementCollections,
+} from '@src/types/editor';
 import type {
   CanonicalEditorDocumentV1,
   EditorElementPositionField,
@@ -238,19 +242,11 @@ export const applySemanticOps = (
       if (op.completeModeOrder) {
         const normalized = normalizeLayerGroupsForMode({
           mode: op.mode,
-          keyPositions: next.keyPositions,
-          statPositions: next.statPositions,
-          graphPositions: next.graphPositions,
-          knobPositions: next.knobPositions,
-          spritePositions: next.spritePositions,
+          ...pickElementCollections(next),
           layerGroups: next.layerGroups,
           pluginElements: currentPluginGroupMembers(),
         });
-        next.keyPositions = normalized.keyPositions;
-        next.statPositions = normalized.statPositions;
-        next.graphPositions = normalized.graphPositions;
-        next.knobPositions = normalized.knobPositions;
-        next.spritePositions = normalized.spritePositions;
+        assignElementCollections(next, normalized);
         next.layerGroups = normalized.layerGroups;
       }
       return;
@@ -261,20 +257,12 @@ export const applySemanticOps = (
         mode: op.mode,
         targets: op.targets,
         targetGroup: op.targetGroup,
-        keyPositions: next.keyPositions,
-        statPositions: next.statPositions,
-        graphPositions: next.graphPositions,
-        knobPositions: next.knobPositions,
-        spritePositions: next.spritePositions,
+        ...pickElementCollections(next),
         layerGroups: next.layerGroups,
         pluginElements: currentPluginGroupMembers(),
       });
       if (!projected) return;
-      next.keyPositions = projected.keyPositions;
-      next.statPositions = projected.statPositions;
-      next.graphPositions = projected.graphPositions;
-      next.knobPositions = projected.knobPositions;
-      next.spritePositions = projected.spritePositions;
+      assignElementCollections(next, projected);
       next.layerGroups = projected.layerGroups;
       return;
     }
@@ -359,19 +347,11 @@ export const applySemanticOps = (
       }
       const normalized = normalizeLayerGroupsForMode({
         mode,
-        keyPositions: next.keyPositions,
-        statPositions: next.statPositions,
-        graphPositions: next.graphPositions,
-        knobPositions: next.knobPositions,
-        spritePositions: next.spritePositions,
+        ...pickElementCollections(next),
         layerGroups: next.layerGroups,
         pluginElements: currentPluginGroupMembers(),
       });
-      next.keyPositions = normalized.keyPositions;
-      next.statPositions = normalized.statPositions;
-      next.graphPositions = normalized.graphPositions;
-      next.knobPositions = normalized.knobPositions;
-      next.spritePositions = normalized.spritePositions;
+      assignElementCollections(next, normalized);
       next.layerGroups = normalized.layerGroups;
       break;
     }

@@ -4,11 +4,15 @@ import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useStatItemStore } from '@stores/data/useStatItemStore';
 
-import { EDITOR_ELEMENT_TYPES } from '@src/types/editor';
-import type { EditorElementTypeV1 } from '@src/types/editor';
-
-// 키 외 요소 종류 - 키는 keys 매핑과 인덱스 결합이라 스토어 경로가 다르다
-export type ItemElementType = Exclude<EditorElementTypeV1, 'key'>;
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  EDITOR_ELEMENT_TYPES,
+} from '@src/types/editor';
+import type {
+  EditorElementTypeV1,
+  ElementCollections,
+  ItemElementType,
+} from '@src/types/editor';
 
 const ITEM_STORES = {
   stat: useStatItemStore,
@@ -34,6 +38,15 @@ export const snapshotAuthorityPositions = () =>
     EDITOR_ELEMENT_TYPES.map((type) => [type, readAuthorityPositions(type)]),
   ) as Record<EditorElementTypeV1, AuthorityPositions>;
 
+// 같은 스냅샷을 문서 필드 형태로
+export const captureElementCollections = (): ElementCollections =>
+  Object.fromEntries(
+    EDITOR_ELEMENT_TYPES.map((type) => [
+      EDITOR_ELEMENT_POSITION_FIELDS[type],
+      readAuthorityPositions(type),
+    ]),
+  ) as unknown as ElementCollections;
+
 // 키는 매핑을 유지한 채 positions만 교체
 export const writeAuthorityPositions = (
   type: EditorElementTypeV1,
@@ -43,5 +56,30 @@ export const writeAuthorityPositions = (
     useKeyStore.getState().setPositions(next as never);
   } else {
     getItemStoreState(type).setPositions(next as never);
+  }
+};
+
+// 참조 CAS 복원 - 우리가 쓴 컬렉션 그대로인 종류만 before로 되돌린다
+export const restoreElementCollectionsIfUnchanged = (
+  written: ElementCollections,
+  before: ElementCollections,
+): void => {
+  for (const type of EDITOR_ELEMENT_TYPES) {
+    const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
+    if (readAuthorityPositions(type) === written[field]) {
+      writeAuthorityPositions(type, before[field]);
+    }
+  }
+};
+
+// 종류 순서대로 전 컬렉션 교체
+export const writeElementCollections = (
+  collections: ElementCollections,
+): void => {
+  for (const type of EDITOR_ELEMENT_TYPES) {
+    writeAuthorityPositions(
+      type,
+      collections[EDITOR_ELEMENT_POSITION_FIELDS[type]],
+    );
   }
 };

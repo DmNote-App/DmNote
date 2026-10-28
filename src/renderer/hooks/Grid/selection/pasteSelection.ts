@@ -1,4 +1,5 @@
 import { newElementId } from '@src/renderer/editor/model/elementId';
+import { captureElementCollections } from '@src/renderer/editor/model/elementStores';
 import {
   applySealedSliceMutation,
   combineReceipts,
@@ -312,11 +313,7 @@ export const pasteSelection = async ({
   // 앵커 동결: 호출 시점 결합 순서에서 삽입 위치의 기존 아이템 id
   const callOrderItems = buildLayerItemsForMode(
     selectedKeyType,
-    useKeyStore.getState().canonicalPositions,
-    useStatItemStore.getState().positions,
-    useGraphItemStore.getState().positions,
-    useKnobItemStore.getState().positions,
-    useSpriteStore.getState().positions,
+    captureElementCollections(),
     usePluginDisplayElementStore.getState().elements,
   );
   // 앵커 descriptor: 선택 요소와 선택 그룹 최상단 중 더 위를 동결하되,

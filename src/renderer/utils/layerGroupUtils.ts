@@ -1,12 +1,20 @@
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import type { LayerGroups, LayerGroupDef } from '@src/types/layerGroups';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  EDITOR_ELEMENT_TYPES,
+  isEditorElementType,
+  pickElementCollections,
+} from '@src/types/editor';
 import type {
-  CanonicalEditorDocumentV1,
   EditorElementGroupTargetV1,
+  EditorElementPositionField,
   EditorElementTypeV1,
   EditorTargetLayerGroupV1,
+  ElementCollections,
 } from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
+import type { ReactiveSpritePosition } from '@src/types/key/sprites';
 import { normalizePluginInstanceTabId } from '@plugins/runtime/displayElement/instanceLifecycle';
 import { toSpriteWireShape } from '@utils/sprite/spriteWireShape';
 
@@ -34,39 +42,84 @@ type Groupable = SelectedElement & {
 };
 
 function isGroupableElement(el: SelectedElement): el is Groupable {
-  return (
-    el.type === 'key' ||
-    el.type === 'stat' ||
-    el.type === 'graph' ||
-    el.type === 'knob' ||
-    el.type === 'sprite'
-  );
+  return isEditorElementType(el.type);
 }
+
+// 종류 공통으로 다루는 position 최소 형태
+type LayerPosition = {
+  id: string;
+  groupId?: string | null;
+  zIndex?: number | null;
+};
+type ModePositions = Record<EditorElementTypeV1, LayerPosition[]>;
+type LooseCollections = Record<
+  EditorElementPositionField,
+  Record<string, LayerPosition[] | undefined>
+>;
+
+const modeListOf = (
+  collections: ElementCollections,
+  type: EditorElementTypeV1,
+  mode: string,
+): readonly LayerPosition[] =>
+  (collections as unknown as LooseCollections)[
+    EDITOR_ELEMENT_POSITION_FIELDS[type]
+  ][mode] || [];
+
+// 종류별 현재 모드 배열 복사본
+const copyModePositions = (
+  collections: ElementCollections,
+  mode: string,
+): ModePositions =>
+  Object.fromEntries(
+    EDITOR_ELEMENT_TYPES.map((type) => [
+      type,
+      [...modeListOf(collections, type, mode)],
+    ]),
+  ) as ModePositions;
+
+// 모든 컬렉션을 복사하고 replaced 종류만 모드 배열을 교체
+const withModePositions = (
+  collections: ElementCollections,
+  mode: string,
+  modePositions: ModePositions,
+  replaced: (type: EditorElementTypeV1) => boolean,
+): ElementCollections =>
+  Object.fromEntries(
+    EDITOR_ELEMENT_TYPES.map((type) => {
+      const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
+      const record = collections[field];
+      return [
+        field,
+        replaced(type)
+          ? { ...record, [mode]: modePositions[type] }
+          : { ...record },
+      ];
+    }),
+  ) as unknown as ElementCollections;
+
+// 그룹 소속 갱신 - 스프라이트는 wire 정규화(해제는 groupId 키 부재로 ack와 일치)
+const withGroupId = (
+  type: EditorElementTypeV1,
+  position: LayerPosition,
+  groupId: string | undefined,
+): LayerPosition =>
+  type === 'sprite'
+    ? (toSpriteWireShape({
+        ...(position as unknown as ReactiveSpritePosition),
+        groupId,
+      }) as unknown as LayerPosition)
+    : { ...position, groupId };
 
 function getElementGroupId(
   mode: string,
   element: Groupable,
-  keyPositions: CanonicalEditorDocumentV1['keyPositions'],
-  statPositions: CanonicalEditorDocumentV1['statPositions'],
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'],
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'],
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'],
+  collections: ElementCollections,
 ): string | undefined {
-  if (element.type === 'key') {
-    return keyPositions[mode]?.find(({ id }) => id === element.id)?.groupId;
-  }
-  if (element.type === 'stat') {
-    return statPositions[mode]?.find(({ id }) => id === element.id)?.groupId;
-  }
-  if (element.type === 'graph') {
-    return graphPositions[mode]?.find(({ id }) => id === element.id)?.groupId;
-  }
-  if (element.type === 'knob') {
-    return knobPositions[mode]?.find(({ id }) => id === element.id)?.groupId;
-  }
   return (
-    spritePositions[mode]?.find(({ id }) => id === element.id)?.groupId ??
-    undefined
+    modeListOf(collections, element.type, mode).find(
+      ({ id }) => id === element.id,
+    )?.groupId ?? undefined
   );
 }
 
@@ -76,11 +129,7 @@ function escapeRegExp(value: string): string {
 
 function collectModeGroupMemberCounts(
   mode: string,
-  keyPositions: CanonicalEditorDocumentV1['keyPositions'],
-  statPositions: CanonicalEditorDocumentV1['statPositions'],
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'],
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'],
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'],
+  collections: ElementCollections,
   pluginElements: readonly PluginGroupMemberLike[],
 ): Map<string, number> {
   const counts = new Map<string, number>();
@@ -89,11 +138,9 @@ function collectModeGroupMemberCounts(
     counts.set(groupId, (counts.get(groupId) || 0) + 1);
   };
 
-  (keyPositions[mode] || []).forEach((pos) => add(pos?.groupId));
-  (statPositions[mode] || []).forEach((pos) => add(pos?.groupId));
-  (graphPositions[mode] || []).forEach((pos) => add(pos?.groupId));
-  (knobPositions[mode] || []).forEach((pos) => add(pos?.groupId));
-  (spritePositions[mode] || []).forEach((pos) => add(pos?.groupId));
+  for (const type of EDITOR_ELEMENT_TYPES) {
+    modeListOf(collections, type, mode).forEach((pos) => add(pos?.groupId));
+  }
   // 플러그인 멤버도 그룹 생존에 기여 - 모드 판정은 저장 규칙과 동일
   pluginElements.forEach((element) => {
     if (isPluginGroupMemberInMode(element, mode)) add(element.groupId);
@@ -130,25 +177,13 @@ export function buildNextLayerGroupName(
 export function resolveSingleGroupIdFromSelection(
   mode: string,
   selectedElements: SelectedElement[],
-  keyPositions: CanonicalEditorDocumentV1['keyPositions'],
-  statPositions: CanonicalEditorDocumentV1['statPositions'],
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'],
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'],
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'],
+  collections: ElementCollections,
 ): string | undefined {
   const groupIds = new Set<string>();
 
   selectedElements.forEach((element) => {
     if (!isGroupableElement(element)) return;
-    const groupId = getElementGroupId(
-      mode,
-      element,
-      keyPositions,
-      statPositions,
-      graphPositions,
-      knobPositions,
-      spritePositions,
-    );
+    const groupId = getElementGroupId(mode, element, collections);
     if (groupId) {
       groupIds.add(groupId);
     }
@@ -158,171 +193,63 @@ export function resolveSingleGroupIdFromSelection(
   return Array.from(groupIds)[0];
 }
 
-type ApplyGroupIdResult = {
-  keyPositions: CanonicalEditorDocumentV1['keyPositions'];
-  statPositions: CanonicalEditorDocumentV1['statPositions'];
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'];
+type ApplyGroupIdResult = ElementCollections & {
   changed: boolean;
 };
 
-export function applyGroupIdToSelectedElements(params: {
-  mode: string;
-  selectedElements: SelectedElement[];
-  keyPositions: CanonicalEditorDocumentV1['keyPositions'];
-  statPositions: CanonicalEditorDocumentV1['statPositions'];
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'];
-  targetGroupId: string | undefined;
-}): ApplyGroupIdResult {
-  const {
-    mode,
-    selectedElements,
-    keyPositions,
-    statPositions,
-    graphPositions,
-    knobPositions,
-    spritePositions,
-    targetGroupId,
-  } = params;
+export function applyGroupIdToSelectedElements(
+  params: ElementCollections & {
+    mode: string;
+    selectedElements: SelectedElement[];
+    targetGroupId: string | undefined;
+  },
+): ApplyGroupIdResult {
+  const { mode, selectedElements, targetGroupId } = params;
 
-  const nextKeyPositions = { ...keyPositions };
-  const nextStatPositions = { ...statPositions };
-  const nextGraphPositions = { ...graphPositions };
-  const nextKnobPositions = { ...knobPositions };
-  const nextSpritePositions = { ...spritePositions };
-  const nextKeyMode = [...(keyPositions[mode] || [])];
-  const nextStatMode = [...(statPositions[mode] || [])];
-  const nextGraphMode = [...(graphPositions[mode] || [])];
-  const nextKnobMode = [...(knobPositions[mode] || [])];
-  const nextSpriteMode = [...(spritePositions[mode] || [])];
-
-  let changed = false;
-  let keyChanged = false;
-  let statChanged = false;
-  let graphChanged = false;
-  let knobChanged = false;
-  let spriteChanged = false;
+  const modePositions = copyModePositions(params, mode);
+  const changedTypes = new Set<EditorElementTypeV1>();
 
   selectedElements.forEach((element) => {
     if (!isGroupableElement(element)) return;
-
-    if (element.type === 'key') {
-      const index = nextKeyMode.findIndex(({ id }) => id === element.id);
-      const current = nextKeyMode[index];
-      if (!current || current.groupId === targetGroupId) return;
-      nextKeyMode[index] = { ...current, groupId: targetGroupId };
-      keyChanged = true;
-      changed = true;
-      return;
-    }
-
-    if (element.type === 'stat') {
-      const index = nextStatMode.findIndex(({ id }) => id === element.id);
-      const current = nextStatMode[index];
-      if (!current || current.groupId === targetGroupId) return;
-      nextStatMode[index] = { ...current, groupId: targetGroupId };
-      statChanged = true;
-      changed = true;
-      return;
-    }
-
-    if (element.type === 'graph') {
-      const index = nextGraphMode.findIndex(({ id }) => id === element.id);
-      const current = nextGraphMode[index];
-      if (!current || current.groupId === targetGroupId) return;
-      nextGraphMode[index] = { ...current, groupId: targetGroupId };
-      graphChanged = true;
-      changed = true;
-      return;
-    }
-
-    if (element.type === 'knob') {
-      const index = nextKnobMode.findIndex(({ id }) => id === element.id);
-      const current = nextKnobMode[index];
-      if (!current || current.groupId === targetGroupId) return;
-      nextKnobMode[index] = { ...current, groupId: targetGroupId };
-      knobChanged = true;
-      changed = true;
-      return;
-    }
-
-    const index = nextSpriteMode.findIndex(({ id }) => id === element.id);
-    const current = nextSpriteMode[index];
+    const list = modePositions[element.type];
+    const index = list.findIndex(({ id }) => id === element.id);
+    const current = list[index];
     // 명시 null 이력까지 undefined로 접어 동치 비교
     if (!current || (current.groupId ?? undefined) === targetGroupId) return;
-    // wire 정규화: 해제(undefined)는 groupId 키 부재로 맞춰 ack와 일치
-    nextSpriteMode[index] = toSpriteWireShape({
-      ...current,
-      groupId: targetGroupId,
-    });
-    spriteChanged = true;
-    changed = true;
+    list[index] = withGroupId(element.type, current, targetGroupId);
+    changedTypes.add(element.type);
   });
 
-  if (keyChanged) nextKeyPositions[mode] = nextKeyMode;
-  if (statChanged) nextStatPositions[mode] = nextStatMode;
-  if (graphChanged) nextGraphPositions[mode] = nextGraphMode;
-  if (knobChanged) nextKnobPositions[mode] = nextKnobMode;
-  if (spriteChanged) nextSpritePositions[mode] = nextSpriteMode;
-
+  const changed = changedTypes.size > 0;
   return {
-    keyPositions: changed ? nextKeyPositions : keyPositions,
-    statPositions: changed ? nextStatPositions : statPositions,
-    graphPositions: changed ? nextGraphPositions : graphPositions,
-    knobPositions: changed ? nextKnobPositions : knobPositions,
-    spritePositions: changed ? nextSpritePositions : spritePositions,
+    ...(changed
+      ? withModePositions(params, mode, modePositions, (type) =>
+          changedTypes.has(type),
+        )
+      : pickElementCollections(params)),
     changed,
   };
 }
 
-export interface StableElementGroupProjection {
-  keyPositions: CanonicalEditorDocumentV1['keyPositions'];
-  statPositions: CanonicalEditorDocumentV1['statPositions'];
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'];
+export type StableElementGroupProjection = ElementCollections & {
   layerGroups: LayerGroups;
   changed: boolean;
-}
+};
 
-export function projectStableElementGroups(params: {
-  mode: string;
-  targets: readonly EditorElementGroupTargetV1[];
-  targetGroup: EditorTargetLayerGroupV1 | null;
-  keyPositions: CanonicalEditorDocumentV1['keyPositions'];
-  statPositions: CanonicalEditorDocumentV1['statPositions'];
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'];
-  layerGroups: LayerGroups;
-  // normalize의 플러그인 멤버 집계 - 혼합 그룹화는 최종 소속 상태를 전달
-  pluginElements: readonly PluginGroupMemberLike[];
-}): StableElementGroupProjection | null {
-  const {
-    mode,
-    targets,
-    targetGroup,
-    keyPositions,
-    statPositions,
-    graphPositions,
-    knobPositions,
-    spritePositions,
-    layerGroups,
-    pluginElements,
-  } = params;
-  const records = {
-    key: keyPositions,
-    stat: statPositions,
-    graph: graphPositions,
-    knob: knobPositions,
-    sprite: spritePositions,
-  } as const;
+export function projectStableElementGroups(
+  params: ElementCollections & {
+    mode: string;
+    targets: readonly EditorElementGroupTargetV1[];
+    targetGroup: EditorTargetLayerGroupV1 | null;
+    layerGroups: LayerGroups;
+    // normalize의 플러그인 멤버 집계 - 혼합 그룹화는 최종 소속 상태를 전달
+    pluginElements: readonly PluginGroupMemberLike[];
+  },
+): StableElementGroupProjection | null {
+  const { mode, targets, targetGroup, layerGroups, pluginElements } = params;
   const selectedElements: SelectedElement[] = [];
   for (const target of targets) {
-    const positions = records[target.elementType][mode] ?? [];
+    const positions = modeListOf(params, target.elementType, mode);
     const index = positions.findIndex((position) => position?.id === target.id);
     if (index < 0) return null;
     selectedElements.push({
@@ -353,40 +280,25 @@ export function projectStableElementGroups(params: {
   }
 
   const grouped = applyGroupIdToSelectedElements({
+    ...pickElementCollections(params),
     mode,
     selectedElements,
-    keyPositions,
-    statPositions,
-    graphPositions,
-    knobPositions,
-    spritePositions,
     targetGroupId: targetGroup?.id,
   });
   const targetTypes = new Set(targets.map((target) => target.elementType));
   const normalized = normalizeLayerGroupsForMode({
+    ...(Object.fromEntries(
+      EDITOR_ELEMENT_TYPES.map((type) => {
+        const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
+        return [field, targetTypes.has(type) ? grouped[field] : params[field]];
+      }),
+    ) as unknown as ElementCollections),
     mode,
-    keyPositions: targetTypes.has('key') ? grouped.keyPositions : keyPositions,
-    statPositions: targetTypes.has('stat')
-      ? grouped.statPositions
-      : statPositions,
-    graphPositions: targetTypes.has('graph')
-      ? grouped.graphPositions
-      : graphPositions,
-    knobPositions: targetTypes.has('knob')
-      ? grouped.knobPositions
-      : knobPositions,
-    spritePositions: targetTypes.has('sprite')
-      ? grouped.spritePositions
-      : spritePositions,
     layerGroups: nextLayerGroups,
     pluginElements,
   });
   return {
-    keyPositions: normalized.keyPositions,
-    statPositions: normalized.statPositions,
-    graphPositions: normalized.graphPositions,
-    knobPositions: normalized.knobPositions,
-    spritePositions: normalized.spritePositions,
+    ...pickElementCollections(normalized),
     layerGroups: normalized.layerGroups,
     changed:
       grouped.changed ||
@@ -412,59 +324,29 @@ export function projectLayerGroupRename(params: {
   };
 }
 
-type NormalizeLayerGroupsResult = {
-  keyPositions: CanonicalEditorDocumentV1['keyPositions'];
-  statPositions: CanonicalEditorDocumentV1['statPositions'];
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'];
+type NormalizeLayerGroupsResult = ElementCollections & {
   layerGroups: LayerGroups;
   positionsChanged: boolean;
   groupsChanged: boolean;
   removedGroupIds: string[];
 };
 
-export function normalizeLayerGroupsForMode(params: {
-  mode: string;
-  keyPositions: CanonicalEditorDocumentV1['keyPositions'];
-  statPositions: CanonicalEditorDocumentV1['statPositions'];
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'];
-  layerGroups: LayerGroups;
-  // 플러그인 멤버 집계 - Rust remove_empty_layer_groups와 동일 규칙 필수
-  pluginElements: readonly PluginGroupMemberLike[];
-}): NormalizeLayerGroupsResult {
-  const {
-    mode,
-    keyPositions,
-    statPositions,
-    graphPositions,
-    knobPositions,
-    spritePositions,
-    layerGroups,
-    pluginElements,
-  } = params;
+export function normalizeLayerGroupsForMode(
+  params: ElementCollections & {
+    mode: string;
+    layerGroups: LayerGroups;
+    // 플러그인 멤버 집계 - Rust remove_empty_layer_groups와 동일 규칙 필수
+    pluginElements: readonly PluginGroupMemberLike[];
+  },
+): NormalizeLayerGroupsResult {
+  const { mode, layerGroups, pluginElements } = params;
 
   const currentModeGroups = layerGroups[mode] || [];
-  const nextKeyPositions = { ...keyPositions };
-  const nextStatPositions = { ...statPositions };
-  const nextGraphPositions = { ...graphPositions };
-  const nextKnobPositions = { ...knobPositions };
-  const nextSpritePositions = { ...spritePositions };
-  const nextKeyMode = [...(keyPositions[mode] || [])];
-  const nextStatMode = [...(statPositions[mode] || [])];
-  const nextGraphMode = [...(graphPositions[mode] || [])];
-  const nextKnobMode = [...(knobPositions[mode] || [])];
-  const nextSpriteMode = [...(spritePositions[mode] || [])];
+  const modePositions = copyModePositions(params, mode);
 
   const initialCounts = collectModeGroupMemberCounts(
     mode,
-    keyPositions,
-    statPositions,
-    graphPositions,
-    knobPositions,
-    spritePositions,
+    params,
     pluginElements,
   );
   const groupsToDissolve = new Set<string>();
@@ -486,49 +368,23 @@ export function normalizeLayerGroupsForMode(params: {
     const shouldClear = (groupId?: string | null) =>
       !!groupId && groupsToDissolve.has(groupId);
 
-    nextKeyMode.forEach((pos, index) => {
-      if (!shouldClear(pos?.groupId)) return;
-      nextKeyMode[index] = { ...pos, groupId: undefined };
-      positionsChanged = true;
-    });
-    nextStatMode.forEach((pos, index) => {
-      if (!shouldClear(pos?.groupId)) return;
-      nextStatMode[index] = { ...pos, groupId: undefined };
-      positionsChanged = true;
-    });
-    nextGraphMode.forEach((pos, index) => {
-      if (!shouldClear(pos?.groupId)) return;
-      nextGraphMode[index] = { ...pos, groupId: undefined };
-      positionsChanged = true;
-    });
-    nextKnobMode.forEach((pos, index) => {
-      if (!shouldClear(pos?.groupId)) return;
-      nextKnobMode[index] = { ...pos, groupId: undefined };
-      positionsChanged = true;
-    });
-    nextSpriteMode.forEach((pos, index) => {
-      if (!shouldClear(pos?.groupId)) return;
-      // wire 정규화: 해제는 groupId 키 부재로 맞춰 ack와 일치
-      nextSpriteMode[index] = toSpriteWireShape({ ...pos, groupId: undefined });
-      positionsChanged = true;
-    });
+    for (const type of EDITOR_ELEMENT_TYPES) {
+      const list = modePositions[type];
+      list.forEach((pos, index) => {
+        if (!shouldClear(pos?.groupId)) return;
+        list[index] = withGroupId(type, pos, undefined);
+        positionsChanged = true;
+      });
+    }
   }
 
-  if (positionsChanged) {
-    nextKeyPositions[mode] = nextKeyMode;
-    nextStatPositions[mode] = nextStatMode;
-    nextGraphPositions[mode] = nextGraphMode;
-    nextKnobPositions[mode] = nextKnobMode;
-    nextSpritePositions[mode] = nextSpriteMode;
-  }
+  const collections = positionsChanged
+    ? withModePositions(params, mode, modePositions, () => true)
+    : pickElementCollections(params);
 
   const finalCounts = collectModeGroupMemberCounts(
     mode,
-    positionsChanged ? nextKeyPositions : keyPositions,
-    positionsChanged ? nextStatPositions : statPositions,
-    positionsChanged ? nextGraphPositions : graphPositions,
-    positionsChanged ? nextKnobPositions : knobPositions,
-    positionsChanged ? nextSpritePositions : spritePositions,
+    collections,
     pluginElements,
   );
   const nextModeGroups = currentModeGroups.filter(
@@ -547,11 +403,7 @@ export function normalizeLayerGroupsForMode(params: {
     : layerGroups;
 
   return {
-    keyPositions: positionsChanged ? nextKeyPositions : keyPositions,
-    statPositions: positionsChanged ? nextStatPositions : statPositions,
-    graphPositions: positionsChanged ? nextGraphPositions : graphPositions,
-    knobPositions: positionsChanged ? nextKnobPositions : knobPositions,
-    spritePositions: positionsChanged ? nextSpritePositions : spritePositions,
+    ...collections,
     layerGroups: nextLayerGroups,
     positionsChanged,
     groupsChanged,
@@ -571,67 +423,25 @@ export interface LayerItemForOrder {
   groupId?: string;
 }
 
-/** 6개 스토어에서 아이템을 수집하고 zIndex 내림차순 정렬 */
+/** 요소 컬렉션과 플러그인에서 아이템을 수집하고 zIndex 내림차순 정렬 */
 export function buildLayerItemsForMode(
   mode: string,
-  keyPositions: CanonicalEditorDocumentV1['keyPositions'],
-  statPositions: CanonicalEditorDocumentV1['statPositions'],
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'],
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'],
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'],
+  collections: ElementCollections,
   pluginElements: PluginDisplayElementInternal[],
 ): LayerItemForOrder[] {
   const items: LayerItemForOrder[] = [];
 
-  (keyPositions[mode] || []).forEach((pos, index) => {
-    items.push({
-      type: 'key',
-      id: pos.id,
-      index,
-      zIndex: pos.zIndex ?? index,
-      groupId: pos.groupId,
+  for (const type of EDITOR_ELEMENT_TYPES) {
+    modeListOf(collections, type, mode).forEach((pos, index) => {
+      items.push({
+        type,
+        id: pos.id,
+        index,
+        zIndex: pos.zIndex ?? index,
+        groupId: pos.groupId ?? undefined,
+      });
     });
-  });
-
-  (statPositions[mode] || []).forEach((pos, index) => {
-    items.push({
-      type: 'stat',
-      id: pos.id,
-      index,
-      zIndex: pos.zIndex ?? index,
-      groupId: pos.groupId,
-    });
-  });
-
-  (graphPositions[mode] || []).forEach((pos, index) => {
-    items.push({
-      type: 'graph',
-      id: pos.id,
-      index,
-      zIndex: pos.zIndex ?? index,
-      groupId: pos.groupId,
-    });
-  });
-
-  (knobPositions[mode] || []).forEach((pos, index) => {
-    items.push({
-      type: 'knob',
-      id: pos.id,
-      index,
-      zIndex: pos.zIndex ?? index,
-      groupId: pos.groupId,
-    });
-  });
-
-  (spritePositions[mode] || []).forEach((pos, index) => {
-    items.push({
-      type: 'sprite',
-      id: pos.id,
-      index,
-      zIndex: pos.zIndex ?? index,
-      groupId: pos.groupId ?? undefined,
-    });
-  });
+  }
 
   pluginElements
     .filter((el) => isPluginVisibleInMode(el, mode))
@@ -682,61 +492,33 @@ export function findPasteAnchorIndex(
   return Number.isFinite(anchor) ? anchor : 0;
 }
 
-export interface ZIndexPatchResult {
-  keyPositions: CanonicalEditorDocumentV1['keyPositions'];
-  statPositions: CanonicalEditorDocumentV1['statPositions'];
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'];
+export type ZIndexPatchResult = ElementCollections & {
   pluginUpdates: Array<{ fullId: string; zIndex: number }>;
-}
+};
 
 /** 정렬된 아이템 배열에 maxZIndex - idx 패턴으로 zIndex 일괄 재부여 */
 export function applyZIndexToLayerOrder(
   orderedItems: LayerItemForOrder[],
   mode: string,
-  keyPositions: CanonicalEditorDocumentV1['keyPositions'],
-  statPositions: CanonicalEditorDocumentV1['statPositions'],
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'],
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'],
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'],
+  collections: ElementCollections,
 ): ZIndexPatchResult {
   const maxZIndex = orderedItems.length - 1;
-  const keyMode = [...(keyPositions[mode] || [])];
-  const statMode = [...(statPositions[mode] || [])];
-  const graphMode = [...(graphPositions[mode] || [])];
-  const knobMode = [...(knobPositions[mode] || [])];
-  const spriteMode = [...(spritePositions[mode] || [])];
+  const modePositions = copyModePositions(collections, mode);
   const pluginUpdates: Array<{ fullId: string; zIndex: number }> = [];
 
   orderedItems.forEach((item, idx) => {
     const z = maxZIndex - idx;
-    if (item.type === 'key') {
-      const index = keyMode.findIndex((position) => position.id === item.id);
-      if (index !== -1) keyMode[index] = { ...keyMode[index], zIndex: z };
-    } else if (item.type === 'stat') {
-      const index = statMode.findIndex((position) => position.id === item.id);
-      if (index !== -1) statMode[index] = { ...statMode[index], zIndex: z };
-    } else if (item.type === 'graph') {
-      const index = graphMode.findIndex((position) => position.id === item.id);
-      if (index !== -1) graphMode[index] = { ...graphMode[index], zIndex: z };
-    } else if (item.type === 'knob') {
-      const index = knobMode.findIndex((position) => position.id === item.id);
-      if (index !== -1) knobMode[index] = { ...knobMode[index], zIndex: z };
-    } else if (item.type === 'sprite') {
-      const index = spriteMode.findIndex((position) => position.id === item.id);
-      if (index !== -1) spriteMode[index] = { ...spriteMode[index], zIndex: z };
-    } else if (item.type === 'plugin') {
+    if (item.type === 'plugin') {
       pluginUpdates.push({ fullId: item.id, zIndex: z });
+      return;
     }
+    const list = modePositions[item.type];
+    const index = list.findIndex((position) => position.id === item.id);
+    if (index !== -1) list[index] = { ...list[index], zIndex: z };
   });
 
   return {
-    keyPositions: { ...keyPositions, [mode]: keyMode },
-    statPositions: { ...statPositions, [mode]: statMode },
-    graphPositions: { ...graphPositions, [mode]: graphMode },
-    knobPositions: { ...knobPositions, [mode]: knobMode },
-    spritePositions: { ...spritePositions, [mode]: spriteMode },
+    ...withModePositions(collections, mode, modePositions, () => true),
     pluginUpdates,
   };
 }

@@ -12,8 +12,8 @@ import {
   readAuthorityPositions,
   snapshotAuthorityPositions,
   writeAuthorityPositions,
-  type ItemElementType,
 } from './elementStores';
+import type { ItemElementType } from '@src/types/editor';
 
 const ITEM_STORES = {
   stat: useStatItemStore,
