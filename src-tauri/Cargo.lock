@@ -1364,6 +1364,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "element-document-wasm"
+version = "0.1.0"
+dependencies = [
+ "element-document",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "embed-resource"
 version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

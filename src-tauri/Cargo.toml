@@ -6,8 +6,8 @@ rust-version = "1.88"
 default-run = "dm-note"
 
 [workspace]
-members = ["crates/element-document"]
-default-members = [".", "crates/element-document"]
+members = ["crates/element-document", "crates/element-document-wasm"]
+default-members = [".", "crates/element-document", "crates/element-document-wasm"]
 
 [features]
 asio-backend = ["dep:cpal"]

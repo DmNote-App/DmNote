@@ -13,6 +13,9 @@ use crate::value::Violation;
 pub struct PendingEdit {
     pub id: String,
     pub ops: Vec<Op>,
+    // 백엔드가 받아들인 리비전 - 그 리비전의 패치가 오면 목록에서 빠진다
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub acknowledged: Option<u64>,
 }
 
 #[derive(Debug, Clone)]
@@ -60,16 +63,18 @@ impl Session {
         Ok(changes)
     }
 
-    /// 백엔드가 받아들인 편집. `confirmed`는 백엔드가 확정한 문서(정리된 값 포함)
-    pub fn confirm(
-        &mut self,
-        engine: &Engine<'_>,
-        edit_id: &str,
-        confirmed: Document,
-        revision: u64,
-    ) -> ChangeSet {
-        self.pending.retain(|edit| edit.id != edit_id);
-        self.rebase(engine, confirmed, revision)
+    /// 백엔드가 받아들인 편집. 그 리비전의 패치가 이미 왔으면 바로 빼고, 아니면 올 때까지 둔다
+    /// (응답보다 패치가 늦으면 그 사이 화면이 되돌아가지 않게)
+    pub fn acknowledge(&mut self, engine: &Engine<'_>, edit_id: &str, revision: u64) -> ChangeSet {
+        if self.revision >= revision {
+            self.pending.retain(|edit| edit.id != edit_id);
+            let confirmed = self.confirmed.clone();
+            return self.rebase(engine, confirmed, self.revision);
+        }
+        if let Some(edit) = self.pending.iter_mut().find(|edit| edit.id == edit_id) {
+            edit.acknowledged = Some(revision);
+        }
+        ChangeSet::default()
     }
 
     /// 백엔드가 거부한 편집 - 목록에서 빼고 화면을 다시 만든다
@@ -95,6 +100,10 @@ impl Session {
     /// 확정 문서가 바뀜(다른 창의 편집, 되돌리기 등) - 남은 편집을 그 위에 다시 쌓는다.
     /// 더는 맞지 않는 편집은 버린다
     pub fn rebase(&mut self, engine: &Engine<'_>, confirmed: Document, revision: u64) -> ChangeSet {
+        self.pending.retain(|edit| {
+            edit.acknowledged
+                .is_none_or(|acknowledged| acknowledged > revision)
+        });
         let mut view = confirmed.clone();
         self.pending
             .retain(|edit| engine.apply(&mut view, &edit.ops).is_ok());

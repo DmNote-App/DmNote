@@ -1,0 +1,472 @@
+[
+  {
+    "after": {
+      "formatVersion": 1,
+      "kindVersions": {
+        "dial": 2,
+        "pad": 1
+      },
+      "scenes": {
+        "tab": {
+          "nodes": [
+            {
+              "frame": {
+                "height": 60.0,
+                "rotation": 0.0,
+                "width": 60.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "a",
+              "kind": "pad",
+              "type": "element"
+            },
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 60.0,
+                    "rotation": 0.0,
+                    "width": 60.0,
+                    "x": 9.0,
+                    "y": 0.0
+                  },
+                  "id": "b",
+                  "kind": "dial",
+                  "type": "element",
+                  "values": {
+                    "color": "#FFFFFF",
+                    "mode": "spin",
+                    "poses": [],
+                    "sensitivity": 1,
+                    "target": null
+                  }
+                }
+              ],
+              "hidden": true,
+              "id": "g",
+              "name": "g",
+              "type": "group"
+            }
+          ]
+        }
+      }
+    },
+    "before": {
+      "formatVersion": 1,
+      "kindVersions": {
+        "dial": 2,
+        "pad": 1
+      },
+      "scenes": {
+        "tab": {
+          "nodes": [
+            {
+              "frame": {
+                "height": 60.0,
+                "rotation": 0.0,
+                "width": 60.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "a",
+              "kind": "pad",
+              "type": "element"
+            },
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 60.0,
+                    "rotation": 0.0,
+                    "width": 60.0,
+                    "x": 0.0,
+                    "y": 0.0
+                  },
+                  "id": "b",
+                  "kind": "dial",
+                  "type": "element",
+                  "values": {
+                    "color": "#FFFFFF",
+                    "mode": "spin",
+                    "poses": [],
+                    "sensitivity": 1,
+                    "target": null
+                  }
+                }
+              ],
+              "id": "g",
+              "name": "g",
+              "type": "group"
+            }
+          ]
+        }
+      }
+    },
+    "patch": {
+      "changes": {
+        "scenes": {
+          "tab": {
+            "changed": [
+              "b",
+              "g"
+            ],
+            "removed": [],
+            "structure": false
+          }
+        }
+      },
+      "kindVersions": {
+        "dial": 2,
+        "pad": 1
+      },
+      "scenes": {
+        "tab": {
+          "nodes": [
+            {
+              "children": [],
+              "hidden": true,
+              "id": "g",
+              "name": "g",
+              "type": "group"
+            },
+            {
+              "frame": {
+                "height": 60.0,
+                "rotation": 0.0,
+                "width": 60.0,
+                "x": 9.0,
+                "y": 0.0
+              },
+              "id": "b",
+              "kind": "dial",
+              "type": "element",
+              "values": {
+                "color": "#FFFFFF",
+                "mode": "spin",
+                "poses": [],
+                "sensitivity": 1,
+                "target": null
+              }
+            }
+          ],
+          "type": "nodes"
+        }
+      }
+    }
+  },
+  {
+    "after": {
+      "formatVersion": 1,
+      "kindVersions": {
+        "dial": 2,
+        "pad": 1
+      },
+      "scenes": {
+        "other": {
+          "nodes": []
+        },
+        "tab": {
+          "nodes": [
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 60.0,
+                    "rotation": 0.0,
+                    "width": 60.0,
+                    "x": 9.0,
+                    "y": 0.0
+                  },
+                  "id": "b",
+                  "kind": "dial",
+                  "type": "element",
+                  "values": {
+                    "color": "#FFFFFF",
+                    "mode": "spin",
+                    "poses": [],
+                    "sensitivity": 1,
+                    "target": null
+                  }
+                }
+              ],
+              "hidden": true,
+              "id": "g",
+              "name": "g",
+              "type": "group"
+            },
+            {
+              "frame": {
+                "height": 60.0,
+                "rotation": 0.0,
+                "width": 60.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "a",
+              "kind": "pad",
+              "type": "element"
+            }
+          ]
+        }
+      }
+    },
+    "before": {
+      "formatVersion": 1,
+      "kindVersions": {
+        "dial": 2,
+        "pad": 1
+      },
+      "scenes": {
+        "tab": {
+          "nodes": [
+            {
+              "frame": {
+                "height": 60.0,
+                "rotation": 0.0,
+                "width": 60.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "a",
+              "kind": "pad",
+              "type": "element"
+            },
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 60.0,
+                    "rotation": 0.0,
+                    "width": 60.0,
+                    "x": 9.0,
+                    "y": 0.0
+                  },
+                  "id": "b",
+                  "kind": "dial",
+                  "type": "element",
+                  "values": {
+                    "color": "#FFFFFF",
+                    "mode": "spin",
+                    "poses": [],
+                    "sensitivity": 1,
+                    "target": null
+                  }
+                }
+              ],
+              "hidden": true,
+              "id": "g",
+              "name": "g",
+              "type": "group"
+            }
+          ]
+        }
+      }
+    },
+    "patch": {
+      "changes": {
+        "scenes": {
+          "other": {
+            "changed": [],
+            "created": true,
+            "removed": [],
+            "structure": true
+          },
+          "tab": {
+            "changed": [],
+            "removed": [],
+            "structure": true
+          }
+        }
+      },
+      "kindVersions": {
+        "dial": 2,
+        "pad": 1
+      },
+      "scenes": {
+        "other": {
+          "scene": {
+            "nodes": []
+          },
+          "type": "replace"
+        },
+        "tab": {
+          "scene": {
+            "nodes": [
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 60.0,
+                      "rotation": 0.0,
+                      "width": 60.0,
+                      "x": 9.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "dial",
+                    "type": "element",
+                    "values": {
+                      "color": "#FFFFFF",
+                      "mode": "spin",
+                      "poses": [],
+                      "sensitivity": 1,
+                      "target": null
+                    }
+                  }
+                ],
+                "hidden": true,
+                "id": "g",
+                "name": "g",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 60.0,
+                  "rotation": 0.0,
+                  "width": 60.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "pad",
+                "type": "element"
+              }
+            ]
+          },
+          "type": "replace"
+        }
+      }
+    }
+  },
+  {
+    "after": {
+      "formatVersion": 1,
+      "kindVersions": {
+        "dial": 2,
+        "pad": 1
+      },
+      "scenes": {
+        "tab": {
+          "nodes": [
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 60.0,
+                    "rotation": 0.0,
+                    "width": 60.0,
+                    "x": 9.0,
+                    "y": 0.0
+                  },
+                  "id": "b",
+                  "kind": "dial",
+                  "type": "element",
+                  "values": {
+                    "color": "#FFFFFF",
+                    "mode": "spin",
+                    "poses": [],
+                    "sensitivity": 1,
+                    "target": null
+                  }
+                }
+              ],
+              "hidden": true,
+              "id": "g",
+              "name": "g",
+              "type": "group"
+            },
+            {
+              "frame": {
+                "height": 60.0,
+                "rotation": 0.0,
+                "width": 60.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "a",
+              "kind": "pad",
+              "type": "element"
+            }
+          ]
+        }
+      }
+    },
+    "before": {
+      "formatVersion": 1,
+      "kindVersions": {
+        "dial": 2,
+        "pad": 1
+      },
+      "scenes": {
+        "other": {
+          "nodes": []
+        },
+        "tab": {
+          "nodes": [
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 60.0,
+                    "rotation": 0.0,
+                    "width": 60.0,
+                    "x": 9.0,
+                    "y": 0.0
+                  },
+                  "id": "b",
+                  "kind": "dial",
+                  "type": "element",
+                  "values": {
+                    "color": "#FFFFFF",
+                    "mode": "spin",
+                    "poses": [],
+                    "sensitivity": 1,
+                    "target": null
+                  }
+                }
+              ],
+              "hidden": true,
+              "id": "g",
+              "name": "g",
+              "type": "group"
+            },
+            {
+              "frame": {
+                "height": 60.0,
+                "rotation": 0.0,
+                "width": 60.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "a",
+              "kind": "pad",
+              "type": "element"
+            }
+          ]
+        }
+      }
+    },
+    "patch": {
+      "changes": {
+        "scenes": {
+          "other": {
+            "changed": [],
+            "deleted": true,
+            "removed": [],
+            "structure": false
+          }
+        }
+      },
+      "kindVersions": {
+        "dial": 2,
+        "pad": 1
+      },
+      "scenes": {
+        "other": {
+          "type": "delete"
+        }
+      }
+    }
+  }
+]

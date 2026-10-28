@@ -20,6 +20,7 @@ fn nudge(id: &str, edit: &str, x: f64) -> PendingEdit {
             json!([{ "op": "setFrame", "scene": "tab", "id": id, "frame": { "x": x } }]),
         )
         .unwrap(),
+        acknowledged: None,
     }
 }
 
@@ -43,6 +44,9 @@ fn 미확정_편집은_화면에_먼저_반영되고_거부되면_빠진다() {
     assert_eq!(x_of(&session, "a"), 10.0);
     assert!(changes.scenes["tab"].changed.contains("a"));
 
+    // 응답이 먼저 오면 패치가 올 때까지 화면을 지킨다
+    assert!(session.acknowledge(&engine, "e1", 2).is_empty());
+    assert_eq!(x_of(&session, "a"), 10.0);
     let mut confirmed = session.confirmed().clone();
     confirmed
         .scenes
@@ -52,7 +56,7 @@ fn 미확정_편집은_화면에_먼저_반영되고_거부되면_빠진다() {
         .unwrap()
         .frame
         .x = 10.0;
-    let changes = session.confirm(&engine, "e1", confirmed, 2);
+    let changes = session.rebase(&engine, confirmed, 2);
     assert!(changes.is_empty(), "확정 값이 화면과 같으면 알릴 것이 없다");
     assert!(session.pending().is_empty());
     assert_eq!(session.revision(), 2);
@@ -93,7 +97,33 @@ fn 검사에_걸린_편집은_목록에_넣지_않는다() {
             json!([{ "op": "setFrame", "scene": "tab", "id": "a", "frame": { "width": -1 } }]),
         )
         .unwrap(),
+        acknowledged: None,
     };
     assert!(session.push(&engine, bad).is_err());
     assert!(session.pending().is_empty());
+}
+
+#[test]
+fn 패치가_응답보다_먼저_오면_응답_때_빠진다() {
+    let kinds = registry();
+    let engine = engine(&kinds);
+    let mut session = Session::new(
+        document(vec![Node::Element(element("a", "pad", json!({})))]),
+        1,
+    );
+    session.push(&engine, nudge("a", "e1", 10.0)).unwrap();
+    let mut confirmed = session.confirmed().clone();
+    confirmed
+        .scenes
+        .get_mut("tab")
+        .unwrap()
+        .element_mut("a")
+        .unwrap()
+        .frame
+        .x = 10.0;
+    session.rebase(&engine, confirmed, 2);
+    assert_eq!(session.pending().len(), 1, "아직 응답 전이라 남는다");
+    assert!(session.acknowledge(&engine, "e1", 2).is_empty());
+    assert!(session.pending().is_empty());
+    assert_eq!(x_of(&session, "a"), 10.0);
 }

@@ -110,6 +110,55 @@ mod tests {
     use super::*;
     use crate::test_support::{dial_values, document, element, group};
 
+    // TS 오버레이 패치 적용(src/renderer/editor/document/documentPatch.ts)과 공유하는 fixture
+    // 갱신: UPDATE_TS_BINDINGS=1 cargo test -p element-document
+    #[test]
+    fn 패치_fixture가_rust_결과와_같다() {
+        let before = document(vec![
+            Node::Element(element("a", "pad", json!({}))),
+            group(
+                "g",
+                vec![Node::Element(element("b", "dial", dial_values()))],
+            ),
+        ]);
+        let mut values = before.clone();
+        values
+            .scenes
+            .get_mut("tab")
+            .unwrap()
+            .element_mut("b")
+            .unwrap()
+            .frame
+            .x = 9.0;
+        if let Some(Node::Group(group)) = values.scenes.get_mut("tab").unwrap().nodes.get_mut(1) {
+            group.hidden = true;
+        }
+        let mut structure = values.clone();
+        structure.scenes.get_mut("tab").unwrap().nodes.reverse();
+        structure.scenes.insert("other".into(), Scene::default());
+        let mut removed = structure.clone();
+        removed.scenes.remove("other");
+        let cases: Vec<serde_json::Value> = [
+            (&before, &values),
+            (&values, &structure),
+            (&structure, &removed),
+        ]
+        .into_iter()
+        .map(|(from, to)| json!({ "before": from, "patch": make_patch(from, to), "after": to }))
+        .collect();
+        let generated = format!("{}\n", serde_json::to_string_pretty(&cases).unwrap());
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../tests/fixtures/element-document-patches.json");
+        if std::env::var_os("UPDATE_TS_BINDINGS").is_some() {
+            std::fs::write(&path, &generated).unwrap();
+            return;
+        }
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap_or_default(),
+            generated
+        );
+    }
+
     #[test]
     fn 패치를_적용하면_뒤_문서와_같아진다() {
         let before = document(vec![
