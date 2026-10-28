@@ -10,6 +10,7 @@ mod element_kinds;
 mod element_positions;
 mod key_position_normalization;
 mod key_slot;
+pub(crate) mod legacy_layout;
 mod note_settings;
 mod settings;
 mod shortcuts;
@@ -785,6 +786,10 @@ pub struct AppStoreData {
     /// 플러그인 데이터 저장소 (plugin_data_* 키로 저장)
     #[serde(default, flatten)]
     pub plugin_data: HashMap<String, serde_json::Value>,
+    /// 요소 트리 문서 - 종류별 배열(keys·keyPositions 등)은 이 문서의 옛 모양이다.
+    /// 프론트로 나가는 직렬화에는 싣지 않고 저장 파일에만 따로 쓴다 (store/persistence.rs)
+    #[serde(default, skip_serializing)]
+    pub element_document: element_document::Document,
 }
 
 impl Default for AppStoreData {
@@ -844,6 +849,7 @@ impl Default for AppStoreData {
             obs_port: default_obs_port(),
             obs_token: None,
             plugin_data: HashMap::new(),
+            element_document: element_document::Document::default(),
         }
     }
 }
