@@ -1,23 +1,9 @@
 use super::*;
 
-pub(super) fn migrate_imported_font_weights(
-    key_positions: &mut KeyPositions,
-    stat_positions: &mut StatPositions,
-    graph_positions: &mut GraphPositions,
-    knob_positions: &mut KnobPositions,
-) {
-    for position in key_positions.values_mut().flatten() {
+pub(super) fn migrate_imported_font_weights(elements: &mut ElementCollections) {
+    for_each_key_position_mut(elements, |_, position| {
         position.migrate_legacy_font_weight();
-    }
-    for position in stat_positions.values_mut().flatten() {
-        position.position.migrate_legacy_font_weight();
-    }
-    for position in graph_positions.values_mut().flatten() {
-        position.position.migrate_legacy_font_weight();
-    }
-    for position in knob_positions.values_mut().flatten() {
-        position.position.migrate_legacy_font_weight();
-    }
+    });
 }
 
 #[cfg(test)]
@@ -218,25 +204,18 @@ pub(super) fn restore_preset_local_fonts_in_dir(
 
 pub(super) fn restore_preset_local_images(
     app: &AppHandle,
-    key_positions: &mut KeyPositions,
-    stat_positions: &mut StatPositions,
-    graph_positions: &mut GraphPositions,
-    knob_positions: &mut KnobPositions,
-    sprite_positions: &mut SpritePositions,
+    elements: &mut ElementCollections,
     embedded_local_images: Option<&[EmbeddedLocalImage]>,
 ) -> CmdResult<()> {
     let app_data_dir = app.path().app_data_dir()?;
-    restore_preset_local_images_in_dir(
+    restore_preset_element_images_in_dir(
         &app_data_dir.join("images"),
-        key_positions,
-        stat_positions,
-        graph_positions,
-        knob_positions,
-        sprite_positions,
+        elements,
         embedded_local_images,
     )
 }
 
+#[cfg(test)]
 pub(super) fn restore_preset_local_images_in_dir(
     images_dir: &Path,
     key_positions: &mut KeyPositions,
@@ -246,34 +225,33 @@ pub(super) fn restore_preset_local_images_in_dir(
     sprite_positions: &mut SpritePositions,
     embedded_local_images: Option<&[EmbeddedLocalImage]>,
 ) -> CmdResult<()> {
-    let has_any_images = key_positions.values().any(|positions| {
-        positions.iter().any(|position| {
-            option_has_non_empty_text(&position.active_image)
-                || option_has_non_empty_text(&position.inactive_image)
-        })
-    }) || stat_positions.values().any(|positions| {
-        positions.iter().any(|stat_position| {
-            option_has_non_empty_text(&stat_position.position.active_image)
-                || option_has_non_empty_text(&stat_position.position.inactive_image)
-        })
-    }) || graph_positions.values().any(|positions| {
-        positions.iter().any(|graph_position| {
-            option_has_non_empty_text(&graph_position.position.active_image)
-                || option_has_non_empty_text(&graph_position.position.inactive_image)
-        })
-    }) || knob_positions.values().any(|positions| {
-        positions.iter().any(|knob_position| {
-            option_has_non_empty_text(&knob_position.position.active_image)
-                || option_has_non_empty_text(&knob_position.position.inactive_image)
-        })
-    }) || sprite_positions.values().any(|sprites| {
-        sprites.iter().any(|sprite| {
-            option_has_non_empty_text(&sprite.base_image)
-                || sprite
-                    .poses
-                    .iter()
-                    .any(|pose| option_has_non_empty_text(&pose.image_override))
-        })
+    let mut elements = ElementCollections {
+        key_positions: std::mem::take(key_positions),
+        stat_positions: std::mem::take(stat_positions),
+        graph_positions: std::mem::take(graph_positions),
+        knob_positions: std::mem::take(knob_positions),
+        sprite_positions: std::mem::take(sprite_positions),
+    };
+    let result =
+        restore_preset_element_images_in_dir(images_dir, &mut elements, embedded_local_images);
+    *key_positions = elements.key_positions;
+    *stat_positions = elements.stat_positions;
+    *graph_positions = elements.graph_positions;
+    *knob_positions = elements.knob_positions;
+    *sprite_positions = elements.sprite_positions;
+    result
+}
+
+fn restore_preset_element_images_in_dir(
+    images_dir: &Path,
+    elements: &mut ElementCollections,
+    embedded_local_images: Option<&[EmbeddedLocalImage]>,
+) -> CmdResult<()> {
+    let mut has_any_images = false;
+    for_each_element(&*elements, |_, _, _, element| {
+        element.for_each_image_ref(&mut |image_ref| {
+            has_any_images |= option_has_non_empty_text(image_ref);
+        });
     });
 
     if !has_any_images {
@@ -289,98 +267,27 @@ pub(super) fn restore_preset_local_images_in_dir(
 
     fs::create_dir_all(images_dir)?;
 
-    for positions in key_positions.values_mut() {
-        for position in positions.iter_mut() {
-            restore_position_image_reference(
-                images_dir,
-                &embedded_map,
-                &mut restored_path_cache,
-                &mut position.active_image,
-            )?;
-            restore_position_image_reference(
-                images_dir,
-                &embedded_map,
-                &mut restored_path_cache,
-                &mut position.inactive_image,
-            )?;
-        }
-    }
-
-    for positions in stat_positions.values_mut() {
-        for stat_position in positions.iter_mut() {
-            restore_position_image_reference(
-                images_dir,
-                &embedded_map,
-                &mut restored_path_cache,
-                &mut stat_position.position.active_image,
-            )?;
-            restore_position_image_reference(
-                images_dir,
-                &embedded_map,
-                &mut restored_path_cache,
-                &mut stat_position.position.inactive_image,
-            )?;
-        }
-    }
-
-    for positions in graph_positions.values_mut() {
-        for graph_position in positions.iter_mut() {
-            restore_position_image_reference(
-                images_dir,
-                &embedded_map,
-                &mut restored_path_cache,
-                &mut graph_position.position.active_image,
-            )?;
-            restore_position_image_reference(
-                images_dir,
-                &embedded_map,
-                &mut restored_path_cache,
-                &mut graph_position.position.inactive_image,
-            )?;
-        }
-    }
-
-    for positions in knob_positions.values_mut() {
-        for knob_position in positions.iter_mut() {
-            restore_position_image_reference(
-                images_dir,
-                &embedded_map,
-                &mut restored_path_cache,
-                &mut knob_position.position.active_image,
-            )?;
-            restore_position_image_reference(
-                images_dir,
-                &embedded_map,
-                &mut restored_path_cache,
-                &mut knob_position.position.inactive_image,
-            )?;
-        }
-    }
-
-    for sprites in sprite_positions.values_mut() {
-        for sprite in sprites {
-            rewrite_coupled_sprite_image_reference(sprite, |image_ref| {
-                restore_position_image_reference(
-                    images_dir,
-                    &embedded_map,
-                    &mut restored_path_cache,
-                    image_ref,
-                )
-            })?;
-            for pose in &mut sprite.poses {
-                rewrite_coupled_sprite_image_reference(pose, |image_ref| {
-                    restore_position_image_reference(
-                        images_dir,
-                        &embedded_map,
-                        &mut restored_path_cache,
-                        image_ref,
-                    )
-                })?;
+    let mut failure = None;
+    for_each_element_mut(elements, |_, _, element| {
+        element.for_each_image_ref_mut(&mut |image_ref| {
+            if failure.is_some() {
+                return;
             }
-        }
+            if let Err(error) = restore_position_image_reference(
+                images_dir,
+                &embedded_map,
+                &mut restored_path_cache,
+                image_ref,
+            ) {
+                failure = Some(error);
+            }
+        });
+    });
+    if let Some(error) = failure {
+        return Err(error);
     }
 
-    fill_missing_sprite_image_metrics(sprite_positions);
+    fill_missing_sprite_image_metrics(&mut elements.sprite_positions);
 
     Ok(())
 }
@@ -486,28 +393,12 @@ pub(super) fn restore_position_image_reference(
 
 pub(super) fn restore_preset_local_sounds(
     app: &AppHandle,
-    key_positions: &mut KeyPositions,
-    stat_positions: &mut StatPositions,
-    graph_positions: &mut GraphPositions,
-    knob_positions: &mut KnobPositions,
+    elements: &mut ElementCollections,
     embedded_local_sounds: Option<&[EmbeddedLocalSound]>,
 ) -> CmdResult<()> {
-    let has_any_sounds = key_positions.values().any(|positions| {
-        positions
-            .iter()
-            .any(|position| option_has_non_empty_text(&position.sound_path))
-    }) || stat_positions.values().any(|positions| {
-        positions
-            .iter()
-            .any(|stat_position| option_has_non_empty_text(&stat_position.position.sound_path))
-    }) || graph_positions.values().any(|positions| {
-        positions
-            .iter()
-            .any(|graph_position| option_has_non_empty_text(&graph_position.position.sound_path))
-    }) || knob_positions.values().any(|positions| {
-        positions
-            .iter()
-            .any(|knob_position| option_has_non_empty_text(&knob_position.position.sound_path))
+    let mut has_any_sounds = false;
+    for_each_key_position(&*elements, |kind, _, _, position| {
+        has_any_sounds |= kind.has_sound() && option_has_non_empty_text(&position.sound_path);
     });
 
     if !has_any_sounds {
@@ -517,22 +408,37 @@ pub(super) fn restore_preset_local_sounds(
     let app_data_dir = app.path().app_data_dir()?;
     let sounds_dir = app_data_dir.join("sounds");
 
-    restore_preset_local_sounds_in_dir(
-        &sounds_dir,
-        key_positions,
-        stat_positions,
-        graph_positions,
-        knob_positions,
-        embedded_local_sounds,
-    )
+    restore_preset_element_sounds_in_dir(&sounds_dir, elements, embedded_local_sounds)
 }
 
+#[cfg(test)]
 pub(super) fn restore_preset_local_sounds_in_dir(
     sounds_dir: &Path,
     key_positions: &mut KeyPositions,
     stat_positions: &mut StatPositions,
     graph_positions: &mut GraphPositions,
     knob_positions: &mut KnobPositions,
+    embedded_local_sounds: Option<&[EmbeddedLocalSound]>,
+) -> CmdResult<()> {
+    let mut elements = ElementCollections {
+        key_positions: std::mem::take(key_positions),
+        stat_positions: std::mem::take(stat_positions),
+        graph_positions: std::mem::take(graph_positions),
+        knob_positions: std::mem::take(knob_positions),
+        sprite_positions: SpritePositions::new(),
+    };
+    let result =
+        restore_preset_element_sounds_in_dir(sounds_dir, &mut elements, embedded_local_sounds);
+    *key_positions = elements.key_positions;
+    *stat_positions = elements.stat_positions;
+    *graph_positions = elements.graph_positions;
+    *knob_positions = elements.knob_positions;
+    result
+}
+
+fn restore_preset_element_sounds_in_dir(
+    sounds_dir: &Path,
+    elements: &mut ElementCollections,
     embedded_local_sounds: Option<&[EmbeddedLocalSound]>,
 ) -> CmdResult<()> {
     fs::create_dir_all(sounds_dir)?;
@@ -545,51 +451,25 @@ pub(super) fn restore_preset_local_sounds_in_dir(
 
     let mut restored_path_cache: HashMap<String, String> = HashMap::new();
 
-    for positions in key_positions.values_mut() {
-        for position in positions.iter_mut() {
-            restore_position_sound_reference(
-                sounds_dir,
-                &embedded_map,
-                &mut restored_path_cache,
-                &mut position.sound_path,
-            )?;
+    let mut failure = None;
+    for_each_key_position_mut(elements, |kind, position| {
+        if !kind.has_sound() || failure.is_some() {
+            return;
         }
-    }
-
-    for positions in stat_positions.values_mut() {
-        for stat_position in positions.iter_mut() {
-            restore_position_sound_reference(
-                sounds_dir,
-                &embedded_map,
-                &mut restored_path_cache,
-                &mut stat_position.position.sound_path,
-            )?;
+        if let Err(error) = restore_position_sound_reference(
+            sounds_dir,
+            &embedded_map,
+            &mut restored_path_cache,
+            &mut position.sound_path,
+        ) {
+            failure = Some(error);
         }
-    }
+    });
 
-    for positions in graph_positions.values_mut() {
-        for graph_position in positions.iter_mut() {
-            restore_position_sound_reference(
-                sounds_dir,
-                &embedded_map,
-                &mut restored_path_cache,
-                &mut graph_position.position.sound_path,
-            )?;
-        }
+    match failure {
+        Some(error) => Err(error),
+        None => Ok(()),
     }
-
-    for positions in knob_positions.values_mut() {
-        for knob_position in positions.iter_mut() {
-            restore_position_sound_reference(
-                sounds_dir,
-                &embedded_map,
-                &mut restored_path_cache,
-                &mut knob_position.position.sound_path,
-            )?;
-        }
-    }
-
-    Ok(())
 }
 
 pub(super) fn restore_position_sound_reference(

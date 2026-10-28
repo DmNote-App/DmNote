@@ -159,6 +159,10 @@ impl ElementKindSet {
         Self(self.0 & !Self::bit(kind))
     }
 
+    pub(crate) const fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
     pub(crate) fn insert(&mut self, kind: EditorElementTypeV1) {
         *self = self.with(kind);
     }
@@ -718,7 +722,9 @@ where
     F: FnMut(EditorElementTypeV1, &'h str, usize, &'h KeyPosition),
 {
     for_each_element(host, |kind, mode, index, item| {
-        if let Some(position) = item.key_position() {
+        let position = item.key_position();
+        debug_assert_eq!(position.is_some(), kind.has_key_position());
+        if let Some(position) = position {
             visit(kind, mode, index, position);
         }
     });
@@ -927,7 +933,30 @@ impl ElementCollections {
         visitor.collections
     }
 
+    /// 모든 컬렉션을 host 컬렉션 자리로 옮긴다 (기존 값 대체)
+    pub(crate) fn move_into<H: ElementPositionsHost + ?Sized>(mut self, host: &mut H) {
+        struct Visit<'a, H: ?Sized> {
+            collections: &'a mut ElementCollections,
+            host: &'a mut H,
+        }
+
+        impl<H: ElementPositionsHost + ?Sized> CollectionVisitor for Visit<'_, H> {
+            type Error = Infallible;
+
+            fn visit<C: ElementCollection>(&mut self) -> Result<(), Infallible> {
+                *C::positions_mut(self.host) = std::mem::take(C::positions_mut(self.collections));
+                Ok(())
+            }
+        }
+
+        let Ok(()) = visit_collections(&mut Visit {
+            collections: &mut self,
+            host,
+        });
+    }
+
     /// 모든 컬렉션을 Some으로 옮긴다
+    #[cfg(test)]
     pub(crate) fn into_optional<H: OptionalElementPositionsHost + ?Sized>(mut self, host: &mut H) {
         struct Visit<'a, H: ?Sized> {
             collections: &'a mut ElementCollections,

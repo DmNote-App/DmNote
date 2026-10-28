@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 pub(crate) use crate::models::BUILTIN_TAB_IDS;
 use crate::models::{
     CustomCss, CustomJs, CustomTab, FontSettings, GraphPositions, KeyMappings, KeyPositions,
-    KnobPositions, LayerGroups, NoteSettings, SpritePositions, StatPositions, TabCssOverrides,
-    TabNoteOverrides,
+    KnobPositions, LayerGroups, NoteSettings, OptionalElementPositionsHost, SpritePositions,
+    StatPositions, TabCssOverrides, TabNoteOverrides,
 };
 use crate::state::assets::local_asset_path::{file_url_to_path, FileUrlPath};
 
@@ -77,6 +77,48 @@ pub(crate) struct PresetFile {
     pub embedded_local_fonts: Option<Vec<EmbeddedLocalFont>>,
     pub embedded_local_images: Option<Vec<EmbeddedLocalImage>>,
     pub embedded_local_sounds: Option<Vec<EmbeddedLocalSound>>,
+}
+
+impl OptionalElementPositionsHost for PresetFile {
+    fn key_collection(&self) -> &Option<KeyPositions> {
+        &self.key_positions
+    }
+
+    fn key_collection_mut(&mut self) -> &mut Option<KeyPositions> {
+        &mut self.key_positions
+    }
+
+    fn stat_collection(&self) -> &Option<StatPositions> {
+        &self.stat_positions
+    }
+
+    fn stat_collection_mut(&mut self) -> &mut Option<StatPositions> {
+        &mut self.stat_positions
+    }
+
+    fn graph_collection(&self) -> &Option<GraphPositions> {
+        &self.graph_positions
+    }
+
+    fn graph_collection_mut(&mut self) -> &mut Option<GraphPositions> {
+        &mut self.graph_positions
+    }
+
+    fn knob_collection(&self) -> &Option<KnobPositions> {
+        &self.knob_positions
+    }
+
+    fn knob_collection_mut(&mut self) -> &mut Option<KnobPositions> {
+        &mut self.knob_positions
+    }
+
+    fn sprite_collection(&self) -> &Option<SpritePositions> {
+        &self.sprite_positions
+    }
+
+    fn sprite_collection_mut(&mut self) -> &mut Option<SpritePositions> {
+        &mut self.sprite_positions
+    }
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]

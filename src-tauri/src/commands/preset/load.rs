@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
+    convert::Infallible,
     fs,
     path::{Path, PathBuf},
 };
@@ -12,20 +13,24 @@ use crate::{
     commands::dialog::parented_file_dialog,
     commands::editor::{
         css::TabCssResponse,
-        state::{emit_best_effort, publish_editor_change_after_key_runtime},
+        state::{
+            emit_best_effort, emit_element_collections_changed,
+            publish_editor_change_after_key_runtime,
+        },
     },
     commands::{issue_mutation_ticket, run_blocking},
     custom_css::validate_css_path,
     defaults::{default_keys, default_positions},
     errors::{CmdResult, CommandError},
     models::{
-        default_bar_count, default_missing_note_gradient_multipliers, normalize_key_mappings,
-        rewrite_coupled_sprite_image_reference, scrub_removed_text_outline_fields, AppStoreData,
-        CustomCss, CustomCssPatch, CustomJs, CustomJsPatch, EditorCommitOrigin,
-        EditorElementTypeV1, EditorField, ElementKindSet, FontSettings, FontType, GradientSpec,
-        GraphPositions, KeyMappings, KeyPosition, KeyPositions, KeySlot, KnobPositions,
-        LayerGroups, NoteSettings, NoteSettingsPatch, SettingsPatchInput, SpritePositions,
-        StatPositions, TabCss, TabCssOverrides, TabNoteSettings, POSITION_COLLECTION_FIELDS,
+        default_bar_count, default_missing_note_gradient_multipliers, for_each_element,
+        for_each_element_mut, for_each_key_position, for_each_key_position_mut,
+        normalize_key_mappings, scrub_removed_text_outline_fields, visit_collections,
+        visit_collections_in, AppStoreData, CollectionVisitor, CustomCss, CustomCssPatch, CustomJs,
+        CustomJsPatch, EditorCommitOrigin, EditorElementTypeV1, EditorField, ElementCollection,
+        ElementCollections, ElementKindSet, FontSettings, FontType, GradientSpec, KeyMappings,
+        KeyPosition, KeyPositions, KeySlot, LayerGroups, NoteSettings, NoteSettingsPatch,
+        SettingsPatchInput, TabCss, TabCssOverrides, TabNoteSettings, POSITION_COLLECTION_FIELDS,
         SHADOW_BLUR_MAX, SHADOW_BLUR_MIN, SHADOW_OFFSET_MAX, SHADOW_OFFSET_MIN,
     },
     services::settings::apply_patch_to_store,
@@ -40,6 +45,9 @@ use crate::{
         AppState,
     },
 };
+
+#[cfg(test)]
+use crate::models::{GraphPositions, KnobPositions, SpritePositions, StatPositions};
 
 use super::{
     decode_image_data_url, normalize_font_extension, normalize_image_extension,
@@ -148,21 +156,16 @@ fn preset_load_from_path(
     let current = state.store.snapshot();
     let resolved_settings = resolve_full_preset_settings(&mut preset, &current);
 
+    // 키 위치가 없는 옛 프리셋만 기본 배치로 채우고 나머지 컬렉션은 빈 맵
+    let key_positions = preset
+        .key_positions
+        .take()
+        .unwrap_or_else(|| default_positions().clone());
+    let mut elements = ElementCollections::take_optional(&mut preset);
+    elements.key_positions = key_positions;
     let mut keys = preset.keys.unwrap_or_else(|| default_keys().clone());
     normalize_key_mappings(&mut keys);
-    let mut positions = preset
-        .key_positions
-        .unwrap_or_else(|| default_positions().clone());
-    let mut stat_positions = preset.stat_positions.unwrap_or_default();
-    let mut graph_positions = preset.graph_positions.unwrap_or_default();
-    let mut knob_positions = preset.knob_positions.unwrap_or_default();
-    let mut sprite_positions = preset.sprite_positions.unwrap_or_default();
-    migrate_imported_font_weights(
-        &mut positions,
-        &mut stat_positions,
-        &mut graph_positions,
-        &mut knob_positions,
-    );
+    migrate_imported_font_weights(&mut elements);
     let mut custom_tabs = preset
         .custom_tabs
         .take()
@@ -218,29 +221,14 @@ fn preset_load_from_path(
             preset.embedded_local_fonts.as_deref(),
         )?;
     }
-    restore_preset_local_images(
-        app,
-        &mut positions,
-        &mut stat_positions,
-        &mut graph_positions,
-        &mut knob_positions,
-        &mut sprite_positions,
-        preset.embedded_local_images.as_deref(),
-    )?;
-    restore_preset_local_sounds(
-        app,
-        &mut positions,
-        &mut stat_positions,
-        &mut graph_positions,
-        &mut knob_positions,
-        preset.embedded_local_sounds.as_deref(),
-    )?;
-    align_imported_key_collections(&mut keys, &mut positions);
+    restore_preset_local_images(app, &mut elements, preset.embedded_local_images.as_deref())?;
+    restore_preset_local_sounds(app, &mut elements, preset.embedded_local_sounds.as_deref())?;
+    align_imported_key_collections(&mut keys, &mut elements.key_positions);
     // 이름 길이·예약어로는 거절하지 않는다. 예전 앱이나 다른 사람이 만든 프리셋이
     // 통째로 안 열린다 - 손상 복구를 항목 단위로 하는 이 저장소 방침과 어긋난다.
     // 구조가 어긋난 것도 id로 결합이 확정되면 여기서 메운다. 아래 검증에 남는 것은
     // 대응을 추측해야 하는 손상뿐이다
-    reconcile_custom_tab_metadata(&mut custom_tabs, &mut keys, &mut positions);
+    reconcile_custom_tab_metadata(&mut custom_tabs, &mut keys, &mut elements.key_positions);
     // 정렬은 화해가 끝난 목록을 봐야 한다. 고아 모드에서 살아난 탭도 순서에 들어간다
     let tab_order = preset
         .tab_order
@@ -286,15 +274,7 @@ fn preset_load_from_path(
         let (transaction, _) = state.commit_preset_editor_transaction_preserving_runtime_counters(
             app,
             EditorCommitOrigin::LegacyAdapter("preset_load".to_string()),
-            &[
-                EditorField::Keys,
-                EditorField::KeyPositions,
-                EditorField::StatPositions,
-                EditorField::GraphPositions,
-                EditorField::KnobPositions,
-                EditorField::SpritePositions,
-                EditorField::LayerGroups,
-            ],
+            &EditorField::ALL,
             admission,
             move |store| {
                 let previous_tab_css_overrides = store.tab_css_overrides.clone();
@@ -304,11 +284,7 @@ fn preset_load_from_path(
                     store.selected_key_type.clone(),
                 );
                 store.keys = keys;
-                store.key_positions = positions;
-                store.stat_positions = stat_positions;
-                store.graph_positions = graph_positions;
-                store.knob_positions = knob_positions;
-                store.sprite_positions = sprite_positions;
+                elements.move_into(store);
                 store.custom_tabs = custom_tabs;
                 store.tab_order = tab_order;
                 store.bar_count = bar_count;
@@ -439,16 +415,26 @@ fn preset_load_tab_from_path(
     path: PathBuf,
 ) -> CmdResult<PresetOperationResult> {
     state.ensure_mutation_allowed().map_err(CommandError::msg)?;
-    let preset = read_preset_file(&path)?;
+    let mut preset = read_preset_file(&path)?;
 
+    let (current_tab_id, existing_font_settings) = state
+        .store
+        .with_state(|store| (store.selected_key_type.clone(), store.font_settings.clone()));
+
+    let mut imported_keys = preset.keys.take().unwrap_or_default();
+    normalize_key_mappings(&mut imported_keys);
+    let source_tab_id = choose_tab_preset_source_tab(
+        &imported_keys,
+        preset.selected_key_type.as_deref(),
+        &current_tab_id,
+    )?;
+    let src_keys = imported_keys
+        .get(&source_tab_id)
+        .cloned()
+        .ok_or_else(|| CommandError::msg("invalid-tab-preset"))?;
+
+    let mut src_elements = select_tab_preset_collections(&preset, &source_tab_id, &current_tab_id);
     let PresetFile {
-        keys,
-        key_positions,
-        stat_positions,
-        graph_positions,
-        knob_positions,
-        sprite_positions,
-        selected_key_type,
         tab_note_overrides,
         layer_groups,
         tab_css_overrides,
@@ -459,43 +445,7 @@ fn preset_load_tab_from_path(
         ..
     } = preset;
 
-    let (current_tab_id, existing_font_settings) = state
-        .store
-        .with_state(|store| (store.selected_key_type.clone(), store.font_settings.clone()));
-
-    let mut imported_keys = keys.unwrap_or_default();
-    normalize_key_mappings(&mut imported_keys);
-    let source_tab_id = choose_tab_preset_source_tab(
-        &imported_keys,
-        selected_key_type.as_deref(),
-        &current_tab_id,
-    )?;
-    let src_keys = imported_keys
-        .get(&source_tab_id)
-        .cloned()
-        .ok_or_else(|| CommandError::msg("invalid-tab-preset"))?;
-
-    let imported_key_positions = key_positions.unwrap_or_default();
-    let mut src_key_positions: KeyPositions = HashMap::new();
-    if let Some(v) = imported_key_positions.get(&source_tab_id) {
-        src_key_positions.insert(current_tab_id.clone(), v.clone());
-    }
-
-    let mut src_stat_positions =
-        select_tab_preset_elements(stat_positions.as_ref(), &source_tab_id, &current_tab_id);
-    let mut src_graph_positions =
-        select_tab_preset_elements(graph_positions.as_ref(), &source_tab_id, &current_tab_id);
-    let mut src_knob_positions =
-        select_tab_preset_elements(knob_positions.as_ref(), &source_tab_id, &current_tab_id);
-    let mut src_sprite_positions =
-        select_tab_preset_elements(sprite_positions.as_ref(), &source_tab_id, &current_tab_id);
-
-    migrate_imported_font_weights(
-        &mut src_key_positions,
-        &mut src_stat_positions,
-        &mut src_graph_positions,
-        &mut src_knob_positions,
-    );
+    migrate_imported_font_weights(&mut src_elements);
 
     let has_tab_note_overrides = tab_note_overrides.is_some();
     let mut imported_tab_note_overrides = tab_note_overrides.unwrap_or_default();
@@ -504,29 +454,10 @@ fn preset_load_tab_from_path(
     }
 
     // 내장 에셋 복원
-    restore_preset_local_images(
-        app,
-        &mut src_key_positions,
-        &mut src_stat_positions,
-        &mut src_graph_positions,
-        &mut src_knob_positions,
-        &mut src_sprite_positions,
-        embedded_local_images.as_deref(),
-    )?;
-    restore_preset_local_sounds(
-        app,
-        &mut src_key_positions,
-        &mut src_stat_positions,
-        &mut src_graph_positions,
-        &mut src_knob_positions,
-        embedded_local_sounds.as_deref(),
-    )?;
+    restore_preset_local_images(app, &mut src_elements, embedded_local_images.as_deref())?;
+    restore_preset_local_sounds(app, &mut src_elements, embedded_local_sounds.as_deref())?;
 
-    let imported_key_positions = src_key_positions.remove(&current_tab_id);
-    let imported_stat_positions = src_stat_positions.remove(&current_tab_id);
-    let imported_graph_positions = src_graph_positions.remove(&current_tab_id);
-    let imported_knob_positions = src_knob_positions.remove(&current_tab_id);
-    let imported_sprite_positions = src_sprite_positions.remove(&current_tab_id);
+    let imported_key_positions = src_elements.key_positions.remove(&current_tab_id);
     let imported_override = imported_tab_note_overrides.get(&source_tab_id).cloned();
     let imported_groups =
         layer_groups.map(|groups| groups.get(&source_tab_id).cloned().unwrap_or_default());
@@ -563,56 +494,20 @@ fn preset_load_tab_from_path(
         let (transaction, _) = state.commit_preset_editor_transaction_preserving_runtime_counters(
             app,
             EditorCommitOrigin::LegacyAdapter("preset_load_tab".to_string()),
-            &[
-                EditorField::Keys,
-                EditorField::KeyPositions,
-                EditorField::StatPositions,
-                EditorField::GraphPositions,
-                EditorField::KnobPositions,
-                EditorField::SpritePositions,
-                EditorField::LayerGroups,
-            ],
+            &EditorField::ALL,
             admission,
             move |store| {
                 let previous_tab_css_overrides = store.tab_css_overrides.clone();
-                let key_positions_written = imported_key_positions.is_some();
-                let stat_positions_written = imported_stat_positions.is_some();
-                let graph_positions_written = imported_graph_positions.is_some();
-                let knob_positions_written = imported_knob_positions.is_some();
-                let sprite_positions_written = imported_sprite_positions.is_some();
-                merge_tab_preset_key_pair(store, &current_tab_id, src_keys, imported_key_positions);
-                if let Some(positions) = imported_stat_positions {
-                    store
-                        .stat_positions
-                        .insert(current_tab_id.clone(), positions);
-                }
-                if let Some(positions) = imported_graph_positions {
-                    store
-                        .graph_positions
-                        .insert(current_tab_id.clone(), positions);
-                }
-                if let Some(positions) = imported_knob_positions {
-                    store
-                        .knob_positions
-                        .insert(current_tab_id.clone(), positions);
-                }
-                if let Some(positions) = imported_sprite_positions {
-                    store
-                        .sprite_positions
-                        .insert(current_tab_id.clone(), positions);
-                }
                 let mut written = ElementKindSet::EMPTY;
-                for (kind, is_written) in [
-                    (EditorElementTypeV1::Key, key_positions_written),
-                    (EditorElementTypeV1::Stat, stat_positions_written),
-                    (EditorElementTypeV1::Graph, graph_positions_written),
-                    (EditorElementTypeV1::Knob, knob_positions_written),
-                    (EditorElementTypeV1::Sprite, sprite_positions_written),
-                ] {
-                    if is_written {
-                        written.insert(kind);
-                    }
+                if imported_key_positions.is_some() {
+                    written.insert(EditorElementTypeV1::Key);
                 }
+                merge_tab_preset_key_pair(store, &current_tab_id, src_keys, imported_key_positions);
+                written = written.union(move_tab_preset_collections(
+                    src_elements,
+                    store,
+                    &current_tab_id,
+                ));
                 rekey_tab_preset_collections(store, &current_tab_id, written);
                 apply_tab_note_override(
                     store,
@@ -674,13 +569,7 @@ fn preset_load_tab_from_path(
         state.obs_broadcast_counters();
         let history_status = transaction.change.history_status.clone();
         let (settings_diff, _, full_tab_note_overrides, _) = transaction.value;
-        let full_keys = transaction.change.document.keys;
-        let full_positions = transaction.change.document.key_positions;
-        let full_stat_positions = transaction.change.document.stat_positions;
-        let full_graph_positions = transaction.change.document.graph_positions;
-        let full_knob_positions = transaction.change.document.knob_positions;
-        let full_sprite_positions = transaction.change.document.sprite_positions;
-        let full_layer_groups = transaction.change.document.layer_groups;
+        let full_document = &transaction.change.document;
 
         if let Some(diff) = settings_diff.as_ref() {
             if let Err(error) = state.emit_settings_changed(diff, app) {
@@ -688,13 +577,9 @@ fn preset_load_tab_from_path(
             }
         }
 
-        emit_best_effort(app, "layerGroups:changed", &full_layer_groups);
-        emit_best_effort(app, "keys:changed", &full_keys);
-        emit_best_effort(app, "positions:changed", &full_positions);
-        emit_best_effort(app, "statPositions:changed", &full_stat_positions);
-        emit_best_effort(app, "graphPositions:changed", &full_graph_positions);
-        emit_best_effort(app, "knobPositions:changed", &full_knob_positions);
-        emit_best_effort(app, "spritePositions:changed", &full_sprite_positions);
+        emit_best_effort(app, "layerGroups:changed", &full_document.layer_groups);
+        emit_best_effort(app, "keys:changed", &full_document.keys);
+        emit_element_collections_changed(app, full_document, ElementKindSet::ALL);
         emit_best_effort(app, "tabNote:changed_all", &full_tab_note_overrides);
 
         // OBS 브릿지: 탭 프리셋 로드 시 전체 스냅샷 재전송
@@ -841,6 +726,87 @@ fn select_tab_preset_elements<T: Clone>(
         );
     }
     selected
+}
+
+// 원본 탭 요소를 대상 탭 키로 옮긴 작업 묶음. 키는 keys와 짝이라 원본 탭 위치가
+// 없으면 비워 두고 merge_tab_preset_key_pair가 기존 위치를 정렬해 쓴다
+fn select_tab_preset_collections(
+    preset: &PresetFile,
+    source_tab_id: &str,
+    current_tab_id: &str,
+) -> ElementCollections {
+    struct SelectTab<'a> {
+        preset: &'a PresetFile,
+        source_tab_id: &'a str,
+        current_tab_id: &'a str,
+        selected: ElementCollections,
+    }
+
+    impl CollectionVisitor for SelectTab<'_> {
+        type Error = Infallible;
+
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), Infallible> {
+            let collection = C::optional(self.preset).as_ref();
+            let selected = if C::KIND == EditorElementTypeV1::Key {
+                collection
+                    .and_then(|collection| collection.get(self.source_tab_id))
+                    .map(|elements| (self.current_tab_id.to_string(), elements.clone()))
+                    .into_iter()
+                    .collect()
+            } else {
+                select_tab_preset_elements(collection, self.source_tab_id, self.current_tab_id)
+            };
+            *C::positions_mut(&mut self.selected) = selected;
+            Ok(())
+        }
+    }
+
+    let mut select = SelectTab {
+        preset,
+        source_tab_id,
+        current_tab_id,
+        selected: ElementCollections::default(),
+    };
+    let Ok(()) = visit_collections(&mut select);
+    select.selected
+}
+
+// 키 외 컬렉션의 대상 탭 항목을 store로 옮기고 프리셋이 위치를 준 종류를 돌려준다
+fn move_tab_preset_collections(
+    mut selected: ElementCollections,
+    store: &mut AppStoreData,
+    tab_id: &str,
+) -> ElementKindSet {
+    struct MoveTab<'a> {
+        selected: &'a mut ElementCollections,
+        store: &'a mut AppStoreData,
+        tab_id: &'a str,
+        written: ElementKindSet,
+    }
+
+    impl CollectionVisitor for MoveTab<'_> {
+        type Error = Infallible;
+
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), Infallible> {
+            if let Some(elements) = C::positions_mut(self.selected).remove(self.tab_id) {
+                C::positions_mut(self.store).insert(self.tab_id.to_string(), elements);
+                self.written.insert(C::KIND);
+            }
+            Ok(())
+        }
+    }
+
+    let mut move_tab = MoveTab {
+        selected: &mut selected,
+        store,
+        tab_id,
+        written: ElementKindSet::EMPTY,
+    };
+    let Ok(()) = visit_collections_in(
+        ElementKindSet::ALL.without(EditorElementTypeV1::Key),
+        &mut move_tab,
+    );
+    move_tab.written
 }
 
 fn choose_tab_preset_source_tab(

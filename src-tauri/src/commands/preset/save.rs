@@ -11,12 +11,14 @@ use crate::{
     commands::dialog::parented_file_dialog,
     errors::{CmdResult, CommandError},
     models::{
-        rewrite_coupled_sprite_image_reference, FontSettings, FontType, GraphPositions,
-        KeyMappings, KeyPositions, KnobPositions, LayerGroups, SpritePositions, StatPositions,
-        TabCssOverrides, TabNoteOverrides,
+        for_each_element_mut, for_each_key_position, for_each_key_position_mut, ElementCollections,
+        FontSettings, FontType, KeyMappings, LayerGroups, TabCssOverrides, TabNoteOverrides,
     },
     state::{atomic_file::atomic_replace, AppState},
 };
+
+#[cfg(test)]
+use crate::models::{GraphPositions, KeyPositions, KnobPositions, SpritePositions, StatPositions};
 
 use super::{
     decode_image_data_url, is_remote_or_virtual_image_ref, local_source_path_from_image_ref,
@@ -51,43 +53,20 @@ fn preset_save_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetOpera
     let state = app.state::<AppState>();
 
     let snapshot = state.store.snapshot();
-    let used_font_families = collect_used_font_families(
-        &snapshot.key_positions,
-        &snapshot.stat_positions,
-        &snapshot.graph_positions,
-        &snapshot.knob_positions,
-    );
+    let mut elements = ElementCollections::cloned_from(&snapshot);
+    let used_font_families = collect_used_font_families(&elements);
     let (font_settings, embedded_local_fonts) =
         build_preset_font_payload(&snapshot.font_settings, &used_font_families)?;
-    let (
-        key_positions,
-        stat_positions,
-        graph_positions,
-        knob_positions,
-        sprite_positions,
-        embedded_local_images,
-    ) = build_preset_image_payload(
-        &snapshot.key_positions,
-        &snapshot.stat_positions,
-        &snapshot.graph_positions,
-        &snapshot.knob_positions,
-        &snapshot.sprite_positions,
-    )?;
-    let (key_positions, stat_positions, graph_positions, knob_positions, embedded_local_sounds) =
-        build_preset_sound_payload(
-            &key_positions,
-            &stat_positions,
-            &graph_positions,
-            &knob_positions,
-        )?;
+    let embedded_local_images = embed_preset_images(&mut elements)?;
+    let embedded_local_sounds = embed_preset_sounds(&mut elements)?;
 
     let preset = PresetFile {
         keys: Some(snapshot.keys),
-        key_positions: Some(key_positions),
-        stat_positions: Some(stat_positions),
-        graph_positions: Some(graph_positions),
-        knob_positions: Some(knob_positions),
-        sprite_positions: Some(sprite_positions),
+        key_positions: Some(elements.key_positions),
+        stat_positions: Some(elements.stat_positions),
+        graph_positions: Some(elements.graph_positions),
+        knob_positions: Some(elements.knob_positions),
+        sprite_positions: Some(elements.sprite_positions),
         background_color: Some(snapshot.background_color),
         note_settings: Some(snapshot.note_settings),
         note_effect: Some(snapshot.note_effect),
@@ -148,61 +127,13 @@ fn preset_save_tab_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetO
     let tab_id = snapshot.selected_key_type.clone();
 
     // 단일 탭 맵 구성 (embed helper용)
-    let mut tab_key_positions: KeyPositions = HashMap::new();
-    if let Some(positions) = snapshot.key_positions.get(&tab_id) {
-        tab_key_positions.insert(tab_id.clone(), positions.clone());
-    }
-    let mut tab_stat_positions: StatPositions = HashMap::new();
-    if let Some(positions) = snapshot.stat_positions.get(&tab_id) {
-        tab_stat_positions.insert(tab_id.clone(), positions.clone());
-    }
-    let mut tab_graph_positions: GraphPositions = HashMap::new();
-    if let Some(positions) = snapshot.graph_positions.get(&tab_id) {
-        tab_graph_positions.insert(tab_id.clone(), positions.clone());
-    }
-    let mut tab_knob_positions: KnobPositions = HashMap::new();
-    if let Some(positions) = snapshot.knob_positions.get(&tab_id) {
-        tab_knob_positions.insert(tab_id.clone(), positions.clone());
-    }
-    let mut tab_sprite_positions: SpritePositions = HashMap::new();
-    if let Some(positions) = snapshot.sprite_positions.get(&tab_id) {
-        tab_sprite_positions.insert(tab_id.clone(), positions.clone());
-    }
+    let mut tab_elements = ElementCollections::mode_slice(&snapshot, &tab_id);
 
-    let used_font_families = collect_used_font_families(
-        &tab_key_positions,
-        &tab_stat_positions,
-        &tab_graph_positions,
-        &tab_knob_positions,
-    );
+    let used_font_families = collect_used_font_families(&tab_elements);
     let (font_settings, embedded_local_fonts) =
         build_preset_font_payload(&snapshot.font_settings, &used_font_families)?;
-    let (
-        tab_key_positions,
-        tab_stat_positions,
-        tab_graph_positions,
-        tab_knob_positions,
-        tab_sprite_positions,
-        embedded_local_images,
-    ) = build_preset_image_payload(
-        &tab_key_positions,
-        &tab_stat_positions,
-        &tab_graph_positions,
-        &tab_knob_positions,
-        &tab_sprite_positions,
-    )?;
-    let (
-        tab_key_positions,
-        tab_stat_positions,
-        tab_graph_positions,
-        tab_knob_positions,
-        embedded_local_sounds,
-    ) = build_preset_sound_payload(
-        &tab_key_positions,
-        &tab_stat_positions,
-        &tab_graph_positions,
-        &tab_knob_positions,
-    )?;
+    let embedded_local_images = embed_preset_images(&mut tab_elements)?;
+    let embedded_local_sounds = embed_preset_sounds(&mut tab_elements)?;
 
     // 단일 탭 키 매핑
     let mut tab_keys: KeyMappings = HashMap::new();
@@ -248,11 +179,11 @@ fn preset_save_tab_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetO
 
     let preset = PresetFile {
         keys: Some(tab_keys),
-        key_positions: Some(tab_key_positions),
-        stat_positions: Some(tab_stat_positions),
-        graph_positions: Some(tab_graph_positions),
-        knob_positions: Some(tab_knob_positions),
-        sprite_positions: Some(tab_sprite_positions),
+        key_positions: Some(tab_elements.key_positions),
+        stat_positions: Some(tab_elements.stat_positions),
+        graph_positions: Some(tab_elements.graph_positions),
+        knob_positions: Some(tab_elements.knob_positions),
+        sprite_positions: Some(tab_elements.sprite_positions),
         background_color: None,
         note_settings: None,
         note_effect: None,
@@ -295,50 +226,13 @@ pub(crate) fn write_preset_file_for_simulation(path: &Path, preset: &PresetFile)
     write_preset_file(path, &json)
 }
 
-fn collect_used_font_families(
-    key_positions: &KeyPositions,
-    stat_positions: &StatPositions,
-    graph_positions: &GraphPositions,
-    knob_positions: &KnobPositions,
-) -> HashSet<String> {
+fn collect_used_font_families(elements: &ElementCollections) -> HashSet<String> {
     let mut used = HashSet::new();
 
-    for positions in key_positions.values() {
-        for position in positions {
-            maybe_insert_font_family(position.font_family.as_ref(), &mut used);
-            maybe_insert_font_family(position.counter.font_family.as_ref(), &mut used);
-        }
-    }
-
-    for positions in stat_positions.values() {
-        for stat_position in positions {
-            maybe_insert_font_family(stat_position.position.font_family.as_ref(), &mut used);
-            maybe_insert_font_family(
-                stat_position.position.counter.font_family.as_ref(),
-                &mut used,
-            );
-        }
-    }
-
-    for positions in graph_positions.values() {
-        for graph_position in positions {
-            maybe_insert_font_family(graph_position.position.font_family.as_ref(), &mut used);
-            maybe_insert_font_family(
-                graph_position.position.counter.font_family.as_ref(),
-                &mut used,
-            );
-        }
-    }
-
-    for positions in knob_positions.values() {
-        for knob_position in positions {
-            maybe_insert_font_family(knob_position.position.font_family.as_ref(), &mut used);
-            maybe_insert_font_family(
-                knob_position.position.counter.font_family.as_ref(),
-                &mut used,
-            );
-        }
-    }
+    for_each_key_position(elements, |_, _, _, position| {
+        maybe_insert_font_family(position.font_family.as_ref(), &mut used);
+        maybe_insert_font_family(position.counter.font_family.as_ref(), &mut used);
+    });
 
     used
 }
@@ -423,6 +317,36 @@ fn build_preset_font_payload(
     ))
 }
 
+// 요소 이미지 참조를 임베드 id로 바꾸고 임베드 목록을 돌려준다
+pub(super) fn embed_preset_images(
+    elements: &mut ElementCollections,
+) -> CmdResult<Vec<EmbeddedLocalImage>> {
+    let mut embedded_local_images = Vec::new();
+    let mut path_to_image_id: HashMap<String, String> = HashMap::new();
+    let mut failure = None;
+
+    for_each_element_mut(elements, |_, _, element| {
+        element.for_each_image_ref_mut(&mut |image_ref| {
+            if failure.is_some() {
+                return;
+            }
+            if let Err(error) = rewrite_position_image_reference(
+                image_ref,
+                &mut embedded_local_images,
+                &mut path_to_image_id,
+            ) {
+                failure = Some(error);
+            }
+        });
+    });
+
+    match failure {
+        Some(error) => Err(error),
+        None => Ok(embedded_local_images),
+    }
+}
+
+#[cfg(test)]
 pub(super) fn build_preset_image_payload(
     key_positions: &KeyPositions,
     stat_positions: &StatPositions,
@@ -437,101 +361,20 @@ pub(super) fn build_preset_image_payload(
     SpritePositions,
     Vec<EmbeddedLocalImage>,
 )> {
-    let mut exported_key_positions = key_positions.clone();
-    let mut exported_stat_positions = stat_positions.clone();
-    let mut exported_graph_positions = graph_positions.clone();
-    let mut exported_knob_positions = knob_positions.clone();
-    let mut exported_sprite_positions = sprite_positions.clone();
-    let mut embedded_local_images = Vec::new();
-    let mut path_to_image_id: HashMap<String, String> = HashMap::new();
-
-    for positions in exported_key_positions.values_mut() {
-        for position in positions.iter_mut() {
-            rewrite_position_image_reference(
-                &mut position.active_image,
-                &mut embedded_local_images,
-                &mut path_to_image_id,
-            )?;
-            rewrite_position_image_reference(
-                &mut position.inactive_image,
-                &mut embedded_local_images,
-                &mut path_to_image_id,
-            )?;
-        }
-    }
-
-    for positions in exported_stat_positions.values_mut() {
-        for stat_position in positions.iter_mut() {
-            rewrite_position_image_reference(
-                &mut stat_position.position.active_image,
-                &mut embedded_local_images,
-                &mut path_to_image_id,
-            )?;
-            rewrite_position_image_reference(
-                &mut stat_position.position.inactive_image,
-                &mut embedded_local_images,
-                &mut path_to_image_id,
-            )?;
-        }
-    }
-
-    for positions in exported_graph_positions.values_mut() {
-        for graph_position in positions.iter_mut() {
-            rewrite_position_image_reference(
-                &mut graph_position.position.active_image,
-                &mut embedded_local_images,
-                &mut path_to_image_id,
-            )?;
-            rewrite_position_image_reference(
-                &mut graph_position.position.inactive_image,
-                &mut embedded_local_images,
-                &mut path_to_image_id,
-            )?;
-        }
-    }
-
-    for positions in exported_knob_positions.values_mut() {
-        for knob_position in positions.iter_mut() {
-            rewrite_position_image_reference(
-                &mut knob_position.position.active_image,
-                &mut embedded_local_images,
-                &mut path_to_image_id,
-            )?;
-            rewrite_position_image_reference(
-                &mut knob_position.position.inactive_image,
-                &mut embedded_local_images,
-                &mut path_to_image_id,
-            )?;
-        }
-    }
-
-    for sprites in exported_sprite_positions.values_mut() {
-        for sprite in sprites {
-            rewrite_coupled_sprite_image_reference(sprite, |image_ref| {
-                rewrite_position_image_reference(
-                    image_ref,
-                    &mut embedded_local_images,
-                    &mut path_to_image_id,
-                )
-            })?;
-            for pose in &mut sprite.poses {
-                rewrite_coupled_sprite_image_reference(pose, |image_ref| {
-                    rewrite_position_image_reference(
-                        image_ref,
-                        &mut embedded_local_images,
-                        &mut path_to_image_id,
-                    )
-                })?;
-            }
-        }
-    }
-
+    let mut elements = ElementCollections {
+        key_positions: key_positions.clone(),
+        stat_positions: stat_positions.clone(),
+        graph_positions: graph_positions.clone(),
+        knob_positions: knob_positions.clone(),
+        sprite_positions: sprite_positions.clone(),
+    };
+    let embedded_local_images = embed_preset_images(&mut elements)?;
     Ok((
-        exported_key_positions,
-        exported_stat_positions,
-        exported_graph_positions,
-        exported_knob_positions,
-        exported_sprite_positions,
+        elements.key_positions,
+        elements.stat_positions,
+        elements.graph_positions,
+        elements.knob_positions,
+        elements.sprite_positions,
         embedded_local_images,
     ))
 }
@@ -606,6 +449,32 @@ fn rewrite_position_image_reference(
     Ok(())
 }
 
+// 사운드를 가진 요소의 soundPath를 임베드 id로 바꾸고 임베드 목록을 돌려준다
+fn embed_preset_sounds(elements: &mut ElementCollections) -> CmdResult<Vec<EmbeddedLocalSound>> {
+    let mut embedded_local_sounds = Vec::new();
+    let mut path_to_sound_id: HashMap<String, String> = HashMap::new();
+    let mut failure = None;
+
+    for_each_key_position_mut(elements, |kind, position| {
+        if !kind.has_sound() || failure.is_some() {
+            return;
+        }
+        if let Err(error) = rewrite_position_sound_reference(
+            &mut position.sound_path,
+            &mut embedded_local_sounds,
+            &mut path_to_sound_id,
+        ) {
+            failure = Some(error);
+        }
+    });
+
+    match failure {
+        Some(error) => Err(error),
+        None => Ok(embedded_local_sounds),
+    }
+}
+
+#[cfg(test)]
 fn build_preset_sound_payload(
     key_positions: &KeyPositions,
     stat_positions: &StatPositions,
@@ -618,58 +487,19 @@ fn build_preset_sound_payload(
     KnobPositions,
     Vec<EmbeddedLocalSound>,
 )> {
-    let mut exported_key_positions = key_positions.clone();
-    let mut exported_stat_positions = stat_positions.clone();
-    let mut exported_graph_positions = graph_positions.clone();
-    let mut exported_knob_positions = knob_positions.clone();
-    let mut embedded_local_sounds = Vec::new();
-    let mut path_to_sound_id: HashMap<String, String> = HashMap::new();
-
-    for positions in exported_key_positions.values_mut() {
-        for position in positions.iter_mut() {
-            rewrite_position_sound_reference(
-                &mut position.sound_path,
-                &mut embedded_local_sounds,
-                &mut path_to_sound_id,
-            )?;
-        }
-    }
-
-    for positions in exported_stat_positions.values_mut() {
-        for stat_position in positions.iter_mut() {
-            rewrite_position_sound_reference(
-                &mut stat_position.position.sound_path,
-                &mut embedded_local_sounds,
-                &mut path_to_sound_id,
-            )?;
-        }
-    }
-
-    for positions in exported_graph_positions.values_mut() {
-        for graph_position in positions.iter_mut() {
-            rewrite_position_sound_reference(
-                &mut graph_position.position.sound_path,
-                &mut embedded_local_sounds,
-                &mut path_to_sound_id,
-            )?;
-        }
-    }
-
-    for positions in exported_knob_positions.values_mut() {
-        for knob_position in positions.iter_mut() {
-            rewrite_position_sound_reference(
-                &mut knob_position.position.sound_path,
-                &mut embedded_local_sounds,
-                &mut path_to_sound_id,
-            )?;
-        }
-    }
-
+    let mut elements = ElementCollections {
+        key_positions: key_positions.clone(),
+        stat_positions: stat_positions.clone(),
+        graph_positions: graph_positions.clone(),
+        knob_positions: knob_positions.clone(),
+        sprite_positions: SpritePositions::new(),
+    };
+    let embedded_local_sounds = embed_preset_sounds(&mut elements)?;
     Ok((
-        exported_key_positions,
-        exported_stat_positions,
-        exported_graph_positions,
-        exported_knob_positions,
+        elements.key_positions,
+        elements.stat_positions,
+        elements.graph_positions,
+        elements.knob_positions,
         embedded_local_sounds,
     ))
 }
