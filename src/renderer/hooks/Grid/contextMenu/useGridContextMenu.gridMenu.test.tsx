@@ -13,10 +13,20 @@ import ko from '@src/renderer/locales/ko.json';
 import ru from '@src/renderer/locales/ru.json';
 import zhHant from '@src/renderer/locales/zh-Hant.json';
 import zhCn from '@src/renderer/locales/zh-cn.json';
+import { SPRITE_CREATION_ENABLED } from '@src/types/key/sprites';
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
+
+// 스프라이트 추가는 플래그로 숨김
+const ADD_IDS = [
+  'add',
+  'addStat',
+  'addGraph',
+  'addKnob',
+  ...(SPRITE_CREATION_ENABLED ? ['addSprite'] : []),
+];
 
 vi.mock('@stores/plugin/usePluginMenuStore', () => ({
   usePluginMenuStore: <T,>(
@@ -118,11 +128,7 @@ describe('그리드 컨텍스트 메뉴', () => {
 
   it('추가 동작만 선으로 가르고 설정과 초기화는 한 묶음으로 둔다', () => {
     expect(captured.items.map((entry) => entry.id)).toEqual([
-      'add',
-      'addStat',
-      'addGraph',
-      'addKnob',
-      'addSprite',
+      ...ADD_IDS,
       'separator-1',
       'tabGroup',
       'resetGroup',
@@ -145,11 +151,7 @@ describe('그리드 컨텍스트 메뉴', () => {
     mount();
 
     expect(captured.items.map((entry) => entry.id)).toEqual([
-      'add',
-      'addStat',
-      'addGraph',
-      'addKnob',
-      'addSprite',
+      ...ADD_IDS,
       'separator-1',
       'tabGroup',
       'resetGroup',

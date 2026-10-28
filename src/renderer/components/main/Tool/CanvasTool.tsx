@@ -12,6 +12,7 @@ import { TooltipGroup } from '../Modal/tooltip/TooltipGroup';
 import ListPopup from '../Modal/listPopup/ListPopup';
 import { useIconMotion } from '@hooks/useIconMotion';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { SPRITE_CREATION_ENABLED } from '@src/types/key/sprites';
 
 type SelectableTool = 'move' | 'eraser';
 type AddItemType = 'key' | 'stat' | 'graph' | 'knob' | 'sprite';
@@ -183,7 +184,9 @@ const CanvasTool = ({
           { id: 'addStat', label: t('toolbar.addStat') },
           { id: 'addGraph', label: t('toolbar.addGraph') },
           { id: 'addKnob', label: t('toolbar.addKnob') },
-          { id: 'addSprite', label: t('toolbar.addSprite') },
+          ...(SPRITE_CREATION_ENABLED
+            ? [{ id: 'addSprite', label: t('toolbar.addSprite') }]
+            : []),
         ]}
         onSelect={(id) => {
           if (id === 'addKey') {

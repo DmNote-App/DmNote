@@ -29,6 +29,9 @@ export const SPRITE_CONSTRAINTS = {
   triggerIdMaxLength: 64,
 } as const;
 
+// 미완성 기능 - 추가 메뉴 노출 여부
+export const SPRITE_CREATION_ENABLED = false;
+
 // 생성 기본 크기. Rust ReactiveSpritePosition Default와 동일
 export const DEFAULT_SPRITE_SIZE = 200;
 

@@ -17,6 +17,7 @@ import { useSettingsStore } from '@stores/useSettingsStore';
 import { translatePluginMessage } from '@utils/plugin/pluginI18n';
 import type { KeyMappings, KeyPosition } from '@src/types/key/keys';
 import { slotCanonical } from '@utils/keySlot';
+import { SPRITE_CREATION_ENABLED } from '@src/types/key/sprites';
 import type {
   PluginMenuItemInternal,
   KeyMenuContext,
@@ -295,7 +296,9 @@ export function useGridContextMenu({
       { id: 'addStat', label: t('contextMenu.addStat') },
       { id: 'addGraph', label: t('contextMenu.addGraph') },
       { id: 'addKnob', label: t('contextMenu.addKnob') },
-      { id: 'addSprite', label: t('contextMenu.addSprite') },
+      ...(SPRITE_CREATION_ENABLED
+        ? [{ id: 'addSprite', label: t('contextMenu.addSprite') }]
+        : []),
     ];
     // 묶음 안에서는 부모가 맥락을 주므로 라벨을 줄인다
     const tabItems: MenuItem[] = [
