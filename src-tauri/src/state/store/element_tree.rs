@@ -17,6 +17,7 @@ use serde_json::Value;
 use super::AppStore;
 use crate::models::legacy_layout::{
     graft_tree_only, import_document, is_legacy_kind, project_document, reconcile_document,
+    LegacyRef,
 };
 use crate::models::{builtin_kind_registry, AppStoreData, EditorDocumentV1};
 use crate::state::history::ElementTreeHistorySnapshot;
@@ -56,7 +57,9 @@ pub(crate) fn attach_loaded_document(
         }
     });
     let mut document = match &stored {
-        Some(stored) => reconcile_document(stored, &legacy).context("요소 트리 맞추기 실패")?,
+        Some(stored) => {
+            reconcile_document(stored, None, &legacy).context("요소 트리 맞추기 실패")?
+        }
         None => import_document(&legacy).context("요소 트리 가져오기 실패")?,
     };
     let report = Loader {
@@ -74,7 +77,7 @@ pub(crate) fn attach_loaded_document(
     }
     // 트리 문서가 없던 파일(옛 store.json)은 부르는 쪽이 새 파일로 저장한다
     let changed = stored.as_ref().is_some_and(|stored| stored != &document);
-    state.element_document = document;
+    state.element_document = std::sync::Arc::new(document);
     Ok(changed)
 }
 
@@ -83,9 +86,14 @@ pub(crate) fn sync_element_document(before: &AppStoreData, after: &mut AppStoreD
     if !legacy_changed(before, after) {
         return Ok(());
     }
-    let legacy = EditorDocumentV1::from_store(after);
-    after.element_document =
-        reconcile_document(&after.element_document, &legacy).context("요소 트리 맞추기 실패")?;
+    after.element_document = std::sync::Arc::new(
+        reconcile_document(
+            &after.element_document,
+            Some(LegacyRef::from(before)),
+            LegacyRef::from(&*after),
+        )
+        .context("요소 트리 맞추기 실패")?,
+    );
     Ok(())
 }
 
@@ -240,7 +248,7 @@ impl AppStore {
         self.element_document_revision.load(Ordering::Acquire)
     }
 
-    pub(crate) fn element_document_snapshot(&self) -> (u64, Document) {
+    pub(crate) fn element_document_snapshot(&self) -> (u64, std::sync::Arc<Document>) {
         let guard = self.state.read();
         (
             self.element_document_revision(),
@@ -288,10 +296,11 @@ impl AppStore {
             kinds: builtin_kind_registry(),
             bundles: &BuiltinBundles,
         };
-        let changes = match engine.apply(&mut scratch.element_document, ops) {
-            Ok(changes) => changes,
-            Err(violations) => return Ok(rejected(VIOLATION, violations)),
-        };
+        let changes =
+            match engine.apply(std::sync::Arc::make_mut(&mut scratch.element_document), ops) {
+                Ok(changes) => changes,
+                Err(violations) => return Ok(rejected(VIOLATION, violations)),
+            };
         // 옛 모양이 그대로인지 확인 - 트리에만 있는 요소만 바뀌었어야 한다
         let before = project_document(&guard.data.element_document)?;
         let after = project_document(&scratch.element_document)?;

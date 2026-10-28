@@ -66,18 +66,183 @@ pub(crate) fn is_legacy_kind(name: &str) -> bool {
     kind_of(name).is_some()
 }
 
-fn collection_values(
-    document: &EditorDocumentV1,
-    kind: EditorElementTypeV1,
-) -> Result<HashMap<String, Vec<Value>>> {
-    let value = match kind {
-        EditorElementTypeV1::Key => serde_json::to_value(&document.key_positions),
-        EditorElementTypeV1::Stat => serde_json::to_value(&document.stat_positions),
-        EditorElementTypeV1::Graph => serde_json::to_value(&document.graph_positions),
-        EditorElementTypeV1::Knob => serde_json::to_value(&document.knob_positions),
-        EditorElementTypeV1::Sprite => serde_json::to_value(&document.sprite_positions),
-    }?;
-    Ok(serde_json::from_value(value)?)
+/// 옛 모양 읽기 - store나 편집 문서를 복사하지 않고 빌려 읽는다
+#[derive(Clone, Copy)]
+pub(crate) struct LegacyRef<'a> {
+    pub keys: &'a super::KeyMappings,
+    pub key_positions: &'a super::KeyPositions,
+    pub stat_positions: &'a super::StatPositions,
+    pub graph_positions: &'a super::GraphPositions,
+    pub knob_positions: &'a super::KnobPositions,
+    pub sprite_positions: &'a super::SpritePositions,
+    pub layer_groups: &'a super::LayerGroups,
+}
+
+impl<'a> From<&'a EditorDocumentV1> for LegacyRef<'a> {
+    fn from(document: &'a EditorDocumentV1) -> Self {
+        Self {
+            keys: &document.keys,
+            key_positions: &document.key_positions,
+            stat_positions: &document.stat_positions,
+            graph_positions: &document.graph_positions,
+            knob_positions: &document.knob_positions,
+            sprite_positions: &document.sprite_positions,
+            layer_groups: &document.layer_groups,
+        }
+    }
+}
+
+impl<'a> From<&'a super::AppStoreData> for LegacyRef<'a> {
+    fn from(store: &'a super::AppStoreData) -> Self {
+        Self {
+            keys: &store.keys,
+            key_positions: &store.key_positions,
+            stat_positions: &store.stat_positions,
+            graph_positions: &store.graph_positions,
+            knob_positions: &store.knob_positions,
+            sprite_positions: &store.sprite_positions,
+            layer_groups: &store.layer_groups,
+        }
+    }
+}
+
+// 종류별 배열 길이, (id, zIndex, groupId), 그룹 목록, 키 매핑 유무
+type ModeStructure<'a> = (
+    Vec<(usize, Option<usize>)>,
+    Vec<(String, Option<i32>, Option<String>)>,
+    Option<&'a Vec<LayerGroupDef>>,
+    bool,
+);
+
+/// 탭 하나의 종류별 배열
+#[derive(Clone, Copy, PartialEq)]
+struct ModeView<'a> {
+    keys: Option<&'a Vec<KeySlot>>,
+    key: Option<&'a Vec<KeyPosition>>,
+    stat: Option<&'a Vec<super::StatPosition>>,
+    graph: Option<&'a Vec<super::GraphPosition>>,
+    knob: Option<&'a Vec<super::KnobPosition>>,
+    sprite: Option<&'a Vec<ReactiveSpritePosition>>,
+    groups: Option<&'a Vec<LayerGroupDef>>,
+}
+
+impl<'a> ModeView<'a> {
+    fn of(legacy: LegacyRef<'a>, mode: &str) -> Self {
+        Self {
+            keys: legacy.keys.get(mode),
+            key: legacy.key_positions.get(mode),
+            stat: legacy.stat_positions.get(mode),
+            graph: legacy.graph_positions.get(mode),
+            knob: legacy.knob_positions.get(mode),
+            sprite: legacy.sprite_positions.get(mode),
+            groups: legacy.layer_groups.get(mode),
+        }
+    }
+
+    fn len(&self, kind: EditorElementTypeV1) -> Option<usize> {
+        match kind {
+            EditorElementTypeV1::Key => self.key.map(Vec::len),
+            EditorElementTypeV1::Stat => self.stat.map(Vec::len),
+            EditorElementTypeV1::Graph => self.graph.map(Vec::len),
+            EditorElementTypeV1::Knob => self.knob.map(Vec::len),
+            EditorElementTypeV1::Sprite => self.sprite.map(Vec::len),
+        }
+    }
+
+    fn value(&self, kind: EditorElementTypeV1, index: usize) -> Result<Option<Value>> {
+        Ok(match kind {
+            EditorElementTypeV1::Key => self
+                .key
+                .and_then(|list| list.get(index))
+                .map(serde_json::to_value),
+            EditorElementTypeV1::Stat => self
+                .stat
+                .and_then(|list| list.get(index))
+                .map(serde_json::to_value),
+            EditorElementTypeV1::Graph => self
+                .graph
+                .and_then(|list| list.get(index))
+                .map(serde_json::to_value),
+            EditorElementTypeV1::Knob => self
+                .knob
+                .and_then(|list| list.get(index))
+                .map(serde_json::to_value),
+            EditorElementTypeV1::Sprite => self
+                .sprite
+                .and_then(|list| list.get(index))
+                .map(serde_json::to_value),
+        }
+        .transpose()?)
+    }
+
+    fn slot(&self, kind: EditorElementTypeV1, index: usize) -> Option<&'a KeySlot> {
+        match kind {
+            EditorElementTypeV1::Key => self.keys.and_then(|slots| slots.get(index)),
+            _ => None,
+        }
+    }
+
+    // 요소 하나가 같은지 (키는 매핑 슬롯까지)
+    fn same_element(&self, other: &Self, kind: EditorElementTypeV1, index: usize) -> bool {
+        let same = match kind {
+            EditorElementTypeV1::Key => {
+                self.key.and_then(|l| l.get(index)) == other.key.and_then(|l| l.get(index))
+            }
+            EditorElementTypeV1::Stat => {
+                self.stat.and_then(|l| l.get(index)) == other.stat.and_then(|l| l.get(index))
+            }
+            EditorElementTypeV1::Graph => {
+                self.graph.and_then(|l| l.get(index)) == other.graph.and_then(|l| l.get(index))
+            }
+            EditorElementTypeV1::Knob => {
+                self.knob.and_then(|l| l.get(index)) == other.knob.and_then(|l| l.get(index))
+            }
+            EditorElementTypeV1::Sprite => {
+                self.sprite.and_then(|l| l.get(index)) == other.sprite.and_then(|l| l.get(index))
+            }
+        };
+        same && self.slot(kind, index) == other.slot(kind, index)
+    }
+
+    // 구조 - 종류별 (id, zIndex, groupId)와 컬렉션 유무, 그룹 목록
+    fn structure(&self) -> ModeStructure<'a> {
+        let mut lengths = Vec::new();
+        let mut signature = Vec::new();
+        let mut push = |id: &str, z: Option<i32>, group: &Option<String>| {
+            signature.push((id.to_string(), z, group.clone()));
+        };
+        for (order, kind) in EditorElementTypeV1::ALL.into_iter().enumerate() {
+            lengths.push((order, self.len(kind)));
+        }
+        for position in self.key.into_iter().flatten() {
+            push(&position.id, position.z_index, &position.group_id);
+        }
+        for position in self.stat.into_iter().flatten() {
+            push(
+                &position.position.id,
+                position.position.z_index,
+                &position.position.group_id,
+            );
+        }
+        for position in self.graph.into_iter().flatten() {
+            push(
+                &position.position.id,
+                position.position.z_index,
+                &position.position.group_id,
+            );
+        }
+        for position in self.knob.into_iter().flatten() {
+            push(
+                &position.position.id,
+                position.position.z_index,
+                &position.position.group_id,
+            );
+        }
+        for position in self.sprite.into_iter().flatten() {
+            push(&position.id, position.z_index, &position.group_id);
+        }
+        (lengths, signature, self.groups, self.keys.is_some())
+    }
 }
 
 fn set_collection(
@@ -264,30 +429,26 @@ fn element_from_legacy(
     })
 }
 
-fn scene_entries(document: &EditorDocumentV1, mode: &str) -> Result<Vec<LegacyEntry>> {
+fn scene_entries(view: &ModeView<'_>) -> Result<Vec<LegacyEntry>> {
     let mut entries = Vec::new();
     for kind in EditorElementTypeV1::ALL {
-        let collection = collection_values(document, kind)?;
-        let Some(list) = collection.get(mode) else {
-            continue;
-        };
-        let slots = document.keys.get(mode);
-        for (index, value) in list.iter().enumerate() {
-            let Value::Object(object) = value.clone() else {
+        for index in 0..view.len(kind).unwrap_or(0) {
+            let Some(Value::Object(object)) = view.value(kind, index)? else {
                 continue;
             };
-            let slot = match kind {
-                EditorElementTypeV1::Key => slots.and_then(|slots| slots.get(index)),
-                _ => None,
-            };
-            entries.push(element_from_legacy(kind, object, index, slot)?);
+            entries.push(element_from_legacy(
+                kind,
+                object,
+                index,
+                view.slot(kind, index),
+            )?);
         }
     }
     entries.sort_by_key(|entry| stacking_key(entry.z_index, entry.kind, entry.index));
     Ok(entries)
 }
 
-fn legacy_modes(document: &EditorDocumentV1) -> BTreeSet<String> {
+fn legacy_modes(document: LegacyRef<'_>) -> BTreeSet<String> {
     let mut modes: BTreeSet<String> = document.keys.keys().cloned().collect();
     modes.extend(document.key_positions.keys().cloned());
     modes.extend(document.stat_positions.keys().cloned());
@@ -298,7 +459,7 @@ fn legacy_modes(document: &EditorDocumentV1) -> BTreeSet<String> {
     modes
 }
 
-fn present_fields(document: &EditorDocumentV1, mode: &str) -> Vec<Value> {
+fn present_fields(document: LegacyRef<'_>, mode: &str) -> Vec<Value> {
     let mut present = Vec::new();
     if document.keys.contains_key(mode) {
         present.push(json!(KEYS_FIELD));
@@ -392,8 +553,16 @@ fn build_scene(entries: Vec<LegacyEntry>, groups: &[LayerGroupDef], present: Vec
     }
 }
 
+fn import_scene(legacy: LegacyRef<'_>, mode: &str) -> Result<Scene> {
+    let view = ModeView::of(legacy, mode);
+    let entries = scene_entries(&view)?;
+    let groups = view.groups.cloned().unwrap_or_default();
+    Ok(build_scene(entries, &groups, present_fields(legacy, mode)))
+}
+
 /// 옛 모양 전체를 새 트리 문서로 가져온다
-pub(crate) fn import_document(legacy: &EditorDocumentV1) -> Result<Document> {
+pub(crate) fn import_document<'a>(legacy: impl Into<LegacyRef<'a>>) -> Result<Document> {
+    let legacy = legacy.into();
     let mut document = Document::default();
     for schema in builtin_kind_registry().kinds() {
         document
@@ -401,12 +570,8 @@ pub(crate) fn import_document(legacy: &EditorDocumentV1) -> Result<Document> {
             .insert(schema.kind.clone(), schema.version);
     }
     for mode in legacy_modes(legacy) {
-        let entries = scene_entries(legacy, &mode)?;
-        let groups = legacy.layer_groups.get(&mode).cloned().unwrap_or_default();
-        let present = present_fields(legacy, &mode);
-        document
-            .scenes
-            .insert(mode, build_scene(entries, &groups, present));
+        let scene = import_scene(legacy, &mode)?;
+        document.scenes.insert(mode, scene);
     }
     Ok(document)
 }
@@ -766,40 +931,81 @@ pub(crate) fn graft_tree_only(previous: &Scene, next: &mut Scene) {
     });
 }
 
-/// 옛 모양으로 들어온 쓰기를 트리에 맞춘다
-pub(crate) fn reconcile_document(
+// 구조가 같은 장면 - 옛 트리를 두고 옛 종류 요소 값만 바꾼다
+fn replace_scene_legacy(old: &Scene, fresh_scene: &Scene) -> Scene {
+    let mut fresh = take_elements(&fresh_scene.nodes);
+    let mut kept = old.clone();
+    kept.extra.insert(
+        LEGACY_PRESENT.into(),
+        fresh_scene
+            .extra
+            .get(LEGACY_PRESENT)
+            .cloned()
+            .unwrap_or(Value::Array(Vec::new())),
+    );
+    replace_legacy_elements(&mut kept.nodes, &mut fresh);
+    kept
+}
+
+fn reconcile_scene(previous: Option<&Scene>, legacy: LegacyRef<'_>, mode: &str) -> Result<Scene> {
+    let mut scene = import_scene(legacy, mode)?;
+    if let Some(old) = previous {
+        if legacy_shape(old) == legacy_shape(&scene) {
+            scene = replace_scene_legacy(old, &scene);
+        } else {
+            graft_tree_only(old, &mut scene);
+        }
+    }
+    Ok(scene)
+}
+
+/// 옛 모양으로 들어온 쓰기를 트리에 맞춘다. `before`는 이 쓰기 전 옛 모양 -
+/// 주면 바뀐 장면만, 구조가 그대로면 바뀐 요소만 다시 변환한다
+pub(crate) fn reconcile_document<'a, 'b>(
     previous: &Document,
-    legacy: &EditorDocumentV1,
+    before: Option<LegacyRef<'b>>,
+    legacy: impl Into<LegacyRef<'a>>,
 ) -> Result<Document> {
-    let mut next = import_document(legacy)?;
-    next.kind_versions = previous.kind_versions.clone();
+    let legacy = legacy.into();
+    let mut next = Document {
+        scenes: Default::default(),
+        ..previous.clone()
+    };
     for schema in builtin_kind_registry().kinds() {
         next.kind_versions
             .entry(schema.kind.clone())
             .or_insert(schema.version);
     }
-    next.extra = previous.extra.clone();
-    for (mode, scene) in next.scenes.iter_mut() {
-        let Some(old) = previous.scenes.get(mode) else {
-            continue;
-        };
-        if legacy_shape(old) == legacy_shape(scene) {
-            // 구조가 같으면 옛 트리를 두고 옛 종류 요소 값만 바꾼다
-            let mut fresh = take_elements(&scene.nodes);
-            let mut kept = old.clone();
-            kept.extra.insert(
-                LEGACY_PRESENT.into(),
+    for mode in legacy_modes(legacy) {
+        let old = previous.scenes.get(&mode);
+        let after_view = ModeView::of(legacy, &mode);
+        let before_view = before.map(|before| ModeView::of(before, &mode));
+        let scene = match (old, before_view) {
+            // 이 탭은 그대로
+            (Some(old), Some(before_view)) if before_view == after_view => old.clone(),
+            // 구조가 같으면 바뀐 요소만
+            (Some(old), Some(before_view)) if before_view.structure() == after_view.structure() => {
+                let mut scene = old.clone();
+                let mut fresh = HashMap::new();
+                for kind in EditorElementTypeV1::ALL {
+                    for index in 0..after_view.len(kind).unwrap_or(0) {
+                        if before_view.same_element(&after_view, kind, index) {
+                            continue;
+                        }
+                        let Some(Value::Object(object)) = after_view.value(kind, index)? else {
+                            continue;
+                        };
+                        let entry =
+                            element_from_legacy(kind, object, index, after_view.slot(kind, index))?;
+                        fresh.insert(entry.element.id.clone(), entry.element);
+                    }
+                }
+                replace_legacy_elements(&mut scene.nodes, &mut fresh);
                 scene
-                    .extra
-                    .get(LEGACY_PRESENT)
-                    .cloned()
-                    .unwrap_or(Value::Array(Vec::new())),
-            );
-            replace_legacy_elements(&mut kept.nodes, &mut fresh);
-            *scene = kept;
-        } else {
-            graft_tree_only(old, scene);
-        }
+            }
+            _ => reconcile_scene(old, legacy, &mode)?,
+        };
+        next.scenes.insert(mode, scene);
     }
     Ok(next)
 }

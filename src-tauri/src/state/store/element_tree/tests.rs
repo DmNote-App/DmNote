@@ -48,13 +48,12 @@ fn 옛_모양이_바뀐_커밋만_트리에_반영한다() {
 
     let mut settings_only = before.clone();
     settings_only.always_on_top = !settings_only.always_on_top;
-    settings_only
-        .element_document
+    std::sync::Arc::make_mut(&mut settings_only.element_document)
         .extra
         .insert("probe".into(), serde_json::json!(1));
     sync_element_document(&before, &mut settings_only).unwrap();
     assert_eq!(
-        settings_only.element_document.extra["probe"],
+        std::sync::Arc::make_mut(&mut settings_only.element_document).extra["probe"],
         serde_json::json!(1)
     );
 

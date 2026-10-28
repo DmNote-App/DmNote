@@ -20,7 +20,7 @@ zip = "0.6"
 [dependencies]
 element-document = { path = "crates/element-document" }
 anyhow = "1.0"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = { version = "1.0", features = ["float_roundtrip"] }
 base64 = "0.23"
 minisign-verify = "0.3.0"

@@ -1,4 +1,7 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
 use element_document::{make_patch, Document, DocumentPatch};
 use parking_lot::Mutex;
@@ -20,11 +23,11 @@ struct ElementDocumentChangedPayload {
 /// 창에 마지막으로 알린 트리 문서 - 다음 변경을 이것과의 차이로 보낸다
 pub(crate) struct ElementDocumentPublication {
     published: AtomicU64,
-    last: Mutex<Document>,
+    last: Mutex<Arc<Document>>,
 }
 
 impl ElementDocumentPublication {
-    pub(crate) fn new(revision: u64, document: Document) -> Self {
+    pub(crate) fn new(revision: u64, document: Arc<Document>) -> Self {
         Self {
             published: AtomicU64::new(revision),
             last: Mutex::new(document),

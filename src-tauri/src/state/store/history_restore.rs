@@ -222,10 +222,11 @@ impl AppStore {
                         guard.history.prepare_element_tree_entry(current_snapshot)?,
                     )?;
                     let mut scratch = current_store;
-                    scratch.element_document = super::element_tree::restore_element_tree(
-                        &scratch.element_document,
-                        &before,
-                    );
+                    scratch.element_document =
+                        std::sync::Arc::new(super::element_tree::restore_element_tree(
+                            &scratch.element_document,
+                            &before,
+                        ));
                     self.commit_locked(&mut guard, scratch, ())
                         .map_err(|error| error.to_string())?;
                     (opposite, None, None)

@@ -300,7 +300,7 @@ fn 옛_쓰기로_값만_바뀌면_트리_구조와_새_종류를_지킨다() {
 
     let mut edited = legacy.clone();
     edited.key_positions.get_mut("4key").unwrap()[0].dx = 999.0;
-    let next = reconcile_document(&document, &edited).unwrap();
+    let next = reconcile_document(&document, Some(LegacyRef::from(&legacy)), &edited).unwrap();
     let scene = &next.scenes["4key"];
     assert_eq!(
         scene
@@ -342,7 +342,7 @@ fn 옛_쓰기로_순서가_바뀌면_새로_만들고_새_종류는_아래_이�
     let mut edited = legacy.clone();
     // 첫 키를 맨 위로
     edited.key_positions.get_mut("4key").unwrap()[0].z_index = Some(1000);
-    let next = reconcile_document(&document, &edited).unwrap();
+    let next = reconcile_document(&document, Some(LegacyRef::from(&legacy)), &edited).unwrap();
     let ids = tree_ids(&next, "4key");
     let key_at = ids
         .iter()
@@ -364,7 +364,7 @@ fn 옛_쓰기로_탭이_지워지면_장면도_지운다() {
     edited.keys.remove("8key");
     edited.key_positions.remove("8key");
     edited.stat_positions.remove("8key");
-    let next = reconcile_document(&document, &edited).unwrap();
+    let next = reconcile_document(&document, Some(LegacyRef::from(&legacy)), &edited).unwrap();
     assert!(!next.scenes.contains_key("8key"));
 }
 
@@ -407,4 +407,75 @@ fn 트리에서_순서를_바꾸면_그_장면의_z_index를_다시_매긴다() 
         projected.key_positions["5key"],
         legacy.key_positions["5key"]
     );
+}
+
+#[test]
+fn 증분_맞추기는_전체_맞추기와_같은_결과를_낸다() {
+    let legacy = sample();
+    let document = import_document(&legacy).unwrap();
+    let mut edited = legacy.clone();
+    edited.key_positions.get_mut("4key").unwrap()[2].note_glow_size = 77.0;
+    edited.keys.get_mut("4key").unwrap()[2] = KeySlot::from("Q");
+    edited.graph_positions.get_mut("4key").unwrap()[0].graph_speed = 4000;
+    let incremental =
+        reconcile_document(&document, Some(LegacyRef::from(&legacy)), &edited).unwrap();
+    let full = reconcile_document(&document, None, &edited).unwrap();
+    assert_eq!(incremental, full);
+    // 바뀌지 않은 탭은 그대로
+    assert_eq!(incremental.scenes["6key"], document.scenes["6key"]);
+}
+
+#[test]
+#[ignore]
+fn 측정_요소_많을_때_맞추기_시간() {
+    let mut legacy = sample();
+    let template = legacy.key_positions["4key"][0].clone();
+    for tab in ["4key", "5key", "6key", "8key"] {
+        let keys = legacy.keys.get_mut(tab).unwrap();
+        let positions = legacy.key_positions.get_mut(tab).unwrap();
+        keys.clear();
+        positions.clear();
+        for index in 0..150 {
+            keys.push(KeySlot::from(format!("K{index}")));
+            let mut position = template.clone();
+            position.id = element_id();
+            position.group_id = None;
+            position.dx = index as f64;
+            positions.push(position);
+        }
+    }
+    let document = import_document(&legacy).unwrap();
+    let mut edited = legacy.clone();
+    edited.key_positions.get_mut("4key").unwrap()[3].dx = 999.0;
+    let started = std::time::Instant::now();
+    for _ in 0..20 {
+        let _ = reconcile_document(&document, Some(LegacyRef::from(&legacy)), &edited).unwrap();
+    }
+    eprintln!(
+        "reconcile 600 keys (증분): {:?} / 회",
+        started.elapsed() / 20
+    );
+    let started = std::time::Instant::now();
+    for _ in 0..20 {
+        let _ = reconcile_document(&document, None, &edited).unwrap();
+    }
+    eprintln!(
+        "reconcile 600 keys (전체): {:?} / 회",
+        started.elapsed() / 20
+    );
+    let started = std::time::Instant::now();
+    for _ in 0..20 {
+        let _ = project_document(&document).unwrap();
+    }
+    eprintln!("project 600 keys: {:?} / 회", started.elapsed() / 20);
+    let started = std::time::Instant::now();
+    for _ in 0..20 {
+        let _ = std::hint::black_box(document.clone());
+    }
+    eprintln!("문서 복사 600 keys: {:?} / 회", started.elapsed() / 20);
+    let started = std::time::Instant::now();
+    for _ in 0..20 {
+        let _ = std::hint::black_box(legacy.clone());
+    }
+    eprintln!("옛 모양 복사 600 keys: {:?} / 회", started.elapsed() / 20);
 }

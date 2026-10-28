@@ -788,8 +788,9 @@ pub struct AppStoreData {
     pub plugin_data: HashMap<String, serde_json::Value>,
     /// 요소 트리 문서 - 종류별 배열(keys·keyPositions 등)은 이 문서의 옛 모양이다.
     /// 프론트로 나가는 직렬화에는 싣지 않고 저장 파일에만 따로 쓴다 (store/persistence.rs)
+    /// 바꿀 때만 복제한다 (store가 커밋마다 통째로 복사하므로)
     #[serde(default, skip_serializing)]
-    pub element_document: element_document::Document,
+    pub element_document: std::sync::Arc<element_document::Document>,
 }
 
 impl Default for AppStoreData {
@@ -849,7 +850,7 @@ impl Default for AppStoreData {
             obs_port: default_obs_port(),
             obs_token: None,
             plugin_data: HashMap::new(),
-            element_document: element_document::Document::default(),
+            element_document: Default::default(),
         }
     }
 }

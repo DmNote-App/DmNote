@@ -440,7 +440,9 @@ impl AppStore {
         result: T,
     ) -> Result<T> {
         element_tree::sync_element_document(&state.data, &mut scratch)?;
-        let element_document_changed = state.data.element_document != scratch.element_document;
+        let element_document_changed =
+            !Arc::ptr_eq(&state.data.element_document, &scratch.element_document)
+                && state.data.element_document != scratch.element_document;
         let revision = state
             .revision
             .checked_add(1)

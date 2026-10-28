@@ -13,7 +13,7 @@ use crate::{
 #[serde(rename_all = "camelCase")]
 pub struct ElementDocumentGetResult {
     revision: u64,
-    document: Document,
+    document: std::sync::Arc<Document>,
 }
 
 #[derive(Deserialize)]
