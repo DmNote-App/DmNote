@@ -234,12 +234,7 @@ const shadowPropertyIntents = (
   >();
   for (const { elementType, id } of targets) {
     if (elementType === 'graph' || elementType === 'sprite') continue;
-    const collection =
-      elementType === 'key'
-        ? document.keyPositions
-        : elementType === 'stat'
-        ? document.statPositions
-        : document.knobPositions;
+    const collection = document[EDITOR_ELEMENT_POSITION_FIELDS[elementType]];
     const current = Object.values(collection)
       .flat()
       .find((position) => position.id === id) as

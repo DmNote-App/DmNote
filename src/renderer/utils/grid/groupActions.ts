@@ -16,6 +16,7 @@ import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
 import { readAuthorityPositions } from '@src/renderer/editor/model/elementStores';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
 import type { EditorElementGroupTargetV1 } from '@src/types/editor';
+import { isEditorElementType } from '@src/types/editor';
 
 interface SplitGroupTargets {
   native: EditorElementGroupTargetV1[];
@@ -28,11 +29,7 @@ const splitGroupTargets = (
   elements: readonly SelectedElement[],
 ): SplitGroupTargets | null => {
   const native = elements.flatMap((element) =>
-    element.type === 'key' ||
-    element.type === 'stat' ||
-    element.type === 'graph' ||
-    element.type === 'knob' ||
-    element.type === 'sprite'
+    isEditorElementType(element.type)
       ? [{ elementType: element.type, id: element.id }]
       : [],
   );

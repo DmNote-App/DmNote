@@ -28,6 +28,7 @@ import type {
   EditorElementGroupTargetV1,
   EditorTargetLayerGroupV1,
 } from '@src/types/editor';
+import { isEditorElementType } from '@src/types/editor';
 
 export const stableSelectionGroupId = (
   mode: string,
@@ -212,11 +213,7 @@ export const createLayerActionMutations = ({
 
     const nativeTargets = selectedForUpdate.flatMap(
       (element): EditorElementGroupTargetV1[] =>
-        element.type === 'key' ||
-        element.type === 'stat' ||
-        element.type === 'graph' ||
-        element.type === 'knob' ||
-        element.type === 'sprite'
+        isEditorElementType(element.type)
           ? [{ elementType: element.type, id: element.id }]
           : [],
     );
