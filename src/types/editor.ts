@@ -214,6 +214,9 @@ export type ItemElementModeArrays = Omit<
   'keyPositions'
 >;
 
+// 모드에 없는 컬렉션의 고정 빈 배열 - 렌더마다 참조가 바뀌지 않게
+const EMPTY_MODE_ARRAY: readonly never[] = Object.freeze([] as never[]);
+
 export const modeArraysOf = (
   collections: ElementCollections,
   mode: string,
@@ -221,7 +224,7 @@ export const modeArraysOf = (
   Object.fromEntries(
     EDITOR_ELEMENT_TYPES.map((type) => {
       const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
-      return [field, collections[field][mode] ?? []];
+      return [field, collections[field][mode] ?? EMPTY_MODE_ARRAY];
     }),
   ) as unknown as ElementCollectionsModeArrays;
 

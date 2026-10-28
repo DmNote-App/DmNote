@@ -4,6 +4,7 @@ import OverlayGraphItem from './OverlayGraphItem';
 import OverlayKnobItem from './OverlayKnobItem';
 import OverlaySpriteItem from './OverlaySpriteItem';
 import { resolveZIndexFallback } from '@utils/element/zIndexFallback';
+import { getStatTypeLabel } from '@utils/grid/statTypeLabel';
 import type { CanonicalPositionOf, ItemElementType } from '@src/types/editor';
 
 export interface OverlayItemContext {
@@ -17,19 +18,13 @@ type OverlayItemRenderer<K extends ItemElementType> = (
   context: OverlayItemContext,
 ) => ReactElement;
 
-const STAT_DEFAULT_LABELS: Record<string, string> = {
-  kpsAvg: 'AVG',
-  kpsMax: 'MAX',
-  total: 'Total',
-};
-
 // 키 외 종류별 오버레이 아이템. 키는 노트·카운터 레이어와 결합돼 OverlayScene이 직접 그린다
 const OVERLAY_ITEM_RENDERERS: {
   [K in ItemElementType]: OverlayItemRenderer<K>;
 } = {
   stat: (pos, index) => {
     const statType = pos.statType ?? 'kps';
-    const defaultLabel = STAT_DEFAULT_LABELS[statType] ?? 'KPS';
+    const defaultLabel = getStatTypeLabel(statType);
     const label = (pos.displayText || '').trim() || defaultLabel;
     return (
       <StatItem

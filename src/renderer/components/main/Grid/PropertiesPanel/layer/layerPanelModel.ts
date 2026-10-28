@@ -5,7 +5,15 @@
 
 import { slotDisplayName } from '@utils/keySlot';
 import type { KeyMappings } from '@src/types/key/keys';
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  ITEM_ELEMENT_TYPES,
+  type CanonicalEditorDocumentV1,
+  type CanonicalPositionOf,
+  type ItemElementType,
+} from '@src/types/editor';
+import type { ItemElementCollections } from '@src/renderer/editor/model/elementStores';
+import { getStatTypeLabel } from '@utils/grid/statTypeLabel';
 import type { PluginPanelElementView } from '@src/types/plugin/api';
 import type { LayerGroupDef } from '@src/types/layerGroups';
 import type { LayerItem, DisplayItem } from '../types';
@@ -15,29 +23,35 @@ import { isPluginVisibleInMode } from '@utils/layerGroupUtils';
 // layerItems 생성
 // ============================================================================
 
-interface BuildLayerItemsParams {
+type BuildLayerItemsParams = ItemElementCollections & {
   selectedKeyType: string;
   positions: CanonicalEditorDocumentV1['keyPositions'];
   keyMappings: KeyMappings;
-  statPositions: CanonicalEditorDocumentV1['statPositions'];
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'];
   pluginElements: PluginPanelElementView[];
   layerGroupsForMode: LayerGroupDef[];
-}
+};
 
-export function buildLayerItems({
-  selectedKeyType,
-  positions,
-  keyMappings,
-  statPositions,
-  graphPositions,
-  knobPositions,
-  spritePositions,
-  pluginElements,
-  layerGroupsForMode,
-}: BuildLayerItemsParams): LayerItem[] {
+// 키 외 종류별 레이어 기본 이름
+const ITEM_LAYER_DEFAULT_NAMES: {
+  [K in ItemElementType]: (
+    position: CanonicalPositionOf<K>,
+    index: number,
+  ) => string;
+} = {
+  stat: (position) => getStatTypeLabel(position.statType),
+  graph: (position) => `${getStatTypeLabel(position.statType)} Graph`,
+  knob: (_position, index) => `Knob ${index + 1}`,
+  sprite: (_position, index) => `Sprite ${index + 1}`,
+};
+
+export function buildLayerItems(params: BuildLayerItemsParams): LayerItem[] {
+  const {
+    selectedKeyType,
+    positions,
+    keyMappings,
+    pluginElements,
+    layerGroupsForMode,
+  } = params;
   const items: LayerItem[] = [];
 
   // 키 아이템
@@ -57,77 +71,33 @@ export function buildLayerItems({
     });
   });
 
-  // 통계 아이템
-  const currentStatPositions = statPositions[selectedKeyType] || [];
-  currentStatPositions.forEach((pos, index) => {
-    const defaultName =
-      pos.statType === 'kpsAvg'
-        ? 'AVG'
-        : pos.statType === 'kpsMax'
-        ? 'MAX'
-        : pos.statType === 'total'
-        ? 'Total'
-        : 'KPS';
-    items.push({
-      type: 'stat',
-      id: pos.id,
-      index,
-      name: pos.layerName || defaultName,
-      zIndex: pos.zIndex ?? index,
-      hidden: !!pos.hidden,
-      groupId: pos.groupId,
+  // 키 외 종류 아이템 (종류 순서)
+  for (const type of ITEM_ELEMENT_TYPES) {
+    const defaultName = ITEM_LAYER_DEFAULT_NAMES[type] as (
+      position: never,
+      index: number,
+    ) => string;
+    (
+      (params[EDITOR_ELEMENT_POSITION_FIELDS[type]][selectedKeyType] ||
+        []) as Array<{
+        id: string;
+        layerName?: string | null;
+        zIndex?: number | null;
+        hidden?: boolean;
+        groupId?: string | null;
+      }>
+    ).forEach((pos, index) => {
+      items.push({
+        type,
+        id: pos.id,
+        index,
+        name: pos.layerName || defaultName(pos as never, index),
+        zIndex: pos.zIndex ?? index,
+        hidden: !!pos.hidden,
+        groupId: pos.groupId ?? undefined,
+      });
     });
-  });
-
-  // 그래프 아이템
-  const currentGraphPositions = graphPositions[selectedKeyType] || [];
-  currentGraphPositions.forEach((pos, index) => {
-    const defaultName =
-      pos.statType === 'kpsAvg'
-        ? 'AVG Graph'
-        : pos.statType === 'kpsMax'
-        ? 'MAX Graph'
-        : pos.statType === 'total'
-        ? 'Total Graph'
-        : 'KPS Graph';
-    items.push({
-      type: 'graph',
-      id: pos.id,
-      index,
-      name: pos.layerName || defaultName,
-      zIndex: pos.zIndex ?? index,
-      hidden: !!pos.hidden,
-      groupId: pos.groupId,
-    });
-  });
-
-  // 노브 아이템
-  const currentKnobPositions = knobPositions[selectedKeyType] || [];
-  currentKnobPositions.forEach((pos, index) => {
-    items.push({
-      type: 'knob',
-      id: pos.id,
-      index,
-      name: pos.layerName || `Knob ${index + 1}`,
-      zIndex: pos.zIndex ?? index,
-      hidden: !!pos.hidden,
-      groupId: pos.groupId,
-    });
-  });
-
-  // 스프라이트 아이템
-  const currentSpritePositions = spritePositions[selectedKeyType] || [];
-  currentSpritePositions.forEach((pos, index) => {
-    items.push({
-      type: 'sprite',
-      id: pos.id,
-      index,
-      name: pos.layerName || `Sprite ${index + 1}`,
-      zIndex: pos.zIndex ?? index,
-      hidden: !!pos.hidden,
-      groupId: pos.groupId ?? undefined,
-    });
-  });
+  }
 
   // 플러그인 아이템 - 그룹은 모드 스코프라 현재 모드에 def가 있는 groupId만
   // 노출 (dangling group_id의 유령 헤더 방지)
