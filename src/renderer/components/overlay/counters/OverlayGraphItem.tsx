@@ -50,7 +50,7 @@ interface GraphState {
 function normalizeGraphSpeed(speed: number | undefined): number {
   const numeric = Number(speed);
   if (!Number.isFinite(numeric) || numeric <= 0) return 1000;
-  return Math.max(500, Math.min(5000, Math.round(numeric)));
+  return Math.max(500, Math.min(60000, Math.round(numeric)));
 }
 
 function createInitialHistory(speed: number | undefined): number[] {

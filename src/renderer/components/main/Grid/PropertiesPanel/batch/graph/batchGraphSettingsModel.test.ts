@@ -45,7 +45,8 @@ describe('batch graph settings model', () => {
     [550, 600],
     [1249, 1200],
     [1250, 1300],
-    [9000, 5000],
+    [9000, 9000],
+    [90000, 60000],
   ])(
     '속도 %dms를 기존 clamp·100ms snap 규칙으로 %dms에 맞춘다',
     (input, expected) => {

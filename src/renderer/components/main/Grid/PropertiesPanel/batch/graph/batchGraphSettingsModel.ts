@@ -16,7 +16,7 @@ export interface BatchGraphSettingsModel {
 }
 
 export const snapBatchGraphSpeed = (value: number): number => {
-  const clamped = Math.max(500, Math.min(5000, value));
+  const clamped = Math.max(500, Math.min(60000, value));
   return Math.round(clamped / 100) * 100;
 };
 

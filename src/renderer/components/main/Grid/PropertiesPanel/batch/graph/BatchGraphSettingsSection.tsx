@@ -78,7 +78,7 @@ const BatchGraphSettingsSection = ({
             onCommit({ graphSpeed: snapBatchGraphSpeed(value) })
           }
           min={500}
-          max={5000}
+          max={60000}
           suffix="ms"
           isMixed={model.graphSpeed.isMixed}
         />

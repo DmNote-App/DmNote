@@ -212,7 +212,7 @@ export const SingleGraphPanel: React.FC<SingleGraphPanelProps> = ({
                   value={Math.round(singleGraphPosition.graphSpeed || 1000)}
                   width="62px"
                   onChange={(value) => {
-                    const clamped = Math.max(500, Math.min(5000, value));
+                    const clamped = Math.max(500, Math.min(60000, value));
                     const snapped = Math.round(clamped / 100) * 100;
                     onElementPropertyCommit?.({
                       property: 'graphSpeed',
@@ -220,7 +220,7 @@ export const SingleGraphPanel: React.FC<SingleGraphPanelProps> = ({
                     });
                   }}
                   min={500}
-                  max={5000}
+                  max={60000}
                   suffix="ms"
                 />
               </PropertyRow>
