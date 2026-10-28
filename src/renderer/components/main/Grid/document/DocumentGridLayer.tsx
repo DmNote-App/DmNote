@@ -12,7 +12,10 @@ import { useTranslation } from '@contexts/useTranslation';
 import { calculateZoomAdjustedGridSize, snapToGrid } from '@hooks/Grid/utils';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { elementRotationTransform } from '@utils/element/rotation';
-import { setDocumentFrame } from './documentEditActions';
+import {
+  removeDocumentElements,
+  setDocumentFrame,
+} from './documentEditActions';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
@@ -22,6 +25,7 @@ const DRAG_THRESHOLD = 3;
 
 interface DocumentGridElementProps {
   sceneId: string;
+  eraser: boolean;
   element: ElementNode;
   zIndex: number;
   zoom: number;
@@ -30,6 +34,7 @@ interface DocumentGridElementProps {
 
 const DocumentGridElement = ({
   sceneId,
+  eraser,
   element,
   zIndex,
   zoom,
@@ -50,6 +55,12 @@ const DocumentGridElement = ({
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     event.stopPropagation();
+    // 지우개 도구 - 옛 종류 요소처럼 눌러서 지운다
+    if (eraser) {
+      useDocumentSelectionStore.getState().clear();
+      void removeDocumentElements(sceneId, [element.id]);
+      return;
+    }
     useDocumentSelectionStore.getState().select(sceneId, element.id);
     const start = { x: event.clientX, y: event.clientY };
     const origin = element.frame;
@@ -132,6 +143,7 @@ const DocumentGridElement = ({
 
 interface DocumentGridLayerProps {
   sceneId: string;
+  activeTool: string;
   // bottom: 아래에 옛 종류 요소가 없는 요소 - 옛 요소보다 먼저 그리는 자리에 둔다
   placement: 'bottom' | 'stacked';
   zoom: number;
@@ -141,6 +153,7 @@ interface DocumentGridLayerProps {
 /** 편집 화면 - 트리 문서에만 있는 종류를 미리보기 상태로 그리고 고르고 옮긴다 */
 const DocumentGridLayer = ({
   sceneId,
+  activeTool,
   placement,
   zoom,
   onElementContextMenu,
@@ -159,6 +172,7 @@ const DocumentGridLayer = ({
           <DocumentGridElement
             key={element.id}
             sceneId={sceneId}
+            eraser={activeTool === 'eraser'}
             element={element}
             zIndex={zIndex}
             zoom={zoom}

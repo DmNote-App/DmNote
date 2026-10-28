@@ -866,6 +866,7 @@ const Grid = ({
         >
           <DocumentGridLayer
             sceneId={selectedKeyType}
+            activeTool={activeTool}
             placement="bottom"
             zoom={zoom}
             onElementContextMenu={openDocumentElementContextMenu}
@@ -944,6 +945,7 @@ const Grid = ({
           {/* 트리 문서에만 있는 종류 (커서 트래커 등) */}
           <DocumentGridLayer
             sceneId={selectedKeyType}
+            activeTool={activeTool}
             placement="stacked"
             zoom={zoom}
             onElementContextMenu={openDocumentElementContextMenu}

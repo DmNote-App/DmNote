@@ -59,6 +59,8 @@ interface SingleGeometrySectionProps {
   // 회전은 bounds가 아니라 patchElement/rotation 경로 - 둘 다 있을 때만 행을 그린다
   onRotationPreview?: (value: number) => void;
   onRotationCommit?: (value: number) => void;
+  // 입력 취소(Esc) - 호출부가 따로 그리는 미리보기도 되돌린다
+  onPreviewCancel?: () => void;
   t: (key: string) => string | undefined;
 }
 
@@ -77,6 +79,7 @@ const SingleGeometrySection = ({
   onGeometryCommit,
   onRotationPreview,
   onRotationCommit,
+  onPreviewCancel,
   t,
 }: SingleGeometrySectionProps) => {
   const isIndividualMode = !onLocalDxChange;
@@ -137,7 +140,10 @@ const SingleGeometrySection = ({
           value={displayPosition('dx', localDx)}
           onChange={(value) => commitPosition('dx', value, onLocalDxChange)}
           onPreview={(value) => onGeometryPreview?.('dx', value)}
-          onCancel={() => editGestureController.cancel()}
+          onCancel={() => {
+            editGestureController.cancel();
+            onPreviewCancel?.();
+          }}
           prefix="X"
           width={AXIS_FIELD_WIDTH}
           min={-9999}
@@ -149,7 +155,10 @@ const SingleGeometrySection = ({
           value={displayPosition('dy', localDy)}
           onChange={(value) => commitPosition('dy', value, onLocalDyChange)}
           onPreview={(value) => onGeometryPreview?.('dy', value)}
-          onCancel={() => editGestureController.cancel()}
+          onCancel={() => {
+            editGestureController.cancel();
+            onPreviewCancel?.();
+          }}
           prefix="Y"
           width={AXIS_FIELD_WIDTH}
           min={-9999}
@@ -168,7 +177,10 @@ const SingleGeometrySection = ({
           onPreview={(value) =>
             previewSize('width', normalizeSize(value), onLocalWidthChange)
           }
-          onCancel={() => editGestureController.cancel()}
+          onCancel={() => {
+            editGestureController.cancel();
+            onPreviewCancel?.();
+          }}
           prefix="W"
           width={AXIS_FIELD_WIDTH}
           min={policy.minSize}
@@ -185,7 +197,10 @@ const SingleGeometrySection = ({
           onPreview={(value) =>
             previewSize('height', normalizeSize(value), onLocalHeightChange)
           }
-          onCancel={() => editGestureController.cancel()}
+          onCancel={() => {
+            editGestureController.cancel();
+            onPreviewCancel?.();
+          }}
           prefix="H"
           width={AXIS_FIELD_WIDTH}
           min={policy.minSize}
@@ -202,7 +217,10 @@ const SingleGeometrySection = ({
           value={keyPosition.rotation ?? 0}
           onPreview={onRotationPreview}
           onChange={onRotationCommit}
-          onCancel={() => editGestureController.cancel()}
+          onCancel={() => {
+            editGestureController.cancel();
+            onPreviewCancel?.();
+          }}
         />
       )}
     </PropertySection>

@@ -189,6 +189,7 @@ const DocumentElementPanel = ({
     ? t(definition.label) || element.kind
     : t('elementKinds.unknownKind') || element.kind;
   const title = element.name || kindLabel;
+  const aspectLocked = definition?.lockAspect?.(values as never) === true;
 
   const commitValues = (next: Values) => {
     const merged = { ...values, ...next };
@@ -211,20 +212,32 @@ const DocumentElementPanel = ({
         } as unknown as KeyPosition
       }
       kind="knob"
-      onGeometryPreview={(field, value) =>
+      onGeometryPreview={(field, value) => {
+        const { width, height } = element.frame;
+        const locked = aspectLocked && width > 0 && height > 0;
         useDocumentFramePreviewStore.getState().set(element.id, {
           ...element.frame,
-          [field === 'dx' ? 'x' : field === 'dy' ? 'y' : field]: value,
-        })
+          ...(locked && field === 'width'
+            ? {
+                width: value,
+                height: Math.max(1, Math.round((value * height) / width)),
+              }
+            : locked && field === 'height'
+            ? {
+                width: Math.max(1, Math.round((value * width) / height)),
+                height: value,
+              }
+            : { [field === 'dx' ? 'x' : field === 'dy' ? 'y' : field]: value }),
+        });
+      }}
+      onPreviewCancel={() =>
+        useDocumentFramePreviewStore.getState().clear(element.id)
       }
       onGeometryCommit={(field, value) => {
         useDocumentFramePreviewStore.getState().clear(element.id);
         const { width, height } = element.frame;
         // 비율을 잠근 종류는 너비·높이를 함께 바꿔 지금 비율을 지킨다
-        const locked =
-          definition?.lockAspect?.(values as never) === true &&
-          width > 0 &&
-          height > 0;
+        const locked = aspectLocked && width > 0 && height > 0;
         if (locked && field === 'width') {
           void setDocumentFrame(sceneId, element.id, {
             width: value,

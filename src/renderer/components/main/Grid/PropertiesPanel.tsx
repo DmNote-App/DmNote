@@ -1158,6 +1158,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       return (
         <EditSessionScope>
           <DocumentElementPanel
+            // 요소가 바뀌면 입력 중 값·이름 바꾸기 상태를 새로 시작한다
+            key={`${documentSceneId}:${documentElementId}`}
             sceneId={documentSceneId}
             elementId={documentElementId}
             panelElement={panelElement}
