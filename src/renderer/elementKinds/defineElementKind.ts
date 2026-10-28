@@ -116,14 +116,79 @@ export interface ElementKindCode<Values> {
   readonly label?: string;
   // 그리기 코드 하나 - 편집 화면(미리보기)과 오버레이·OBS(실제 신호)가 같이 쓴다
   readonly render?: ComponentType<ElementRenderProps<Values>>;
+  // 크기 조절 때 비율을 지킬지
+  readonly lockAspect?: (values: Values) => boolean;
+  // 값이 바뀔 때 함께 맞출 위치·크기 (예: 비율 고정으로 바꾸면 높이를 비율에 맞춘다)
+  readonly adjustFrame?: (
+    values: Values,
+    frame: FramePatchDecl & { width: number; height: number },
+  ) => Promise<FramePatchDecl | null> | FramePatchDecl | null;
+  // 속성 패널 선언 - 섹션 순서도 종류가 정한다
+  readonly panel?: readonly PanelSectionDecl<Values>[];
+  // 캔버스 우클릭 추가 메뉴 이름 (i18n 키)
+  readonly addLabel?: string;
+  readonly deleteLabel?: string;
+  readonly duplicateLabel?: string;
 }
+
+export interface FramePatchDecl {
+  readonly x?: number;
+  readonly y?: number;
+  readonly width?: number;
+  readonly height?: number;
+  readonly rotation?: number;
+}
+
+// 패널 칸 하나의 입력 - 지금 패널 부품(NumberInput·Dropdown·Checkbox·ColorInput)으로 그린다
+export type PanelControlDecl =
+  | {
+      readonly type: 'number';
+      readonly min?: number;
+      readonly max?: number;
+      readonly suffix?: string;
+      readonly decimalScale?: number;
+    }
+  | {
+      readonly type: 'select';
+      readonly options: readonly { value: string; label: string }[];
+    }
+  | { readonly type: 'toggle' }
+  | { readonly type: 'color' }
+  // 칸 하나 단위 탈출구 - 선언으로 안 되는 입력은 직접 만든 컴포넌트를 끼운다
+  | {
+      readonly type: 'custom';
+      readonly component: ComponentType<PanelFieldControlProps>;
+    };
+
+export interface PanelFieldControlProps {
+  value: JsonValue | undefined;
+  onCommit: (value: JsonValue) => void;
+}
+
+export interface PanelRowDecl<Values> {
+  readonly field: string;
+  // i18n 키
+  readonly label: string;
+  readonly control: PanelControlDecl;
+  readonly visible?: (values: Values) => boolean;
+}
+
+export type PanelSectionDecl<Values> =
+  | { readonly rows: readonly PanelRowDecl<Values>[] }
+  // 공통 위치·크기 섹션 자리
+  | { readonly common: 'geometry' }
+  // 기능 묶음 섹션
+  | { readonly bundle: BundleName };
 
 export type ElementKindDefinition<D extends ElementKindData = ElementKindData> =
   D & ElementKindCode<KindValues<D>>;
 
+// 첫 인수는 백엔드가 읽는 데이터(추출 대상), 둘째 인수는 코드 부분.
+// 둘을 나누면 데이터의 리터럴 타입이 먼저 정해지고 코드가 그 값 타입으로 검사된다
 export const defineElementKind = <const D extends ElementKindData>(
-  definition: D & ElementKindCode<KindValues<D>>,
-): ElementKindDefinition<D> => definition;
+  data: D,
+  code: ElementKindCode<KindValues<D>> = {},
+): ElementKindDefinition<D> => ({ ...data, ...code });
 
 // 추출 결과와 같은 모양의 데이터 부분
 export const elementKindData = (

@@ -4,6 +4,7 @@
  * - 그리드 컨텍스트 메뉴 항목 생성
  */
 
+import { DOCUMENT_ADD_MENU_ITEMS } from '@components/main/Grid/document/documentAddMenu';
 import { useRef } from 'react';
 
 import type {
@@ -276,6 +277,11 @@ export function useGridContextMenu({
       ...CREATABLE_ITEM_TYPES.map((type) => ({
         id: ITEM_KIND_MENUS[type].addId,
         label: t(ITEM_KIND_MENUS[type].gridAddLabel),
+      })),
+      // 트리 문서에만 있는 종류(커서 트래커 등)
+      ...DOCUMENT_ADD_MENU_ITEMS.map(({ id, label }) => ({
+        id,
+        label: t(label),
       })),
     ];
     // 묶음 안에서는 부모가 맥락을 주므로 라벨을 줄인다

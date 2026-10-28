@@ -4,7 +4,8 @@ import { useSyncExternalStore } from 'react';
 import { elementDocumentApi } from '@api/modules/editor/elementDocumentApi';
 import { BUILTIN_ELEMENT_KINDS } from '@src/renderer/elementKinds/builtinKinds';
 import { elementKindData } from '@src/renderer/elementKinds/defineElementKind';
-import type { Element, Scene } from '@src/types/generated/elementDocument';
+import type { Scene } from '@src/types/generated/elementDocument';
+import type { ElementNode } from './documentPatch';
 import {
   createEditorDocumentStore,
   createMirrorDocumentStore,
@@ -87,7 +88,7 @@ export const useElementDocumentScene = (sceneId: string): Scene | undefined =>
 export const useDocumentElement = (
   sceneId: string,
   id: string,
-): Element | undefined =>
+): ElementNode | undefined =>
   useSyncExternalStore(
     subscribeStore,
     () => current?.getElement(sceneId, id),

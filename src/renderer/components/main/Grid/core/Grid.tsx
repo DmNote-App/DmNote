@@ -106,6 +106,14 @@ import {
 import DuplicateElementGhost from './DuplicateElementGhost';
 import NativeGridElements from './NativeGridElements';
 import GridSelectionOverlays from '../overlays/GridSelectionOverlays';
+import DocumentContextMenu from '../document/DocumentContextMenu';
+import { useDocumentContextMenuStore } from '../document/useDocumentContextMenuStore';
+import DocumentGridLayer from '../document/DocumentGridLayer';
+import DocumentSelectionOverlay from '../document/DocumentSelectionOverlay';
+import { documentKindForAddMenuItem } from '../document/documentAddMenu';
+import { insertDocumentElement } from '../document/documentEditActions';
+import { useDocumentKeyboard } from '../document/useDocumentKeyboard';
+import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
 import { executeNativeContextMenuAction } from './nativeContextMenuActions';
 import { useSelectedElementDragLifecycle } from '@hooks/Grid/drag/useSelectedElementDragLifecycle';
 
@@ -603,6 +611,7 @@ const Grid = ({
   useEffect(() => {
     if (previousSelectedKeyTypeRef.current !== selectedKeyType) {
       clearSelection();
+      useDocumentSelectionStore.getState().clear();
       setDuplicateState((prev) =>
         prev?.elementType === 'sprite' ? null : prev,
       );
@@ -734,6 +743,8 @@ const Grid = ({
   };
 
   // 그리드 좌클릭 핸들러 (빈 공간에서 드래그로 마퀴 선택 시작)
+  useDocumentKeyboard();
+
   const handleGridMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     // 좌클릭만 처리
     if (e.button !== 0) return;
@@ -753,6 +764,8 @@ const Grid = ({
 
     // 클릭 시 스마트 가이드 클리어 (드래그가 정상 종료되지 않은 경우 대비)
     useSmartGuidesStore.getState().clearGuides();
+    // 빈 곳을 누르면 트리 요소 선택도 푼다
+    useDocumentSelectionStore.getState().clear();
 
     // 그리드 빈 공간에서 드래그로 마퀴 선택 시작
     const gridCoords = clientToGridCoords(e.clientX, e.clientY);
@@ -907,6 +920,24 @@ const Grid = ({
             onMultiDragStart={beginSelectedPluginInstancesDrag}
             onMultiDragEnd={commitSelectedElementsDrag}
           />
+          {/* 트리 문서에만 있는 종류 (커서 트래커 등) */}
+          <DocumentGridLayer
+            sceneId={selectedKeyType}
+            zoom={zoom}
+            onElementContextMenu={(event, element) => {
+              event.preventDefault();
+              event.stopPropagation();
+              useDocumentSelectionStore
+                .getState()
+                .select(selectedKeyType, element.id);
+              useDocumentContextMenuStore.getState().open({
+                sceneId: selectedKeyType,
+                id: element.id,
+                x: event.clientX,
+                y: event.clientY,
+              });
+            }}
+          />
         </div>
       </div>
       {/* 스마트 가이드 오버레이 */}
@@ -933,6 +964,13 @@ const Grid = ({
         onGroupResizeEnd={handleGroupResizeComplete}
         getOtherElements={getOtherElements}
       />
+      <DocumentSelectionOverlay
+        sceneId={selectedKeyType}
+        zoom={zoom}
+        panX={panX}
+        panY={panY}
+      />
+      <DocumentContextMenu />
       {/* 우클릭 리스트 팝업 */}
       <div className="relative">
         <ListPopup
@@ -1162,8 +1200,20 @@ const Grid = ({
             }
 
             // 기본 메뉴 처리
+            const documentKind = documentKindForAddMenuItem(id);
             const addType = gridAddTypeForMenuItem(id);
-            if (addType && gridAddLocalPos) {
+            if (documentKind && gridAddLocalPos) {
+              void insertDocumentElement(selectedKeyType, documentKind, {
+                x: gridAddLocalPos.dx,
+                y: gridAddLocalPos.dy,
+              }).then((elementId) => {
+                if (elementId) {
+                  useDocumentSelectionStore
+                    .getState()
+                    .select(selectedKeyType, elementId);
+                }
+              });
+            } else if (addType && gridAddLocalPos) {
               addCanvasElementAt(
                 canvasActions,
                 addType,

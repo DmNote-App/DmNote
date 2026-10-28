@@ -26,6 +26,8 @@ const ADD_IDS = [
   'addGraph',
   'addKnob',
   ...(SPRITE_CREATION_ENABLED ? ['addSprite'] : []),
+  // 트리 문서에만 있는 종류
+  'addDocument:cursorTracker',
 ];
 
 vi.mock('@stores/plugin/usePluginMenuStore', () => ({

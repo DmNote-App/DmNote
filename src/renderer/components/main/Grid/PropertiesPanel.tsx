@@ -40,6 +40,8 @@ import { PanelNavProvider } from './PropertiesPanel/navigation/PanelNavContext';
 import PanelHeaderActions from './PropertiesPanel/navigation/PanelHeaderActions';
 import PanelToggleButton from './PropertiesPanel/navigation/PanelToggleButton';
 import { EditSessionScope } from '@src/renderer/contexts/EditSessionScope';
+import DocumentElementPanel from './PropertiesPanel/document/DocumentElementPanel';
+import { useDocumentSelectionStore } from './document/useDocumentSelectionStore';
 import { previewSingleGraphColor } from './PropertiesPanel/selection/previewPatchForwarders';
 import PluginSettingsForm from './PropertiesPanel/plugin/PluginSettingsForm';
 import { usePropertiesPanelSelection } from './PropertiesPanel/selection/usePropertiesPanelSelection';
@@ -199,6 +201,11 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
   // 패널 ref (컬러픽커/이미지픽커 위치 기준)
   const [panelElement, setPanelElement] = useState<HTMLDivElement | null>(null);
+  // 트리 문서에만 있는 종류(커서 트래커 등)의 선택 - 옛 종류 선택과 동시에 서지 않는다
+  const documentSceneId = useDocumentSelectionStore((state) => state.sceneId);
+  const documentElementId = useDocumentSelectionStore(
+    (state) => state.selectedIds[0] ?? null,
+  );
 
   // 패널 모드 (layer: 레이어 패널, property: 속성 패널)
   // 설정 왕복으로 리마운트돼도 열림 상태와 함께 보존되도록 store에 유지
@@ -1147,6 +1154,20 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
+    if (documentSceneId && documentElementId) {
+      return (
+        <EditSessionScope>
+          <DocumentElementPanel
+            sceneId={documentSceneId}
+            elementId={documentElementId}
+            panelElement={panelElement}
+            setPanelElement={setPanelElement}
+            t={t}
+          />
+        </EditSessionScope>
+      );
+    }
+
     // 선택된 키 요소가 없으면 레이어 패널 표시
     if (selectedKeyElements.length === 0 && selectedElements.length === 0) {
       return (
@@ -1178,7 +1199,9 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
   // 헤더 액션 기준 모드 — panelMode가 property여도 선택이 없으면 레이어 뷰가 표시됨
   const hasAnySelection =
-    selectedKeyElements.length > 0 || selectedElements.length > 0;
+    selectedKeyElements.length > 0 ||
+    selectedElements.length > 0 ||
+    documentElementId !== null;
   const displayedPanelMode =
     panelMode === 'layer' || !hasAnySelection ? 'layer' : 'property';
 

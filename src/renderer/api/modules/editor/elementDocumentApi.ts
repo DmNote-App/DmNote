@@ -20,7 +20,7 @@ export type ElementDocumentCommitResult =
       status: 'rejected';
       revision: number;
       // VIOLATION: 규칙에 어긋남, MANAGED_ELSEWHERE: 옛 저장 모양 경로로만 고칠 수 있는 대상
-      code: 'VIOLATION' | 'MANAGED_ELSEWHERE';
+      code: 'VIOLATION' | 'MANAGED_ELSEWHERE' | 'HISTORY_IN_PROGRESS';
       violations: Violation[];
     };
 

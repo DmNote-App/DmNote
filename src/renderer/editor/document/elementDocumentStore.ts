@@ -5,7 +5,6 @@
 import type {
   ChangeSet,
   Document,
-  Element,
   Op,
   Scene,
   Violation,
@@ -31,7 +30,7 @@ export interface ElementDocumentStore {
   getRevision(): number;
   // 장면이 바뀌기 전까지 같은 객체를 돌려준다 (useSyncExternalStore 스냅샷)
   getScene(sceneId: string): Scene | undefined;
-  getElement(sceneId: string, id: string): Element | undefined;
+  getElement(sceneId: string, id: string): ElementNode | undefined;
   subscribe(listener: ElementDocumentListener): () => void;
   // 편집 창만 - 오버레이·OBS는 undefined
   edit?: (ops: Op[]) => Promise<ElementDocumentEditResult>;
