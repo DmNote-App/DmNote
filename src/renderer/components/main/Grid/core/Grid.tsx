@@ -29,10 +29,13 @@ import {
   getItemStoreState,
 } from '@src/renderer/editor/model/elementStores';
 import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
+import { defaultElementSize } from '@src/types/elementKinds';
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
+  isItemElementType,
   modeArraysOf,
   type ElementCollections,
+  type ItemElementType,
 } from '@src/types/editor';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import TabCssModal from '../../Modal/content/editors/TabCssModal';
@@ -196,10 +199,7 @@ const Grid = ({
   // 컨텍스트 메뉴 훅 사용
   const {
     getKeyMenuItems,
-    getStatMenuItems,
-    getGraphMenuItems,
-    getKnobMenuItems,
-    getSpriteMenuItems,
+    getItemMenuItems,
     getGridMenuItems,
     pluginKeyMenuItems,
     pluginGridMenuItems,
@@ -411,29 +411,8 @@ const Grid = ({
   };
 
   // 복제 시작은 로컬 UI 상태(duplicateState) 설정이 필요하므로 래퍼 사용
-  const beginDuplicateStat = (sourceIndex: number) => {
-    const result = canvasActions.beginDuplicateStat(sourceIndex);
-    if (!result) return;
-    setDuplicateState(result);
-    setDuplicateCursor(null);
-  };
-
-  const beginDuplicateGraph = (sourceIndex: number) => {
-    const result = canvasActions.beginDuplicateGraph(sourceIndex);
-    if (!result) return;
-    setDuplicateState(result);
-    setDuplicateCursor(null);
-  };
-
-  const beginDuplicateKnob = (sourceIndex: number) => {
-    const result = canvasActions.beginDuplicateKnob(sourceIndex);
-    if (!result) return;
-    setDuplicateState(result);
-    setDuplicateCursor(null);
-  };
-
-  const beginDuplicateSprite = (sourceIndex: number) => {
-    const result = canvasActions.beginDuplicateSprite(sourceIndex);
+  const beginDuplicateItem = (type: ItemElementType, sourceIndex: number) => {
+    const result = canvasActions.beginDuplicateItem(type, sourceIndex);
     if (!result) return;
     setDuplicateState(result);
     setDuplicateCursor(null);
@@ -565,12 +544,7 @@ const Grid = ({
       };
     };
 
-    const defaultSize =
-      toolbarAddRequest.type === 'graph'
-        ? { width: 120, height: 60 }
-        : toolbarAddRequest.type === 'sprite'
-        ? { width: 200, height: 200 }
-        : { width: 60, height: 60 };
+    const defaultSize = defaultElementSize(toolbarAddRequest.type);
     const targetPos = getViewportCenterSnappedPosition(
       defaultSize.width,
       defaultSize.height,
@@ -960,14 +934,8 @@ const Grid = ({
           items={
             contextType === 'mixed'
               ? mixedSelectionMenuItems
-              : contextType === 'stat'
-              ? getStatMenuItems(contextIndex)
-              : contextType === 'graph'
-              ? getGraphMenuItems(contextIndex)
-              : contextType === 'knob'
-              ? getKnobMenuItems(contextIndex)
-              : contextType === 'sprite'
-              ? getSpriteMenuItems(contextIndex)
+              : isItemElementType(contextType)
+              ? getItemMenuItems(contextType)
               : getKeyMenuItems(contextIndex, contextElementId)
           }
           onSelect={async (id: string) => {
@@ -1012,12 +980,7 @@ const Grid = ({
                 : null;
             };
 
-            if (
-              contextType === 'stat' ||
-              contextType === 'graph' ||
-              contextType === 'knob' ||
-              contextType === 'sprite'
-            ) {
+            if (isItemElementType(contextType)) {
               const targetType = contextType;
               const targetIndex = resolveContextTarget(targetType);
               executeNativeContextMenuAction({
@@ -1026,14 +989,8 @@ const Grid = ({
                 mode: selectedKeyType,
                 elementId: contextElementId,
                 resolvedIndex: targetIndex,
-                onDuplicate: (resolvedIndex) => {
-                  if (targetType === 'stat') beginDuplicateStat(resolvedIndex);
-                  else if (targetType === 'graph')
-                    beginDuplicateGraph(resolvedIndex);
-                  else if (targetType === 'sprite')
-                    beginDuplicateSprite(resolvedIndex);
-                  else beginDuplicateKnob(resolvedIndex);
-                },
+                onDuplicate: (resolvedIndex) =>
+                  beginDuplicateItem(targetType, resolvedIndex),
               });
               setIsContextOpen(false);
               setContextPosition(null);

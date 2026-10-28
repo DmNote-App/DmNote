@@ -160,9 +160,9 @@ describe('useGridCanvasActions create와 ghost duplicate', () => {
   it('add 4종은 기존 기본 payload와 zIndex 부재를 frozen helper에 전달한다', () => {
     act(() => {
       actions.addKeyAtPosition(7, 8);
-      actions.addStatAtPosition(1, 2);
-      actions.addGraphAtPosition(3, 4);
-      actions.addKnobAtPosition(5, 6);
+      actions.addItemAtPosition('stat', 1, 2);
+      actions.addItemAtPosition('graph', 3, 4);
+      actions.addItemAtPosition('knob', 5, 6);
     });
 
     expect(core.addKeyAt).toHaveBeenCalledWith('4key', 7, 8);
@@ -190,7 +190,7 @@ describe('useGridCanvasActions create와 ghost duplicate', () => {
 
   it('addSpriteAtPosition은 기본값 계약과 id 선발급을 고정한다', () => {
     act(() => {
-      actions.addSpriteAtPosition(11, 22);
+      actions.addItemAtPosition('sprite', 11, 22);
     });
 
     expect(core.addSpriteAt).toHaveBeenCalledTimes(1);
@@ -311,10 +311,10 @@ describe('useGridCanvasActions create와 ghost duplicate', () => {
     const sourceKnob = knob('knob-0');
     const sourceSprite = sprite('sprite-0');
     act(() => {
-      actions.placeDuplicateStat(sourceStat, 1.25, 2.75);
-      actions.placeDuplicateGraph(sourceGraph, 3.25, 4.75);
-      actions.placeDuplicateKnob(sourceKnob, 5.25, 6.75);
-      actions.placeDuplicateSprite(sourceSprite, 7.25, 8.75);
+      actions.placeDuplicateItem('stat', sourceStat, 1.25, 2.75);
+      actions.placeDuplicateItem('graph', sourceGraph, 3.25, 4.75);
+      actions.placeDuplicateItem('knob', sourceKnob, 5.25, 6.75);
+      actions.placeDuplicateItem('sprite', sourceSprite, 7.25, 8.75);
     });
 
     expect(core.placeDuplicatedStat).toHaveBeenCalledWith(

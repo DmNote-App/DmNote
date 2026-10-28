@@ -17,7 +17,11 @@ import { useSettingsStore } from '@stores/useSettingsStore';
 import { translatePluginMessage } from '@utils/plugin/pluginI18n';
 import type { KeyMappings, KeyPosition } from '@src/types/key/keys';
 import { slotCanonical } from '@utils/keySlot';
-import { SPRITE_CREATION_ENABLED } from '@src/types/key/sprites';
+import type { ItemElementType } from '@src/types/editor';
+import {
+  CREATABLE_ITEM_TYPES,
+  ITEM_KIND_MENUS,
+} from '@components/main/Grid/core/elementKindMenus';
 import type {
   PluginMenuItemInternal,
   KeyMenuContext,
@@ -83,10 +87,7 @@ interface UseGridContextMenuReturn {
     contextIndex: number | null,
     contextElementId?: string | null,
   ) => MenuItem[];
-  getStatMenuItems: (contextIndex: number | null) => MenuItem[];
-  getGraphMenuItems: (contextIndex: number | null) => MenuItem[];
-  getKnobMenuItems: (contextIndex: number | null) => MenuItem[];
-  getSpriteMenuItems: (contextIndex: number | null) => MenuItem[];
+  getItemMenuItems: (type: ItemElementType) => MenuItem[];
   getGridMenuItems: (
     gridAddLocalPos: { dx: number; dy: number } | null,
   ) => MenuEntry[];
@@ -259,31 +260,10 @@ export function useGridContextMenu({
     return [...topPluginItems, ...baseItems, ...bottomPluginItems];
   };
 
-  // 그리드 메뉴 아이템 생성 (기본 + 플러그인)
-  const getStatMenuItems = (_contextIndex: number | null): MenuItem[] => [
-    { id: 'delete', label: t('contextMenu.deleteStat') },
-    { id: 'duplicate', label: t('contextMenu.duplicateStat') },
-    { id: 'bringToFront', label: t('contextMenu.bringToFront') },
-    { id: 'sendToBack', label: t('contextMenu.sendToBack') },
-  ];
-
-  const getGraphMenuItems = (_contextIndex: number | null): MenuItem[] => [
-    { id: 'delete', label: t('contextMenu.deleteGraph') },
-    { id: 'duplicate', label: t('contextMenu.duplicateGraph') },
-    { id: 'bringToFront', label: t('contextMenu.bringToFront') },
-    { id: 'sendToBack', label: t('contextMenu.sendToBack') },
-  ];
-
-  const getKnobMenuItems = (_contextIndex: number | null): MenuItem[] => [
-    { id: 'delete', label: t('contextMenu.deleteKnob') },
-    { id: 'duplicate', label: t('contextMenu.duplicateKnob') },
-    { id: 'bringToFront', label: t('contextMenu.bringToFront') },
-    { id: 'sendToBack', label: t('contextMenu.sendToBack') },
-  ];
-
-  const getSpriteMenuItems = (_contextIndex: number | null): MenuItem[] => [
-    { id: 'delete', label: t('contextMenu.deleteSprite') },
-    { id: 'duplicate', label: t('contextMenu.duplicateSprite') },
+  // 키 외 요소 메뉴 - 종류별 라벨만 다르다
+  const getItemMenuItems = (type: ItemElementType): MenuItem[] => [
+    { id: 'delete', label: t(ITEM_KIND_MENUS[type].deleteLabel) },
+    { id: 'duplicate', label: t(ITEM_KIND_MENUS[type].duplicateLabel) },
     { id: 'bringToFront', label: t('contextMenu.bringToFront') },
     { id: 'sendToBack', label: t('contextMenu.sendToBack') },
   ];
@@ -293,12 +273,10 @@ export function useGridContextMenu({
   ): MenuEntry[] => {
     const topBaseItems: MenuItem[] = [
       { id: 'add', label: t('contextMenu.addKey') },
-      { id: 'addStat', label: t('contextMenu.addStat') },
-      { id: 'addGraph', label: t('contextMenu.addGraph') },
-      { id: 'addKnob', label: t('contextMenu.addKnob') },
-      ...(SPRITE_CREATION_ENABLED
-        ? [{ id: 'addSprite', label: t('contextMenu.addSprite') }]
-        : []),
+      ...CREATABLE_ITEM_TYPES.map((type) => ({
+        id: ITEM_KIND_MENUS[type].addId,
+        label: t(ITEM_KIND_MENUS[type].gridAddLabel),
+      })),
     ];
     // 묶음 안에서는 부모가 맥락을 주므로 라벨을 줄인다
     const tabItems: MenuItem[] = [
@@ -358,10 +336,7 @@ export function useGridContextMenu({
 
   return {
     getKeyMenuItems,
-    getStatMenuItems,
-    getGraphMenuItems,
-    getKnobMenuItems,
-    getSpriteMenuItems,
+    getItemMenuItems,
     getGridMenuItems,
     pluginKeyMenuItems,
     pluginGridMenuItems,

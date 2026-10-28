@@ -183,6 +183,9 @@ export const isEditorElementType = (
 // 키 외 요소 종류 - 키는 keys 매핑과 인덱스 결합이라 경로가 다르다
 export type ItemElementType = Exclude<EditorElementTypeV1, 'key'>;
 
+export const isItemElementType = (value: unknown): value is ItemElementType =>
+  isEditorElementType(value) && value !== 'key';
+
 export const ITEM_ELEMENT_TYPES = EDITOR_ELEMENT_TYPES.filter(
   (type): type is ItemElementType => type !== 'key',
 );

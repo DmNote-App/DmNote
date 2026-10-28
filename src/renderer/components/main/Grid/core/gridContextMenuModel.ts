@@ -8,6 +8,7 @@ import {
   summarizeSelectionGrouping,
   type GroupSelectionSource,
 } from '@utils/grid/groupSelection';
+import { itemTypeForAddId } from './elementKindMenus';
 
 type Translate = (key: string) => string;
 
@@ -74,9 +75,5 @@ export const gridAddTypeForMenuItem = (
   id: string,
 ): IndexedSelectableElementType | null => {
   if (id === 'add') return 'key';
-  if (id === 'addStat') return 'stat';
-  if (id === 'addGraph') return 'graph';
-  if (id === 'addKnob') return 'knob';
-  if (id === 'addSprite') return 'sprite';
-  return null;
+  return itemTypeForAddId(id);
 };

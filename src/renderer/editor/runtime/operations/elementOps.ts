@@ -32,7 +32,9 @@ import {
 import { EDITOR_ELEMENT_POSITION_FIELDS } from '@src/types/editor';
 import type {
   CanonicalEditorDocumentV1,
+  CanonicalPositionOf,
   EditorFrozenElementV1,
+  ItemElementType,
 } from '@src/types/editor';
 import type { KeyPosition, KeySlot } from '@src/types/key/keys';
 import type { StatItemPosition } from '@src/types/key/statItems';
@@ -365,25 +367,36 @@ export const addKeyAt = (mode: string, dx: number, dy: number) =>
     position: createDefaultKeyPosition(dx, dy),
   });
 
+// 키 외 요소 추가 - 키는 keys 슬롯과 함께 넣는 addKeyAt
+export const addItemAt = <K extends ItemElementType>(
+  mode: string,
+  type: K,
+  position: CanonicalPositionOf<K>,
+) =>
+  insertFrozenElement(mode, {
+    elementType: type,
+    position,
+  } as EditorFrozenElementV1);
+
 export const addStatAt = (
   mode: string,
   position: StatItemPosition & { id: string },
-) => insertFrozenElement(mode, { elementType: 'stat', position });
+) => addItemAt(mode, 'stat', position);
 
 export const addGraphAt = (
   mode: string,
   position: GraphItemPosition & { id: string },
-) => insertFrozenElement(mode, { elementType: 'graph', position });
+) => addItemAt(mode, 'graph', position);
 
 export const addKnobAt = (
   mode: string,
   position: KnobItemPosition & { id: string },
-) => insertFrozenElement(mode, { elementType: 'knob', position });
+) => addItemAt(mode, 'knob', position);
 
 export const addSpriteAt = (
   mode: string,
   position: ReactiveSpritePosition & { id: string },
-) => insertFrozenElement(mode, { elementType: 'sprite', position });
+) => addItemAt(mode, 'sprite', position);
 
 const groupForMode = (mode: string, groupId: string | undefined) =>
   groupId &&
@@ -410,24 +423,52 @@ export const placeDuplicatedKey = (
   });
 };
 
+// 키 외 요소 복제 배치 - 새 신원, 현재 모드에 없는 그룹 해제, 지정 zIndex
+export const placeDuplicatedItem = (
+  mode: string,
+  type: ItemElementType,
+  source: { groupId?: string | null },
+  dx: number,
+  dy: number,
+  zIndex: number,
+) => {
+  if (type === 'sprite') {
+    const cloned = structuredClone(source as ReactiveSpritePosition);
+    return insertFrozenElement(mode, {
+      elementType: 'sprite',
+      // wire 정규화: 원본의 명시 null layerName·groupId도 키 부재로 맞춘다
+      position: toSpriteWireShape({
+        ...cloned,
+        id: newElementId(),
+        // 사본 poseId 재발급 - 원본과 공유하면 백엔드가 중복으로 거부
+        poses: reissueSpritePoseIds(cloned.poses),
+        groupId: groupForMode(mode, source.groupId ?? undefined),
+        dx,
+        dy,
+        zIndex,
+      }),
+    });
+  }
+  return insertFrozenElement(mode, {
+    elementType: type,
+    position: {
+      ...structuredClone(source),
+      id: newElementId(),
+      groupId: groupForMode(mode, source.groupId ?? undefined),
+      dx,
+      dy,
+      zIndex,
+    },
+  } as EditorFrozenElementV1);
+};
+
 export const placeDuplicatedStat = (
   mode: string,
   source: StatItemPosition,
   dx: number,
   dy: number,
   zIndex: number,
-) =>
-  insertFrozenElement(mode, {
-    elementType: 'stat',
-    position: {
-      ...structuredClone(source),
-      id: newElementId(),
-      groupId: groupForMode(mode, source.groupId),
-      dx,
-      dy,
-      zIndex,
-    },
-  });
+) => placeDuplicatedItem(mode, 'stat', source, dx, dy, zIndex);
 
 export const placeDuplicatedGraph = (
   mode: string,
@@ -435,18 +476,7 @@ export const placeDuplicatedGraph = (
   dx: number,
   dy: number,
   zIndex: number,
-) =>
-  insertFrozenElement(mode, {
-    elementType: 'graph',
-    position: {
-      ...structuredClone(source),
-      id: newElementId(),
-      groupId: groupForMode(mode, source.groupId),
-      dx,
-      dy,
-      zIndex,
-    },
-  });
+) => placeDuplicatedItem(mode, 'graph', source, dx, dy, zIndex);
 
 export const placeDuplicatedKnob = (
   mode: string,
@@ -454,18 +484,7 @@ export const placeDuplicatedKnob = (
   dx: number,
   dy: number,
   zIndex: number,
-) =>
-  insertFrozenElement(mode, {
-    elementType: 'knob',
-    position: {
-      ...structuredClone(source),
-      id: newElementId(),
-      groupId: groupForMode(mode, source.groupId),
-      dx,
-      dy,
-      zIndex,
-    },
-  });
+) => placeDuplicatedItem(mode, 'knob', source, dx, dy, zIndex);
 
 export const placeDuplicatedSprite = (
   mode: string,
@@ -473,23 +492,7 @@ export const placeDuplicatedSprite = (
   dx: number,
   dy: number,
   zIndex: number,
-) => {
-  const cloned = structuredClone(source);
-  return insertFrozenElement(mode, {
-    elementType: 'sprite',
-    // wire 정규화: 원본의 명시 null layerName·groupId도 키 부재로 맞춘다
-    position: toSpriteWireShape({
-      ...cloned,
-      id: newElementId(),
-      // 사본 poseId 재발급 - 원본과 공유하면 백엔드가 중복으로 거부
-      poses: reissueSpritePoseIds(cloned.poses),
-      groupId: groupForMode(mode, source.groupId ?? undefined),
-      dx,
-      dy,
-      zIndex,
-    }),
-  });
-};
+) => placeDuplicatedItem(mode, 'sprite', source, dx, dy, zIndex);
 
 // 키 슬롯 재바인딩: keys만 바꾸되 대상은 paired 위치의 안정 id로 재결합한다.
 // index 기반 keys 단독 커밋은 same-shape 재정렬과 겹치면 다른 위치 id와

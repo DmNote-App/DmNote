@@ -12,7 +12,11 @@ import { TooltipGroup } from '../Modal/tooltip/TooltipGroup';
 import ListPopup from '../Modal/listPopup/ListPopup';
 import { useIconMotion } from '@hooks/useIconMotion';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { SPRITE_CREATION_ENABLED } from '@src/types/key/sprites';
+import {
+  CREATABLE_ITEM_TYPES,
+  ITEM_KIND_MENUS,
+  itemTypeForAddId,
+} from '@components/main/Grid/core/elementKindMenus';
 import type { EditorElementTypeV1 } from '@src/types/editor';
 
 type SelectableTool = 'move' | 'eraser';
@@ -182,25 +186,14 @@ const CanvasTool = ({
         onClose={() => setIsAddPopupOpen(false)}
         items={[
           { id: 'addKey', label: t('toolbar.addKey') },
-          { id: 'addStat', label: t('toolbar.addStat') },
-          { id: 'addGraph', label: t('toolbar.addGraph') },
-          { id: 'addKnob', label: t('toolbar.addKnob') },
-          ...(SPRITE_CREATION_ENABLED
-            ? [{ id: 'addSprite', label: t('toolbar.addSprite') }]
-            : []),
+          ...CREATABLE_ITEM_TYPES.map((type) => ({
+            id: ITEM_KIND_MENUS[type].addId,
+            label: t(ITEM_KIND_MENUS[type].toolbarAddLabel),
+          })),
         ]}
         onSelect={(id) => {
-          if (id === 'addKey') {
-            onAddItem('key');
-          } else if (id === 'addStat') {
-            onAddItem('stat');
-          } else if (id === 'addGraph') {
-            onAddItem('graph');
-          } else if (id === 'addKnob') {
-            onAddItem('knob');
-          } else if (id === 'addSprite') {
-            onAddItem('sprite');
-          }
+          const itemType = id === 'addKey' ? 'key' : itemTypeForAddId(id);
+          if (itemType) onAddItem(itemType);
           setIsAddPopupOpen(false);
         }}
       />

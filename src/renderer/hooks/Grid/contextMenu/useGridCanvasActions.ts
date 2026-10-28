@@ -1,110 +1,59 @@
 /**
- * 캔버스 요소(stat/graph) CRUD 및 z-order 액션 훅
- * Grid.tsx에서 추출된 stat/graph 편집 로직
+ * 캔버스 요소 추가·복제 및 z-order 액션 훅
+ * 키 외 종류별 생성·복제 규칙은 itemCanvasRules
  */
 
-import { newElementId } from '@src/renderer/editor/model/elementId';
-import { DEFAULT_ELEMENT_ROTATION } from '@src/types/key/rotation';
 import {
   addKeyAt,
-  addGraphAt,
-  addKnobAt,
-  addSpriteAt,
-  addStatAt,
-  placeDuplicatedGraph,
   placeDuplicatedKey,
-  placeDuplicatedKnob,
-  placeDuplicatedSprite,
-  placeDuplicatedStat,
 } from '@src/renderer/editor/runtime/operations/elementOps';
 import type { FrozenKeyDuplicate } from '@src/renderer/editor/runtime/operations/elementOps';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import {
+  getItemStoreState,
+  readAuthorityPositions,
+} from '@src/renderer/editor/model/elementStores';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import type { EditorElementTypeV1 } from '@src/types/editor';
+import {
+  EDITOR_ELEMENT_TYPES,
+  type CanonicalPositionOf,
+  type EditorElementTypeV1,
+  type ItemElementType,
+} from '@src/types/editor';
 import type { KeySlot, KeyPosition } from '@src/types/key/keys';
-import type { StatItemPosition } from '@src/types/key/statItems';
-import type { GraphItemPosition } from '@src/types/key/graphItems';
-import type { KnobItemPosition } from '@src/types/key/knobs';
-import {
-  CENTER_SPRITE_ANCHOR,
-  DEFAULT_SPRITE_ACTIVATION,
-  DEFAULT_SPRITE_PRESS_DURATION_MS,
-  DEFAULT_SPRITE_SIZE,
-  DEFAULT_SPRITE_TRANSITION_EASING,
-  DEFAULT_SPRITE_TRANSITION_MS,
-  IDENTITY_SPRITE_TRANSFORM,
-  type ReactiveSpritePosition,
-} from '@src/types/key/sprites';
-import type {
-  KeyCounterSettings,
-  CounterAnimationBezier,
-} from '@src/types/key/keys';
-import { createDefaultCounterSettings } from '@src/types/key/keys';
-import {
-  DEFAULT_ELEMENT_BG,
-  DEFAULT_ELEMENT_ACTIVE_BG,
-  DEFAULT_ELEMENT_FONT,
-  DEFAULT_ELEMENT_RADIUS,
-} from '@utils/element/elementDefaults';
-import { getLooseStatTypeLabel } from '@utils/grid/statTypeLabel';
-import { toSpriteWireShape } from '@utils/sprite/spriteWireShape';
+import { ITEM_CANVAS_RULES } from './itemCanvasRules';
 
-// 공통: zIndex 목록 수집 - 결과가 persist되는 z 계산에 쓰이므로 canonical 기준
-function collectAllZIndexes(mode: string) {
-  const keyPos = useKeyStore.getState().canonicalPositions[mode] || [];
-  const keyZIndexes = keyPos.map((p, i) => p.zIndex ?? i);
+// 공통: 최대 zIndex - 결과가 persist되는 z 계산에 쓰이므로 canonical 기준
+function getMaxZIndex(mode: string): number {
+  const nativeZIndexes = EDITOR_ELEMENT_TYPES.flatMap((type) =>
+    (
+      (readAuthorityPositions(type)[mode] || []) as Array<{
+        zIndex?: number | null;
+      }>
+    ).map((p, i) => p.zIndex ?? i),
+  );
 
-  const statPos = useStatItemStore.getState().positions[mode] || [];
-  const statZIndexes = statPos.map((p, i) => p.zIndex ?? i);
-
-  const graphPos = useGraphItemStore.getState().positions[mode] || [];
-  const graphZIndexes = graphPos.map((p, i) => p.zIndex ?? i);
-
-  const knobPos = useKnobItemStore.getState().positions[mode] || [];
-  const knobZIndexes = knobPos.map((p, i) => p.zIndex ?? i);
-
-  const spritePos = useSpriteStore.getState().positions[mode] || [];
-  const spriteZIndexes = spritePos.map((p, i) => p.zIndex ?? i);
-
-  const pluginEls = usePluginDisplayElementStore.getState().elements;
-  const pluginZIndexes = pluginEls
-    .filter((el) => !el.tabId || el.tabId === mode)
+  const pluginZIndexes = usePluginDisplayElementStore
+    .getState()
+    .elements.filter((el) => !el.tabId || el.tabId === mode)
     .map((el) => el.zIndex ?? 0);
 
-  return {
-    keyZIndexes,
-    statZIndexes,
-    graphZIndexes,
-    knobZIndexes,
-    spriteZIndexes,
-    pluginZIndexes,
-  };
+  return Math.max(0, ...nativeZIndexes, ...pluginZIndexes);
 }
 
-function getMaxZIndex(mode: string): number {
-  const {
-    keyZIndexes,
-    statZIndexes,
-    graphZIndexes,
-    knobZIndexes,
-    spriteZIndexes,
-    pluginZIndexes,
-  } = collectAllZIndexes(mode);
-  return Math.max(
-    0,
-    ...keyZIndexes,
-    ...statZIndexes,
-    ...graphZIndexes,
-    ...knobZIndexes,
-    ...spriteZIndexes,
-    ...pluginZIndexes,
-  );
-}
+// 규칙 표를 종류 무관하게 호출하기 위한 느슨한 뷰
+type ItemCanvasRulesOf = {
+  create: (dx: number, dy: number) => never;
+  add: (mode: string, position: never) => Promise<unknown>;
+  duplicateSource: (position: never) => { keyName: string; position: unknown };
+  placeDuplicated: (
+    mode: string,
+    source: never,
+    dx: number,
+    dy: number,
+    zIndex: number,
+  ) => Promise<unknown>;
+};
 
 export interface CanvasActions {
   addKeyAtPosition: (dx: number, dy: number) => void;
@@ -113,35 +62,15 @@ export interface CanvasActions {
     dx: number,
     dy: number,
   ) => void;
-  // Stat 액션
-  addStatAtPosition: (dx: number, dy: number) => void;
-  beginDuplicateStat: (sourceIndex: number) => DuplicateState | null;
-  placeDuplicateStat: (
-    templatePosition: StatItemPosition,
-    dx: number,
-    dy: number,
-  ) => void;
-  // Graph 액션
-  addGraphAtPosition: (dx: number, dy: number) => void;
-  beginDuplicateGraph: (sourceIndex: number) => DuplicateState | null;
-  placeDuplicateGraph: (
-    templatePosition: GraphItemPosition,
-    dx: number,
-    dy: number,
-  ) => void;
-  // Knob 액션
-  addKnobAtPosition: (dx: number, dy: number) => void;
-  beginDuplicateKnob: (sourceIndex: number) => DuplicateState | null;
-  placeDuplicateKnob: (
-    templatePosition: KnobItemPosition,
-    dx: number,
-    dy: number,
-  ) => void;
-  // Sprite 액션
-  addSpriteAtPosition: (dx: number, dy: number) => void;
-  beginDuplicateSprite: (sourceIndex: number) => DuplicateState | null;
-  placeDuplicateSprite: (
-    templatePosition: ReactiveSpritePosition,
+  // 키 외 종류 액션 - 종류별 생성·복제 규칙은 ITEM_CANVAS_RULES
+  addItemAtPosition: (type: ItemElementType, dx: number, dy: number) => void;
+  beginDuplicateItem: (
+    type: ItemElementType,
+    sourceIndex: number,
+  ) => DuplicateState | null;
+  placeDuplicateItem: (
+    type: ItemElementType,
+    templatePosition: DuplicateState['position'],
     dx: number,
     dy: number,
   ) => void;
@@ -153,107 +82,41 @@ export interface DuplicateState {
   // 키 복제의 시작 시점 동결 슬롯 - 배치 시 sourceIndex 재조회 금지
   slot?: KeySlot;
   keyName: string;
-  position:
-    | KeyPosition
-    | StatItemPosition
-    | GraphItemPosition
-    | KnobItemPosition
-    | ReactiveSpritePosition;
+  position: KeyPosition | CanonicalPositionOf<ItemElementType>;
 }
 
 export type NativeCanvasElementType = EditorElementTypeV1;
 
 export const addCanvasElementAt = (
-  actions: Pick<
-    CanvasActions,
-    | 'addKeyAtPosition'
-    | 'addStatAtPosition'
-    | 'addGraphAtPosition'
-    | 'addKnobAtPosition'
-    | 'addSpriteAtPosition'
-  >,
+  actions: Pick<CanvasActions, 'addKeyAtPosition' | 'addItemAtPosition'>,
   type: NativeCanvasElementType,
   dx: number,
   dy: number,
 ) => {
-  switch (type) {
-    case 'key':
-      actions.addKeyAtPosition(dx, dy);
-      return;
-    case 'stat':
-      actions.addStatAtPosition(dx, dy);
-      return;
-    case 'graph':
-      actions.addGraphAtPosition(dx, dy);
-      return;
-    case 'knob':
-      actions.addKnobAtPosition(dx, dy);
-      return;
-    case 'sprite':
-      actions.addSpriteAtPosition(dx, dy);
-      return;
-    default: {
-      const exhaustive: never = type;
-      return exhaustive;
-    }
+  if (type === 'key') {
+    actions.addKeyAtPosition(dx, dy);
+  } else {
+    actions.addItemAtPosition(type, dx, dy);
   }
 };
 
 export const placeFrozenDuplicateAt = (
-  actions: Pick<
-    CanvasActions,
-    | 'placeDuplicateKey'
-    | 'placeDuplicateStat'
-    | 'placeDuplicateGraph'
-    | 'placeDuplicateKnob'
-    | 'placeDuplicateSprite'
-  >,
+  actions: Pick<CanvasActions, 'placeDuplicateKey' | 'placeDuplicateItem'>,
   duplicate: DuplicateState,
   dx: number,
   dy: number,
 ) => {
-  switch (duplicate.elementType) {
-    case 'key':
-      if (typeof duplicate.slot === 'undefined') return false;
-      actions.placeDuplicateKey(
-        { slot: duplicate.slot, position: duplicate.position as KeyPosition },
-        dx,
-        dy,
-      );
-      return true;
-    case 'stat':
-      actions.placeDuplicateStat(
-        duplicate.position as StatItemPosition,
-        dx,
-        dy,
-      );
-      return true;
-    case 'graph':
-      actions.placeDuplicateGraph(
-        duplicate.position as GraphItemPosition,
-        dx,
-        dy,
-      );
-      return true;
-    case 'knob':
-      actions.placeDuplicateKnob(
-        duplicate.position as KnobItemPosition,
-        dx,
-        dy,
-      );
-      return true;
-    case 'sprite':
-      actions.placeDuplicateSprite(
-        duplicate.position as ReactiveSpritePosition,
-        dx,
-        dy,
-      );
-      return true;
-    default: {
-      const exhaustive: never = duplicate.elementType;
-      return exhaustive;
-    }
+  if (duplicate.elementType === 'key') {
+    if (typeof duplicate.slot === 'undefined') return false;
+    actions.placeDuplicateKey(
+      { slot: duplicate.slot, position: duplicate.position as KeyPosition },
+      dx,
+      dy,
+    );
+    return true;
   }
+  actions.placeDuplicateItem(duplicate.elementType, duplicate.position, dx, dy);
+  return true;
 };
 
 export function useGridCanvasActions(selectedKeyType: string): CanvasActions {
@@ -270,302 +133,57 @@ export function useGridCanvasActions(selectedKeyType: string): CanvasActions {
       reportElementOpError,
     );
   };
-  const beginDuplicateStat = (sourceIndex: number): DuplicateState | null => {
-    const current = useStatItemStore.getState().positions;
+  const addItemAtPosition = (type: ItemElementType, dx: number, dy: number) => {
+    const rules = ITEM_CANVAS_RULES[type] as ItemCanvasRulesOf;
+    void rules
+      .add(selectedKeyType, rules.create(dx, dy))
+      .catch(reportElementOpError);
+  };
+
+  const beginDuplicateItem = (
+    type: ItemElementType,
+    sourceIndex: number,
+  ): DuplicateState | null => {
+    const current = getItemStoreState(type).positions as Record<
+      string,
+      unknown[]
+    >;
     const position = current?.[selectedKeyType]?.[sourceIndex] || null;
     if (!position) return null;
-
-    const clonedNoteColor =
-      position.noteColor &&
-      typeof position.noteColor === 'object' &&
-      position.noteColor !== null
-        ? { ...position.noteColor }
-        : position.noteColor;
-
-    const clonedCounter: KeyCounterSettings | null = position.counter
-      ? {
-          ...position.counter,
-          fill: { ...position.counter.fill },
-          ...(position.counter.animation
-            ? {
-                animation: {
-                  ...position.counter.animation,
-                  bezier: [
-                    ...position.counter.animation.bezier,
-                  ] as CounterAnimationBezier,
-                },
-              }
-            : {}),
-        }
-      : null;
-
+    const source = (
+      ITEM_CANVAS_RULES[type] as ItemCanvasRulesOf
+    ).duplicateSource(position as never);
     return {
-      elementType: 'stat',
+      elementType: type,
       sourceIndex,
-      keyName: getLooseStatTypeLabel(position.statType),
-      position: {
-        ...position,
-        noteColor: clonedNoteColor,
-        counter: clonedCounter ?? createDefaultCounterSettings(),
-      },
+      keyName: source.keyName,
+      position: source.position as DuplicateState['position'],
     };
   };
 
-  const placeDuplicateStat = (
-    templatePosition: StatItemPosition,
+  const placeDuplicateItem = (
+    type: ItemElementType,
+    templatePosition: DuplicateState['position'],
     dx: number,
     dy: number,
   ) => {
     const maxZ = getMaxZIndex(selectedKeyType);
-    void placeDuplicatedStat(
-      selectedKeyType,
-      templatePosition,
-      dx,
-      dy,
-      maxZ + 1,
-    ).catch(reportElementOpError);
-  };
-
-  const beginDuplicateGraph = (sourceIndex: number): DuplicateState | null => {
-    const current = useGraphItemStore.getState().positions;
-    const position = current?.[selectedKeyType]?.[sourceIndex] || null;
-    if (!position) return null;
-
-    return {
-      elementType: 'graph',
-      sourceIndex,
-      keyName: getLooseStatTypeLabel(position.statType),
-      position: { ...position },
-    };
-  };
-
-  const placeDuplicateGraph = (
-    templatePosition: GraphItemPosition,
-    dx: number,
-    dy: number,
-  ) => {
-    const maxZ = getMaxZIndex(selectedKeyType);
-    void placeDuplicatedGraph(
-      selectedKeyType,
-      templatePosition,
-      dx,
-      dy,
-      maxZ + 1,
-    ).catch(reportElementOpError);
-  };
-
-  const addStatAtPosition = (dx: number, dy: number) => {
-    const position: StatItemPosition & { id: string } = {
-      id: newElementId(),
-      statType: 'kps',
-      dx,
-      dy,
-      rotation: DEFAULT_ELEMENT_ROTATION,
-      width: 60,
-      height: 60,
-      hidden: false,
-      activeImage: '',
-      inactiveImage: '',
-      soundPath: '',
-      soundVolume: 100,
-      activeTransparent: false,
-      idleTransparent: false,
-      count: 0,
-      noteColor: '#FFFFFF',
-      noteOpacity: 90,
-      noteAlignment: 'center',
-      noteEffectEnabled: true,
-      noteGlowEnabled: false,
-      noteGlowSyncPaint: false,
-      noteGlowSize: 10,
-      noteGlowOpacity: 70,
-      noteGlowColor: '#FFFFFF',
-      noteAutoYCorrection: true,
-      className: '',
-      counter: createDefaultCounterSettings(),
-    };
-    void addStatAt(selectedKeyType, position).catch(reportElementOpError);
-  };
-
-  const addGraphAtPosition = (dx: number, dy: number) => {
-    const position: GraphItemPosition & { id: string } = {
-      id: newElementId(),
-      statType: 'kps',
-      graphType: 'line',
-      graphSpeed: 1000,
-      graphColor: '#86EFAC',
-      showAvgLine: true,
-      graphAnimationEnabled: true,
-      dx,
-      dy,
-      rotation: DEFAULT_ELEMENT_ROTATION,
-      width: 120,
-      height: 60,
-      hidden: false,
-      activeImage: '',
-      inactiveImage: '',
-      soundPath: '',
-      soundVolume: 100,
-      activeTransparent: false,
-      idleTransparent: false,
-      count: 0,
-      noteColor: '#FFFFFF',
-      noteOpacity: 90,
-      noteAlignment: 'center',
-      noteEffectEnabled: true,
-      noteGlowEnabled: false,
-      noteGlowSyncPaint: false,
-      noteGlowSize: 10,
-      noteGlowOpacity: 70,
-      noteGlowColor: '#FFFFFF',
-      noteAutoYCorrection: true,
-      className: '',
-      counter: createDefaultCounterSettings(),
-      backgroundColor: DEFAULT_ELEMENT_BG,
-      borderRadius: DEFAULT_ELEMENT_RADIUS,
-      fontColor: DEFAULT_ELEMENT_FONT,
-      activeFontColor: DEFAULT_ELEMENT_FONT,
-      fontSize: 12,
-      useInlineStyles: false,
-      displayText: '',
-    };
-    void addGraphAt(selectedKeyType, position).catch(reportElementOpError);
-  };
-
-  const beginDuplicateKnob = (sourceIndex: number): DuplicateState | null => {
-    const current = useKnobItemStore.getState().positions;
-    const position = current?.[selectedKeyType]?.[sourceIndex] || null;
-    if (!position) return null;
-    return {
-      elementType: 'knob',
-      sourceIndex,
-      keyName: 'Knob',
-      position: { ...position },
-    };
-  };
-
-  const placeDuplicateKnob = (
-    templatePosition: KnobItemPosition,
-    dx: number,
-    dy: number,
-  ) => {
-    const maxZ = getMaxZIndex(selectedKeyType);
-    void placeDuplicatedKnob(
-      selectedKeyType,
-      templatePosition,
-      dx,
-      dy,
-      maxZ + 1,
-    ).catch(reportElementOpError);
-  };
-
-  const addKnobAtPosition = (dx: number, dy: number) => {
-    const position: KnobItemPosition & { id: string } = {
-      id: newElementId(),
-      axisId: '',
-      sensitivity: 1,
-      reverse: false,
-      dx,
-      dy,
-      rotation: DEFAULT_ELEMENT_ROTATION,
-      width: 60,
-      height: 60,
-      hidden: false,
-      activeImage: '',
-      inactiveImage: '',
-      activeTransparent: false,
-      idleTransparent: false,
-      count: 0,
-      noteColor: '#FFFFFF',
-      noteOpacity: 90,
-      noteAlignment: 'center',
-      noteEffectEnabled: false,
-      noteGlowEnabled: false,
-      noteGlowSyncPaint: false,
-      noteGlowSize: 10,
-      noteGlowOpacity: 70,
-      noteGlowColor: '#FFFFFF',
-      noteAutoYCorrection: true,
-      className: '',
-      counter: createDefaultCounterSettings(),
-      backgroundColor: DEFAULT_ELEMENT_BG,
-      activeBackgroundColor: DEFAULT_ELEMENT_ACTIVE_BG,
-    };
-    void addKnobAt(selectedKeyType, position).catch(reportElementOpError);
-  };
-
-  const beginDuplicateSprite = (sourceIndex: number): DuplicateState | null => {
-    const current = useSpriteStore.getState().positions;
-    const position = current?.[selectedKeyType]?.[sourceIndex] || null;
-    if (!position) return null;
-    return {
-      elementType: 'sprite',
-      sourceIndex,
-      keyName: 'Sprite',
-      position: { ...position },
-    };
-  };
-
-  const placeDuplicateSprite = (
-    templatePosition: ReactiveSpritePosition,
-    dx: number,
-    dy: number,
-  ) => {
-    const maxZ = getMaxZIndex(selectedKeyType);
-    void placeDuplicatedSprite(
-      selectedKeyType,
-      templatePosition,
-      dx,
-      dy,
-      maxZ + 1,
-    ).catch(reportElementOpError);
-  };
-
-  const addSpriteAtPosition = (dx: number, dy: number) => {
-    // wire 정규화: nullish layerName·groupId는 키 부재로 맞춰 ack와 일치
-    const position: ReactiveSpritePosition & { id: string } = toSpriteWireShape(
-      {
-        id: newElementId(),
+    void (ITEM_CANVAS_RULES[type] as ItemCanvasRulesOf)
+      .placeDuplicated(
+        selectedKeyType,
+        templatePosition as never,
         dx,
         dy,
-        width: DEFAULT_SPRITE_SIZE,
-        height: DEFAULT_SPRITE_SIZE,
-        hidden: false,
-        zIndex: null,
-        layerName: null,
-        groupId: null,
-        className: null,
-        useInlineStyles: null,
-        rotation: 0,
-        baseImage: null,
-        pivot: { ...CENTER_SPRITE_ANCHOR },
-        idleTransform: { ...IDENTITY_SPRITE_TRANSFORM },
-        poses: [],
-        activation: DEFAULT_SPRITE_ACTIVATION,
-        pressDurationMs: DEFAULT_SPRITE_PRESS_DURATION_MS,
-        transitionMs: DEFAULT_SPRITE_TRANSITION_MS,
-        transitionEasing: DEFAULT_SPRITE_TRANSITION_EASING,
-        // 기준 크기는 첫 이미지를 고를 때 패널이 채운다
-        referenceNaturalSize: null,
-      },
-    );
-    void addSpriteAt(selectedKeyType, position).catch(reportElementOpError);
+        maxZ + 1,
+      )
+      .catch(reportElementOpError);
   };
 
   return {
     addKeyAtPosition,
     placeDuplicateKey,
-    addStatAtPosition,
-    beginDuplicateStat,
-    placeDuplicateStat,
-    addGraphAtPosition,
-    beginDuplicateGraph,
-    placeDuplicateGraph,
-    addKnobAtPosition,
-    beginDuplicateKnob,
-    placeDuplicateKnob,
-    addSpriteAtPosition,
-    beginDuplicateSprite,
-    placeDuplicateSprite,
+    addItemAtPosition,
+    beginDuplicateItem,
+    placeDuplicateItem,
   };
 }
