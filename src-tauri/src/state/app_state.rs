@@ -680,6 +680,8 @@ pub struct AppState {
     counter_history_ready: Condvar,
     runtime_publication: Mutex<RuntimePublicationState>,
     mutation_publication: Arc<MutationPublicationSequencer>,
+    pub(crate) element_document_publication:
+        crate::services::event_publisher::ElementDocumentPublication,
     key_counter_enabled: Arc<AtomicBool>,
     /// Raw input stream subscriber count - emit only when > 0
     raw_input_subscribers: Arc<std::sync::atomic::AtomicU32>,
@@ -796,6 +798,10 @@ impl AppState {
         }
         let store = Arc::new(store);
         let snapshot = store.snapshot();
+        let element_document_publication = {
+            let (revision, document) = store.element_document_snapshot();
+            crate::services::event_publisher::ElementDocumentPublication::new(revision, document)
+        };
         let keyboard =
             KeyboardManager::new(snapshot.keys.clone(), snapshot.selected_key_type.clone());
         let settings = SettingsService::new(store.clone());
@@ -887,6 +893,7 @@ impl AppState {
             counter_history_ready: Condvar::new(),
             runtime_publication: Mutex::new(RuntimePublicationState::default()),
             mutation_publication: Arc::new(MutationPublicationSequencer::default()),
+            element_document_publication,
             key_counter_enabled,
             raw_input_subscribers: Arc::new(std::sync::atomic::AtomicU32::new(0)),
             key_sound,

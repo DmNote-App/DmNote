@@ -59,6 +59,7 @@ fn is_forwarded_to_obs(event: &str, data: &Value) -> bool {
 const FORWARDED_EVENTS: &[&str] = &[
     "settings:changed",
     "editor:committed",
+    "elementDocument:changed",
     "keys:state",
     "keys:reset",
     "keys:changed",

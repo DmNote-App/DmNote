@@ -527,8 +527,6 @@ fn stored_z_index(element: &Element) -> Option<i64> {
 }
 
 /// 트리 문서를 옛 모양으로 내보낸다 - 옛 종류만 나타난다
-// 트리 쓰기 경로가 붙기 전까지는 테스트에서만 쓴다
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn project_document(document: &Document) -> Result<EditorDocumentV1> {
     let mut legacy = EditorDocumentV1 {
         schema_version: super::EDITOR_SCHEMA_VERSION,

@@ -1,4 +1,5 @@
 pub mod css;
+pub mod element_document;
 pub mod gesture;
 pub mod history;
 pub mod js;

@@ -47,6 +47,8 @@
           "editor_preview_cancel",
           "editor_preview_publish",
           "editor_preview_subscribe",
+          "element_document_commit",
+          "element_document_get",
           "font_load",
           "get_cursor_settings",
           "graph_positions_get",

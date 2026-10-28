@@ -11,6 +11,7 @@ use crate::condition::{
 use crate::document::{Document, Element, Frame, Group, InputBinding, Node, Scene};
 use crate::load::LoadReport;
 use crate::ops::{ChangeSet, FramePatch, Op, SceneChange};
+use crate::patch::{DocumentPatch, ScenePatch};
 use crate::schema::{DefinitionError, KindMigration, KindSchema, MigrationStep, Size};
 use crate::session::PendingEdit;
 use crate::value::{AssetKind, FieldRule, ValueKind, Violation, ViolationCode};
@@ -35,6 +36,8 @@ fn generate() -> String {
         ChangeSet::decl(),
         SceneChange::decl(),
         PendingEdit::decl(),
+        DocumentPatch::decl(),
+        ScenePatch::decl(),
         Violation::decl(),
         ViolationCode::decl(),
         LoadReport::decl(),

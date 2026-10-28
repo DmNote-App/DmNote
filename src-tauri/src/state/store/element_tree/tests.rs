@@ -111,3 +111,84 @@ fn 옛_store_json은_가져오기만_하고_새_파일에_저장한다() {
     assert_eq!(reloaded.data.element_document, snapshot.element_document);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+fn open_store() -> (std::path::PathBuf, crate::state::AppStore) {
+    let dir = std::env::temp_dir().join(format!("dmn-element-commit-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut state = default_state();
+    state.layer_groups.insert(
+        "4key".into(),
+        vec![crate::models::LayerGroupDef {
+            id: "g1".into(),
+            name: "왼손".into(),
+        }],
+    );
+    state.key_positions.get_mut("4key").unwrap()[0].group_id = Some("g1".into());
+    std::fs::write(
+        dir.join(crate::state::store::STORE_FILE_NAME),
+        serde_json::to_vec_pretty(&state).unwrap(),
+    )
+    .unwrap();
+    let store = crate::state::AppStore::initialize_for_test(&dir).unwrap();
+    (dir, store)
+}
+
+#[test]
+fn 트리_쓰기는_옛_종류_요소를_고치지_못한다() {
+    let (dir, store) = open_store();
+    let (revision, document) = store.element_document_snapshot();
+    let key = document.scenes["4key"].elements()[0].id.clone();
+    let op: Op = serde_json::from_value(serde_json::json!({
+        "op": "setFrame", "scene": "4key", "id": key, "frame": { "x": 1 }
+    }))
+    .unwrap();
+    let result = store.commit_element_document(&[op]).unwrap();
+    assert!(matches!(
+        result,
+        ElementDocumentCommitResult::Rejected {
+            code: "MANAGED_ELSEWHERE",
+            ..
+        }
+    ));
+    assert_eq!(store.element_document_snapshot(), (revision, document));
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 그룹_숨김처럼_트리에만_있는_정보는_커밋하고_리비전이_오른다() {
+    let (dir, store) = open_store();
+    let (revision, _) = store.element_document_snapshot();
+    let op: Op = serde_json::from_value(serde_json::json!({
+        "op": "setGroup", "scene": "4key", "id": "g1", "hidden": true
+    }))
+    .unwrap();
+    let result = store.commit_element_document(&[op]).unwrap();
+    let ElementDocumentCommitResult::Committed {
+        revision: next,
+        changes,
+    } = result
+    else {
+        panic!("{result:?}");
+    };
+    assert_eq!(next, revision + 1);
+    assert!(changes.scenes["4key"].changed.contains("g1"));
+    // 옛 모양은 그대로
+    assert!(store.snapshot().layer_groups["4key"]
+        .iter()
+        .any(|group| group.id == "g1"));
+
+    let rename: Op = serde_json::from_value(serde_json::json!({
+        "op": "setGroup", "scene": "4key", "id": "g1", "name": "바뀜"
+    }))
+    .unwrap();
+    assert!(matches!(
+        store.commit_element_document(&[rename]).unwrap(),
+        ElementDocumentCommitResult::Rejected {
+            code: "MANAGED_ELSEWHERE",
+            ..
+        }
+    ));
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

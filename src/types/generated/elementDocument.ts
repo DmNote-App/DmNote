@@ -27,6 +27,10 @@ export type SceneChange = { changed: Array<string>, removed: Array<string>, stru
 
 export type PendingEdit = { id: string, ops: Array<Op>, };
 
+export type DocumentPatch = { kindVersions: { [key in string]?: number }, scenes: { [key in string]?: ScenePatch }, changes: ChangeSet, };
+
+export type ScenePatch = { "type": "replace", scene: Scene, } | { "type": "nodes", nodes: Array<Node>, } | { "type": "delete", };
+
 export type Violation = { code: ViolationCode, path: string, };
 
 export type ViolationCode = "VALUE_TYPE_MISMATCH" | "VALUE_OUT_OF_RANGE" | "VALUE_NOT_INTEGER" | "VALUE_UNKNOWN_OPTION" | "VALUE_TOO_LONG" | "VALUE_TOO_MANY_ITEMS" | "VALUE_DUPLICATE_ITEM" | "VALUE_NOT_NULLABLE" | "VALUE_INVALID_COLOR" | "VALUE_INVALID_GRADIENT" | "UNKNOWN_FIELD" | "REFERENCE_NOT_FOUND" | "REFERENCE_WRONG_KIND" | "DUPLICATE_ID" | "ELEMENT_NOT_FOUND" | "GROUP_NOT_FOUND" | "UNKNOWN_KIND" | "KIND_VERSION_LOCKED" | "INVALID_FRAME" | "INVALID_BUNDLE" | "BUNDLE_NOT_ALLOWED" | "INVALID_INPUT" | "INVALID_MOVE" | "SCENE_NOT_FOUND";

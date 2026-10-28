@@ -85,6 +85,7 @@ use editor_transactions::{
     project_editor_history_key_counters, project_history_key_counters, require_history_entry,
     validate_observed_history_epoch,
 };
+pub use element_tree::ElementDocumentCommitResult;
 pub(crate) use element_tree::{attach_loaded_document, ELEMENT_DOCUMENT_FIELD};
 use persistence::StoreWriter;
 pub(crate) use sound_assets::{
@@ -115,6 +116,8 @@ pub struct AppStore {
     path: PathBuf,
     state: RwLock<VersionedStoreState>,
     runtime_publication_generation: AtomicU64,
+    // 요소 트리 문서가 바뀔 때마다 오른다 - 창 전달 이벤트가 잠금 없이 비교한다
+    element_document_revision: AtomicU64,
     writer: StoreWriter,
     skip_asset_sweep: bool,
     history_gate: Arc<HistoryAdmissionGate>,
@@ -408,6 +411,7 @@ impl AppStore {
             skip_asset_sweep,
             history_gate: Arc::new(HistoryAdmissionGate::default()),
             runtime_publication_generation: AtomicU64::new(0),
+            element_document_revision: AtomicU64::new(0),
             state: RwLock::new(VersionedStoreState {
                 data: state,
                 revision: 0,
@@ -436,6 +440,7 @@ impl AppStore {
         result: T,
     ) -> Result<T> {
         element_tree::sync_element_document(&state.data, &mut scratch)?;
+        let element_document_changed = state.data.element_document != scratch.element_document;
         let revision = state
             .revision
             .checked_add(1)
@@ -446,6 +451,10 @@ impl AppStore {
         state.revision = revision;
         self.runtime_publication_generation
             .store(revision, Ordering::Release);
+        if element_document_changed {
+            self.element_document_revision
+                .fetch_add(1, Ordering::AcqRel);
+        }
         state.dirty = false;
         Ok(result)
     }

@@ -80,6 +80,18 @@ impl Session {
         self.rebase(engine, confirmed, revision)
     }
 
+    /// 백엔드가 보낸 패치로 확정 문서를 고친 뒤 남은 편집을 다시 쌓는다
+    pub fn apply_remote(
+        &mut self,
+        engine: &Engine<'_>,
+        patch: &crate::patch::DocumentPatch,
+        revision: u64,
+    ) -> ChangeSet {
+        let mut confirmed = self.confirmed.clone();
+        crate::patch::apply_patch(&mut confirmed, patch);
+        self.rebase(engine, confirmed, revision)
+    }
+
     /// 확정 문서가 바뀜(다른 창의 편집, 되돌리기 등) - 남은 편집을 그 위에 다시 쌓는다.
     /// 더는 맞지 않는 편집은 버린다
     pub fn rebase(&mut self, engine: &Engine<'_>, confirmed: Document, revision: u64) -> ChangeSet {

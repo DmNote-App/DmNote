@@ -15,6 +15,7 @@ pub(super) const ALLOWED_WS_COMMANDS: &[&str] = &[
     "app_bootstrap",
     "settings_get",
     "editor_get",
+    "element_document_get",
     "layer_groups_get",
     "note_tab_get_all",
     "note_tab_get",

@@ -284,6 +284,8 @@ pub fn run() {
             commands::editor::note_tab::note_tab_clear,
             commands::editor::state::editor_get,
             commands::editor::state::editor_commit,
+            commands::editor::element_document::element_document_get,
+            commands::editor::element_document::element_document_commit,
             commands::editor::gesture::commit_gesture,
             commands::editor::history::history_status,
             commands::editor::history::history_undo,
