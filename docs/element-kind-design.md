@@ -150,7 +150,7 @@
   - `dmn.editor.get`·`commit`·`onCommitted` (API 문서의 "키 구조는 반드시 함께 변경" 규칙 포함)
   - `dmn.layerGroups.get`·`update`·`onChanged` (그룹이 트리 폴더로 바뀌므로 옛 그룹 모양으로 변환)
   - 관련 변경 이벤트
-- **사용자 CSS**는 새 그리기 코드도 지금과 같은 클래스 이름, data 속성, CSS 변수를 쓰게 하고 테스트로 고정한다. 기준은 [CSS 문서](content/ko/custom-css/)에 안내된 CSS 변수 41개와 선택자(`.counter[data-counter-state]`, `[data-state]`, `[data-knob-element]`, `[data-knob-indicator]`, `[data-sprite-element]`, `.kps-graph`, `[data-key-image-layer]` 등)다.
+- **사용자 CSS**는 새 그리기 코드도 지금과 같은 클래스 이름, data 속성, CSS 변수를 쓰게 하고 테스트로 고정한다. 기준은 [CSS 문서](content/ko/custom-css/)에 안내된 CSS 변수 41개와 선택자(`.counter[data-counter-state]`, `[data-state]`, `[data-knob-element]`, `[data-knob-indicator]`, `[data-sprite-element]`, `[data-key-image-layer]` 등)다. 문서 예시의 `.kps-graph`·`.my-key` 같은 클래스는 사용자가 속성 패널에서 붙이는 이름이라 약속이 아니다.
 - 옛 데이터 API는 고정하고 새 기능은 새 API(트리 모양)에만 넣는다.
 
 ### 3.11 기본안 — **[확정]**
