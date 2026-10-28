@@ -1,18 +1,9 @@
 use super::*;
 use crate::models::{ELEMENT_ROTATION_MAX, ELEMENT_ROTATION_MIN};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum NativeElementKind {
-    Key,
-    Stat,
-    Graph,
-    Knob,
-    Sprite,
-}
-
 #[derive(Debug, Clone, Copy)]
 struct NativeElementDiagnostic<'a> {
-    kind: NativeElementKind,
+    kind: EditorElementTypeV1,
     field: &'static str,
     mode: &'a str,
     index: usize,
@@ -21,11 +12,24 @@ struct NativeElementDiagnostic<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum ViolationOwner {
-    Mode { mode: String },
-    Pair { mode: String },
-    GroupOccurrence { mode: String, index: usize },
-    DuplicateGroup { mode: String, id: String },
-    NativeElement { kind: NativeElementKind, id: String },
+    Mode {
+        mode: String,
+    },
+    Pair {
+        mode: String,
+    },
+    GroupOccurrence {
+        mode: String,
+        index: usize,
+    },
+    DuplicateGroup {
+        mode: String,
+        id: String,
+    },
+    NativeElement {
+        kind: EditorElementTypeV1,
+        id: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -397,7 +401,7 @@ pub(super) fn allowed_modes(store: &AppStoreData) -> HashSet<String> {
 }
 
 fn native_violation_key(
-    kind: NativeElementKind,
+    kind: EditorElementTypeV1,
     id: &str,
     code: &'static str,
     property_path: ViolationPropertyPath,
@@ -524,7 +528,7 @@ pub(super) fn collect_violations(
             if !position.sensitivity.is_finite() {
                 violations.insert(ValidationViolation::new(
                     native_violation_key(
-                        NativeElementKind::Knob,
+                        EditorElementTypeV1::Knob,
                         &position.position.id,
                         "INVALID_NUMBER",
                         ViolationPropertyPath::KnobSensitivity,
@@ -553,7 +557,7 @@ fn collect_position_style_violations(
         .flat_map(|(mode, positions)| {
             positions.iter().enumerate().map(move |(index, position)| {
                 (
-                    NativeElementKind::Key,
+                    EditorElementTypeV1::Key,
                     "keyPositions",
                     mode,
                     index,
@@ -568,7 +572,7 @@ fn collect_position_style_violations(
                 .flat_map(|(mode, positions)| {
                     positions.iter().enumerate().map(move |(index, position)| {
                         (
-                            NativeElementKind::Stat,
+                            EditorElementTypeV1::Stat,
                             "statPositions",
                             mode,
                             index,
@@ -584,7 +588,7 @@ fn collect_position_style_violations(
                 .flat_map(|(mode, positions)| {
                     positions.iter().enumerate().map(move |(index, position)| {
                         (
-                            NativeElementKind::Graph,
+                            EditorElementTypeV1::Graph,
                             "graphPositions",
                             mode,
                             index,
@@ -600,7 +604,7 @@ fn collect_position_style_violations(
                 .flat_map(|(mode, positions)| {
                     positions.iter().enumerate().map(move |(index, position)| {
                         (
-                            NativeElementKind::Knob,
+                            EditorElementTypeV1::Knob,
                             "knobPositions",
                             mode,
                             index,
@@ -683,7 +687,7 @@ pub(super) fn collect_sprite_violations(
             {
                 violations.insert(ValidationViolation::new(
                     native_violation_key(
-                        NativeElementKind::Sprite,
+                        EditorElementTypeV1::Sprite,
                         &sprite.id,
                         "INVALID_ROTATION",
                         ViolationPropertyPath::Rotation,
@@ -708,7 +712,7 @@ pub(super) fn collect_sprite_violations(
                 if !value.is_finite() || !(0.0..=1.0).contains(&value) {
                     violations.insert(ValidationViolation::new(
                         native_violation_key(
-                            NativeElementKind::Sprite,
+                            EditorElementTypeV1::Sprite,
                             &sprite.id,
                             "INVALID_SPRITE_PIVOT",
                             ViolationPropertyPath::SpriteProperty {
@@ -727,7 +731,7 @@ pub(super) fn collect_sprite_violations(
             if sprite.transition_ms > SPRITE_TRANSITION_MS_MAX {
                 violations.insert(ValidationViolation::new(
                     native_violation_key(
-                        NativeElementKind::Sprite,
+                        EditorElementTypeV1::Sprite,
                         &sprite.id,
                         "INVALID_SPRITE_TRANSITION",
                         ViolationPropertyPath::SpriteProperty {
@@ -747,7 +751,7 @@ pub(super) fn collect_sprite_violations(
             {
                 violations.insert(ValidationViolation::new(
                     native_violation_key(
-                        NativeElementKind::Sprite,
+                        EditorElementTypeV1::Sprite,
                         &sprite.id,
                         "INVALID_SPRITE_PRESS_DURATION",
                         ViolationPropertyPath::SpriteProperty {
@@ -778,7 +782,7 @@ pub(super) fn collect_sprite_violations(
                         if !value.is_finite() || !(0.0..=1.0).contains(&value) {
                             violations.insert(ValidationViolation::new(
                                 native_violation_key(
-                                    NativeElementKind::Sprite,
+                                    EditorElementTypeV1::Sprite,
                                     &sprite.id,
                                     "INVALID_SPRITE_POSE_PIVOT",
                                     ViolationPropertyPath::SpritePoseProperty {
@@ -806,7 +810,7 @@ pub(super) fn collect_sprite_violations(
                         {
                             violations.insert(ValidationViolation::new(
                                 native_violation_key(
-                                    NativeElementKind::Sprite,
+                                    EditorElementTypeV1::Sprite,
                                     &sprite.id,
                                     "INVALID_SPRITE_IMAGE_METRICS",
                                     ViolationPropertyPath::SpritePoseProperty {
@@ -829,7 +833,7 @@ pub(super) fn collect_sprite_violations(
                 if pose.triggers.len() > MAX_SPRITE_POSE_TRIGGERS {
                     violations.insert(ValidationViolation::new(
                         native_violation_key(
-                            NativeElementKind::Sprite,
+                            EditorElementTypeV1::Sprite,
                             &sprite.id,
                             "TOO_MANY_SPRITE_POSE_TRIGGERS",
                             ViolationPropertyPath::SpritePoseProperty {
@@ -849,7 +853,7 @@ pub(super) fn collect_sprite_violations(
                     }
                     violations.insert(ValidationViolation::new(
                         native_violation_key(
-                            NativeElementKind::Sprite,
+                            EditorElementTypeV1::Sprite,
                             &sprite.id,
                             "INVALID_SPRITE_TRIGGER",
                             ViolationPropertyPath::SpritePoseProperty {
@@ -866,7 +870,7 @@ pub(super) fn collect_sprite_violations(
                 if pose.triggers.is_empty() {
                     violations.insert(ValidationViolation::new(
                         native_violation_key(
-                            NativeElementKind::Sprite,
+                            EditorElementTypeV1::Sprite,
                             &sprite.id,
                             "EMPTY_SPRITE_POSE_TRIGGERS",
                             ViolationPropertyPath::SpritePoseProperty {
@@ -882,7 +886,7 @@ pub(super) fn collect_sprite_violations(
                 } else if !trigger_sets.insert(pose.triggers.clone()) {
                     violations.insert(ValidationViolation::new(
                         native_violation_key(
-                            NativeElementKind::Sprite,
+                            EditorElementTypeV1::Sprite,
                             &sprite.id,
                             "DUPLICATE_SPRITE_POSE_TRIGGERS",
                             ViolationPropertyPath::SpritePoseProperty {
@@ -904,7 +908,7 @@ pub(super) fn collect_sprite_violations(
                     if !(SPRITE_IMAGE_DIMENSION_MIN..=SPRITE_IMAGE_DIMENSION_MAX).contains(&value) {
                         violations.insert(ValidationViolation::new(
                             native_violation_key(
-                                NativeElementKind::Sprite,
+                                EditorElementTypeV1::Sprite,
                                 &sprite.id,
                                 "INVALID_SPRITE_IMAGE_METRICS",
                                 ViolationPropertyPath::SpriteProperty {
@@ -931,7 +935,7 @@ pub(super) fn collect_sprite_violations(
                 {
                     violations.insert(ValidationViolation::new(
                         native_violation_key(
-                            NativeElementKind::Sprite,
+                            EditorElementTypeV1::Sprite,
                             &sprite.id,
                             "STALE_SPRITE_IMAGE_METRICS",
                             ViolationPropertyPath::SpriteProperty {
@@ -951,7 +955,7 @@ pub(super) fn collect_sprite_violations(
                 (None, Some(reference)) if reference.source.is_some() => {
                     violations.insert(ValidationViolation::new(
                         native_violation_key(
-                            NativeElementKind::Sprite,
+                            EditorElementTypeV1::Sprite,
                             &sprite.id,
                             "STALE_SPRITE_IMAGE_METRICS",
                             ViolationPropertyPath::SpriteProperty {
@@ -985,7 +989,7 @@ pub(super) fn collect_sprite_violations(
                 {
                     violations.insert(ValidationViolation::new(
                         native_violation_key(
-                            NativeElementKind::Sprite,
+                            EditorElementTypeV1::Sprite,
                             &sprite.id,
                             "STALE_SPRITE_IMAGE_METRICS",
                             ViolationPropertyPath::SpritePoseProperty {
@@ -1042,7 +1046,7 @@ fn collect_sprite_transform_violations(
         if !value.is_finite() || !(minimum..=maximum).contains(&value) {
             violations.insert(ValidationViolation::new(
                 native_violation_key(
-                    NativeElementKind::Sprite,
+                    EditorElementTypeV1::Sprite,
                     &sprite.id,
                     "INVALID_SPRITE_TRANSFORM",
                     pose_identity.map_or(
@@ -1263,7 +1267,7 @@ fn collect_group_reference_violations(
         .flat_map(|(mode, positions)| {
             positions.iter().enumerate().map(move |(index, position)| {
                 (
-                    NativeElementKind::Key,
+                    EditorElementTypeV1::Key,
                     "keyPositions",
                     mode,
                     index,
@@ -1278,7 +1282,7 @@ fn collect_group_reference_violations(
                 .flat_map(|(mode, positions)| {
                     positions.iter().enumerate().map(move |(index, position)| {
                         (
-                            NativeElementKind::Stat,
+                            EditorElementTypeV1::Stat,
                             "statPositions",
                             mode,
                             index,
@@ -1294,7 +1298,7 @@ fn collect_group_reference_violations(
                 .flat_map(|(mode, positions)| {
                     positions.iter().enumerate().map(move |(index, position)| {
                         (
-                            NativeElementKind::Graph,
+                            EditorElementTypeV1::Graph,
                             "graphPositions",
                             mode,
                             index,
@@ -1310,7 +1314,7 @@ fn collect_group_reference_violations(
                 .flat_map(|(mode, positions)| {
                     positions.iter().enumerate().map(move |(index, position)| {
                         (
-                            NativeElementKind::Knob,
+                            EditorElementTypeV1::Knob,
                             "knobPositions",
                             mode,
                             index,
@@ -1350,7 +1354,7 @@ fn collect_group_reference_violations(
             {
                 violations.insert(ValidationViolation::new(
                     native_violation_key(
-                        NativeElementKind::Sprite,
+                        EditorElementTypeV1::Sprite,
                         &sprite.id,
                         "UNKNOWN_GROUP_ID",
                         ViolationPropertyPath::GroupReference,

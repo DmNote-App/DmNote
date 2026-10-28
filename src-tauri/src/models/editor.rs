@@ -428,7 +428,8 @@ impl EditorPatchV1 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+// 요소 종류 - 선언 순서는 프론트 EDITOR_ELEMENT_TYPES와 같고 위반 정렬 순서로도 쓰인다
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EditorElementTypeV1 {
     Key,
