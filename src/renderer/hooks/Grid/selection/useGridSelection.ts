@@ -7,10 +7,6 @@
 
 import { useRef } from 'react';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import {
@@ -35,12 +31,18 @@ import {
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
   EDITOR_ELEMENT_TYPES,
+  modeArraysOf,
 } from '@src/types/editor';
 import type {
   CanonicalEditorDocumentV1,
   EditorElementTypeV1,
 } from '@src/types/editor';
-import { snapshotAuthorityPositions } from '@src/renderer/editor/model/elementStores';
+import {
+  captureElementCollections,
+  readAuthorityPositions,
+  snapshotAuthorityPositions,
+  writeAuthorityPositions,
+} from '@src/renderer/editor/model/elementStores';
 import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { editorCoordinator } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
@@ -313,7 +315,6 @@ export function useGridSelection({
 
     // 현재 상태 직접 가져오기 (클로저 문제 방지)
     // setPositions는 canonical 쓰기이므로 base도 canonical에서 읽는다
-    const currentPositions = useKeyStore.getState().canonicalPositions;
     const currentPluginElements =
       usePluginDisplayElementStore.getState().elements;
 
@@ -324,83 +325,19 @@ export function useGridSelection({
           .map((element) => element.id),
       );
 
-    const keyIds = selectedNativeIds('key');
-    if (keyIds.size > 0) {
-      useKeyStore
-        .getState()
-        .setPositions(
-          moveSelectedNativePositions(
-            currentPositions,
-            selectedKeyType,
-            keyIds,
-            deltaX,
-            deltaY,
-          ),
-        );
-    }
-
-    const statIds = selectedNativeIds('stat');
-    if (statIds.size > 0) {
-      const current = useStatItemStore.getState().positions;
-      useStatItemStore
-        .getState()
-        .setPositions(
-          moveSelectedNativePositions(
-            current,
-            selectedKeyType,
-            statIds,
-            deltaX,
-            deltaY,
-          ),
-        );
-    }
-
-    const graphIds = selectedNativeIds('graph');
-    if (graphIds.size > 0) {
-      const current = useGraphItemStore.getState().positions;
-      useGraphItemStore
-        .getState()
-        .setPositions(
-          moveSelectedNativePositions(
-            current,
-            selectedKeyType,
-            graphIds,
-            deltaX,
-            deltaY,
-          ),
-        );
-    }
-
-    const knobIds = selectedNativeIds('knob');
-    if (knobIds.size > 0) {
-      const current = useKnobItemStore.getState().positions;
-      useKnobItemStore
-        .getState()
-        .setPositions(
-          moveSelectedNativePositions(
-            current,
-            selectedKeyType,
-            knobIds,
-            deltaX,
-            deltaY,
-          ),
-        );
-    }
-
-    const spriteIds = selectedNativeIds('sprite');
-    if (spriteIds.size > 0) {
-      const current = useSpriteStore.getState().positions;
-      useSpriteStore
-        .getState()
-        .setPositions(
-          moveSelectedNativePositions(
-            current,
-            selectedKeyType,
-            spriteIds,
-            deltaX,
-            deltaY,
-          ),
-        );
+    for (const type of EDITOR_ELEMENT_TYPES) {
+      const ids = selectedNativeIds(type);
+      if (ids.size === 0) continue;
+      writeAuthorityPositions(
+        type,
+        moveSelectedNativePositions(
+          readAuthorityPositions(type) as never,
+          selectedKeyType,
+          ids,
+          deltaX,
+          deltaY,
+        ),
+      );
     }
 
     // 플러그인 요소 배치 업데이트
@@ -468,15 +405,7 @@ export function useGridSelection({
     const snapshot = createSelectionClipboardSnapshot({
       selectedElements,
       keyMappings: keyState.keyMappings[selectedKeyType] || [],
-      keyPositions: keyState.canonicalPositions[selectedKeyType] || [],
-      statPositions:
-        useStatItemStore.getState().positions[selectedKeyType] || [],
-      graphPositions:
-        useGraphItemStore.getState().positions[selectedKeyType] || [],
-      knobPositions:
-        useKnobItemStore.getState().positions[selectedKeyType] || [],
-      spritePositions:
-        useSpriteStore.getState().positions[selectedKeyType] || [],
+      ...modeArraysOf(captureElementCollections(), selectedKeyType),
       pluginElements: usePluginDisplayElementStore.getState().elements,
       selectedGroupIds: selectionState.selectedGroupIds,
       layerGroups: layerGroupState.getGroupsForMode(selectedKeyType),

@@ -1,5 +1,9 @@
 import { newElementId } from '@src/renderer/editor/model/elementId';
-import { captureElementCollections } from '@src/renderer/editor/model/elementStores';
+import {
+  captureElementCollections,
+  getItemStoreState,
+  readAuthorityPositions,
+} from '@src/renderer/editor/model/elementStores';
 import {
   applySealedSliceMutation,
   combineReceipts,
@@ -10,13 +14,17 @@ import {
   applyPluginAdditionEagerly,
   runMixedGestureElementIntent,
 } from '@src/renderer/editor/runtime/intent/mixedElementIntent';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  EDITOR_ELEMENT_TYPES,
+  EDITOR_FIELDS,
+  ITEM_ELEMENT_TYPES,
+} from '@src/types/editor';
 import type {
-  CanonicalGraphItemPosition,
   CanonicalKeyPosition,
-  CanonicalKnobItemPosition,
   CanonicalReactiveSpritePosition,
-  CanonicalStatItemPosition,
   EditorElementTypeV1,
+  ItemElementType,
 } from '@src/types/editor';
 import type { KeySlot } from '@src/types/key/keys';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
@@ -26,13 +34,10 @@ import {
 } from '@plugins/runtime/displayElement/gestureTransaction';
 import { reissueDisplayElementHandlers } from '@plugins/runtime/displayElement/displayElementApi';
 import { rotatePluginInstancesEditSession } from '@plugins/runtime/displayElement/instancesCommitQueue';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
 import {
+  CLIPBOARD_POSITION_TYPES,
   useGridSelectionStore,
   type SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
@@ -50,7 +55,10 @@ import {
   buildNextLayerGroupName,
 } from '@utils/layerGroupUtils';
 import { sendBridgeMessageBestEffort } from '@utils/plugin/bridgeMessages';
-import { createFrozenPasteModel } from '@utils/grid/selectionPasteModel';
+import {
+  createFrozenPasteModel,
+  type ItemPasteEntries,
+} from '@utils/grid/selectionPasteModel';
 import { PASTE_OFFSET } from '../constants';
 
 interface PasteSelectionOptions {
@@ -121,9 +129,9 @@ export const pasteSelection = async ({
     keyCode: KeySlot;
     position: CanonicalKeyPosition;
   }[] = [];
-  const statsToAdd: { position: CanonicalStatItemPosition }[] = [];
-  const graphsToAdd: { position: CanonicalGraphItemPosition }[] = [];
-  const knobsToAdd: { position: CanonicalKnobItemPosition }[] = [];
+  const positionItemsToAdd = Object.fromEntries(
+    CLIPBOARD_POSITION_TYPES.map((type) => [type, []]),
+  ) as unknown as Omit<ItemPasteEntries, 'sprite'>;
   const spritesToAdd: {
     position: CanonicalReactiveSpritePosition;
     triggerCanonicals?: Record<string, string>;
@@ -138,36 +146,6 @@ export const pasteSelection = async ({
         position: {
           ...item.position,
           id: newKeyId,
-          groupId: remapGroupId(item.position.groupId),
-          dx: (item.position.dx || 0) + PASTE_OFFSET,
-          dy: (item.position.dy || 0) + PASTE_OFFSET,
-        },
-      });
-    } else if (item.type === 'stat') {
-      statsToAdd.push({
-        position: {
-          ...item.position,
-          id: newElementId(),
-          groupId: remapGroupId(item.position.groupId),
-          dx: (item.position.dx || 0) + PASTE_OFFSET,
-          dy: (item.position.dy || 0) + PASTE_OFFSET,
-        },
-      });
-    } else if (item.type === 'graph') {
-      graphsToAdd.push({
-        position: {
-          ...item.position,
-          id: newElementId(),
-          groupId: remapGroupId(item.position.groupId),
-          dx: (item.position.dx || 0) + PASTE_OFFSET,
-          dy: (item.position.dy || 0) + PASTE_OFFSET,
-        },
-      });
-    } else if (item.type === 'knob') {
-      knobsToAdd.push({
-        position: {
-          ...item.position,
-          id: newElementId(),
           groupId: remapGroupId(item.position.groupId),
           dx: (item.position.dx || 0) + PASTE_OFFSET,
           dy: (item.position.dy || 0) + PASTE_OFFSET,
@@ -197,8 +175,27 @@ export const pasteSelection = async ({
         },
         tabId: selectedKeyType,
       });
+    } else {
+      // 위치만 담는 종류
+      positionItemsToAdd[item.type].push({
+        position: {
+          ...item.position,
+          id: newElementId(),
+          groupId: remapGroupId(item.position.groupId),
+          dx: (item.position.dx || 0) + PASTE_OFFSET,
+          dy: (item.position.dy || 0) + PASTE_OFFSET,
+        },
+      } as never);
     }
   }
+  const itemsToAdd: ItemPasteEntries = {
+    ...positionItemsToAdd,
+    sprite: spritesToAdd,
+  };
+  const itemIdsToAdd = (type: ItemElementType) =>
+    (itemsToAdd[type] as Array<{ position: { id: string } }>).map(
+      (entry) => entry.position.id,
+    );
 
   // 스프라이트 트리거를 같은 배치 키의 신 id로 재결합, 배치 밖 키 참조는
   // 유지. 키가 스프라이트 뒤에 올 수 있어 payload 동결 후 일괄 치환한다.
@@ -303,10 +300,7 @@ export const pasteSelection = async ({
   ];
   const hasEditorPaste =
     keysToAdd.length > 0 ||
-    statsToAdd.length > 0 ||
-    graphsToAdd.length > 0 ||
-    knobsToAdd.length > 0 ||
-    spritesToAdd.length > 0 ||
+    ITEM_ELEMENT_TYPES.some((type) => itemsToAdd[type].length > 0) ||
     clipboardGroups.length > 0;
   if (!hasEditorPaste && frozenPluginElements.length === 0) return;
 
@@ -350,10 +344,7 @@ export const pasteSelection = async ({
     createFrozenPasteModel({
       selectedKeyType,
       keysToAdd,
-      statsToAdd,
-      graphsToAdd,
-      knobsToAdd,
-      spritesToAdd,
+      itemsToAdd,
       frozenPluginElements,
       pluginIdsToAdd,
       frozenNewGroups,
@@ -388,11 +379,7 @@ export const pasteSelection = async ({
     const eagerPlan = computePaste(
       {
         keys: useKeyStore.getState().keyMappings as never,
-        keyPositions: useKeyStore.getState().canonicalPositions as never,
-        statPositions: useStatItemStore.getState().positions as never,
-        graphPositions: useGraphItemStore.getState().positions as never,
-        knobPositions: useKnobItemStore.getState().positions as never,
-        spritePositions: useSpriteStore.getState().positions as never,
+        ...captureElementCollections(),
         layerGroups: useLayerGroupStore.getState().layerGroups as never,
       },
       eagerElementsBefore,
@@ -401,15 +388,7 @@ export const pasteSelection = async ({
     // 하나로 editor 복원까지 거부한다
     const editorReceipt = applySealedSliceMutation({
       modes: [selectedKeyType],
-      fields: [
-        'keys',
-        'keyPositions',
-        'statPositions',
-        'graphPositions',
-        'knobPositions',
-        'spritePositions',
-        'layerGroups',
-      ],
+      fields: [...EDITOR_FIELDS],
       mutate: () => {
         useKeyStore
           .getState()
@@ -417,18 +396,11 @@ export const pasteSelection = async ({
             eagerPlan.keys as never,
             eagerPlan.zPatch.keyPositions as never,
           );
-        useStatItemStore
-          .getState()
-          .setPositions(eagerPlan.zPatch.statPositions as never);
-        useGraphItemStore
-          .getState()
-          .setPositions(eagerPlan.zPatch.graphPositions as never);
-        useKnobItemStore
-          .getState()
-          .setPositions(eagerPlan.zPatch.knobPositions as never);
-        useSpriteStore
-          .getState()
-          .setPositions(eagerPlan.zPatch.spritePositions as never);
+        for (const type of ITEM_ELEMENT_TYPES) {
+          getItemStoreState(type).setPositions(
+            eagerPlan.zPatch[EDITOR_ELEMENT_POSITION_FIELDS[type]] as never,
+          );
+        }
         if (eagerPlan.groupsChanged) {
           useLayerGroupStore
             .getState()
@@ -502,26 +474,9 @@ export const pasteSelection = async ({
       useKeyStore.getState().canonicalPositions as never,
       keysToAdd.map((entry) => entry.position.id),
     );
-    collect(
-      'stat',
-      useStatItemStore.getState().positions as never,
-      statsToAdd.map((entry) => entry.position.id),
-    );
-    collect(
-      'graph',
-      useGraphItemStore.getState().positions as never,
-      graphsToAdd.map((entry) => entry.position.id),
-    );
-    collect(
-      'knob',
-      useKnobItemStore.getState().positions as never,
-      knobsToAdd.map((entry) => entry.position.id),
-    );
-    collect(
-      'sprite',
-      useSpriteStore.getState().positions as never,
-      spritesToAdd.map((entry) => entry.position.id),
-    );
+    for (const type of ITEM_ELEMENT_TYPES) {
+      collect(type, readAuthorityPositions(type) as never, itemIdsToAdd(type));
+    }
     const presentPluginIds = new Set(
       usePluginDisplayElementStore
         .getState()
@@ -548,27 +503,16 @@ export const pasteSelection = async ({
     const pruneRolledBackPasteSelection = () => {
       const newElementIds = new Set([
         ...keysToAdd.map((entry) => entry.position.id),
-        ...statsToAdd.map((entry) => entry.position.id),
-        ...graphsToAdd.map((entry) => entry.position.id),
-        ...knobsToAdd.map((entry) => entry.position.id),
-        ...spritesToAdd.map((entry) => entry.position.id),
+        ...ITEM_ELEMENT_TYPES.flatMap(itemIdsToAdd),
         ...frozenPluginElements.map((element) => element.fullId),
       ]);
       const presentIds = new Set<string>([
-        ...(
-          useKeyStore.getState().canonicalPositions[selectedKeyType] ?? []
-        ).map((position) => position.id),
-        ...(useStatItemStore.getState().positions[selectedKeyType] ?? []).map(
-          (position) => position.id,
-        ),
-        ...(useGraphItemStore.getState().positions[selectedKeyType] ?? []).map(
-          (position) => position.id,
-        ),
-        ...(useKnobItemStore.getState().positions[selectedKeyType] ?? []).map(
-          (position) => position.id,
-        ),
-        ...(useSpriteStore.getState().positions[selectedKeyType] ?? []).map(
-          (position) => position.id,
+        ...EDITOR_ELEMENT_TYPES.flatMap((type) =>
+          (
+            (readAuthorityPositions(type)[selectedKeyType] ?? []) as Array<{
+              id: string;
+            }>
+          ).map((position) => position.id),
         ),
         ...usePluginDisplayElementStore
           .getState()

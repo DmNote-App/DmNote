@@ -55,10 +55,7 @@ describe('createFrozenPasteModel', () => {
     createFrozenPasteModel({
       selectedKeyType: '4key',
       keysToAdd: [{ keyCode: 'KeyB', position: pastedPosition }],
-      statsToAdd: [],
-      graphsToAdd: [],
-      knobsToAdd: [],
-      spritesToAdd,
+      itemsToAdd: { stat: [], graph: [], knob: [], sprite: spritesToAdd },
       frozenPluginElements: [pastedPlugin],
       pluginIdsToAdd: ['plugin'],
       frozenNewGroups: [],

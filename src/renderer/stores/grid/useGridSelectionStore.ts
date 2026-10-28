@@ -1,10 +1,8 @@
 import { create } from 'zustand';
 import type { KeyPosition, KeySlot } from '@src/types/key/keys';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
-import type { StatItemPosition } from '@src/types/key/statItems';
-import type { GraphItemPosition } from '@src/types/key/graphItems';
-import type { KnobItemPosition } from '@src/types/key/knobs';
 import type { ReactiveSpritePosition } from '@src/types/key/sprites';
+import { ITEM_ELEMENT_TYPES } from '@src/types/editor';
 import type {
   CanonicalPositionOf,
   EditorElementTypeV1,
@@ -47,23 +45,19 @@ export interface ClipboardKeyData {
   position: KeyPosition;
 }
 
-// 클립보드에 저장되는 통계 요소 데이터
-export interface ClipboardStatData {
-  type: 'stat';
-  position: StatItemPosition;
-}
+// 클립보드에 위치만 저장하는 종류 (키는 매핑, 스프라이트는 트리거 결합을 함께 담는다)
+export type ClipboardPositionType = Exclude<ItemElementType, 'sprite'>;
 
-// 클립보드에 저장되는 그래프 데이터
-export interface ClipboardGraphData {
-  type: 'graph';
-  position: GraphItemPosition;
-}
+export const CLIPBOARD_POSITION_TYPES = ITEM_ELEMENT_TYPES.filter(
+  (type): type is ClipboardPositionType => type !== 'sprite',
+);
 
-// 클립보드에 저장되는 노브 데이터
-export interface ClipboardKnobData {
-  type: 'knob';
-  position: KnobItemPosition;
-}
+export type ClipboardPositionData = {
+  [K in ClipboardPositionType]: {
+    type: K;
+    position: CanonicalPositionOf<K>;
+  };
+}[ClipboardPositionType];
 
 // 클립보드에 저장되는 스프라이트 데이터
 export interface ClipboardSpriteData {
@@ -81,9 +75,7 @@ export interface ClipboardPluginData {
 
 export type ClipboardItem =
   | ClipboardKeyData
-  | ClipboardStatData
-  | ClipboardGraphData
-  | ClipboardKnobData
+  | ClipboardPositionData
   | ClipboardSpriteData
   | ClipboardPluginData;
 

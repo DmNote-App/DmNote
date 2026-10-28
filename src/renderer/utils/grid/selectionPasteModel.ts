@@ -1,14 +1,22 @@
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  EDITOR_ELEMENT_TYPES,
+  ITEM_ELEMENT_TYPES,
+} from '@src/types/editor';
 import type {
-  CanonicalEditorDocumentV1,
-  CanonicalGraphItemPosition,
   CanonicalKeyPosition,
-  CanonicalKnobItemPosition,
-  CanonicalReactiveSpritePosition,
-  CanonicalStatItemPosition,
+  CanonicalPositionOf,
+  EditorElementPositionField,
   EditorElementTypeV1,
   EditorInsertFrozenElementsOpV1,
   ElementCollections,
+  ItemElementType,
 } from '@src/types/editor';
+
+// 키 외 종류별 붙여넣기 항목
+export type ItemPasteEntries = {
+  [K in ItemElementType]: Array<{ position: CanonicalPositionOf<K> }>;
+};
 import type { KeySlot } from '@src/types/key/keys';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
@@ -35,10 +43,8 @@ const orderPastedItemsByFrozenZ = <Item>(
 interface FrozenPasteModelOptions {
   selectedKeyType: string;
   keysToAdd: Array<{ keyCode: KeySlot; position: CanonicalKeyPosition }>;
-  statsToAdd: Array<{ position: CanonicalStatItemPosition }>;
-  graphsToAdd: Array<{ position: CanonicalGraphItemPosition }>;
-  knobsToAdd: Array<{ position: CanonicalKnobItemPosition }>;
-  spritesToAdd: Array<{ position: CanonicalReactiveSpritePosition }>;
+  // 키 외 종류별 붙여넣을 위치 (종류 순서대로 append)
+  itemsToAdd: ItemPasteEntries;
   frozenPluginElements: PluginDisplayElementInternal[];
   pluginIdsToAdd: string[];
   frozenNewGroups: Array<{ id: string; name: string; collapsed: boolean }>;
@@ -54,10 +60,7 @@ interface FrozenPasteModelOptions {
 export const createFrozenPasteModel = ({
   selectedKeyType,
   keysToAdd,
-  statsToAdd,
-  graphsToAdd,
-  knobsToAdd,
-  spritesToAdd,
+  itemsToAdd,
   frozenPluginElements,
   pluginIdsToAdd,
   frozenNewGroups,
@@ -77,15 +80,16 @@ export const createFrozenPasteModel = ({
     ]),
   ];
 
-  interface PasteDocView {
+  type PasteDocView = ElementCollections & {
     keys: Record<string, KeySlot[]>;
-    keyPositions: CanonicalEditorDocumentV1['keyPositions'];
-    statPositions: CanonicalEditorDocumentV1['statPositions'];
-    graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-    knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-    spritePositions: CanonicalEditorDocumentV1['spritePositions'];
     layerGroups: Record<string, Array<{ id: string; name: string }>>;
-  }
+  };
+  type PositionField = EditorElementPositionField;
+  // 동결 항목의 키 외 종류 순회 (종류 순서 고정)
+  const itemEntriesOf = (type: ItemElementType) =>
+    itemsToAdd[type] as Array<{
+      position: { id: string; zIndex?: number | null };
+    }>;
 
   const payloadFingerprint = (value: unknown): string =>
     stableStringify({
@@ -113,15 +117,9 @@ export const createFrozenPasteModel = ({
 
     const findNativeById = (
       id: string,
-    ): { field: keyof PasteDocView; mode: string; index: number } | null => {
-      const fields = [
-        'keyPositions',
-        'statPositions',
-        'graphPositions',
-        'knobPositions',
-        'spritePositions',
-      ] as const;
-      for (const field of fields) {
+    ): { field: PositionField; mode: string; index: number } | null => {
+      for (const type of EDITOR_ELEMENT_TYPES) {
+        const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
         for (const [ownMode, list] of Object.entries(view[field])) {
           const index = (list as Array<{ id: string }>).findIndex(
             (position) => position.id === id,
@@ -134,10 +132,6 @@ export const createFrozenPasteModel = ({
 
     const nextKeys = { ...view.keys };
     const nextKeyPositions = { ...view.keyPositions };
-    const nextStatPositions = { ...view.statPositions };
-    const nextGraphPositions = { ...view.graphPositions };
-    const nextKnobPositions = { ...view.knobPositions };
-    const nextSpritePositions = { ...view.spritePositions };
 
     const appendedNativeIds = new Set<string>();
     let realizedFrozenNativeParts = 0;
@@ -172,7 +166,7 @@ export const createFrozenPasteModel = ({
     const appendSimple = <T extends { id: string }>(
       record: Record<string, T[]>,
       entries: Array<{ position: T }>,
-      field: keyof PasteDocView,
+      field: PositionField,
     ): Record<string, T[]> => {
       let next = record;
       for (const entry of entries) {
@@ -199,25 +193,18 @@ export const createFrozenPasteModel = ({
       }
       return next;
     };
-    const statNext = appendSimple(
-      nextStatPositions,
-      statsToAdd,
-      'statPositions',
-    );
-    const graphNext = appendSimple(
-      nextGraphPositions,
-      graphsToAdd,
-      'graphPositions',
-    );
-    const knobNext = appendSimple(
-      nextKnobPositions,
-      knobsToAdd,
-      'knobPositions',
-    );
-    const spriteNext = appendSimple(
-      nextSpritePositions,
-      spritesToAdd,
-      'spritePositions',
+    const itemNext = Object.fromEntries(
+      ITEM_ELEMENT_TYPES.map((type) => {
+        const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
+        return [
+          field,
+          appendSimple(
+            { ...view[field] } as Record<string, Array<{ id: string }>>,
+            itemEntriesOf(type),
+            field,
+          ),
+        ];
+      }),
     );
 
     // 신규 그룹 append (id 기준 멱등)
@@ -277,10 +264,7 @@ export const createFrozenPasteModel = ({
     // 결합 순서 재구성 + 동결 앵커 재해석 (소실 시 최상단 fallback)
     const nextCollections = {
       keyPositions: nextKeyPositions,
-      statPositions: statNext,
-      graphPositions: graphNext,
-      knobPositions: knobNext,
-      spritePositions: spriteNext,
+      ...itemNext,
     } as unknown as ElementCollections;
     const allItems = buildLayerItemsForMode(
       mode,
@@ -305,22 +289,12 @@ export const createFrozenPasteModel = ({
         item: entry.position.id,
         zIndex: entry.position.zIndex,
       })),
-      ...statsToAdd.map((entry) => ({
-        item: entry.position.id,
-        zIndex: entry.position.zIndex,
-      })),
-      ...graphsToAdd.map((entry) => ({
-        item: entry.position.id,
-        zIndex: entry.position.zIndex,
-      })),
-      ...knobsToAdd.map((entry) => ({
-        item: entry.position.id,
-        zIndex: entry.position.zIndex,
-      })),
-      ...spritesToAdd.map((entry) => ({
-        item: entry.position.id,
-        zIndex: entry.position.zIndex ?? undefined,
-      })),
+      ...ITEM_ELEMENT_TYPES.flatMap((type) =>
+        itemEntriesOf(type).map((entry) => ({
+          item: entry.position.id,
+          zIndex: entry.position.zIndex ?? undefined,
+        })),
+      ),
       ...frozenPluginElements.map((element) => ({
         item: element.fullId,
         zIndex: element.zIndex,
@@ -378,41 +352,39 @@ export const createFrozenPasteModel = ({
     const mode = selectedKeyType;
     const frozenNativeIds = new Set([
       ...keysToAdd.map((entry) => entry.position.id),
-      ...statsToAdd.map((entry) => entry.position.id),
-      ...graphsToAdd.map((entry) => entry.position.id),
-      ...knobsToAdd.map((entry) => entry.position.id),
-      ...spritesToAdd.map((entry) => entry.position.id),
+      ...ITEM_ELEMENT_TYPES.flatMap((type) =>
+        itemEntriesOf(type).map((entry) => entry.position.id),
+      ),
     ]);
     const finalById = <T extends { id: string }>(record: Record<string, T[]>) =>
       new Map((record[mode] ?? []).map((position) => [position.id, position]));
-    const finalKeys = finalById(plan.zPatch.keyPositions);
-    const finalStats = finalById(plan.zPatch.statPositions);
-    const finalGraphs = finalById(plan.zPatch.graphPositions);
-    const finalKnobs = finalById(plan.zPatch.knobPositions);
-    const finalSprites = finalById(plan.zPatch.spritePositions);
-    const elements: EditorInsertFrozenElementsOpV1['elements'] = [
+    const finalByType = Object.fromEntries(
+      EDITOR_ELEMENT_TYPES.map((type) => [
+        type,
+        finalById(
+          plan.zPatch[EDITOR_ELEMENT_POSITION_FIELDS[type]] as Record<
+            string,
+            Array<{ id: string; zIndex?: number }>
+          >,
+        ),
+      ]),
+    ) as Record<
+      EditorElementTypeV1,
+      Map<string, { id: string; zIndex?: number }>
+    >;
+    const elements = [
       ...keysToAdd.map((entry) => ({
         elementType: 'key' as const,
         slot: entry.keyCode,
-        position: finalKeys.get(entry.position.id) ?? entry.position,
+        position: finalByType.key.get(entry.position.id) ?? entry.position,
       })),
-      ...statsToAdd.map((entry) => ({
-        elementType: 'stat' as const,
-        position: finalStats.get(entry.position.id) ?? entry.position,
-      })),
-      ...graphsToAdd.map((entry) => ({
-        elementType: 'graph' as const,
-        position: finalGraphs.get(entry.position.id) ?? entry.position,
-      })),
-      ...knobsToAdd.map((entry) => ({
-        elementType: 'knob' as const,
-        position: finalKnobs.get(entry.position.id) ?? entry.position,
-      })),
-      ...spritesToAdd.map((entry) => ({
-        elementType: 'sprite' as const,
-        position: finalSprites.get(entry.position.id) ?? entry.position,
-      })),
-    ];
+      ...ITEM_ELEMENT_TYPES.flatMap((type) =>
+        itemEntriesOf(type).map((entry) => ({
+          elementType: type,
+          position: finalByType[type].get(entry.position.id) ?? entry.position,
+        })),
+      ),
+    ] as EditorInsertFrozenElementsOpV1['elements'];
     const zUpdates: EditorInsertFrozenElementsOpV1['zUpdates'] = [];
     const collectZUpdates = (
       elementType: EditorElementTypeV1,
@@ -429,12 +401,16 @@ export const createFrozenPasteModel = ({
       }
       return true;
     };
-    const stable =
-      collectZUpdates('key', view.keyPositions[mode] ?? [], finalKeys) &&
-      collectZUpdates('stat', view.statPositions[mode] ?? [], finalStats) &&
-      collectZUpdates('graph', view.graphPositions[mode] ?? [], finalGraphs) &&
-      collectZUpdates('knob', view.knobPositions[mode] ?? [], finalKnobs) &&
-      collectZUpdates('sprite', view.spritePositions[mode] ?? [], finalSprites);
+    // 종류 순서대로 수집하고 첫 실패에서 멈춘다
+    const stable = EDITOR_ELEMENT_TYPES.every((type) =>
+      collectZUpdates(
+        type,
+        (view[EDITOR_ELEMENT_POSITION_FIELDS[type]][mode] ?? []) as Array<{
+          id: string;
+        }>,
+        finalByType[type],
+      ),
+    );
     if (!stable) {
       throw new ElementIntentAbort('paste source document is not canonical');
     }

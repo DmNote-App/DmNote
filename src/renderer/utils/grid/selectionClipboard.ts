@@ -2,12 +2,9 @@ import type {
   ClipboardItem,
   SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
-import type {
-  CanonicalGraphItemPosition,
-  CanonicalKeyPosition,
-  CanonicalKnobItemPosition,
-  CanonicalReactiveSpritePosition,
-  CanonicalStatItemPosition,
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  type ElementCollectionsModeArrays,
 } from '@src/types/editor';
 import type { KeySlot } from '@src/types/key/keys';
 import type { LayerGroupDef } from '@src/types/layerGroups';
@@ -15,38 +12,33 @@ import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import { cloneSlot } from '@utils/keySlot';
 import { buildSpriteKeyCanonicalMap } from '@utils/sprite/spriteKeyBinding';
 
-interface SelectionClipboardSource {
+type SelectionClipboardSource = ElementCollectionsModeArrays & {
   selectedElements: readonly SelectedElement[];
   keyMappings: readonly KeySlot[];
-  keyPositions: readonly CanonicalKeyPosition[];
-  statPositions: readonly CanonicalStatItemPosition[];
-  graphPositions: readonly CanonicalGraphItemPosition[];
-  knobPositions: readonly CanonicalKnobItemPosition[];
-  spritePositions: readonly CanonicalReactiveSpritePosition[];
   pluginElements: readonly PluginDisplayElementInternal[];
   selectedGroupIds: readonly string[];
   layerGroups: readonly LayerGroupDef[];
   collapsedGroupIds: ReadonlySet<string>;
-}
+};
 
 export interface SelectionClipboardSnapshot {
   items: ClipboardItem[];
   groups: Array<{ id: string; name: string; collapsed?: boolean }>;
 }
 
-export const createSelectionClipboardSnapshot = ({
-  selectedElements,
-  keyMappings,
-  keyPositions,
-  statPositions,
-  graphPositions,
-  knobPositions,
-  spritePositions,
-  pluginElements,
-  selectedGroupIds,
-  layerGroups,
-  collapsedGroupIds,
-}: SelectionClipboardSource): SelectionClipboardSnapshot => {
+export const createSelectionClipboardSnapshot = (
+  source: SelectionClipboardSource,
+): SelectionClipboardSnapshot => {
+  const {
+    selectedElements,
+    keyMappings,
+    keyPositions,
+    spritePositions,
+    pluginElements,
+    selectedGroupIds,
+    layerGroups,
+    collapsedGroupIds,
+  } = source;
   const items: ClipboardItem[] = [];
   // 트리거 id -> canonical 키. 재생 매핑과 같은 결합을 쓴다
   const sourceKeyCanonicals = buildSpriteKeyCanonicalMap(
@@ -68,21 +60,6 @@ export const createSelectionClipboardSnapshot = ({
           position: { ...position },
         });
       }
-    } else if (element.type === 'stat') {
-      const position = statPositions.find(
-        (candidate) => candidate.id === element.id,
-      );
-      if (position) items.push({ type: 'stat', position: { ...position } });
-    } else if (element.type === 'graph') {
-      const position = graphPositions.find(
-        (candidate) => candidate.id === element.id,
-      );
-      if (position) items.push({ type: 'graph', position: { ...position } });
-    } else if (element.type === 'knob') {
-      const position = knobPositions.find(
-        (candidate) => candidate.id === element.id,
-      );
-      if (position) items.push({ type: 'knob', position: { ...position } });
     } else if (element.type === 'sprite') {
       const position = spritePositions.find(
         (candidate) => candidate.id === element.id,
@@ -102,13 +79,26 @@ export const createSelectionClipboardSnapshot = ({
           ),
         });
       }
-    } else {
+    } else if (element.type === 'plugin') {
       const pluginElement = pluginElements.find(
         (candidate) => candidate.fullId === element.id,
       );
       if (pluginElement) {
         const { fullId: _fullId, ...elementData } = pluginElement;
         items.push({ type: 'plugin', element: elementData });
+      }
+    } else {
+      // 위치만 담는 종류
+      const position = (
+        source[EDITOR_ELEMENT_POSITION_FIELDS[element.type]] as ReadonlyArray<{
+          id: string;
+        }>
+      ).find((candidate) => candidate.id === element.id);
+      if (position) {
+        items.push({
+          type: element.type,
+          position: { ...position },
+        } as ClipboardItem);
       }
     }
   }
