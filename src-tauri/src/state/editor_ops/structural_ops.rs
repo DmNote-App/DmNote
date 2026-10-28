@@ -50,86 +50,30 @@ fn insert_location(
 pub(super) fn build_element_locator(
     document: &EditorDocumentV1,
 ) -> Result<HashMap<String, ElementLocation>, EditorCommitError> {
-    let element_count = document.key_positions.values().map(Vec::len).sum::<usize>()
-        + document
-            .stat_positions
-            .values()
-            .map(Vec::len)
-            .sum::<usize>()
-        + document
-            .graph_positions
-            .values()
-            .map(Vec::len)
-            .sum::<usize>()
-        + document
-            .knob_positions
-            .values()
-            .map(Vec::len)
-            .sum::<usize>()
-        + document
-            .sprite_positions
-            .values()
-            .map(Vec::len)
-            .sum::<usize>();
-    let mut locations = HashMap::with_capacity(element_count);
+    struct LocateElements<'a> {
+        document: &'a EditorDocumentV1,
+        locations: HashMap<String, ElementLocation>,
+    }
 
-    for (mode, positions) in &document.key_positions {
-        for (index, position) in positions.iter().enumerate() {
-            insert_location(
-                &mut locations,
-                EditorElementTypeV1::Key,
-                mode,
-                index,
-                &position.id,
-            )?;
-        }
-    }
-    for (mode, positions) in &document.stat_positions {
-        for (index, position) in positions.iter().enumerate() {
-            insert_location(
-                &mut locations,
-                EditorElementTypeV1::Stat,
-                mode,
-                index,
-                &position.position.id,
-            )?;
-        }
-    }
-    for (mode, positions) in &document.graph_positions {
-        for (index, position) in positions.iter().enumerate() {
-            insert_location(
-                &mut locations,
-                EditorElementTypeV1::Graph,
-                mode,
-                index,
-                &position.position.id,
-            )?;
-        }
-    }
-    for (mode, positions) in &document.knob_positions {
-        for (index, position) in positions.iter().enumerate() {
-            insert_location(
-                &mut locations,
-                EditorElementTypeV1::Knob,
-                mode,
-                index,
-                &position.position.id,
-            )?;
-        }
-    }
-    for (mode, positions) in &document.sprite_positions {
-        for (index, position) in positions.iter().enumerate() {
-            insert_location(
-                &mut locations,
-                EditorElementTypeV1::Sprite,
-                mode,
-                index,
-                &position.id,
-            )?;
+    impl CollectionVisitor for LocateElements<'_> {
+        type Error = EditorCommitError;
+
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), EditorCommitError> {
+            for (mode, elements) in C::positions(self.document) {
+                for (index, element) in elements.iter().enumerate() {
+                    insert_location(&mut self.locations, C::KIND, mode, index, element.id())?;
+                }
+            }
+            Ok(())
         }
     }
 
-    Ok(locations)
+    let mut locate = LocateElements {
+        document,
+        locations: HashMap::with_capacity(element_count(document)),
+    };
+    visit_collections(&mut locate)?;
+    Ok(locate.locations)
 }
 
 fn key_position_common_mut(position: &mut KeyPosition) -> ElementCommonMut<'_> {
@@ -279,24 +223,8 @@ pub(super) fn element_bounds(
     }
 }
 
-fn frozen_element_type(element: &EditorFrozenElementV1) -> EditorElementTypeV1 {
-    match element {
-        EditorFrozenElementV1::Key { .. } => EditorElementTypeV1::Key,
-        EditorFrozenElementV1::Stat { .. } => EditorElementTypeV1::Stat,
-        EditorFrozenElementV1::Graph { .. } => EditorElementTypeV1::Graph,
-        EditorFrozenElementV1::Knob { .. } => EditorElementTypeV1::Knob,
-        EditorFrozenElementV1::Sprite { .. } => EditorElementTypeV1::Sprite,
-    }
-}
-
 fn frozen_element_group_id(element: &EditorFrozenElementV1) -> Option<&str> {
-    match element {
-        EditorFrozenElementV1::Key { position, .. } => position.group_id.as_deref(),
-        EditorFrozenElementV1::Stat { position } => position.position.group_id.as_deref(),
-        EditorFrozenElementV1::Graph { position } => position.position.group_id.as_deref(),
-        EditorFrozenElementV1::Knob { position } => position.position.group_id.as_deref(),
-        EditorFrozenElementV1::Sprite { position } => position.group_id.as_deref(),
-    }
+    element.item().group_id()
 }
 
 fn frozen_element_matches(
@@ -304,7 +232,7 @@ fn frozen_element_matches(
     location: &ElementLocation,
     element: &EditorFrozenElementV1,
 ) -> bool {
-    if location.element_type != frozen_element_type(element) {
+    if location.element_type != element.element_type() {
         return false;
     }
     match element {
@@ -942,26 +870,32 @@ pub(super) fn delete_elements(
             }
         }
     }
-    if let Some(ids) = delete_ids.get(&EditorElementTypeV1::Stat) {
-        for positions in document.stat_positions.values_mut() {
-            positions.retain(|position| !ids.contains(&position.position.id));
+    // 키 외 컬렉션은 인덱스 결합이 없어 요소만 지운다
+    struct DeleteElements<'a> {
+        document: &'a mut EditorDocumentV1,
+        delete_ids: &'a HashMap<EditorElementTypeV1, HashSet<String>>,
+    }
+
+    impl CollectionVisitor for DeleteElements<'_> {
+        type Error = Infallible;
+
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), Infallible> {
+            if let Some(ids) = self.delete_ids.get(&C::KIND) {
+                for elements in C::positions_mut(self.document).values_mut() {
+                    elements.retain(|element| !ids.contains(element.id()));
+                }
+            }
+            Ok(())
         }
     }
-    if let Some(ids) = delete_ids.get(&EditorElementTypeV1::Graph) {
-        for positions in document.graph_positions.values_mut() {
-            positions.retain(|position| !ids.contains(&position.position.id));
-        }
-    }
-    if let Some(ids) = delete_ids.get(&EditorElementTypeV1::Knob) {
-        for positions in document.knob_positions.values_mut() {
-            positions.retain(|position| !ids.contains(&position.position.id));
-        }
-    }
-    if let Some(ids) = delete_ids.get(&EditorElementTypeV1::Sprite) {
-        for positions in document.sprite_positions.values_mut() {
-            positions.retain(|position| !ids.contains(&position.id));
-        }
-    }
+
+    let Ok(()) = visit_collections_in(
+        ElementKindSet::ALL.without(EditorElementTypeV1::Key),
+        &mut DeleteElements {
+            document,
+            delete_ids,
+        },
+    );
 }
 
 pub(super) fn remove_empty_layer_groups(
@@ -971,26 +905,11 @@ pub(super) fn remove_empty_layer_groups(
 ) {
     for mode in affected_modes {
         let mut referenced_group_ids = HashSet::new();
-        let mut collect = |group_id: Option<&str>| {
-            if let Some(group_id) = group_id {
+        for_each_element_in_mode(&*document, mode, |_, element| {
+            if let Some(group_id) = element.group_id() {
                 referenced_group_ids.insert(group_id.to_string());
             }
-        };
-        for position in document.key_positions.get(mode).into_iter().flatten() {
-            collect(position.group_id.as_deref());
-        }
-        for position in document.stat_positions.get(mode).into_iter().flatten() {
-            collect(position.position.group_id.as_deref());
-        }
-        for position in document.graph_positions.get(mode).into_iter().flatten() {
-            collect(position.position.group_id.as_deref());
-        }
-        for position in document.knob_positions.get(mode).into_iter().flatten() {
-            collect(position.position.group_id.as_deref());
-        }
-        for position in document.sprite_positions.get(mode).into_iter().flatten() {
-            collect(position.group_id.as_deref());
-        }
+        });
         // 플러그인 멤버만 남은 그룹도 생존 - 참조 집합은 커밋 후 상태 기준
         // (gesture는 요청 동봉 plugin_changes, editor 단독은 store decode)
         let plugin_refs = plugin_group_refs.get(mode);

@@ -1,22 +1,27 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::Infallible,
+};
 
 use crate::{
     errors::EditorCommitError,
     models::{
-        compact_canonical_rgba, default_counter_animation_builtin_presets,
-        note_border_representative_hex, note_gradient_shadow, AppStoreData, CounterAnimationPreset,
-        EditorBoundsV1, EditorCounterAnimationPresetIntentV1, EditorCounterFillIntentV1,
-        EditorDocumentV1, EditorElementGroupTargetV1, EditorElementPropertyPatchV1,
-        EditorElementTypeV1, EditorField, EditorFrozenElementV1, EditorGroupUpdateV1,
-        EditorNoteBorderPaintV1, EditorNoteColorV1, EditorNotePaintIntentV1,
+        compact_canonical_rgba, default_counter_animation_builtin_presets, element_count,
+        for_each_element_in_mode, note_border_representative_hex, note_gradient_shadow,
+        visit_collections, visit_collections_in, AppStoreData, CollectionVisitor,
+        CounterAnimationPreset, EditorBoundsV1, EditorCounterAnimationPresetIntentV1,
+        EditorCounterFillIntentV1, EditorDocumentV1, EditorElementGroupTargetV1,
+        EditorElementPropertyPatchV1, EditorElementTypeV1, EditorField, EditorFrozenElementV1,
+        EditorGroupUpdateV1, EditorNoteBorderPaintV1, EditorNoteColorV1, EditorNotePaintIntentV1,
         EditorOpResultStatusV1, EditorOpResultV1, EditorOpV1, EditorPaintDescriptorV1,
         EditorPaintGradientV1, EditorShadowLeafPatchV1, EditorTargetGroupV1, EditorZUpdateV1,
-        ElementShadowSpec, GradientSpec, ImageMode, ImageTransform, ImageTransformLeafPatchV1,
-        KeyPosition, LayerGroupDef, NoteColor, NoteGradientShadow, ReactiveSpritePosition,
-        SpriteTransform, IMAGE_TRANSFORM_OFFSET_MAX, IMAGE_TRANSFORM_OFFSET_MIN,
-        IMAGE_TRANSFORM_ROTATION_MAX, IMAGE_TRANSFORM_ROTATION_MIN, IMAGE_TRANSFORM_SCALE_MAX,
-        IMAGE_TRANSFORM_SCALE_MIN, SHADOW_BLUR_MAX, SHADOW_BLUR_MIN, SHADOW_OFFSET_MAX,
-        SHADOW_OFFSET_MIN, SPRITE_TRANSFORM_OFFSET_MAX, SPRITE_TRANSFORM_OFFSET_MIN,
+        ElementCollection, ElementItem, ElementKindSet, ElementShadowSpec, GradientSpec, ImageMode,
+        ImageTransform, ImageTransformLeafPatchV1, KeyPosition, LayerGroupDef, NoteColor,
+        NoteGradientShadow, ReactiveSpritePosition, SpriteTransform, IMAGE_TRANSFORM_OFFSET_MAX,
+        IMAGE_TRANSFORM_OFFSET_MIN, IMAGE_TRANSFORM_ROTATION_MAX, IMAGE_TRANSFORM_ROTATION_MIN,
+        IMAGE_TRANSFORM_SCALE_MAX, IMAGE_TRANSFORM_SCALE_MIN, SHADOW_BLUR_MAX, SHADOW_BLUR_MIN,
+        SHADOW_OFFSET_MAX, SHADOW_OFFSET_MIN, SPRITE_TRANSFORM_OFFSET_MAX,
+        SPRITE_TRANSFORM_OFFSET_MIN,
     },
 };
 

@@ -4,9 +4,9 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::models::{
-    AppStoreData, CustomCss, CustomJs, CustomTab, EditorDocumentV1, EditorField, EditorPatchV1,
-    FontSettings, KeyCounters, NoteSettings, SavedPluginInstance, TabCss, TabCssOverrides,
-    TabNoteOverrides, TabNoteSettings,
+    visit_collections, AppStoreData, CollectionVisitor, CustomCss, CustomJs, CustomTab,
+    EditorDocumentV1, EditorField, EditorPatchV1, ElementCollection, FontSettings, KeyCounters,
+    NoteSettings, SavedPluginInstance, TabCss, TabCssOverrides, TabNoteOverrides, TabNoteSettings,
 };
 use crate::state::plugin::{is_plugin_instances_storage_key, plugin_id_from_instances_storage_key};
 
@@ -263,24 +263,27 @@ fn apply_value_patch<T: Clone>(
 }
 
 fn preserve_editor_before_values(merged: &mut EditorPatchV1, first: &EditorPatchV1) {
+    struct PreserveBefore<'a> {
+        merged: &'a mut EditorPatchV1,
+        first: &'a EditorPatchV1,
+    }
+
+    impl CollectionVisitor for PreserveBefore<'_> {
+        type Error = std::convert::Infallible;
+
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), Self::Error> {
+            let first = C::optional(self.first);
+            if first.is_some() {
+                C::optional_mut(self.merged).clone_from(first);
+            }
+            Ok(())
+        }
+    }
+
     if first.keys.is_some() {
         merged.keys.clone_from(&first.keys);
     }
-    if first.key_positions.is_some() {
-        merged.key_positions.clone_from(&first.key_positions);
-    }
-    if first.stat_positions.is_some() {
-        merged.stat_positions.clone_from(&first.stat_positions);
-    }
-    if first.graph_positions.is_some() {
-        merged.graph_positions.clone_from(&first.graph_positions);
-    }
-    if first.knob_positions.is_some() {
-        merged.knob_positions.clone_from(&first.knob_positions);
-    }
-    if first.sprite_positions.is_some() {
-        merged.sprite_positions.clone_from(&first.sprite_positions);
-    }
+    let Ok(()) = visit_collections(&mut PreserveBefore { merged, first });
     if first.layer_groups.is_some() {
         merged.layer_groups.clone_from(&first.layer_groups);
     }
