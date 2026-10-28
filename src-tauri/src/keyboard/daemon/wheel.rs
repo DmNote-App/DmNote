@@ -549,6 +549,7 @@ mod tests {
                     Out::Axis(message.axis_id, message.value)
                 }
                 DaemonOutput::Command(command) => panic!("unexpected command {command:?}"),
+                DaemonOutput::Pointer(message) => panic!("unexpected pointer {message:?}"),
             })
             .collect()
     }
@@ -1034,7 +1035,7 @@ mod tests {
         while keys.len() < 2 {
             match receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
                 DaemonOutput::Hook(message) => keys.push(message.state),
-                DaemonOutput::Axis(_) => {}
+                DaemonOutput::Axis(_) | DaemonOutput::Pointer(_) => {}
                 DaemonOutput::Command(command) => panic!("unexpected command {command:?}"),
             }
         }

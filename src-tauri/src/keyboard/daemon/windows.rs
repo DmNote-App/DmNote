@@ -236,6 +236,7 @@ pub(super) fn run_raw_input() -> Result<()> {
     };
     let output = super::start_output_writer(sink)?;
     let wheel = super::wheel::spawn_wheel_engine(output.clone())?;
+    let pointer = super::pointer::spawn_pointer_engine(output.clone())?;
 
     // 글로벌 단축키 상태 추적기
     let hotkeys = super::load_hotkeys_from_env();
@@ -561,6 +562,25 @@ pub(super) fn run_raw_input() -> Result<()> {
                     }
                     t if t == RIM_TYPEMOUSE.0 => {
                         let mouse = raw.data.mouse;
+                        // 커서 트래커 - 상대 이동은 하드웨어 이동량, 좌표는 전역 커서 위치
+                        const MOUSE_MOVE_ABSOLUTE: u16 = 0x0001;
+                        if mouse.lLastX != 0 || mouse.lLastY != 0 {
+                            if (mouse.usFlags.0 & MOUSE_MOVE_ABSOLUTE) == 0 {
+                                pointer.send(super::pointer::PointerInput::Delta {
+                                    dx: mouse.lLastX as f64,
+                                    dy: mouse.lLastY as f64,
+                                });
+                            }
+                            let mut point = windows::Win32::Foundation::POINT::default();
+                            if windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut point)
+                                .is_ok()
+                            {
+                                pointer.send(super::pointer::PointerInput::Position {
+                                    x: point.x as f64,
+                                    y: point.y as f64,
+                                });
+                            }
+                        }
                         let button_flags = mouse.Anonymous.Anonymous.usButtonFlags;
                         if let Some(sample) = super::wheel::windows_wheel_sample(
                             button_flags,

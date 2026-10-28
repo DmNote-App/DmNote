@@ -31,6 +31,10 @@ mod macos_wheel;
 #[cfg(any(target_os = "windows", target_os = "macos", test))]
 mod wheel;
 
+// 마우스 포인터 공용 엔진 (이동량·좌표 묶음 전송)
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+mod pointer;
+
 /// 축 값 전송 최소 간격(ms), 고빈도 축 입력이 파이프·입력 스레드를 막지 않도록 (HID 축·휠 가상 축 공용)
 #[cfg(any(target_os = "windows", target_os = "macos", test))]
 pub(super) const AXIS_THROTTLE_MS: u64 = 12;
@@ -74,6 +78,8 @@ pub(super) enum DaemonOutput {
     Command(DaemonCommand),
     #[cfg_attr(not(any(target_os = "windows", target_os = "macos")), allow(dead_code))]
     Axis(HidAxisMessage),
+    #[cfg_attr(not(any(target_os = "windows", target_os = "macos")), allow(dead_code))]
+    Pointer(crate::ipc::PointerMessage),
 }
 
 #[derive(Clone)]
@@ -93,6 +99,7 @@ fn write_output(sink: &mut (dyn Write + Send), output: &DaemonOutput) -> Result<
         DaemonOutput::Hook(message) => serde_json::to_vec(message)?,
         DaemonOutput::Command(command) => serde_json::to_vec(command)?,
         DaemonOutput::Axis(message) => serde_json::to_vec(message)?,
+        DaemonOutput::Pointer(message) => serde_json::to_vec(message)?,
     };
     line.push(b'\n');
     sink.write_all(&line)?;

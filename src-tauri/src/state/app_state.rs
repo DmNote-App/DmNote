@@ -685,6 +685,7 @@ pub struct AppState {
     key_counter_enabled: Arc<AtomicBool>,
     /// Raw input stream subscriber count - emit only when > 0
     raw_input_subscribers: Arc<std::sync::atomic::AtomicU32>,
+    pointer_input_subscribers: std::sync::atomic::AtomicU32,
     key_sound: Arc<KeySoundEngine>,
     key_sound_bindings: RwLock<Arc<KeySoundBindingTable>>,
     key_sound_output_generation: Arc<AtomicU64>,
@@ -896,6 +897,7 @@ impl AppState {
             element_document_publication,
             key_counter_enabled,
             raw_input_subscribers: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            pointer_input_subscribers: std::sync::atomic::AtomicU32::new(0),
             key_sound,
             key_sound_bindings: RwLock::new(key_sound_bindings),
             key_sound_output_generation,

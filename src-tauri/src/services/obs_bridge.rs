@@ -81,6 +81,7 @@ const FORWARDED_EVENTS: &[&str] = &[
     "input:raw",
     "input:press",
     "input:axis",
+    "input:pointer",
     "css:use",
     "css:content",
     "js:use",

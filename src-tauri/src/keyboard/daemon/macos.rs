@@ -339,7 +339,8 @@ pub(super) fn run_macos() -> Result<()> {
 
     let output = super::start_output_writer(Box::new(std::io::stdout()))?;
     let wheel = super::wheel::spawn_wheel_engine(output.clone())?;
-    super::macos_wheel::start_hid_wheel_capture(wheel);
+    let pointer = super::pointer::spawn_pointer_engine(output.clone())?;
+    super::macos_wheel::start_hid_wheel_capture(wheel, pointer.clone());
 
     // rdev::listen — 접근성 + 입력 모니터링 권한 필수
     // 권한 부여 직후 CGEventTap 생성 실패 가능 — 재시도 처리
@@ -354,7 +355,7 @@ pub(super) fn run_macos() -> Result<()> {
             std::thread::sleep(std::time::Duration::from_secs(2));
         }
 
-        let result = run_macos_listen(output.clone());
+        let result = run_macos_listen(output.clone(), pointer.clone());
         match result {
             Ok(_) => return Ok(()),
             Err(err) => {
@@ -369,7 +370,10 @@ pub(super) fn run_macos() -> Result<()> {
 }
 
 /// rdev::listen 실행 내부 함수. 매 재시도마다 새로운 콜백/상태 생성
-fn run_macos_listen(output: super::OutputSender) -> Result<()> {
+fn run_macos_listen(
+    output: super::OutputSender,
+    pointer: super::pointer::PointerSender,
+) -> Result<()> {
     use rdev::{listen, EventType};
 
     let hotkeys = super::load_hotkeys_from_env();
@@ -383,6 +387,10 @@ fn run_macos_listen(output: super::OutputSender) -> Result<()> {
     let callback = move |event: rdev::Event| {
         let captured = super::InputCapture::now();
         match event.event_type {
+            // 전역 커서 좌표(포인트) - 드래그 중에도 들어온다
+            EventType::MouseMove { x, y } => {
+                pointer.send(super::pointer::PointerInput::Position { x, y });
+            }
             EventType::KeyPress(key) => {
                 let key_name = format!("{:?}", key).to_ascii_lowercase();
                 if let Some(command) = hotkey_state.update(&key_name, true) {

@@ -18,6 +18,25 @@ impl AppState {
         }
     }
 
+    /// 커서 트래커 포인터 묶음 구독
+    pub fn subscribe_pointer_input(&self) -> u32 {
+        self.pointer_input_subscribers
+            .fetch_add(1, Ordering::SeqCst)
+            + 1
+    }
+
+    pub fn unsubscribe_pointer_input(&self) -> u32 {
+        self.pointer_input_subscribers
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |count| {
+                Some(count.saturating_sub(1))
+            })
+            .map_or(0, |previous| previous.saturating_sub(1))
+    }
+
+    pub fn pointer_input_subscriber_count(&self) -> u32 {
+        self.pointer_input_subscribers.load(Ordering::Relaxed)
+    }
+
     /// Get current raw input subscriber count
     pub fn raw_input_subscriber_count(&self) -> u32 {
         self.raw_input_subscribers.load(Ordering::Relaxed)

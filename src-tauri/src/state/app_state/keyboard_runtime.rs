@@ -360,6 +360,17 @@ impl AppState {
                                 continue;
                             }
 
+                            // 포인터 묶음(커서 트래커) → 구독이 있을 때만 input:pointer
+                            if let Ok(message) =
+                                serde_json::from_str::<crate::ipc::PointerMessage>(s)
+                            {
+                                let app_state = app_handle.state::<AppState>();
+                                if app_state.pointer_input_subscriber_count() > 0 {
+                                    publish_event(&app_handle, "input:pointer", message.pointer);
+                                }
+                                continue;
+                            }
+
                             // HID 축(노브) 메시지 → input:axis 이벤트 브로드캐스트
                             // (버튼은 아래 HookMessage 경로로 기존 키 시각화 재사용)
                             if let Ok(axis) =

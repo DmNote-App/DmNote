@@ -116,7 +116,7 @@ async fn assert_no_tauri_event(ws: &mut TestWebSocket) {
 
 #[test]
 fn websocket_allowlist_uses_exact_matching() {
-    assert_eq!(ALLOWED_WS_COMMANDS.len(), 33);
+    assert_eq!(ALLOWED_WS_COMMANDS.len(), 36);
     assert!(is_allowed_command("app_bootstrap"));
     assert!(is_allowed_command("editor_get"));
     assert!(!is_allowed_command("css_history_get"));
@@ -252,7 +252,7 @@ fn bridge_messages_targeting_main_are_not_forwarded_to_obs() {
 
 #[test]
 fn public_overlay_events_are_forwarded_to_obs_clients() {
-    assert_eq!(FORWARDED_EVENTS.len(), 34);
+    assert_eq!(FORWARDED_EVENTS.len(), 35);
     for event in [
         "elementDocument:changed",
         "customTabs:changed",

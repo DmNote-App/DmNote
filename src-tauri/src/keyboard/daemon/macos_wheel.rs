@@ -24,6 +24,7 @@ use core_foundation::{
     string::{CFString, CFStringRef},
 };
 
+use super::pointer::{PointerInput, PointerSender};
 use super::wheel::{
     HidResolutionMultiplier, WheelSample, WheelSender, HID_PAGE_CONSUMER, HID_PAGE_GENERIC_DESKTOP,
     HID_USAGE_AC_PAN, HID_USAGE_WHEEL,
@@ -59,6 +60,9 @@ const K_IOHID_ELEMENT_COLLECTION_TYPE_LOGICAL: u32 = 0x02;
 const HID_USAGE_MOUSE: u32 = 0x02;
 const HID_USAGE_POINTER: u32 = 0x01;
 const HID_USAGE_RESOLUTION_MULTIPLIER: u32 = 0x48;
+// 포인터 상대 이동 (커서 트래커 이동량 모드)
+const HID_USAGE_X: u32 = 0x30;
+const HID_USAGE_Y: u32 = 0x31;
 /// manager 생성 실패 시 재시도 간격
 const HID_REOPEN_INTERVAL: Duration = Duration::from_secs(2);
 /// 권한 거부 뒤 허용 여부 확인 간격(초)
@@ -125,6 +129,7 @@ type MultiplierCache = HashMap<(usize, u32), Option<HidResolutionMultiplier>>;
 /// 콜백 컨텍스트 (manager 스레드 전용)
 struct HidContext {
     wheel: WheelSender,
+    pointer: PointerSender,
     multipliers: RefCell<MultiplierCache>,
     /// 권한 거부를 본 시점의 접근 상태. 허용으로 바뀌면 manager 재구성
     denied_access: Cell<Option<u32>>,
@@ -315,7 +320,20 @@ extern "C" fn on_input_value(
             (device as usize, IOHIDElementGetCookie(element)),
         )
     };
-    if raw == 0 || !is_wheel_usage(usage_page, usage) {
+    if raw == 0 {
+        return;
+    }
+    // 하드웨어 이동량 - 커서 가속·화면 끝 멈춤이 적용되기 전 값
+    if usage_page == HID_PAGE_GENERIC_DESKTOP && (usage == HID_USAGE_X || usage == HID_USAGE_Y) {
+        let delta = raw as f64;
+        context.pointer.send(if usage == HID_USAGE_X {
+            PointerInput::Delta { dx: delta, dy: 0.0 }
+        } else {
+            PointerInput::Delta { dx: 0.0, dy: delta }
+        });
+        return;
+    }
+    if !is_wheel_usage(usage_page, usage) {
         return;
     }
     let multiplier = context.multipliers.borrow().get(&key).copied().flatten();
@@ -358,6 +376,8 @@ unsafe fn open_manager(context: *mut c_void) -> Option<IOHIDManagerRef> {
             HID_USAGE_WHEEL,
         ),
         usage_dictionary("UsagePage", HID_PAGE_CONSUMER, "Usage", HID_USAGE_AC_PAN),
+        usage_dictionary("UsagePage", HID_PAGE_GENERIC_DESKTOP, "Usage", HID_USAGE_X),
+        usage_dictionary("UsagePage", HID_PAGE_GENERIC_DESKTOP, "Usage", HID_USAGE_Y),
     ]);
     IOHIDManagerSetDeviceMatchingMultiple(manager, devices.as_concrete_TypeRef());
     IOHIDManagerSetInputValueMatchingMultiple(manager, values.as_concrete_TypeRef());
@@ -389,13 +409,14 @@ extern "C" fn on_access_poll(_timer: CFRunLoopTimerRef, info: *mut c_void) {
 }
 
 /// HID 휠 수집 스레드 시작. 이 스레드의 CFRunLoop에서 모든 콜백 처리
-pub(super) fn start_hid_wheel_capture(wheel: WheelSender) {
+pub(super) fn start_hid_wheel_capture(wheel: WheelSender, pointer: PointerSender) {
     let spawned = thread::Builder::new()
         .name("keyboard-wheel-hid".into())
         .spawn(move || {
             // context는 데몬 수명 동안 유지
             let context_ptr = Box::into_raw(Box::new(HidContext {
                 wheel,
+                pointer,
                 multipliers: RefCell::new(HashMap::new()),
                 denied_access: Cell::new(None),
             })) as *mut c_void;

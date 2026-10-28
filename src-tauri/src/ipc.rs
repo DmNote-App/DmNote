@@ -62,6 +62,24 @@ pub enum HookKeyState {
     Up = 1,
 }
 
+/// 마우스 포인터 묶음 - 하드웨어 이동량 합과 마지막 전역 커서 좌표
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PointerSample {
+    pub dx: f64,
+    pub dy: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub x: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PointerMessage {
+    pub pointer: PointerSample,
+}
+
 /// HID 축(노브/스틱) 절대값 메시지.
 /// 데몬이 throttle된 절대 raw 값을 전송하고, wrap 델타·누적은 프론트가 계산.
 #[derive(Debug, Serialize, Deserialize, Clone)]
