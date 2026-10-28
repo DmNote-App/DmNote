@@ -73,6 +73,7 @@ fn collection_metadata_matches_document_serde_names() {
             Some(meta.kind)
         );
         assert_eq!(serde_name(meta.field), meta.store_key);
+        assert_eq!(meta.field.target(), EditorFieldTarget::Elements(meta.kind));
         assert!(document.get(meta.store_key).is_some(), "{}", meta.store_key);
         assert!(store.get(meta.store_key).is_some(), "{}", meta.store_key);
         assert!(patch.get(meta.store_key).is_some(), "{}", meta.store_key);

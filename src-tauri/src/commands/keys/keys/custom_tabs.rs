@@ -264,15 +264,7 @@ fn custom_tabs_delete_inner(
                         scope: HistoryScope::CustomTabs,
                         observed_history_epoch,
                         origin: EditorCommitOrigin::LegacyAdapter("custom_tabs_delete".to_string()),
-                        touched_fields: &[
-                            EditorField::Keys,
-                            EditorField::KeyPositions,
-                            EditorField::StatPositions,
-                            EditorField::GraphPositions,
-                            EditorField::KnobPositions,
-                            EditorField::SpritePositions,
-                            EditorField::LayerGroups,
-                        ],
+                        touched_fields: &EditorField::ALL,
                         plugin_instances_reset: PluginInstancesResetScope::Mode(id.clone()),
                     },
                     admission,
@@ -323,31 +315,7 @@ fn custom_tabs_delete_inner(
         },
     );
     emit_best_effort(app, "keys:changed", &transaction.change.document.keys);
-    emit_best_effort(
-        app,
-        "positions:changed",
-        &transaction.change.document.key_positions,
-    );
-    emit_best_effort(
-        app,
-        "statPositions:changed",
-        &transaction.change.document.stat_positions,
-    );
-    emit_best_effort(
-        app,
-        "graphPositions:changed",
-        &transaction.change.document.graph_positions,
-    );
-    emit_best_effort(
-        app,
-        "knobPositions:changed",
-        &transaction.change.document.knob_positions,
-    );
-    emit_best_effort(
-        app,
-        "spritePositions:changed",
-        &transaction.change.document.sprite_positions,
-    );
+    emit_element_collections_changed(app, &transaction.change.document, ElementKindSet::ALL);
     emit_best_effort(
         app,
         "layerGroups:changed",

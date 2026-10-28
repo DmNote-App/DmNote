@@ -10,15 +10,15 @@ use tauri::{AppHandle, Manager, WebviewWindow};
 use uuid::Uuid;
 
 use crate::commands::{
-    dialog::parented_file_dialog, editor::state::publish_legacy_editor_change,
+    dialog::parented_file_dialog,
+    editor::state::{emit_element_collections_changed, publish_legacy_editor_change},
     issue_mutation_ticket, run_blocking, run_history_mutation, run_mutation,
 };
 use crate::errors::{CmdResult, CommandError};
 use crate::models::{
-    AppStoreData, EditorCommitOrigin, EditorField, PendingProcessedWavReplacement,
-    SoundLibraryEntry, SoundSource,
+    for_each_key_position_mut, AppStoreData, EditorCommitOrigin, EditorElementTypeV1, EditorField,
+    ElementKindSet, PendingProcessedWavReplacement, SoundLibraryEntry, SoundSource,
 };
-use crate::services::event_publisher::publish_event;
 use crate::state::{
     assets::local_asset_path::paths_have_same_identity,
     atomic_file::{prepare_atomic_replace, PreparedAtomicReplace},
@@ -56,25 +56,45 @@ enum SoundReferenceChangeEvent {
     Knob,
 }
 
+// 사운드를 가진 요소 종류(has_sound)의 변경 이벤트
 impl SoundReferenceChangeEvent {
-    fn name(self) -> &'static str {
+    fn kind(self) -> EditorElementTypeV1 {
         match self {
-            Self::Key => "positions:changed",
-            Self::Stat => "statPositions:changed",
-            Self::Graph => "graphPositions:changed",
-            Self::Knob => "knobPositions:changed",
+            Self::Key => EditorElementTypeV1::Key,
+            Self::Stat => EditorElementTypeV1::Stat,
+            Self::Graph => EditorElementTypeV1::Graph,
+            Self::Knob => EditorElementTypeV1::Knob,
         }
     }
 
-    fn from_editor_field(field: EditorField) -> Option<Self> {
-        match field {
-            EditorField::KeyPositions => Some(Self::Key),
-            EditorField::StatPositions => Some(Self::Stat),
-            EditorField::GraphPositions => Some(Self::Graph),
-            EditorField::KnobPositions => Some(Self::Knob),
-            _ => None,
-        }
+    fn from_kind(kind: EditorElementTypeV1) -> Option<Self> {
+        let event = match kind {
+            EditorElementTypeV1::Key => Self::Key,
+            EditorElementTypeV1::Stat => Self::Stat,
+            EditorElementTypeV1::Graph => Self::Graph,
+            EditorElementTypeV1::Knob => Self::Knob,
+            EditorElementTypeV1::Sprite => return None,
+        };
+        Some(event)
     }
+
+    fn name(self) -> &'static str {
+        self.kind().changed_event()
+    }
+
+    fn from_editor_field(field: EditorField) -> Option<Self> {
+        field
+            .element_kind()
+            .filter(|kind| kind.has_sound())
+            .and_then(Self::from_kind)
+    }
+}
+
+fn sound_reference_fields() -> Vec<EditorField> {
+    EditorField::ELEMENT_FIELDS
+        .into_iter()
+        .filter(|field| field.element_kind().is_some_and(|kind| kind.has_sound()))
+        .collect()
 }
 
 #[derive(Serialize)]
@@ -400,12 +420,7 @@ fn sound_delete_inner(
     let transaction = commit_staged_sound_deletion(&staged, || {
         Ok(state.store.commit_legacy_resource_deletion_with_admission(
             EditorCommitOrigin::LegacyAdapter("sound_delete".to_string()),
-            &[
-                EditorField::KeyPositions,
-                EditorField::StatPositions,
-                EditorField::GraphPositions,
-                EditorField::KnobPositions,
-            ],
+            &sound_reference_fields(),
             admission,
             |store| Ok(remove_sound_entry_and_references(store, &path_key)),
         )?)
@@ -420,36 +435,11 @@ fn sound_delete_inner(
     publish_legacy_editor_change(state, app, &transaction.change);
     if transaction.value {
         emit_sound_reference_changes_with(&transaction.change.result.changed_fields, |event| {
-            match event {
-                SoundReferenceChangeEvent::Key => {
-                    publish_event(
-                        app,
-                        event.name(),
-                        &transaction.change.document.key_positions,
-                    );
-                }
-                SoundReferenceChangeEvent::Stat => {
-                    publish_event(
-                        app,
-                        event.name(),
-                        &transaction.change.document.stat_positions,
-                    );
-                }
-                SoundReferenceChangeEvent::Graph => {
-                    publish_event(
-                        app,
-                        event.name(),
-                        &transaction.change.document.graph_positions,
-                    );
-                }
-                SoundReferenceChangeEvent::Knob => {
-                    publish_event(
-                        app,
-                        event.name(),
-                        &transaction.change.document.knob_positions,
-                    );
-                }
-            }
+            emit_element_collections_changed(
+                app,
+                &transaction.change.document,
+                ElementKindSet::EMPTY.with(event.kind()),
+            );
             Ok::<(), std::convert::Infallible>(())
         });
     }
@@ -461,45 +451,13 @@ fn remove_sound_entry_and_references(store: &mut AppStoreData, path_key: &str) -
     store.sound_library.remove(path_key);
     let mut references_changed = false;
 
-    for positions in store.key_positions.values_mut() {
-        for position in positions.iter_mut() {
-            if position.sound_path.as_deref() == Some(path_key) {
-                position.sound_path = None;
-                position.sound_enabled = Some(false);
-                references_changed = true;
-            }
+    for_each_key_position_mut(store, |kind, position| {
+        if kind.has_sound() && position.sound_path.as_deref() == Some(path_key) {
+            position.sound_path = None;
+            position.sound_enabled = Some(false);
+            references_changed = true;
         }
-    }
-
-    for positions in store.stat_positions.values_mut() {
-        for stat_position in positions.iter_mut() {
-            if stat_position.position.sound_path.as_deref() == Some(path_key) {
-                stat_position.position.sound_path = None;
-                stat_position.position.sound_enabled = Some(false);
-                references_changed = true;
-            }
-        }
-    }
-
-    for positions in store.graph_positions.values_mut() {
-        for graph_position in positions.iter_mut() {
-            if graph_position.position.sound_path.as_deref() == Some(path_key) {
-                graph_position.position.sound_path = None;
-                graph_position.position.sound_enabled = Some(false);
-                references_changed = true;
-            }
-        }
-    }
-
-    for positions in store.knob_positions.values_mut() {
-        for knob_position in positions.iter_mut() {
-            if knob_position.position.sound_path.as_deref() == Some(path_key) {
-                knob_position.position.sound_path = None;
-                knob_position.position.sound_enabled = Some(false);
-                references_changed = true;
-            }
-        }
-    }
+    });
 
     references_changed
 }

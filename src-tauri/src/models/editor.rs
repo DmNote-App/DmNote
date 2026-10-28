@@ -5,10 +5,10 @@ use serde_json::Value;
 
 use super::{
     copy_element_collections, visit_collection_of, visit_collections, AppStoreData,
-    CollectionVisitor, ElementCollection, ElementItem, GradientSpec, GradientStop, GraphPosition,
-    GraphPositions, GraphType, ImageFit, ImageMode, KeyCounterAlign, KeyCounterAlignMode,
-    KeyCounterPlacement, KeyCounters, KeyMappings, KeyPosition, KeyPositions, KeySlot,
-    KnobPosition, KnobPositions, LayerGroups, NoteAlignment, SlotMatch, SpritePositions,
+    CollectionVisitor, EditorFieldTarget, ElementCollection, ElementItem, GradientSpec,
+    GradientStop, GraphPosition, GraphPositions, GraphType, ImageFit, ImageMode, KeyCounterAlign,
+    KeyCounterAlignMode, KeyCounterPlacement, KeyCounters, KeyMappings, KeyPosition, KeyPositions,
+    KeySlot, KnobPosition, KnobPositions, LayerGroups, NoteAlignment, SlotMatch, SpritePositions,
     StatPosition, StatPositions, StatType,
 };
 
@@ -142,21 +142,19 @@ impl EditorDocumentV1 {
 
         let mut patch = EditorPatchV1::default();
         for field in fields {
-            match field {
-                EditorField::Keys => patch.keys = Some(self.keys.clone()),
-                EditorField::LayerGroups => {
+            match field.target() {
+                EditorFieldTarget::Keys => patch.keys = Some(self.keys.clone()),
+                EditorFieldTarget::LayerGroups => {
                     patch.layer_groups = Some(self.layer_groups.clone());
                 }
-                field => {
-                    if let Some(kind) = field.element_kind() {
-                        let Ok(()) = visit_collection_of(
-                            kind,
-                            &mut CopyIntoPatch {
-                                document: self,
-                                patch: &mut patch,
-                            },
-                        );
-                    }
+                EditorFieldTarget::Elements(kind) => {
+                    let Ok(()) = visit_collection_of(
+                        kind,
+                        &mut CopyIntoPatch {
+                            document: self,
+                            patch: &mut patch,
+                        },
+                    );
                 }
             }
         }
@@ -349,17 +347,17 @@ impl EditorPatchV1 {
             }
         }
 
-        match field {
-            EditorField::Keys => self.keys.is_some(),
-            EditorField::LayerGroups => self.layer_groups.is_some(),
-            field => field.element_kind().is_some_and(|kind| {
+        match field.target() {
+            EditorFieldTarget::Keys => self.keys.is_some(),
+            EditorFieldTarget::LayerGroups => self.layer_groups.is_some(),
+            EditorFieldTarget::Elements(kind) => {
                 let mut includes = Includes {
                     patch: self,
                     included: false,
                 };
                 let Ok(()) = visit_collection_of(kind, &mut includes);
                 includes.included
-            }),
+            }
         }
     }
 

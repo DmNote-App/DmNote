@@ -4,14 +4,17 @@ use uuid::Uuid;
 
 use crate::{
     commands::{
-        editor::state::{emit_best_effort, publish_legacy_editor_change},
+        editor::state::{
+            emit_best_effort, emit_element_collections_changed, publish_legacy_editor_change,
+        },
         run_blocking, run_history_mutation, run_mutation,
     },
     errors::{CmdResult, CommandError, EditorCommitError},
     models::{
         default_counter_animation_builtin_presets, default_counter_animation_preset_id,
-        find_builtin_counter_animation_preset_by_id, CommittedEditorChange, CounterAnimationPreset,
-        CounterAnimationSource, EditorCommitOrigin, EditorField,
+        find_builtin_counter_animation_preset_by_id, for_each_key_position_mut,
+        CommittedEditorChange, CounterAnimationPreset, CounterAnimationSource, EditorCommitOrigin,
+        EditorElementTypeV1, EditorField, ElementKindSet,
     },
 };
 
@@ -148,11 +151,7 @@ pub async fn counter_animation_update(
                 .store
                 .commit_legacy_editor_transaction_with_admission(
                     EditorCommitOrigin::LegacyAdapter("counter_animation_update".to_string()),
-                    &[
-                        EditorField::KeyPositions,
-                        EditorField::StatPositions,
-                        EditorField::GraphPositions,
-                    ],
+                    &counter_fields(),
                     admission,
                     |store| {
                         replace_counter_animation_preset(store, &target_id, &next_preset)?;
@@ -215,11 +214,7 @@ pub async fn counter_animation_delete(
 
             let transaction = state.store.commit_legacy_resource_deletion_with_admission(
                 EditorCommitOrigin::LegacyAdapter("counter_animation_delete".to_string()),
-                &[
-                    EditorField::KeyPositions,
-                    EditorField::StatPositions,
-                    EditorField::GraphPositions,
-                ],
+                &counter_fields(),
                 admission,
                 |store| {
                     remove_counter_animation_preset(store, &target_id)?;
@@ -275,42 +270,31 @@ fn emit_positions_changed(
 
     // 같은 애니메이션 값을 다시 저장한 경우에도 기존 refresh 이벤트 계약 유지
     if change.result.changed_fields.is_empty() {
-        emit_best_effort(app, "positions:changed", &change.document.key_positions);
-        emit_best_effort(
-            app,
-            "statPositions:changed",
-            &change.document.stat_positions,
-        );
-        emit_best_effort(
-            app,
-            "graphPositions:changed",
-            &change.document.graph_positions,
-        );
+        emit_element_collections_changed(app, &change.document, counter_kinds());
         return;
     }
 
     for field in &change.result.changed_fields {
-        match field {
-            EditorField::KeyPositions => {
-                emit_best_effort(app, "positions:changed", &change.document.key_positions);
-            }
-            EditorField::StatPositions => {
-                emit_best_effort(
-                    app,
-                    "statPositions:changed",
-                    &change.document.stat_positions,
-                );
-            }
-            EditorField::GraphPositions => {
-                emit_best_effort(
-                    app,
-                    "graphPositions:changed",
-                    &change.document.graph_positions,
-                );
-            }
-            _ => {}
+        if let Some(kind) = field.element_kind().filter(|kind| kind.has_counter()) {
+            emit_element_collections_changed(
+                app,
+                &change.document,
+                ElementKindSet::EMPTY.with(kind),
+            );
         }
     }
+}
+
+// 카운터를 가진 요소 종류 - 노브는 counter 필드가 있어도 제외
+fn counter_kinds() -> ElementKindSet {
+    ElementKindSet::matching(EditorElementTypeV1::has_counter)
+}
+
+fn counter_fields() -> Vec<EditorField> {
+    counter_kinds()
+        .iter()
+        .map(EditorElementTypeV1::editor_field)
+        .collect()
 }
 
 fn apply_preset_to_bound_counters(
@@ -320,31 +304,13 @@ fn apply_preset_to_bound_counters(
 ) -> u32 {
     let mut affected = 0u32;
 
-    for positions in store.key_positions.values_mut() {
-        for position in positions.iter_mut() {
-            if update_counter_animation_if_bound(&mut position.counter, preset_id, preset) {
-                affected += 1;
-            }
+    for_each_key_position_mut(store, |kind, position| {
+        if kind.has_counter()
+            && update_counter_animation_if_bound(&mut position.counter, preset_id, preset)
+        {
+            affected += 1;
         }
-    }
-
-    for positions in store.stat_positions.values_mut() {
-        for position in positions.iter_mut() {
-            if update_counter_animation_if_bound(&mut position.position.counter, preset_id, preset)
-            {
-                affected += 1;
-            }
-        }
-    }
-
-    for positions in store.graph_positions.values_mut() {
-        for position in positions.iter_mut() {
-            if update_counter_animation_if_bound(&mut position.position.counter, preset_id, preset)
-            {
-                affected += 1;
-            }
-        }
-    }
+    });
 
     affected
 }

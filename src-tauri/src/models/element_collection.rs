@@ -83,18 +83,34 @@ impl EditorElementTypeV1 {
     }
 
     pub(crate) const fn from_editor_field(field: EditorField) -> Option<Self> {
-        match field {
-            EditorField::KeyPositions => Some(Self::Key),
-            EditorField::StatPositions => Some(Self::Stat),
-            EditorField::GraphPositions => Some(Self::Graph),
-            EditorField::KnobPositions => Some(Self::Knob),
-            EditorField::SpritePositions => Some(Self::Sprite),
-            EditorField::Keys | EditorField::LayerGroups => None,
+        match field.target() {
+            EditorFieldTarget::Elements(kind) => Some(kind),
+            EditorFieldTarget::Keys | EditorFieldTarget::LayerGroups => None,
         }
     }
 }
 
+/// 편집 문서 필드 분류 - 요소 컬렉션 필드를 종류 하나로 묶어 exhaustive match를 유지한다
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EditorFieldTarget {
+    Keys,
+    Elements(EditorElementTypeV1),
+    LayerGroups,
+}
+
 impl EditorField {
+    pub(crate) const fn target(self) -> EditorFieldTarget {
+        match self {
+            Self::Keys => EditorFieldTarget::Keys,
+            Self::KeyPositions => EditorFieldTarget::Elements(EditorElementTypeV1::Key),
+            Self::StatPositions => EditorFieldTarget::Elements(EditorElementTypeV1::Stat),
+            Self::GraphPositions => EditorFieldTarget::Elements(EditorElementTypeV1::Graph),
+            Self::KnobPositions => EditorFieldTarget::Elements(EditorElementTypeV1::Knob),
+            Self::SpritePositions => EditorFieldTarget::Elements(EditorElementTypeV1::Sprite),
+            Self::LayerGroups => EditorFieldTarget::LayerGroups,
+        }
+    }
+
     // 요소 컬렉션 필드 - 종류 선언 순서
     pub(crate) const ELEMENT_FIELDS: [Self; ELEMENT_KIND_COUNT] = {
         let mut fields = [Self::Keys; ELEMENT_KIND_COUNT];
@@ -173,6 +189,8 @@ impl ElementKindSet {
 pub(crate) trait ElementItem {
     fn id(&self) -> &str;
     fn id_mut(&mut self) -> &mut String;
+    // 요소와 하위(스프라이트 자세) id 제거 - 신원을 뺀 값 비교용
+    fn clear_ids(&mut self);
     fn group_id(&self) -> Option<&str>;
     fn group_id_mut(&mut self) -> &mut Option<String>;
     // KeyPosition 공통 스키마 - has_key_position 종류만 Some
@@ -201,6 +219,10 @@ impl ElementItem for KeyPosition {
 
     fn id_mut(&mut self) -> &mut String {
         &mut self.id
+    }
+
+    fn clear_ids(&mut self) {
+        self.id.clear();
     }
 
     fn group_id(&self) -> Option<&str> {
@@ -279,6 +301,10 @@ impl<T: KeyPositionBacked> ElementItem for T {
         self.inner_mut().id_mut()
     }
 
+    fn clear_ids(&mut self) {
+        self.inner_mut().clear_ids();
+    }
+
     fn group_id(&self) -> Option<&str> {
         self.inner().group_id()
     }
@@ -315,6 +341,13 @@ impl ElementItem for ReactiveSpritePosition {
 
     fn id_mut(&mut self) -> &mut String {
         &mut self.id
+    }
+
+    fn clear_ids(&mut self) {
+        self.id.clear();
+        for pose in &mut self.poses {
+            pose.pose_id.clear();
+        }
     }
 
     fn group_id(&self) -> Option<&str> {

@@ -6,8 +6,8 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 use crate::{
     commands::{
         editor::state::{
-            emit_best_effort, publish_editor_change, publish_editor_change_after_key_runtime,
-            publish_legacy_editor_change,
+            emit_best_effort, emit_element_collections_changed, publish_editor_change,
+            publish_editor_change_after_key_runtime, publish_legacy_editor_change,
         },
         plugin::instances::publish_plugin_instances_changed,
         run_blocking, run_history_mutation,
@@ -15,9 +15,12 @@ use crate::{
     defaults::{default_keys, default_positions, default_stat_positions},
     errors::CmdResult,
     models::{
-        AppStoreData, CommittedEditorChange, CustomCssPatch, CustomTab, EditorCommitOrigin,
-        EditorDocumentV1, EditorField, KeyCounters, KeyMappings, KeyPositions, LayerGroups,
-        NoteSettings, NoteSettingsPatch, SettingsPatchInput, SettingsState, StatPositions,
+        clear_element_collections, insert_empty_element_mode, remove_element_mode,
+        visit_collections, AppStoreData, CollectionVisitor, CommittedEditorChange, CustomCssPatch,
+        CustomTab, EditorCommitOrigin, EditorDocumentV1, EditorElementTypeV1, EditorField,
+        ElementCollection, ElementItem, ElementKindSet, KeyCounters, KeyMappings, KeyPositions,
+        LayerGroups, NoteSettings, NoteSettingsPatch, SettingsPatchInput, SettingsState,
+        StatPositions,
     },
     services::settings::apply_patch_to_store,
     state::{
@@ -122,11 +125,10 @@ fn reset_all_editor_data(
     stat_positions: &StatPositions,
 ) {
     store.keys = keys.clone();
+    clear_element_collections(store, ElementKindSet::ALL);
+    // 기본 배치가 있는 종류만 다시 채운다
     store.key_positions = positions.clone();
     store.stat_positions = stat_positions.clone();
-    store.graph_positions.clear();
-    store.knob_positions.clear();
-    store.sprite_positions.clear();
     store.layer_groups.clear();
     store.key_counters = zeroed_counters(keys);
     store.custom_tabs.clear();
@@ -198,6 +200,11 @@ where
     })
 }
 
+// 내장 모드 기본 배치가 있는 요소 종류
+const DEFAULT_LAYOUT_KINDS: ElementKindSet = ElementKindSet::EMPTY
+    .with(EditorElementTypeV1::Key)
+    .with(EditorElementTypeV1::Stat);
+
 fn apply_reset_mode_data(store: &mut AppStoreData, mode: &str, kind: ModeResetKind) {
     match kind {
         ModeResetKind::Default => {
@@ -217,14 +224,11 @@ fn apply_reset_mode_data(store: &mut AppStoreData, mode: &str, kind: ModeResetKi
         }
         ModeResetKind::Custom => {
             store.keys.insert(mode.to_string(), Vec::new());
-            store.key_positions.insert(mode.to_string(), Vec::new());
-            store.stat_positions.insert(mode.to_string(), Vec::new());
+            insert_empty_element_mode(store, mode, DEFAULT_LAYOUT_KINDS);
         }
     }
 
-    store.graph_positions.insert(mode.to_string(), Vec::new());
-    store.knob_positions.insert(mode.to_string(), Vec::new());
-    store.sprite_positions.insert(mode.to_string(), Vec::new());
+    insert_empty_element_mode(store, mode, DEFAULT_LAYOUT_KINDS.complement());
     store.layer_groups.remove(mode);
     store.tab_css_overrides.remove(mode);
     store.tab_note_overrides.remove(mode);
@@ -244,60 +248,46 @@ fn mode_positions_equal_without_ids(
     candidate: &AppStoreData,
     mode: &str,
 ) -> bool {
-    let mut current_keys = current.key_positions.get(mode).cloned();
-    let mut candidate_keys = candidate.key_positions.get(mode).cloned();
-    for position in current_keys.iter_mut().flatten() {
-        position.id.clear();
-    }
-    for position in candidate_keys.iter_mut().flatten() {
-        position.id.clear();
+    struct ModeEqualWithoutIds<'a> {
+        current: &'a AppStoreData,
+        candidate: &'a AppStoreData,
+        mode: &'a str,
     }
 
-    let mut current_stats = current.stat_positions.get(mode).cloned();
-    let mut candidate_stats = candidate.stat_positions.get(mode).cloned();
-    for position in current_stats.iter_mut().flatten() {
-        position.position.id.clear();
-    }
-    for position in candidate_stats.iter_mut().flatten() {
-        position.position.id.clear();
-    }
+    impl CollectionVisitor for ModeEqualWithoutIds<'_> {
+        // 첫 불일치에서 멈춘다
+        type Error = ();
 
-    let mut current_graphs = current.graph_positions.get(mode).cloned();
-    let mut candidate_graphs = candidate.graph_positions.get(mode).cloned();
-    for position in current_graphs.iter_mut().flatten() {
-        position.position.id.clear();
-    }
-    for position in candidate_graphs.iter_mut().flatten() {
-        position.position.id.clear();
-    }
-
-    let mut current_knobs = current.knob_positions.get(mode).cloned();
-    let mut candidate_knobs = candidate.knob_positions.get(mode).cloned();
-    for position in current_knobs.iter_mut().flatten() {
-        position.position.id.clear();
-    }
-    for position in candidate_knobs.iter_mut().flatten() {
-        position.position.id.clear();
-    }
-
-    let mut current_sprites = current.sprite_positions.get(mode).cloned();
-    let mut candidate_sprites = candidate.sprite_positions.get(mode).cloned();
-    for sprite in current_sprites
-        .iter_mut()
-        .chain(candidate_sprites.iter_mut())
-        .flatten()
-    {
-        sprite.id.clear();
-        for pose in &mut sprite.poses {
-            pose.pose_id.clear();
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), ()> {
+            let without_ids = |store: &AppStoreData| {
+                let mut elements = C::positions(store).get(self.mode).cloned();
+                for element in elements.iter_mut().flatten() {
+                    element.clear_ids();
+                }
+                elements
+            };
+            let current = without_ids(self.current);
+            let candidate = without_ids(self.candidate);
+            // 키는 keys와 짝을 이뤄 모드 항목 유무 자체가 상태 - 없음과 빈 목록을 구분
+            let equal = if C::KIND == EditorElementTypeV1::Key {
+                current == candidate
+            } else {
+                optional_collections_equal(current.as_deref(), candidate.as_deref())
+            };
+            if equal {
+                Ok(())
+            } else {
+                Err(())
+            }
         }
     }
 
-    current_keys == candidate_keys
-        && optional_collections_equal(current_stats.as_deref(), candidate_stats.as_deref())
-        && optional_collections_equal(current_graphs.as_deref(), candidate_graphs.as_deref())
-        && optional_collections_equal(current_knobs.as_deref(), candidate_knobs.as_deref())
-        && optional_collections_equal(current_sprites.as_deref(), candidate_sprites.as_deref())
+    visit_collections(&mut ModeEqualWithoutIds {
+        current,
+        candidate,
+        mode,
+    })
+    .is_ok()
 }
 
 fn optional_collections_equal<T: PartialEq>(
@@ -398,11 +388,7 @@ fn delete_custom_tab_data(store: &mut AppStoreData, id: &str, plan: &CustomTabDe
     store.tab_order = plan.tab_order.clone();
     store.bar_count = normalize_bar_count(store.bar_count, &store.tab_order);
     store.keys.remove(id);
-    store.key_positions.remove(id);
-    store.stat_positions.remove(id);
-    store.graph_positions.remove(id);
-    store.knob_positions.remove(id);
-    store.sprite_positions.remove(id);
+    remove_element_mode(store, id);
     store.layer_groups.remove(id);
     store.tab_css_overrides.remove(id);
     store.tab_note_overrides.remove(id);
@@ -683,15 +669,7 @@ fn keys_reset_all_inner(
         .commit_legacy_editor_reset_preserving_runtime_counters(
             app,
             EditorCommitOrigin::LegacyAdapter("keys_reset_all".to_string()),
-            &[
-                EditorField::Keys,
-                EditorField::KeyPositions,
-                EditorField::StatPositions,
-                EditorField::GraphPositions,
-                EditorField::KnobPositions,
-                EditorField::SpritePositions,
-                EditorField::LayerGroups,
-            ],
+            &EditorField::ALL,
             PluginInstancesResetScope::All,
             admission,
             move |store| {
@@ -719,13 +697,7 @@ fn keys_reset_all_inner(
     publish_reset_plugin_instances(app, &transaction.change);
 
     let (settings_diff, cleared_tab_css_ids) = transaction.value;
-    let keys = transaction.change.document.keys;
-    let positions = transaction.change.document.key_positions;
-    let stat_positions = transaction.change.document.stat_positions;
-    let graph_positions = transaction.change.document.graph_positions;
-    let knob_positions = transaction.change.document.knob_positions;
-    let sprite_positions = transaction.change.document.sprite_positions;
-    let layer_groups = transaction.change.document.layer_groups;
+    let document = transaction.change.document;
     let selected_key_type = transaction.change.selected_key_type;
     let custom_tabs: Vec<CustomTab> = Vec::new();
     let tab_order = normalize_tab_order(&[], &custom_tabs);
@@ -736,13 +708,9 @@ fn keys_reset_all_inner(
         log::error!("[Keys] failed to publish reset settings: {error:#}");
     }
 
-    emit_best_effort(app, "keys:changed", &keys);
-    emit_best_effort(app, "positions:changed", &positions);
-    emit_best_effort(app, "statPositions:changed", &stat_positions);
-    emit_best_effort(app, "graphPositions:changed", &graph_positions);
-    emit_best_effort(app, "knobPositions:changed", &knob_positions);
-    emit_best_effort(app, "spritePositions:changed", &sprite_positions);
-    emit_best_effort(app, "layerGroups:changed", &layer_groups);
+    emit_best_effort(app, "keys:changed", &document.keys);
+    emit_element_collections_changed(app, &document, ElementKindSet::ALL);
+    emit_best_effort(app, "layerGroups:changed", &document.layer_groups);
     emit_best_effort(
         app,
         "customTabs:changed",
@@ -775,8 +743,8 @@ fn keys_reset_all_inner(
     }
 
     Ok(ResetAllResponse {
-        keys,
-        positions,
+        keys: document.keys,
+        positions: document.key_positions,
         custom_tabs,
         tab_order,
         bar_count,
@@ -809,15 +777,7 @@ fn keys_reset_mode_inner(
         .commit_legacy_editor_reset_preserving_runtime_counters(
             app,
             EditorCommitOrigin::LegacyAdapter("keys_reset_mode".to_string()),
-            &[
-                EditorField::Keys,
-                EditorField::KeyPositions,
-                EditorField::StatPositions,
-                EditorField::GraphPositions,
-                EditorField::KnobPositions,
-                EditorField::SpritePositions,
-                EditorField::LayerGroups,
-            ],
+            &EditorField::ALL,
             PluginInstancesResetScope::Mode(mode.clone()),
             admission,
             |store| {
@@ -843,31 +803,7 @@ fn keys_reset_mode_inner(
     }
 
     emit_best_effort(app, "keys:changed", &transaction.change.document.keys);
-    emit_best_effort(
-        app,
-        "positions:changed",
-        &transaction.change.document.key_positions,
-    );
-    emit_best_effort(
-        app,
-        "statPositions:changed",
-        &transaction.change.document.stat_positions,
-    );
-    emit_best_effort(
-        app,
-        "graphPositions:changed",
-        &transaction.change.document.graph_positions,
-    );
-    emit_best_effort(
-        app,
-        "knobPositions:changed",
-        &transaction.change.document.knob_positions,
-    );
-    emit_best_effort(
-        app,
-        "spritePositions:changed",
-        &transaction.change.document.sprite_positions,
-    );
+    emit_element_collections_changed(app, &transaction.change.document, ElementKindSet::ALL);
     emit_best_effort(
         app,
         "layerGroups:changed",

@@ -1,10 +1,16 @@
+use std::convert::Infallible;
+
 use serde_json::Value;
 use tauri::{AppHandle, Manager, WebviewWindow};
 
 use crate::{
     commands::{run_blocking, run_prepared_mutation},
     errors::CmdResult,
-    models::{CommittedEditorChange, EditorCommitResult, EditorField, EditorGetResult},
+    models::{
+        visit_collections_in, CollectionVisitor, CommittedEditorChange, EditorCommitResult,
+        EditorField, EditorFieldTarget, EditorGetResult, ElementCollection, ElementKindSet,
+        ElementPositionsHost,
+    },
     services::{event_publisher::publish_event, preview_broker::PreviewBroker},
     state::{editor::decode_editor_commit_request, AppState},
 };
@@ -19,15 +25,34 @@ enum KeyRuntimePublishPolicy {
     AlreadyAppliedWithoutCounters,
 }
 
+/// 요소 컬렉션 변경 이벤트를 종류 선언 순서로 발행
+pub(crate) fn emit_element_collections_changed<H: ElementPositionsHost + ?Sized>(
+    app: &AppHandle,
+    host: &H,
+    kinds: ElementKindSet,
+) {
+    struct EmitChanged<'a, H: ?Sized> {
+        app: &'a AppHandle,
+        host: &'a H,
+    }
+
+    impl<H: ElementPositionsHost + ?Sized> CollectionVisitor for EmitChanged<'_, H> {
+        type Error = Infallible;
+
+        fn visit<C: ElementCollection>(&mut self) -> Result<(), Infallible> {
+            emit_best_effort(self.app, C::CHANGED_EVENT, C::positions(self.host));
+            Ok(())
+        }
+    }
+
+    let Ok(()) = visit_collections_in(kinds, &mut EmitChanged { app, host });
+}
+
 fn legacy_event_name(field: EditorField) -> &'static str {
-    match field {
-        EditorField::Keys => "keys:changed",
-        EditorField::KeyPositions => "positions:changed",
-        EditorField::StatPositions => "statPositions:changed",
-        EditorField::GraphPositions => "graphPositions:changed",
-        EditorField::KnobPositions => "knobPositions:changed",
-        EditorField::SpritePositions => "spritePositions:changed",
-        EditorField::LayerGroups => "layerGroups:changed",
+    match field.target() {
+        EditorFieldTarget::Keys => "keys:changed",
+        EditorFieldTarget::Elements(kind) => kind.changed_event(),
+        EditorFieldTarget::LayerGroups => "layerGroups:changed",
     }
 }
 
@@ -62,26 +87,18 @@ pub(crate) fn publish_legacy_editor_fields(
 ) {
     for field in fields {
         let event = legacy_event_name(*field);
-        match field {
-            EditorField::Keys => {
+        match field.target() {
+            EditorFieldTarget::Keys => {
                 emit_best_effort(app, event, &change.document.keys);
             }
-            EditorField::KeyPositions => {
-                emit_best_effort(app, event, &change.document.key_positions);
+            EditorFieldTarget::Elements(kind) => {
+                emit_element_collections_changed(
+                    app,
+                    &change.document,
+                    ElementKindSet::EMPTY.with(kind),
+                );
             }
-            EditorField::StatPositions => {
-                emit_best_effort(app, event, &change.document.stat_positions);
-            }
-            EditorField::GraphPositions => {
-                emit_best_effort(app, event, &change.document.graph_positions);
-            }
-            EditorField::KnobPositions => {
-                emit_best_effort(app, event, &change.document.knob_positions);
-            }
-            EditorField::SpritePositions => {
-                emit_best_effort(app, event, &change.document.sprite_positions);
-            }
-            EditorField::LayerGroups => {
+            EditorFieldTarget::LayerGroups => {
                 emit_best_effort(app, event, &change.document.layer_groups);
             }
         }
