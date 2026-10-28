@@ -5,6 +5,10 @@ edition = "2021"
 rust-version = "1.88"
 default-run = "dm-note"
 
+[workspace]
+members = ["crates/element-document"]
+default-members = [".", "crates/element-document"]
+
 [features]
 asio-backend = ["dep:cpal"]
 
@@ -14,6 +18,7 @@ walkdir = "2.5"
 zip = "0.6"
 
 [dependencies]
+element-document = { path = "crates/element-document" }
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["float_roundtrip"] }

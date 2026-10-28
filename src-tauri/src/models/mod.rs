@@ -6,6 +6,7 @@ pub mod plugin;
 mod bootstrap;
 mod counter;
 mod element_collection;
+mod element_kinds;
 mod element_positions;
 mod key_position_normalization;
 mod key_slot;
@@ -24,6 +25,7 @@ pub use counter::{
 use counter::{default_counter_font_size, default_counter_font_weight, default_gap};
 pub use editor::*;
 pub(crate) use element_collection::*;
+pub use element_kinds::builtin_kind_registry;
 use element_positions::default_true;
 pub(crate) use element_positions::{
     default_sprite_press_duration_ms, default_sprite_transition_ms, is_renderable_image_ref,

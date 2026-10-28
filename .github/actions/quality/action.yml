@@ -19,4 +19,4 @@ runs:
     - shell: bash
       run: npm test -- ./tests/
     - shell: bash
-      run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      run: cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check

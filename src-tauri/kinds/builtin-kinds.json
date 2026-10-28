@@ -1,0 +1,549 @@
+[
+  {
+    "kind": "key",
+    "version": 1,
+    "fields": [
+      {
+        "name": "displayText",
+        "value": {
+          "type": "string"
+        },
+        "default": null,
+        "nullable": true
+      },
+      {
+        "name": "count",
+        "value": {
+          "type": "number",
+          "min": 0,
+          "integer": true
+        },
+        "default": 0
+      }
+    ],
+    "bundles": [
+      "surface",
+      "font",
+      "image",
+      "note",
+      "counter",
+      "sound"
+    ],
+    "inputs": [
+      "keySlot"
+    ],
+    "defaultSize": {
+      "width": 60,
+      "height": 60
+    },
+    "fallbackSize": {
+      "width": 60,
+      "height": 60
+    }
+  },
+  {
+    "kind": "stat",
+    "version": 1,
+    "fields": [
+      {
+        "name": "statType",
+        "value": {
+          "type": "enum",
+          "options": [
+            "kps",
+            "kpsAvg",
+            "kpsMax",
+            "total"
+          ]
+        },
+        "default": "kps"
+      },
+      {
+        "name": "displayText",
+        "value": {
+          "type": "string"
+        },
+        "default": null,
+        "nullable": true
+      },
+      {
+        "name": "count",
+        "value": {
+          "type": "number",
+          "min": 0,
+          "integer": true
+        },
+        "default": 0
+      }
+    ],
+    "bundles": [
+      "surface",
+      "font",
+      "image",
+      "counter"
+    ],
+    "defaultSize": {
+      "width": 60,
+      "height": 60
+    },
+    "fallbackSize": {
+      "width": 60,
+      "height": 60
+    }
+  },
+  {
+    "kind": "graph",
+    "version": 1,
+    "fields": [
+      {
+        "name": "statType",
+        "value": {
+          "type": "enum",
+          "options": [
+            "kps",
+            "kpsAvg",
+            "kpsMax",
+            "total"
+          ]
+        },
+        "default": "kps"
+      },
+      {
+        "name": "graphType",
+        "value": {
+          "type": "enum",
+          "options": [
+            "line",
+            "bar"
+          ]
+        },
+        "default": "line"
+      },
+      {
+        "name": "graphSpeed",
+        "value": {
+          "type": "number",
+          "min": 500,
+          "max": 60000,
+          "integer": true
+        },
+        "default": 1000
+      },
+      {
+        "name": "graphColor",
+        "value": {
+          "type": "color"
+        },
+        "default": "#86EFAC"
+      },
+      {
+        "name": "showAvgLine",
+        "value": {
+          "type": "bool"
+        },
+        "default": true
+      },
+      {
+        "name": "graphAnimationEnabled",
+        "value": {
+          "type": "bool"
+        },
+        "default": null,
+        "nullable": true
+      }
+    ],
+    "bundles": [
+      "surface"
+    ],
+    "defaultSize": {
+      "width": 120,
+      "height": 60
+    },
+    "fallbackSize": {
+      "width": 200,
+      "height": 100
+    }
+  },
+  {
+    "kind": "knob",
+    "version": 1,
+    "fields": [
+      {
+        "name": "sensitivity",
+        "value": {
+          "type": "number",
+          "min": 0
+        },
+        "default": 1
+      },
+      {
+        "name": "reverse",
+        "value": {
+          "type": "bool"
+        },
+        "default": false
+      }
+    ],
+    "bundles": [
+      "surface"
+    ],
+    "inputs": [
+      "axis"
+    ],
+    "defaultSize": {
+      "width": 60,
+      "height": 60
+    },
+    "fallbackSize": {
+      "width": 60,
+      "height": 60
+    }
+  },
+  {
+    "kind": "sprite",
+    "version": 1,
+    "fields": [
+      {
+        "name": "baseImage",
+        "value": {
+          "type": "file",
+          "asset": "image"
+        },
+        "default": null,
+        "nullable": true
+      },
+      {
+        "name": "referenceNaturalSize",
+        "value": {
+          "type": "object",
+          "fields": [
+            {
+              "name": "source",
+              "value": {
+                "type": "string"
+              },
+              "default": null,
+              "nullable": true
+            },
+            {
+              "name": "width",
+              "value": {
+                "type": "number",
+                "min": 1,
+                "max": 32768,
+                "integer": true
+              },
+              "default": 1
+            },
+            {
+              "name": "height",
+              "value": {
+                "type": "number",
+                "min": 1,
+                "max": 32768,
+                "integer": true
+              },
+              "default": 1
+            }
+          ]
+        },
+        "default": null,
+        "nullable": true
+      },
+      {
+        "name": "pivot",
+        "value": {
+          "type": "object",
+          "fields": [
+            {
+              "name": "x",
+              "value": {
+                "type": "number",
+                "min": 0,
+                "max": 1
+              },
+              "default": 0.5
+            },
+            {
+              "name": "y",
+              "value": {
+                "type": "number",
+                "min": 0,
+                "max": 1
+              },
+              "default": 0.5
+            }
+          ]
+        },
+        "default": {
+          "x": 0.5,
+          "y": 0.5
+        }
+      },
+      {
+        "name": "idleTransform",
+        "value": {
+          "type": "object",
+          "fields": [
+            {
+              "name": "x",
+              "value": {
+                "type": "number",
+                "min": -2000,
+                "max": 2000
+              },
+              "default": 0
+            },
+            {
+              "name": "y",
+              "value": {
+                "type": "number",
+                "min": -2000,
+                "max": 2000
+              },
+              "default": 0
+            },
+            {
+              "name": "rotation",
+              "value": {
+                "type": "number",
+                "min": -180,
+                "max": 180
+              },
+              "default": 0
+            },
+            {
+              "name": "scale",
+              "value": {
+                "type": "number",
+                "min": 0.1,
+                "max": 10
+              },
+              "default": 1
+            }
+          ]
+        },
+        "default": {
+          "x": 0,
+          "y": 0,
+          "rotation": 0,
+          "scale": 1
+        }
+      },
+      {
+        "name": "poses",
+        "value": {
+          "type": "list",
+          "maxItems": 64,
+          "item": {
+            "type": "object",
+            "fields": [
+              {
+                "name": "poseId",
+                "value": {
+                  "type": "id"
+                },
+                "default": ""
+              },
+              {
+                "name": "name",
+                "value": {
+                  "type": "string"
+                },
+                "default": null,
+                "nullable": true
+              },
+              {
+                "name": "triggers",
+                "value": {
+                  "type": "list",
+                  "item": {
+                    "type": "elementRef",
+                    "kinds": [
+                      "key"
+                    ]
+                  },
+                  "maxItems": 512,
+                  "unique": true
+                },
+                "default": []
+              },
+              {
+                "name": "transform",
+                "value": {
+                  "type": "object",
+                  "fields": [
+                    {
+                      "name": "x",
+                      "value": {
+                        "type": "number",
+                        "min": -2000,
+                        "max": 2000
+                      },
+                      "default": 0
+                    },
+                    {
+                      "name": "y",
+                      "value": {
+                        "type": "number",
+                        "min": -2000,
+                        "max": 2000
+                      },
+                      "default": 0
+                    },
+                    {
+                      "name": "rotation",
+                      "value": {
+                        "type": "number",
+                        "min": -180,
+                        "max": 180
+                      },
+                      "default": 0
+                    },
+                    {
+                      "name": "scale",
+                      "value": {
+                        "type": "number",
+                        "min": 0.1,
+                        "max": 10
+                      },
+                      "default": 1
+                    }
+                  ]
+                },
+                "default": {
+                  "x": 0,
+                  "y": 0,
+                  "rotation": 0,
+                  "scale": 1
+                }
+              },
+              {
+                "name": "pivot",
+                "value": {
+                  "type": "object",
+                  "fields": [
+                    {
+                      "name": "x",
+                      "value": {
+                        "type": "number",
+                        "min": 0,
+                        "max": 1
+                      },
+                      "default": 0.5
+                    },
+                    {
+                      "name": "y",
+                      "value": {
+                        "type": "number",
+                        "min": 0,
+                        "max": 1
+                      },
+                      "default": 0.5
+                    }
+                  ]
+                },
+                "default": null,
+                "nullable": true
+              },
+              {
+                "name": "imageOverride",
+                "value": {
+                  "type": "file",
+                  "asset": "image"
+                },
+                "default": null,
+                "nullable": true
+              },
+              {
+                "name": "imageOverrideMetrics",
+                "value": {
+                  "type": "object",
+                  "fields": [
+                    {
+                      "name": "source",
+                      "value": {
+                        "type": "string"
+                      },
+                      "default": ""
+                    },
+                    {
+                      "name": "width",
+                      "value": {
+                        "type": "number",
+                        "min": 1,
+                        "max": 32768,
+                        "integer": true
+                      },
+                      "default": 1
+                    },
+                    {
+                      "name": "height",
+                      "value": {
+                        "type": "number",
+                        "min": 1,
+                        "max": 32768,
+                        "integer": true
+                      },
+                      "default": 1
+                    }
+                  ]
+                },
+                "default": null,
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "default": []
+      },
+      {
+        "name": "activation",
+        "value": {
+          "type": "enum",
+          "options": [
+            "whileHeld",
+            "onPress"
+          ]
+        },
+        "default": "whileHeld"
+      },
+      {
+        "name": "pressDurationMs",
+        "value": {
+          "type": "number",
+          "min": 1,
+          "max": 5000,
+          "integer": true
+        },
+        "default": 300
+      },
+      {
+        "name": "transitionMs",
+        "value": {
+          "type": "number",
+          "min": 0,
+          "max": 1000,
+          "integer": true
+        },
+        "default": 0
+      },
+      {
+        "name": "transitionEasing",
+        "value": {
+          "type": "string"
+        },
+        "default": "cubic-bezier(0.4, 0, 0.2, 1)"
+      }
+    ],
+    "defaultSize": {
+      "width": 200,
+      "height": 200
+    },
+    "fallbackSize": {
+      "width": 200,
+      "height": 200
+    },
+    "rotatable": false
+  }
+]

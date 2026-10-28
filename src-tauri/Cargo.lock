@@ -1228,6 +1228,7 @@ dependencies = [
  "core-foundation 0.10.1",
  "cpal",
  "dirs-next",
+ "element-document",
  "fern",
  "futures-util",
  "imagesize",
@@ -1352,6 +1353,14 @@ name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
+
+[[package]]
+name = "element-document"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "embed-resource"

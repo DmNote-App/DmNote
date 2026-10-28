@@ -50,7 +50,7 @@ jobs:
           npm run type-check
           npm test
           npm run build
-          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
   native:
     needs: quality
     runs-on: ${{ inputs.platform == 'windows' && 'windows-2025' || 'macos-15' }}
