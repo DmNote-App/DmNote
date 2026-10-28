@@ -656,8 +656,10 @@ fn 옛_종류_멤버_없는_그룹_위의_트리_요소는_그_그룹_위에_남
 }
 
 #[test]
-fn 앞선_끼우기로_경로가_밀려도_같은_그룹_안_순서를_지킨다() {
-    // [P{X, Ta, D, Tm}, G{Tb}] → P가 없어지고 X는 G로, D는 G 앞 맨 위로
+fn 여러_구조_변경이_한번에_와도_트리_요소를_잃지_않고_남은_그룹에_둔다() {
+    // [P{X, Ta, D, Tm}, G{Tb}] → P가 없어지고 X는 G로, D는 G 앞 맨 위로.
+    // 없어진 그룹의 요소는 맨 위 단계로 나오고(Ta·Tm), 남은 그룹의 요소는 그 그룹에 남는다.
+    // 한 커밋에 여러 구조 변경이 겹치면 트리 요소끼리 위아래가 바뀔 수 있다(받아들임)
     let previous = graft_scene(json!([
         { "type": "group", "id": "P", "name": "P", "children": [
             node_json("X", "key"), node_json("Ta", "probe"), node_json("D", "key"), node_json("Tm", "probe")
@@ -670,7 +672,57 @@ fn 앞선_끼우기로_경로가_밀려도_같은_그룹_안_순서를_지킨다
     ]));
     graft_tree_only(&previous, &mut next);
     let shape = shape_of(&next);
-    let ta = shape.iter().position(|id| id.starts_with("Ta@")).unwrap();
-    let tb = shape.iter().position(|id| id.starts_with("Tb@")).unwrap();
-    assert!(ta < tb, "Ta(아래)가 Tb(위)보다 먼저: {shape:?}");
+    for id in ["Ta@1", "Tm@1", "Tb@2"] {
+        assert!(shape.contains(&id.to_string()), "{id} in {shape:?}");
+    }
+    assert_eq!(next.parent_of("Tb"), Some(Some("G".to_string())));
+}
+
+#[test]
+fn 옛_멤버_없는_그룹을_풀면_안의_트리_요소는_그_그룹_자리에_남는다() {
+    let group = |id: &str, children: serde_json::Value| json!({ "type": "group", "id": id, "name": id, "children": children });
+    // A1 G2{T3} G6{T5} T7 → G6 해제
+    let previous = graft_scene(json!([
+        node_json("A1", "key"),
+        group("G2", json!([node_json("T3", "probe")])),
+        group("G6", json!([node_json("T5", "probe")])),
+        node_json("T7", "probe")
+    ]));
+    let mut next = graft_scene(json!([node_json("A1", "key"), group("G2", json!([]))]));
+    graft_tree_only(&previous, &mut next);
+    assert_eq!(
+        shape_of(&next),
+        vec!["A1@1", "G2@1", "T3@2", "T5@1", "T7@1"]
+    );
+
+    // L{A T1} G{T2} T3 → G 해제 - T2가 상관없는 옛 그룹 L 안으로 들어가지 않는다
+    let previous = graft_scene(json!([
+        group(
+            "L",
+            json!([node_json("A", "key"), node_json("T1", "probe")])
+        ),
+        group("G", json!([node_json("T2", "probe")])),
+        node_json("T3", "probe")
+    ]));
+    let mut next = graft_scene(json!([group("L", json!([node_json("A", "key")]))]));
+    graft_tree_only(&previous, &mut next);
+    assert_eq!(shape_of(&next), vec!["L@1", "A@2", "T1@2", "T2@1", "T3@1"]);
+}
+
+#[test]
+fn 옛_멤버가_생긴_그룹은_기준으로_삼지_않는다() {
+    // A4 A5 G2{T9} T3 → A4를 G2에 넣으면 G2는 A4 자리로 내려간다
+    let previous = graft_scene(json!([
+        node_json("A4", "key"),
+        node_json("A5", "key"),
+        { "type": "group", "id": "G2", "name": "G2", "children": [node_json("T9", "probe")] },
+        node_json("T3", "probe")
+    ]));
+    let mut next = graft_scene(json!([
+        { "type": "group", "id": "G2", "name": "G2", "children": [node_json("A4", "key")] },
+        node_json("A5", "key")
+    ]));
+    graft_tree_only(&previous, &mut next);
+    let shape = shape_of(&next);
+    assert_eq!(shape.last().map(String::as_str), Some("T3@1"), "{shape:?}");
 }

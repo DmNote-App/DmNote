@@ -890,53 +890,52 @@ fn take_elements(nodes: &[Node]) -> HashMap<String, Element> {
 }
 
 // 트리에만 있는 노드를 새 구조에 다시 끼운다 - 바로 아래 옛 종류 요소 뒤에 둔다
+// 옛 종류 요소를 품은 그룹
+fn groups_with_legacy(nodes: &[Node]) -> HashSet<String> {
+    let mut groups = HashSet::new();
+    let mut ancestors: Vec<(usize, String)> = Vec::new();
+    walk(nodes, &mut |node, path| {
+        ancestors.retain(|(depth, _)| *depth < path.len());
+        match node {
+            Node::Group(group) => ancestors.push((path.len(), group.id.clone())),
+            Node::Element(element) if is_legacy_kind(&element.kind) => {
+                groups.extend(ancestors.iter().map(|(_, id)| id.clone()));
+            }
+            Node::Element(_) => {}
+        }
+    });
+    groups
+}
+
 pub(crate) fn graft_tree_only(previous: &Scene, next: &mut Scene) {
-    // 트리 전용 요소마다 (부모 그룹, 바로 아래 형제가 옛 종류 멤버 없는 그룹이면 그 그룹,
-    // 아래 이웃 후보 - 장면 전체의 옛 종류 요소를 가까운 것부터).
-    // 옛 종류 멤버가 있는 그룹은 기준으로 삼지 않는다 - 그룹 해제·이동으로 노드만 옮겨질 수 있다
+    // 트리 전용 요소마다 (조상 그룹 - 가까운 것부터, 아래 이웃 후보 - 장면 전체에서 가까운 것부터).
+    // 후보는 옛 종류 요소와 옛 종류 멤버가 없는 그룹이다. 옛 종류 멤버가 있는 그룹은
+    // 그룹 해제·이동으로 노드만 옮겨질 수 있어 기준으로 삼지 않는다
     struct Graft {
-        parent: Option<String>,
-        empty_group_below: Option<String>,
+        ancestors: Vec<String>,
         below: Vec<String>,
         element: Element,
     }
-    // 옛 종류 요소를 품은 그룹
-    let mut legacy_groups: HashSet<String> = HashSet::new();
-    {
-        let mut ancestors: Vec<(usize, String)> = Vec::new();
-        walk(&previous.nodes, &mut |node, path| {
-            ancestors.retain(|(depth, _)| *depth < path.len());
-            match node {
-                Node::Group(group) => ancestors.push((path.len(), group.id.clone())),
-                Node::Element(element) if is_legacy_kind(&element.kind) => {
-                    legacy_groups.extend(ancestors.iter().map(|(_, id)| id.clone()));
-                }
-                Node::Element(_) => {}
-            }
-        });
-    }
+    let legacy_before = groups_with_legacy(&previous.nodes);
+    let legacy_after = groups_with_legacy(&next.nodes);
     let mut grafts: Vec<Graft> = Vec::new();
     let mut ancestors: Vec<(usize, String)> = Vec::new();
-    let mut legacy_seen: Vec<String> = Vec::new();
-    // 부모별 바로 아래 형제가 옛 종류 멤버 없는 그룹인지 (트리 전용 요소는 건너뛴다)
-    let mut last_sibling: HashMap<Option<String>, Option<String>> = HashMap::new();
+    let mut stable_seen: Vec<String> = Vec::new();
     walk(&previous.nodes, &mut |node, path| {
         ancestors.retain(|(depth, _)| *depth < path.len());
-        let parent = ancestors.last().map(|(_, id)| id.clone());
         match node {
             Node::Group(group) => {
-                let empty = !legacy_groups.contains(&group.id);
-                last_sibling.insert(parent, empty.then(|| group.id.clone()));
+                if !legacy_before.contains(&group.id) {
+                    stable_seen.push(group.id.clone());
+                }
                 ancestors.push((path.len(), group.id.clone()));
             }
             Node::Element(element) if is_legacy_kind(&element.kind) => {
-                legacy_seen.push(element.id.clone());
-                last_sibling.insert(parent, None);
+                stable_seen.push(element.id.clone());
             }
             Node::Element(element) => grafts.push(Graft {
-                empty_group_below: last_sibling.get(&parent).cloned().flatten(),
-                parent,
-                below: legacy_seen.iter().rev().cloned().collect(),
+                ancestors: ancestors.iter().rev().map(|(_, id)| id.clone()).collect(),
+                below: stable_seen.iter().rev().cloned().collect(),
                 element: element.clone(),
             }),
         }
@@ -944,75 +943,41 @@ pub(crate) fn graft_tree_only(previous: &Scene, next: &mut Scene) {
     // 같은 자리(부모 그룹, 바로 아래 노드)에 여럿이면 원래 순서대로 이어 붙인다
     let mut offsets: HashMap<(Option<String>, Option<String>), usize> = HashMap::new();
     for graft in grafts {
-        let parent_path = match &graft.parent {
-            None => Some(Vec::new()),
-            Some(group) => next.find_path(group),
-        };
-        // (부모 경로, 부모 그룹 id, 바로 아래 노드 id, 그 노드 순번)
-        let mut placed: Option<(Vec<usize>, Option<String>, String, usize)> = None;
-        if let Some(parent_path) = &parent_path {
-            if let Some(group) = &graft.empty_group_below {
-                if let Some(path) = next.find_path(group) {
-                    if path.len() == parent_path.len() + 1 && path.starts_with(parent_path) {
-                        placed = Some((
-                            parent_path.clone(),
-                            graft.parent.clone(),
-                            group.clone(),
-                            path[parent_path.len()],
-                        ));
-                    }
-                }
+        // 남아 있는 가장 가까운 조상을 부모로 (없으면 장면 맨 위 단계)
+        let (parent_id, parent_path) = graft
+            .ancestors
+            .iter()
+            .find_map(|id| next.find_path(id).map(|path| (Some(id.clone()), path)))
+            .unwrap_or((None, Vec::new()));
+        // 부모 안에서 살아남은 가장 가까운 아래 이웃을 품은 같은 단계 노드 바로 위
+        let mut placed: Option<(String, usize)> = None;
+        for anchor in &graft.below {
+            // 그룹 후보는 지금도 옛 종류 멤버가 없어야 한다
+            if legacy_after.contains(anchor) {
+                continue;
+            }
+            let Some(path) = next.find_path(anchor) else {
+                continue;
+            };
+            if path.len() > parent_path.len() && path.starts_with(&parent_path) {
+                let slot = &path[..=parent_path.len()];
+                let slot_id = next
+                    .node_at(slot)
+                    .map(|node| node.id().to_string())
+                    .unwrap_or_default();
+                placed = Some((slot_id, path[parent_path.len()]));
+                break;
             }
         }
-        if placed.is_none() {
-            for anchor in &graft.below {
-                let Some(path) = next.find_path(anchor) else {
-                    continue;
-                };
-                match &parent_path {
-                    // 원래 부모 안 - 그 이웃을 품은 같은 단계 노드 바로 위
-                    Some(parent_path) => {
-                        if path.len() > parent_path.len() && path.starts_with(parent_path) {
-                            let slot = path[..=parent_path.len()].to_vec();
-                            let slot_id = next
-                                .node_at(&slot)
-                                .map(|node| node.id().to_string())
-                                .unwrap_or_default();
-                            placed = Some((
-                                parent_path.clone(),
-                                graft.parent.clone(),
-                                slot_id,
-                                path[parent_path.len()],
-                            ));
-                            break;
-                        }
-                    }
-                    // 부모 그룹이 없어짐 - 그 이웃 바로 위, 그 이웃의 부모 안
-                    None => {
-                        let (last, parent) = path.split_last().expect("not empty");
-                        let parent_id = (!parent.is_empty())
-                            .then(|| next.node_at(parent).map(|node| node.id().to_string()))
-                            .flatten();
-                        placed = Some((parent.to_vec(), parent_id, anchor.clone(), *last));
-                        break;
-                    }
-                }
-            }
-        }
-        let (parent, key, index) = match placed {
-            Some((parent, parent_id, slot_id, slot_index)) => {
-                (parent, (parent_id, Some(slot_id)), slot_index + 1)
-            }
-            None => match parent_path {
-                Some(parent_path) => (parent_path, (graft.parent.clone(), None), 0),
-                None => (Vec::new(), (None, None), 0),
-            },
+        let (key, index) = match placed {
+            Some((slot_id, slot_index)) => ((parent_id, Some(slot_id)), slot_index + 1),
+            None => ((parent_id, None), 0),
         };
         let offset = offsets.entry(key).or_insert(0);
-        let siblings = if parent.is_empty() {
+        let siblings = if parent_path.is_empty() {
             &mut next.nodes
         } else {
-            match next.node_at_mut(&parent) {
+            match next.node_at_mut(&parent_path) {
                 Some(Node::Group(group)) => &mut group.children,
                 _ => &mut next.nodes,
             }
