@@ -20,7 +20,7 @@ serde_json = { version = "1.0", features = ["float_roundtrip"] }
 base64 = "0.23"
 minisign-verify = "0.3.0"
 thiserror = "2.0"
-parking_lot = "0.12"
+parking_lot = "0.13"
 log = "0.4"
 notify = "8.2"
 notify-debouncer-mini = "0.7"
