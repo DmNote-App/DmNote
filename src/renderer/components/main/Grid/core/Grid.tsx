@@ -28,7 +28,7 @@ import {
   captureElementCollections,
   getItemStoreState,
 } from '@src/renderer/editor/model/elementStores';
-import { useItemElementCollections } from '@hooks/Grid/useItemElementCollections';
+import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
   modeArraysOf,
@@ -256,8 +256,7 @@ const Grid = ({
     keyPositions: positions,
     ...composeItemPreviewCollections(canonicalItemCollections),
   };
-  const { statPositions, graphPositions, knobPositions, spritePositions } =
-    collections;
+  const { statPositions } = collections;
 
   // 선택 관련 로직 훅 사용
   const {
@@ -852,12 +851,8 @@ const Grid = ({
         >
           <NativeGridElements
             mode={selectedKeyType}
-            keyPositions={positions[selectedKeyType]}
+            modeArrays={modeArraysOf(collections, selectedKeyType)}
             keyMappings={keyMappings[selectedKeyType]}
-            statPositions={statPositions?.[selectedKeyType] || []}
-            graphPositions={graphPositions?.[selectedKeyType] || []}
-            knobPositions={knobPositions?.[selectedKeyType] || []}
-            spritePositions={spritePositions?.[selectedKeyType] || []}
             pluginElements={pluginElements}
             selectedElements={selectedElements}
             activeTool={activeTool}

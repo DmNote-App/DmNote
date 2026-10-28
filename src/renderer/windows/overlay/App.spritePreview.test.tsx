@@ -17,7 +17,9 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const mocks = vi.hoisted(() => ({
   bootstrap: vi.fn(),
   layoutInputs: [] as Array<{
-    currentSpritePositions: ReadonlyArray<{ id?: string | null; dx: number }>;
+    currentItemArrays: {
+      spritePositions: ReadonlyArray<{ id?: string | null; dx: number }>;
+    };
   }>,
   sceneSpritePositions: [] as Array<
     ReadonlyArray<{ id?: string | null; dx: number }>
@@ -66,46 +68,32 @@ vi.mock('@hooks/overlay/useNoteSystem', () => ({
     updateTrackLayouts: vi.fn(),
   }),
 }));
-vi.mock('@stores/data/useStatItemStore', () => ({
-  useStatItemStore: <T,>(
-    selector: (state: { positions: Record<string, never[]> }) => T,
-  ) => selector({ positions: {} }),
-}));
-vi.mock('@stores/data/useGraphItemStore', () => ({
-  useGraphItemStore: <T,>(
-    selector: (state: { positions: Record<string, never[]> }) => T,
-  ) => selector({ positions: {} }),
-}));
-vi.mock('@stores/data/useKnobItemStore', () => ({
-  useKnobItemStore: <T,>(
-    selector: (state: { positions: Record<string, never[]> }) => T,
-  ) => selector({ positions: {} }),
-}));
 vi.mock('@hooks/overlay/useOverlayHitRegions', () => ({
   useOverlayHitRegions: () => {},
   subscribeHitContextMenu: () => () => {},
 }));
 vi.mock('@components/shared/OverlayScene', () => ({
   default: (props: {
-    displaySpritePositions: ReadonlyArray<{ id?: string | null; dx: number }>;
+    displayItemArrays: {
+      spritePositions: ReadonlyArray<{ id?: string | null; dx: number }>;
+    };
   }) => {
-    mocks.sceneSpritePositions.push(props.displaySpritePositions);
+    mocks.sceneSpritePositions.push(props.displayItemArrays.spritePositions);
     return null;
   },
 }));
 vi.mock('@hooks/shared/useLayoutComputation', () => ({
   // 합성된 sprite 입력을 그대로 통과시켜 OverlayScene까지의 배선을 관찰
   computeLayout: (input: {
-    currentSpritePositions: ReadonlyArray<{ id?: string | null; dx: number }>;
+    currentItemArrays: {
+      spritePositions: ReadonlyArray<{ id?: string | null; dx: number }>;
+    };
   }) => {
     mocks.layoutInputs.push(input);
     return {
       bounds: null,
       displayPositions: [],
-      displayStatPositions: [],
-      displayGraphPositions: [],
-      displayKnobPositions: [],
-      displaySpritePositions: input.currentSpritePositions,
+      displayItemArrays: input.currentItemArrays,
       positionOffset: { x: 0, y: 0 },
       topOffset: 0,
       webglTracks: [],
@@ -173,7 +161,8 @@ const remoteEnvelope = (
 });
 
 const lastLayoutSprites = () =>
-  mocks.layoutInputs[mocks.layoutInputs.length - 1].currentSpritePositions;
+  mocks.layoutInputs[mocks.layoutInputs.length - 1].currentItemArrays
+    .spritePositions;
 
 const lastSceneSprites = () =>
   mocks.sceneSpritePositions[mocks.sceneSpritePositions.length - 1];

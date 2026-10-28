@@ -62,10 +62,12 @@ const makeInput = (
     width: 200,
     height: 200,
   })) as never,
-  currentStatPositions: [],
-  currentGraphPositions: [],
-  currentKnobPositions: [],
-  currentSpritePositions: sprites,
+  currentItemArrays: {
+    statPositions: [],
+    graphPositions: [],
+    knobPositions: [],
+    spritePositions: sprites,
+  },
   trackHeight: 150,
   noteSettings: DEFAULT_NOTE_SETTINGS,
   selectedKeyType: '4key',
@@ -139,7 +141,10 @@ describe('computeLayout 스프라이트 오버행', () => {
 
     // 아이템 오프셋은 창 바운즈 기준이라 콘텐츠가 여유만큼 안쪽으로 밀린다
     expect(layout.positionOffset.x).toBeCloseTo(30 - 58.5786, 3);
-    expect(layout.displaySpritePositions[0].dx).toBeCloseTo(71.4214, 3);
+    expect(layout.displayItemArrays.spritePositions[0].dx).toBeCloseTo(
+      71.4214,
+      3,
+    );
     // 위쪽 오버행 41.42는 트랙 밴드(150) 안이라 창을 위로 키우지 않는다
     expect(layout.positionOffset.y).toBe(130);
     expect(layout.backgroundBox?.y).toBe(0);
@@ -330,10 +335,12 @@ describe('computeLayout 요소 회전', () => {
     currentPositions: keys.map((key) =>
       makeKey(key.id, key.dx, key.dy, key.rotation),
     ),
-    currentStatPositions: [],
-    currentGraphPositions: [],
-    currentKnobPositions: [],
-    currentSpritePositions: [],
+    currentItemArrays: {
+      statPositions: [],
+      graphPositions: [],
+      knobPositions: [],
+      spritePositions: [],
+    },
     trackHeight: 200,
     noteSettings: DEFAULT_NOTE_SETTINGS,
     selectedKeyType: '4key',
@@ -448,10 +455,12 @@ describe('computeLayout 회전 키 자동 시작선', () => {
           noteAutoYCorrection: key.noteAutoYCorrection,
         } as never),
     ),
-    currentStatPositions: [],
-    currentGraphPositions: [],
-    currentKnobPositions: [],
-    currentSpritePositions: [],
+    currentItemArrays: {
+      statPositions: [],
+      graphPositions: [],
+      knobPositions: [],
+      spritePositions: [],
+    },
     trackHeight: 200,
     noteSettings: DEFAULT_NOTE_SETTINGS,
     selectedKeyType: '4key',
@@ -571,10 +580,12 @@ describe('computeLayout 회전 키 자동 시작선 세부', () => {
           noteAlignment: key.noteAlignment,
         } as never),
     ),
-    currentStatPositions: [],
-    currentGraphPositions: [],
-    currentKnobPositions: [],
-    currentSpritePositions: [],
+    currentItemArrays: {
+      statPositions: [],
+      graphPositions: [],
+      knobPositions: [],
+      spritePositions: [],
+    },
     trackHeight,
     noteSettings: DEFAULT_NOTE_SETTINGS,
     selectedKeyType: '4key',
@@ -745,10 +756,12 @@ describe('computeLayout 히트라인과 비키 요소', () => {
           hidden: extra.hideKeys,
         } as never),
     ),
-    currentStatPositions: (extra.stats ?? []) as never[],
-    currentGraphPositions: [],
-    currentKnobPositions: [],
-    currentSpritePositions: [],
+    currentItemArrays: {
+      statPositions: (extra.stats ?? []) as never[],
+      graphPositions: [],
+      knobPositions: [],
+      spritePositions: [],
+    },
     trackHeight: 300,
     noteSettings: DEFAULT_NOTE_SETTINGS,
     selectedKeyType: '4key',
@@ -892,7 +905,7 @@ describe('computeLayout 히트라인과 비키 요소', () => {
       trackHeight: 0,
     });
     const statTopOf = (layout: ReturnType<typeof computeLayout>) =>
-      (layout.displayStatPositions[0] as { dy: number }).dy;
+      (layout.displayItemArrays.statPositions[0] as { dy: number }).dy;
     expect(
       statTopOf(hidden) - statTopOf(shown) - (hidden.topMostY - shown.topMostY),
     ).toBe(0);

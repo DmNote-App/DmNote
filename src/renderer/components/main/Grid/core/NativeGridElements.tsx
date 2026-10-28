@@ -1,19 +1,15 @@
-import { useState, type MouseEvent } from 'react';
+import { Fragment, useState, type MouseEvent } from 'react';
 import DraggableKey from '@components/shared/key/Key';
-import GraphItem from '../layers/GraphItem';
-import KnobItem from '../layers/KnobItem';
-import SpriteItem from '../layers/SpriteItem';
+import { renderCanvasItem } from '../layers/canvasItemRenderers';
 import { commitElementPosition } from '@hooks/Grid/elementPositionCommit';
 import { useStableHandlerSlots } from '@hooks/shared/useStableHandlerSlots';
 import { deleteElementById } from '@src/renderer/editor/runtime/operations/elementOps';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
 import type { NativeElementType } from '@src/renderer/editor/model/elementIdMap';
-import type {
-  CanonicalGraphItemPosition,
-  CanonicalKeyPosition,
-  CanonicalKnobItemPosition,
-  CanonicalReactiveSpritePosition,
-  CanonicalStatItemPosition,
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  ITEM_ELEMENT_TYPES,
+  type ElementCollectionsModeArrays,
 } from '@src/types/editor';
 import type { KeySlot } from '@src/types/key/keys';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
@@ -24,7 +20,6 @@ import {
   getKeySelectionBounds,
   type KeySelectionBounds,
 } from '@utils/grid/rangeSelection';
-import { getLooseStatTypeLabel } from '@utils/grid/statTypeLabel';
 import {
   updateNativeElementReference,
   type NativeElementReferenceRegistry,
@@ -32,12 +27,9 @@ import {
 
 interface NativeGridElementsProps {
   mode: string;
-  keyPositions: readonly CanonicalKeyPosition[] | undefined;
+  // 현재 모드의 종류별 위치 (키는 렌더 positions)
+  modeArrays: ElementCollectionsModeArrays;
   keyMappings: readonly KeySlot[] | undefined;
-  statPositions: readonly CanonicalStatItemPosition[];
-  graphPositions: readonly CanonicalGraphItemPosition[];
-  knobPositions: readonly CanonicalKnobItemPosition[];
-  spritePositions: readonly CanonicalReactiveSpritePosition[];
   pluginElements: readonly PluginDisplayElementInternal[];
   selectedElements: SelectedElement[];
   activeTool: string;
@@ -67,12 +59,8 @@ interface NativeGridElementsProps {
 
 const NativeGridElements = ({
   mode,
-  keyPositions,
+  modeArrays,
   keyMappings,
-  statPositions,
-  graphPositions,
-  knobPositions,
-  spritePositions,
   pluginElements,
   selectedElements,
   activeTool,
@@ -136,6 +124,7 @@ const NativeGridElements = ({
     };
   };
 
+  const keyPositions = modeArrays.keyPositions;
   const keyElements =
     keyPositions?.map((position, index) => {
       const saveLastSelectedBounds = () => {
@@ -166,13 +155,9 @@ const NativeGridElements = ({
           if (!clickedPosition) return;
           onSetSelectedElements(
             collectElementsInKeyRange(lastSelectedKeyBounds, clickedPosition, {
+              ...modeArrays,
               mode,
-              keyPositions,
               pluginElements,
-              statPositions,
-              graphPositions,
-              knobPositions,
-              spritePositions,
             }),
           );
         },
@@ -202,109 +187,35 @@ const NativeGridElements = ({
       );
     }) ?? null;
 
-  const statElements = statPositions.map((position, index) => (
-    <DraggableKey
-      key={position.id}
-      index={index}
-      elementId={position.id}
-      anchorKind="stat"
-      position={position}
-      keyName={getLooseStatTypeLabel(position.statType)}
-      zIndex={position.zIndex ?? index}
-      isSelected={selectedElements.some(
-        (element) => element.type === 'stat' && element.id === position.id,
+  const itemElements = ITEM_ELEMENT_TYPES.map((type) => (
+    <Fragment key={type}>
+      {modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].map((position, index) =>
+        renderCanvasItem(type, position as never, {
+          index,
+          elementId: position.id,
+          zIndex: position.zIndex ?? index,
+          isSelected: selectedElements.some(
+            (element) => element.type === type && element.id === position.id,
+          ),
+          selectedElements,
+          activeTool,
+          zoom,
+          panX,
+          panY,
+          isViewportTransforming,
+          ...stableHandlers(
+            position.id,
+            createCommonHandlers(type, index, position.id),
+          ),
+        }),
       )}
-      selectedElements={selectedElements}
-      activeTool={activeTool}
-      zoom={zoom}
-      panX={panX}
-      panY={panY}
-      isViewportTransforming={isViewportTransforming}
-      counterEnabled={true}
-      counterPreviewValue={0}
-      {...stableHandlers(
-        position.id,
-        createCommonHandlers('stat', index, position.id),
-      )}
-    />
-  ));
-
-  const graphElements = graphPositions.map((position, index) => (
-    <GraphItem
-      key={position.id}
-      index={index}
-      elementId={position.id}
-      position={position}
-      zIndex={position.zIndex ?? index}
-      isSelected={selectedElements.some(
-        (element) => element.type === 'graph' && element.id === position.id,
-      )}
-      selectedElements={selectedElements}
-      activeTool={activeTool}
-      zoom={zoom}
-      panX={panX}
-      panY={panY}
-      isViewportTransforming={isViewportTransforming}
-      {...stableHandlers(
-        position.id,
-        createCommonHandlers('graph', index, position.id),
-      )}
-    />
-  ));
-
-  const knobElements = knobPositions.map((position, index) => (
-    <KnobItem
-      key={position.id}
-      index={index}
-      elementId={position.id}
-      position={position}
-      zIndex={position.zIndex ?? index}
-      isSelected={selectedElements.some(
-        (element) => element.type === 'knob' && element.id === position.id,
-      )}
-      selectedElements={selectedElements}
-      activeTool={activeTool}
-      zoom={zoom}
-      panX={panX}
-      panY={panY}
-      isViewportTransforming={isViewportTransforming}
-      {...stableHandlers(
-        position.id,
-        createCommonHandlers('knob', index, position.id),
-      )}
-    />
-  ));
-
-  const spriteElements = spritePositions.map((position, index) => (
-    <SpriteItem
-      key={position.id}
-      index={index}
-      elementId={position.id}
-      position={position}
-      zIndex={position.zIndex ?? index}
-      isSelected={selectedElements.some(
-        (element) => element.type === 'sprite' && element.id === position.id,
-      )}
-      selectedElements={selectedElements}
-      activeTool={activeTool}
-      zoom={zoom}
-      panX={panX}
-      panY={panY}
-      isViewportTransforming={isViewportTransforming}
-      {...stableHandlers(
-        position.id,
-        createCommonHandlers('sprite', index, position.id),
-      )}
-    />
+    </Fragment>
   ));
 
   return (
     <>
       {keyElements}
-      {statElements}
-      {graphElements}
-      {knobElements}
-      {spriteElements}
+      {itemElements}
     </>
   );
 };

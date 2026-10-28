@@ -84,21 +84,6 @@ vi.mock('@hooks/overlay/useNoteSystem', () => ({
     updateTrackLayouts: mocks.updateTrackLayouts,
   }),
 }));
-vi.mock('@stores/data/useStatItemStore', () => ({
-  useStatItemStore: <T,>(
-    selector: (state: { positions: Record<string, never[]> }) => T,
-  ) => selector({ positions: {} }),
-}));
-vi.mock('@stores/data/useGraphItemStore', () => ({
-  useGraphItemStore: <T,>(
-    selector: (state: { positions: Record<string, never[]> }) => T,
-  ) => selector({ positions: {} }),
-}));
-vi.mock('@stores/data/useKnobItemStore', () => ({
-  useKnobItemStore: <T,>(
-    selector: (state: { positions: Record<string, never[]> }) => T,
-  ) => selector({ positions: {} }),
-}));
 // 실제 zustand 스토어로 모킹 - setState로 설정 변경 시 App이 반응형으로
 // 리렌더되어야 "레이아웃 무관 설정 변경" 시나리오를 검증할 수 있음
 vi.mock('@stores/useSettingsStore', async () => {

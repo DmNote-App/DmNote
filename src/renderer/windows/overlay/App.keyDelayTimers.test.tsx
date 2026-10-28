@@ -60,21 +60,6 @@ vi.mock('@hooks/overlay/useNoteSystem', () => ({
     updateTrackLayouts: vi.fn(),
   }),
 }));
-vi.mock('@stores/data/useStatItemStore', () => ({
-  useStatItemStore: <T,>(
-    selector: (state: { positions: Record<string, never[]> }) => T,
-  ) => selector({ positions: {} }),
-}));
-vi.mock('@stores/data/useGraphItemStore', () => ({
-  useGraphItemStore: <T,>(
-    selector: (state: { positions: Record<string, never[]> }) => T,
-  ) => selector({ positions: {} }),
-}));
-vi.mock('@stores/data/useKnobItemStore', () => ({
-  useKnobItemStore: <T,>(
-    selector: (state: { positions: Record<string, never[]> }) => T,
-  ) => selector({ positions: {} }),
-}));
 // usePluginDisplayElementStore는 실제 스토어 사용 — App이 store API
 // (getState/subscribe)를 요구하며, 이 파일은 플러그인 요소를 조작하지 않음
 // 히트 영역 실측은 ResizeObserver·네이티브 IPC에 의존 - 이 파일들의 관심사 밖

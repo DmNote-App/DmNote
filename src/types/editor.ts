@@ -206,6 +206,11 @@ export type ElementCollectionsModeArrays = {
   [F in EditorElementPositionField]: ElementCollections[F][string];
 };
 
+export type ItemElementModeArrays = Omit<
+  ElementCollectionsModeArrays,
+  'keyPositions'
+>;
+
 export const modeArraysOf = (
   collections: ElementCollections,
   mode: string,

@@ -1,15 +1,17 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Fragment, Suspense, lazy } from 'react';
 import { Key } from '@components/shared/key/Key';
 import { isMac } from '@utils/core/platform';
 import KeyCounterLayer from '@components/overlay/counters/KeyCounterLayer';
-import StatItem from '@components/overlay/counters/StatItem';
 import StatCounterLayer from '@components/overlay/counters/StatCounterLayer';
-import OverlayGraphItem from '@components/overlay/counters/OverlayGraphItem';
-import OverlayKnobItem from '@components/overlay/counters/OverlayKnobItem';
-import OverlaySpriteItem from '@components/overlay/counters/OverlaySpriteItem';
+import { renderOverlayItem } from '@components/overlay/counters/overlayItemRenderers';
 import { PluginElementsRenderer } from '@components/shared/plugin/PluginElementsRenderer';
 import { getKeyInfoByGlobalKey } from '@utils/input/KeyMaps';
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  ITEM_ELEMENT_TYPES,
+  type CanonicalEditorDocumentV1,
+  type ItemElementModeArrays,
+} from '@src/types/editor';
 import type { NoteSettings } from '@src/types/settings/noteSettings';
 import type { NoteBuffer } from '@stores/signals/noteBuffer';
 import { resolveZIndexFallback } from '@utils/element/zIndexFallback';
@@ -28,10 +30,6 @@ const Tracks = lazy(async () => {
 type NoteSubscriber = (event: any) => void;
 
 // 미지정 시 identity 안정 기본값
-const EMPTY_SPRITE_POSITIONS: CanonicalEditorDocumentV1['spritePositions'][string] =
-  Object.freeze(
-    [],
-  ) as unknown as CanonicalEditorDocumentV1['spritePositions'][string];
 const EMPTY_SPRITE_KEY_MAP: ReadonlyMap<string, string> = new Map();
 
 interface OverlaySceneProps {
@@ -41,10 +39,8 @@ interface OverlaySceneProps {
   currentKeyLabels: string[];
   displayPositions: CanonicalEditorDocumentV1['keyPositions'][string];
   currentPositions: CanonicalEditorDocumentV1['keyPositions'][string];
-  displayStatPositions: CanonicalEditorDocumentV1['statPositions'][string];
-  displayGraphPositions: CanonicalEditorDocumentV1['graphPositions'][string];
-  displayKnobPositions: CanonicalEditorDocumentV1['knobPositions'][string];
-  displaySpritePositions?: CanonicalEditorDocumentV1['spritePositions'][string];
+  // 키 외 종류의 표시 위치 (오프셋 적용)
+  displayItemArrays: ItemElementModeArrays;
   // 스프라이트 트리거(키 요소 id) -> canonical 키 문자열
   spriteKeyCanonicalMap?: ReadonlyMap<string, string>;
   selectedKeyType: string;
@@ -82,10 +78,7 @@ const OverlayScene = ({
   currentKeyLabels,
   displayPositions,
   currentPositions,
-  displayStatPositions,
-  displayGraphPositions,
-  displayKnobPositions,
-  displaySpritePositions = EMPTY_SPRITE_POSITIONS,
+  displayItemArrays,
   spriteKeyCanonicalMap = EMPTY_SPRITE_KEY_MAP,
   selectedKeyType,
   noteEffect,
@@ -170,70 +163,18 @@ const OverlayScene = ({
           />
         );
       })}
-      {displayStatPositions.map((pos, index) => {
-        if (!pos || pos.hidden) return null;
-
-        const statType = pos.statType ?? 'kps';
-        const defaultLabel =
-          statType === 'kpsAvg'
-            ? 'AVG'
-            : statType === 'kpsMax'
-            ? 'MAX'
-            : statType === 'total'
-            ? 'Total'
-            : 'KPS';
-        const label = (pos.displayText || '').trim() || defaultLabel;
-        const position = {
-          ...pos,
-          zIndex: pos.zIndex ?? index,
-        };
-
-        return (
-          <StatItem
-            key={pos.id}
-            statType={statType}
-            label={label}
-            position={position}
-            counterEnabled={true}
-          />
-        );
-      })}
-      {displayGraphPositions.map((pos, index) => {
-        if (!pos || pos.hidden) return null;
-        const graphPosition = {
-          ...pos,
-          zIndex: pos.zIndex ?? index,
-        };
-        return (
-          <OverlayGraphItem
-            key={pos.id}
-            index={index}
-            position={graphPosition}
-          />
-        );
-      })}
-      {displayKnobPositions.map((pos, index) => {
-        if (!pos || pos.hidden) return null;
-        const knobPosition = {
-          ...pos,
-          zIndex: pos.zIndex ?? index,
-        };
-        return (
-          <OverlayKnobItem key={pos.id} index={index} position={knobPosition} />
-        );
-      })}
-      {displaySpritePositions.map((pos, index) => {
-        if (!pos || pos.hidden) return null;
-        // 전개 금지 - 원본 identity를 보존해야 잎의 React.memo가 유지된다
-        const position = resolveZIndexFallback(pos, index);
-        return (
-          <OverlaySpriteItem
-            key={pos.id}
-            position={position}
-            keyCanonicalMap={spriteKeyCanonicalMap}
-          />
-        );
-      })}
+      {ITEM_ELEMENT_TYPES.map((type) => (
+        <Fragment key={type}>
+          {displayItemArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].map(
+            (pos, index) =>
+              !pos || pos.hidden
+                ? null
+                : renderOverlayItem(type, pos as never, index, {
+                    spriteKeyCanonicalMap,
+                  }),
+          )}
+        </Fragment>
+      ))}
       {keyCounterEnabled ? (
         <KeyCounterLayer
           keys={currentKeys}
@@ -243,7 +184,7 @@ const OverlayScene = ({
           mode={selectedKeyType}
         />
       ) : null}
-      <StatCounterLayer positions={displayStatPositions} />
+      <StatCounterLayer positions={displayItemArrays.statPositions} />
       {showPluginElements && positionOffset && (
         <PluginElementsRenderer
           windowType="overlay"

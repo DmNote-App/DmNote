@@ -73,21 +73,6 @@ vi.mock('@hooks/overlay/useNoteSystem', () => ({
     updateTrackLayouts: vi.fn(),
   }),
 }));
-vi.mock('@stores/data/useStatItemStore', () => ({
-  useStatItemStore: <T,>(
-    selector: (state: { positions: Record<string, never[]> }) => T,
-  ) => selector({ positions: {} }),
-}));
-vi.mock('@stores/data/useGraphItemStore', () => ({
-  useGraphItemStore: <T,>(
-    selector: (state: { positions: Record<string, never[]> }) => T,
-  ) => selector({ positions: {} }),
-}));
-vi.mock('@stores/data/useKnobItemStore', () => ({
-  useKnobItemStore: <T,>(
-    selector: (state: { positions: Record<string, never[]> }) => T,
-  ) => selector({ positions: {} }),
-}));
 vi.mock('@stores/useSettingsStore', async () => {
   const { create } = await import('zustand');
   const useSettingsStore = create((set) => ({

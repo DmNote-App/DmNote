@@ -119,37 +119,39 @@ describe('NativeGridElements', () => {
       root.render(
         <NativeGridElements
           mode="4key"
-          keyPositions={[keyPosition(KEY_ID, 100)]}
+          modeArrays={{
+            keyPositions: [keyPosition(KEY_ID, 100)],
+            statPositions: [
+              {
+                ...keyPosition(STAT_ID, 20),
+                statType: 'total',
+              } as CanonicalStatItemPosition,
+            ],
+            graphPositions: [
+              {
+                ...keyPosition(GRAPH_ID, 40),
+                statType: 'kpsMax',
+                graphType: 'line',
+                graphSpeed: 1,
+                graphColor: '#fff',
+              } as CanonicalGraphItemPosition,
+            ],
+            knobPositions: [
+              {
+                ...keyPosition(KNOB_ID, 60),
+                axisId: 'axis',
+                sensitivity: 1,
+                reverse: false,
+              } as CanonicalKnobItemPosition,
+            ],
+            spritePositions: [
+              {
+                ...keyPosition(SPRITE_ID, 80),
+                poses: [],
+              } as unknown as CanonicalReactiveSpritePosition,
+            ],
+          }}
           keyMappings={['KeyA']}
-          statPositions={[
-            {
-              ...keyPosition(STAT_ID, 20),
-              statType: 'total',
-            } as CanonicalStatItemPosition,
-          ]}
-          graphPositions={[
-            {
-              ...keyPosition(GRAPH_ID, 40),
-              statType: 'kpsMax',
-              graphType: 'line',
-              graphSpeed: 1,
-              graphColor: '#fff',
-            } as CanonicalGraphItemPosition,
-          ]}
-          knobPositions={[
-            {
-              ...keyPosition(KNOB_ID, 60),
-              axisId: 'axis',
-              sensitivity: 1,
-              reverse: false,
-            } as CanonicalKnobItemPosition,
-          ]}
-          spritePositions={[
-            {
-              ...keyPosition(SPRITE_ID, 80),
-              poses: [],
-            } as unknown as CanonicalReactiveSpritePosition,
-          ]}
           pluginElements={[]}
           selectedElements={[{ type: 'graph', id: GRAPH_ID, index: 0 }]}
           activeTool="select"

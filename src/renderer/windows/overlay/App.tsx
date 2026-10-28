@@ -15,10 +15,12 @@ import { useAppBootstrap } from '@hooks/app/useAppBootstrap';
 import { overlayApi } from '@api/modules/window/overlayApi';
 import { useBuiltinStatsSubscription } from '@hooks/overlay/useBuiltinStatsSubscription';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  ITEM_ELEMENT_TYPES,
+  type ItemElementModeArrays,
+} from '@src/types/editor';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useStoreWithEqualityFn } from 'zustand/traditional';
@@ -82,10 +84,7 @@ export default function App() {
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   const keyMappings = useKeyStore((state) => state.keyMappings);
   const positions = useKeyStore((state) => state.positions);
-  const statPositions = useStatItemStore((state) => state.positions);
-  const graphPositions = useGraphItemStore((state) => state.positions);
-  const knobPositions = useKnobItemStore((state) => state.positions);
-  const spritePositions = useSpriteStore((state) => state.positions);
+  const itemCollections = useItemElementCollections();
   // 레이아웃 필드만 투영 구독 - 플러그인 state/html 변경이 App 리렌더로 승격되지 않게
   const pluginElements = useStoreWithEqualityFn(
     usePluginDisplayElementStore,
@@ -169,13 +168,21 @@ export default function App() {
   });
 
   const currentPositions = positions[selectedKeyType] ?? EMPTY_SLICE;
-  const currentStatPositions = statPositions[selectedKeyType] ?? EMPTY_SLICE;
-  const currentGraphPositions = graphPositions[selectedKeyType] ?? EMPTY_SLICE;
-  const currentKnobPositions = knobPositions[selectedKeyType] ?? EMPTY_SLICE;
   // 오버레이는 방송 화면이라 스크럽 프리뷰를 구독하지 않는다 (커밋 시점만 반영).
   // 편집 중 실시간 피드백은 편집 캔버스 몫
-  const currentSpritePositions =
-    spritePositions[selectedKeyType] ?? EMPTY_SLICE;
+  const currentItemArrays = useMemo(
+    () =>
+      Object.fromEntries(
+        ITEM_ELEMENT_TYPES.map((type) => {
+          const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
+          return [
+            field,
+            itemCollections[field][selectedKeyType] ?? EMPTY_SLICE,
+          ];
+        }),
+      ) as unknown as ItemElementModeArrays,
+    [itemCollections, selectedKeyType],
+  );
 
   // 스프라이트 트리거(키 요소 id) -> canonical 키 문자열, 잎이 시그널을 찾을 때 쓴다
   const spriteKeyCanonicalMap = useMemo(
@@ -190,10 +197,7 @@ export default function App() {
       computeLayout({
         currentKeys,
         currentPositions,
-        currentStatPositions,
-        currentGraphPositions,
-        currentKnobPositions,
-        currentSpritePositions,
+        currentItemArrays,
         trackHeight,
         noteSettings,
         selectedKeyType,
@@ -203,10 +207,7 @@ export default function App() {
     [
       currentKeys,
       currentPositions,
-      currentStatPositions,
-      currentGraphPositions,
-      currentKnobPositions,
-      currentSpritePositions,
+      currentItemArrays,
       trackHeight,
       noteSettings,
       selectedKeyType,
@@ -218,10 +219,7 @@ export default function App() {
     backgroundBox,
     contentOrigin,
     displayPositions,
-    displayStatPositions,
-    displayGraphPositions,
-    displayKnobPositions,
-    displaySpritePositions,
+    displayItemArrays,
     positionOffset,
     topMostY,
     leftMostX,
@@ -349,10 +347,7 @@ export default function App() {
       currentKeyLabels={currentKeyLabels}
       displayPositions={displayPositions}
       currentPositions={currentPositions}
-      displayStatPositions={displayStatPositions}
-      displayGraphPositions={displayGraphPositions}
-      displayKnobPositions={displayKnobPositions}
-      displaySpritePositions={displaySpritePositions}
+      displayItemArrays={displayItemArrays}
       spriteKeyCanonicalMap={spriteKeyCanonicalMap}
       selectedKeyType={selectedKeyType}
       noteEffect={noteEffect}

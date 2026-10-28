@@ -2,7 +2,14 @@ import {
   DEFAULT_NOTE_BORDER_RADIUS,
   DEFAULT_NOTE_SETTINGS,
 } from '@constants/overlayDefaults';
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  ITEM_ELEMENT_TYPES,
+  type CanonicalEditorDocumentV1,
+  type ItemElementModeArrays,
+  type ItemElementType,
+} from '@src/types/editor';
+import { defaultElementSize } from '@src/types/elementKinds';
 import type { NoteSettings } from '@src/types/settings/noteSettings';
 // 레이아웃이 읽을 수 있는 플러그인 필드는 투영 타입으로 제한 —
 // 필드 추가 시 selectPluginLayoutElements·pluginLayoutElementsEqual 동반 수정 필요
@@ -12,7 +19,6 @@ import {
   spriteReachEnumerationCost,
 } from '@utils/sprite/spriteReach';
 import { buildSpriteKeyCanonicalMap } from '@utils/sprite/spriteKeyBinding';
-import { DEFAULT_SPRITE_SIZE } from '@src/types/key/sprites';
 import { rotatedRectAabb } from '@utils/element/rotation';
 import {
   computeTrackGeometry,
@@ -25,10 +31,8 @@ interface LayoutInput {
   // canonical 슬롯 식별자 배열 (slotCanonical 결과, 원본 KeySlot 아님)
   currentKeys: string[];
   currentPositions: CanonicalEditorDocumentV1['keyPositions'][string];
-  currentStatPositions: CanonicalEditorDocumentV1['statPositions'][string];
-  currentGraphPositions: CanonicalEditorDocumentV1['graphPositions'][string];
-  currentKnobPositions: CanonicalEditorDocumentV1['knobPositions'][string];
-  currentSpritePositions: CanonicalEditorDocumentV1['spritePositions'][string];
+  // 키 외 종류의 현재 모드 배열
+  currentItemArrays: ItemElementModeArrays;
   trackHeight: number;
   noteSettings: NoteSettings;
   selectedKeyType?: string;
@@ -53,10 +57,7 @@ export function computeLayout(input: LayoutInput) {
   const {
     currentKeys,
     currentPositions,
-    currentStatPositions,
-    currentGraphPositions,
-    currentKnobPositions,
-    currentSpritePositions,
+    currentItemArrays,
     trackHeight,
     noteSettings,
     selectedKeyType,
@@ -64,14 +65,27 @@ export function computeLayout(input: LayoutInput) {
     overlayPadding: PADDING = 30,
   } = input;
 
+  type LayoutItemPosition = {
+    dx: number;
+    dy: number;
+    width?: number;
+    height?: number;
+    rotation?: number;
+    hidden?: boolean;
+  } | null;
+  const itemArrayOf = (type: ItemElementType) =>
+    currentItemArrays[
+      EDITOR_ELEMENT_POSITION_FIELDS[type]
+    ] as readonly LayoutItemPosition[];
+
   // 콘텐츠 바운즈 계산 - 배경 박스가 덮는 영역의 기준
   const contentBounds: Bounds | null = (() => {
     const hasContent =
       currentPositions.length > 0 ||
-      currentStatPositions.length > 0 ||
-      currentGraphPositions.length > 0 ||
-      currentKnobPositions.length > 0 ||
-      currentSpritePositions.length > 0 ||
+      ITEM_ELEMENT_TYPES.some(
+        (type) =>
+          currentItemArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].length > 0,
+      ) ||
       (pluginElements && pluginElements.length > 0);
     if (!hasContent) return null;
 
@@ -117,38 +131,17 @@ export function computeLayout(input: LayoutInput) {
       }
     });
 
-    currentStatPositions.forEach((pos) => {
-      if (!pos || pos.hidden) return;
-      xs.push(pos.dx);
-      ys.push(pos.dy);
-      widths.push(pos.dx + (pos.width ?? 60));
-      heights.push(pos.dy + (pos.height ?? 60));
-    });
-
-    currentGraphPositions.forEach((pos) => {
-      if (!pos || pos.hidden) return;
-      xs.push(pos.dx);
-      ys.push(pos.dy);
-      widths.push(pos.dx + (pos.width ?? 200));
-      heights.push(pos.dy + (pos.height ?? 100));
-    });
-
-    currentKnobPositions.forEach((pos) => {
-      if (!pos || pos.hidden) return;
-      xs.push(pos.dx);
-      ys.push(pos.dy);
-      widths.push(pos.dx + (pos.width ?? 60));
-      heights.push(pos.dy + (pos.height ?? 60));
-    });
-
-    // 스프라이트 요소 상자(기본 이미지 상자)를 콘텐츠 바운즈에 포함
-    currentSpritePositions.forEach((pos) => {
-      if (!pos || pos.hidden) return;
-      xs.push(pos.dx);
-      ys.push(pos.dy);
-      widths.push(pos.dx + (pos.width ?? DEFAULT_SPRITE_SIZE));
-      heights.push(pos.dy + (pos.height ?? DEFAULT_SPRITE_SIZE));
-    });
+    // 키 외 요소 상자 (스프라이트는 기본 이미지 상자)
+    for (const type of ITEM_ELEMENT_TYPES) {
+      const fallback = defaultElementSize(type);
+      itemArrayOf(type).forEach((pos) => {
+        if (!pos || pos.hidden) return;
+        xs.push(pos.dx);
+        ys.push(pos.dy);
+        widths.push(pos.dx + (pos.width ?? fallback.width));
+        heights.push(pos.dy + (pos.height ?? fallback.height));
+      });
+    }
 
     // 플러그인 요소 위치 (앵커 기반 계산 포함)
     if (pluginElements && selectedKeyType) {
@@ -248,10 +241,12 @@ export function computeLayout(input: LayoutInput) {
       acc = acc ? unionBounds(acc, aabb) : aabb;
     };
     currentPositions.forEach((pos) => collect(pos, 60, 60));
-    currentStatPositions.forEach((pos) => collect(pos, 60, 60));
-    currentGraphPositions.forEach((pos) => collect(pos, 200, 100));
-    currentKnobPositions.forEach((pos) => collect(pos, 60, 60));
-    currentSpritePositions.forEach((pos) => collect(pos, 200, 200));
+    for (const type of ITEM_ELEMENT_TYPES) {
+      const fallback = defaultElementSize(type);
+      itemArrayOf(type).forEach((pos) =>
+        collect(pos, fallback.width, fallback.height),
+      );
+    }
     return acc;
   })();
 
@@ -274,13 +269,13 @@ export function computeLayout(input: LayoutInput) {
     // 예산은 실측 기준(약 33만 단위에서 19ms)에서 30ms 언저리로 잡았다
     const REACH_ENUMERATION_BUDGET = 500_000;
     let enumerationCost = 0;
-    for (const pos of currentSpritePositions) {
+    for (const pos of currentItemArrays.spritePositions) {
       if (!pos || pos.hidden) continue;
       enumerationCost += spriteReachEnumerationCost(pos, canonicalByKeyId);
       if (enumerationCost > REACH_ENUMERATION_BUDGET) break;
     }
     const enumerate = enumerationCost <= REACH_ENUMERATION_BUDGET;
-    currentSpritePositions.forEach((pos) => {
+    currentItemArrays.spritePositions.forEach((pos) => {
       if (!pos || pos.hidden) return;
       const reach = computeSpriteReachAabb(pos, canonicalByKeyId, {
         enumerate,
@@ -493,10 +488,17 @@ export function computeLayout(input: LayoutInput) {
   };
 
   const displayPositions = applyOffset(currentPositions);
-  const displayStatPositions = applyOffset(currentStatPositions);
-  const displayGraphPositions = applyOffset(currentGraphPositions);
-  const displayKnobPositions = applyOffset(currentKnobPositions);
-  const displaySpritePositions = applyOffset(currentSpritePositions);
+  const displayItemArrays = Object.fromEntries(
+    ITEM_ELEMENT_TYPES.map((type) => {
+      const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
+      return [
+        field,
+        applyOffset(
+          currentItemArrays[field] as unknown as { dx: number; dy: number }[],
+        ),
+      ];
+    }),
+  ) as unknown as ItemElementModeArrays;
 
   const positionOffset = windowBounds
     ? { x: offsetX, y: offsetY }
@@ -583,10 +585,7 @@ export function computeLayout(input: LayoutInput) {
     // 배경이 덮는 박스 - 창 좌표 기준, 오버행 여유는 배경 밖 투명으로 남는다
     backgroundBox,
     displayPositions,
-    displayStatPositions,
-    displayGraphPositions,
-    displayKnobPositions,
-    displaySpritePositions,
+    displayItemArrays,
     positionOffset,
     topMostY,
     leftMostX,
