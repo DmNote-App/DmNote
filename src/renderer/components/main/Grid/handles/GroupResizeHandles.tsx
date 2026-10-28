@@ -3,7 +3,7 @@ import type { ElementBounds as SmartGuideElementBounds } from '@utils/grid/smart
 import { getCursor } from '@utils/grid/cursorUtils';
 import { useCustomCursorHover } from '@hooks/Grid/viewport/useCustomCursorHover';
 import type { ContinuousInputStrategy } from '@utils/animation/rafLatestScheduler';
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
+import type { ElementCollections } from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import {
   isElementResizable,
@@ -39,12 +39,7 @@ interface HandleProps {
 
 interface GroupResizeHandlesProps {
   selectedElements: SelectedElement[];
-  positions: CanonicalEditorDocumentV1['keyPositions'];
-  statPositions: CanonicalEditorDocumentV1['statPositions'];
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-  // Grid 배선 전에도 컴포넌트가 동작하도록 선택 prop - 미전달 시 스프라이트만 제외
-  spritePositions?: CanonicalEditorDocumentV1['spritePositions'];
+  collections: ElementCollections;
   selectedKeyType: string;
   pluginElements: PluginDisplayElementInternal[];
   zoom?: number;
@@ -186,11 +181,7 @@ const Handle = ({
 
 const GroupResizeHandles = ({
   selectedElements,
-  positions,
-  statPositions,
-  graphPositions,
-  knobPositions,
-  spritePositions,
+  collections,
   selectedKeyType,
   pluginElements,
   zoom = 1,
@@ -207,27 +198,15 @@ const GroupResizeHandles = ({
   // 그룹 바운딩 박스 계산
   const groupData = calculateGroupBounds(
     selectedElements,
-    positions,
-    statPositions,
-    graphPositions,
-    knobPositions,
+    collections,
     selectedKeyType,
     pluginElements,
-    spritePositions,
   );
 
   // 각 요소가 리사이즈 가능한지 확인
   const resizabilityInfo = selectedElements.map((element) => ({
     element,
-    isResizable: isElementResizable(
-      element,
-      positions,
-      statPositions,
-      graphPositions,
-      knobPositions,
-      selectedKeyType,
-      pluginElements,
-    ),
+    isResizable: isElementResizable(element, pluginElements),
   }));
 
   const resizableElements = resizabilityInfo.filter((info) => info.isResizable);
@@ -235,14 +214,10 @@ const GroupResizeHandles = ({
   const handleMouseDown = useGroupResizeSession({
     groupData,
     selectedElements,
-    positions,
-    statPositions,
-    graphPositions,
-    knobPositions,
+    collections,
     selectedKeyType,
     pluginElements,
     zoom,
-    spritePositions,
     rotationFrame,
     onGroupResizeStart,
     onGroupResize,

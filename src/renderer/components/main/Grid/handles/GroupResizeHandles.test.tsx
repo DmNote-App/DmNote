@@ -154,10 +154,15 @@ describe('GroupResizeHandles 세션', () => {
             { type: 'key', id: ID_A, index: 0 },
             { type: 'key', id: ID_B, index: 1 },
           ]}
-          positions={positions}
-          statPositions={{}}
-          graphPositions={{}}
-          knobPositions={{}}
+          collections={
+            {
+              keyPositions: positions,
+              statPositions: {},
+              graphPositions: {},
+              knobPositions: {},
+              spritePositions: {},
+            } as never
+          }
           selectedKeyType="mode"
           pluginElements={[]}
           zoom={zoom}
@@ -397,11 +402,15 @@ describe('GroupResizeHandles 스프라이트 최소 크기·비율 고정', () =
             { type: 'sprite', id: SPRITE_A, index: 0 },
             { type: 'sprite', id: SPRITE_B, index: 1 },
           ]}
-          positions={{}}
-          statPositions={{}}
-          graphPositions={{}}
-          knobPositions={{}}
-          spritePositions={spritePositions}
+          collections={
+            {
+              keyPositions: {},
+              statPositions: {},
+              graphPositions: {},
+              knobPositions: {},
+              spritePositions: spritePositions,
+            } as never
+          }
           rotationFrame={rotationFrame}
           selectedKeyType="4key"
           pluginElements={[]}
@@ -753,11 +762,15 @@ describe('GroupResizeHandles 스프라이트 최소 크기·비율 고정', () =
               { type: 'sprite', id: SPRITE_A, index: 0 },
               { type: 'key', id: SPRITE_B, index: 0 },
             ]}
-            positions={{ '4key': [key] }}
-            statPositions={{}}
-            graphPositions={{}}
-            knobPositions={{}}
-            spritePositions={{ '4key': [sprite] }}
+            collections={
+              {
+                keyPositions: { '4key': [key] },
+                statPositions: {},
+                graphPositions: {},
+                knobPositions: {},
+                spritePositions: { '4key': [sprite] },
+              } as never
+            }
             selectedKeyType="4key"
             pluginElements={[]}
             getOtherElements={() => []}

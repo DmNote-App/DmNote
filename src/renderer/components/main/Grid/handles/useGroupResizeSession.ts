@@ -13,7 +13,7 @@ import {
   type ContinuousInputStrategy,
 } from '@utils/animation/rafLatestScheduler';
 import type { ElementBounds as SmartGuideElementBounds } from '@utils/grid/smartGuides';
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
+import type { ElementCollections } from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import {
   calculateGroupResizePlan,
@@ -58,11 +58,7 @@ interface ResizeState {
 interface UseGroupResizeSessionOptions {
   groupData: GroupResizeData | null;
   selectedElements: SelectedElement[];
-  positions: CanonicalEditorDocumentV1['keyPositions'];
-  statPositions: CanonicalEditorDocumentV1['statPositions'];
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-  spritePositions?: CanonicalEditorDocumentV1['spritePositions'];
+  collections: ElementCollections;
   selectedKeyType: string;
   pluginElements: PluginDisplayElementInternal[];
   zoom: number;
@@ -93,11 +89,7 @@ const applyGuidePlan = (
 export const useGroupResizeSession = ({
   groupData,
   selectedElements,
-  positions,
-  statPositions,
-  graphPositions,
-  knobPositions,
-  spritePositions,
+  collections,
   selectedKeyType,
   pluginElements,
   zoom,
@@ -135,28 +127,10 @@ export const useGroupResizeSession = ({
     if (!groupData) return;
 
     const resizableElementBounds = groupData.elementBounds.filter(
-      ({ element }) =>
-        isElementResizable(
-          element,
-          positions,
-          statPositions,
-          graphPositions,
-          knobPositions,
-          selectedKeyType,
-          pluginElements,
-        ),
+      ({ element }) => isElementResizable(element, pluginElements),
     );
     const nonResizableElementBounds = groupData.elementBounds.filter(
-      ({ element }) =>
-        !isElementResizable(
-          element,
-          positions,
-          statPositions,
-          graphPositions,
-          knobPositions,
-          selectedKeyType,
-          pluginElements,
-        ),
+      ({ element }) => !isElementResizable(element, pluginElements),
     );
 
     resizeRef.current = {
@@ -193,11 +167,12 @@ export const useGroupResizeSession = ({
         : undefined,
       maxSpriteScale: rotationFrame
         ? spriteGroupScaleLimit(
-            (spritePositions?.[selectedKeyType] ?? []).filter((position) =>
-              resizableElementBounds.some(
-                ({ element }) =>
-                  element.type === 'sprite' && element.id === position.id,
-              ),
+            (collections.spritePositions[selectedKeyType] ?? []).filter(
+              (position) =>
+                resizableElementBounds.some(
+                  ({ element }) =>
+                    element.type === 'sprite' && element.id === position.id,
+                ),
             ),
           )
         : undefined,

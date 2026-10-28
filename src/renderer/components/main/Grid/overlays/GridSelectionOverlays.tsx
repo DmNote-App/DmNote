@@ -24,7 +24,7 @@ import {
   type ElementBounds,
 } from '../handles/groupResizeUtils';
 import { matchSpriteAnchorPreset } from '@utils/sprite/spriteGeometry';
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
+import type { ElementCollections } from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 
@@ -33,11 +33,7 @@ type GroupResizeHandlesProps = ComponentProps<typeof GroupResizeHandles>;
 
 interface GridSelectionOverlaysProps {
   selectedElements: SelectedElement[];
-  positions: CanonicalEditorDocumentV1['keyPositions'];
-  statPositions: CanonicalEditorDocumentV1['statPositions'];
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'];
+  collections: ElementCollections;
   mode: string;
   pluginElements: PluginDisplayElementInternal[];
   zoom: number;
@@ -59,11 +55,7 @@ interface GridSelectionOverlaysProps {
 
 const GridSelectionOverlays = ({
   selectedElements,
-  positions,
-  statPositions,
-  graphPositions,
-  knobPositions,
-  spritePositions,
+  collections,
   mode,
   pluginElements,
   zoom,
@@ -87,16 +79,7 @@ const GridSelectionOverlays = ({
     selectedElements.length > 1 &&
     !selectionFrame &&
     selectedElements.some(
-      (element) =>
-        getElementRotation(
-          element,
-          positions,
-          statPositions,
-          graphPositions,
-          knobPositions,
-          mode,
-          spritePositions,
-        ) !== 0,
+      (element) => getElementRotation(element, collections, mode) !== 0,
     );
   const isMultiSelection = selectedElements.length > 1;
   const rotationFrame =
@@ -116,13 +99,9 @@ const GridSelectionOverlays = ({
     isMultiSelection && !rotatedWithoutFrame
       ? calculateGroupBounds(
           selectedElements,
-          positions,
-          statPositions,
-          graphPositions,
-          knobPositions,
+          collections,
           mode,
           pluginElements,
-          spritePositions,
         )
       : null;
   // 그룹 핸들이 실제로 그리는 프레임과 같은 좌표·회전·프리뷰 사용
@@ -143,13 +122,9 @@ const GridSelectionOverlays = ({
     selectedElements.forEach((element) => {
       const bounds = getElementBounds(
         element,
-        positions,
-        statPositions,
-        graphPositions,
-        knobPositions,
+        collections,
         mode,
         pluginElements,
-        spritePositions,
       );
       if (!bounds) return;
       const displayBounds = isMultiSelection
@@ -158,31 +133,14 @@ const GridSelectionOverlays = ({
       const borderWidth = isMultiSelection
         ? GROUP_SELECTION_BORDER_WIDTH
         : SELECTION_BORDER_WIDTH;
-      const rotation = getElementRotation(
-        element,
-        positions,
-        statPositions,
-        graphPositions,
-        knobPositions,
-        mode,
-        spritePositions,
-      );
+      const rotation = getElementRotation(element, collections, mode);
       const edges = getSelectionOutlineEdges(
         displayBounds,
         rotation,
         groupOutlineFrame,
       );
       const nonResizable =
-        isMultiSelection &&
-        !isElementResizable(
-          element,
-          positions,
-          statPositions,
-          graphPositions,
-          knobPositions,
-          mode,
-          pluginElements,
-        );
+        isMultiSelection && !isElementResizable(element, pluginElements);
       const color = nonResizable
         ? 'var(--ui-warning)'
         : isMultiSelection
@@ -220,27 +178,10 @@ const GridSelectionOverlays = ({
   const singleElement =
     selectedElements.length === 1 ? selectedElements[0] : null;
   const singleBounds = singleElement
-    ? getElementBounds(
-        singleElement,
-        positions,
-        statPositions,
-        graphPositions,
-        knobPositions,
-        mode,
-        pluginElements,
-        spritePositions,
-      )
+    ? getElementBounds(singleElement, collections, mode, pluginElements)
     : null;
   const singleRotation = singleElement
-    ? getElementRotation(
-        singleElement,
-        positions,
-        statPositions,
-        graphPositions,
-        knobPositions,
-        mode,
-        spritePositions,
-      )
+    ? getElementRotation(singleElement, collections, mode)
     : 0;
   // 자세 편집 중에는 자세 프레임이 핸들을 맡는다 - 상자 핸들과 겹치지 않게
   const showSingleResizeHandles = Boolean(
@@ -248,22 +189,14 @@ const GridSelectionOverlays = ({
       singleBounds &&
       !hasGradientEditSession &&
       !hasSpritePoseSession &&
-      isElementResizable(
-        singleElement,
-        positions,
-        statPositions,
-        graphPositions,
-        knobPositions,
-        mode,
-        pluginElements,
-      ),
+      isElementResizable(singleElement, pluginElements),
   );
 
   // 기준점 표식이 프리셋 자리에 앉아 있으면 그 자리 핸들은 표식에 자리를 내준다.
   // 표식 히트 영역이 핸들을 덮어 어차피 잡히지 않고, 비율 고정이라 다른 핸들로 충분하다
   const spriteAtRest =
     singleElement?.type === 'sprite'
-      ? spritePositions[mode]?.find(
+      ? collections.spritePositions[mode]?.find(
           (candidate) => candidate.id === singleElement.id,
         ) ?? null
       : null;
@@ -314,11 +247,7 @@ const GridSelectionOverlays = ({
         !rotatedWithoutFrame && (
           <GroupResizeHandles
             selectedElements={selectedElements}
-            positions={positions}
-            statPositions={statPositions}
-            graphPositions={graphPositions}
-            knobPositions={knobPositions}
-            spritePositions={spritePositions}
+            collections={collections}
             selectedKeyType={mode}
             pluginElements={pluginElements}
             zoom={zoom}
@@ -355,10 +284,7 @@ const GridSelectionOverlays = ({
           />
         )}
       <GradientAxisOverlay
-        positions={positions}
-        statPositions={statPositions}
-        graphPositions={graphPositions}
-        knobPositions={knobPositions}
+        collections={collections}
         selectedElements={selectedElements}
         selectedKeyType={mode}
         zoom={zoom}
@@ -367,7 +293,7 @@ const GridSelectionOverlays = ({
       />
       {/* 온캔버스 스프라이트 핸들 - 선택 중엔 기준점, 자세 편집 중엔 자세 프레임 */}
       <SpriteCanvasHandles
-        spritePositions={spritePositions}
+        spritePositions={collections.spritePositions}
         selectedElements={selectedElements}
         selectedKeyType={mode}
         zoom={zoom}

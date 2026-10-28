@@ -42,7 +42,13 @@ export const GridMinimapBenchmarkSurface = ({
     >
       <div data-benchmark-grid-minimap="true" data-pan-x={view.panX}>
         <GridMinimap
-          positions={positions}
+          modeArrays={{
+            keyPositions: positions,
+            statPositions: [],
+            graphPositions: [],
+            knobPositions: [],
+            spritePositions: [],
+          }}
           zoom={view.zoom}
           panX={view.panX}
           panY={view.panY}

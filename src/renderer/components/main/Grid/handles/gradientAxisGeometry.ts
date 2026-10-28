@@ -4,10 +4,24 @@ import type {
   GradientEditSession,
 } from '@stores/grid/useGradientEditStore';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
-import type { GraphItemPosition } from '@src/types/key/graphItems';
-import type { KeyPosition } from '@src/types/key/keys';
-import type { KnobItemPosition } from '@src/types/key/knobs';
-import type { StatItemPosition } from '@src/types/key/statItems';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  type ElementCollections,
+} from '@src/types/editor';
+import {
+  defaultElementSize,
+  isSurfaceStyledElementType,
+  type SurfaceStyledElementType,
+} from '@src/types/elementKinds';
+
+type AxisPosition = {
+  id: string;
+  dx: number;
+  dy: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+};
 
 export interface GradientAxisBounds {
   x: number;
@@ -42,10 +56,7 @@ interface RegisteredGradientAnchorBounds {
 interface ResolveGradientAxisBoundsOptions {
   session: GradientEditSession | null;
   registeredAnchorBounds: RegisteredGradientAnchorBounds | null;
-  positions: Record<string, KeyPosition[] | undefined>;
-  statPositions: Record<string, StatItemPosition[] | undefined>;
-  graphPositions?: Record<string, GraphItemPosition[] | undefined>;
-  knobPositions?: Record<string, KnobItemPosition[] | undefined>;
+  collections: ElementCollections;
   selectedElements: SelectedElement[];
   selectedKeyType: string;
 }
@@ -85,20 +96,16 @@ export const buildGradientAxisMagnetAngles = (
 export const resolveGradientAxisBounds = ({
   session,
   registeredAnchorBounds,
-  positions,
-  statPositions,
-  graphPositions,
-  knobPositions,
+  collections,
   selectedElements,
   selectedKeyType,
 }: ResolveGradientAxisBoundsOptions): GradientAxisBounds | null => {
   if (!session) return null;
-  const collectionsByKind = {
-    key: positions[selectedKeyType],
-    stat: statPositions[selectedKeyType],
-    graph: graphPositions?.[selectedKeyType],
-    knob: knobPositions?.[selectedKeyType],
-  };
+  // 그라데이션 대상(표면 스타일 종류)의 현재 모드 배열
+  const surfaceModePositions = (kind: SurfaceStyledElementType) =>
+    collections[EDITOR_ELEMENT_POSITION_FIELDS[kind]][selectedKeyType] as
+      | readonly AxisPosition[]
+      | undefined;
   // 표면 소유 레이어가 실측 박스를 등록했으면 우선 사용 - 카운터 표면은
   // 요소(키) 박스가 아니라 실제 카운터 텍스트 박스가 축의 기준
   if (registeredAnchorBounds?.sessionKey === session.sessionKey) {
@@ -106,8 +113,9 @@ export const resolveGradientAxisBounds = ({
     const anchor = session.anchor;
     // 등록 후 요소가 이동하면 저장 좌표 델타로 실측 박스를 추종
     if (origin && anchor.kind !== 'batch') {
-      const collection = collectionsByKind[anchor.kind];
-      const pos = collection?.find((position) => position.id === anchor.id);
+      const pos = surfaceModePositions(anchor.kind)?.find(
+        (position) => position.id === anchor.id,
+      );
       if (pos && (pos.dx !== origin.x || pos.dy !== origin.y)) {
         return {
           ...bounds,
@@ -131,20 +139,14 @@ export const resolveGradientAxisBounds = ({
       ) {
         continue;
       }
-      const collection =
-        element.type === 'key'
-          ? positions[selectedKeyType]
-          : element.type === 'stat'
-          ? statPositions[selectedKeyType]
-          : element.type === 'graph'
-          ? graphPositions?.[selectedKeyType]
-          : element.type === 'knob'
-          ? knobPositions?.[selectedKeyType]
-          : undefined;
-      const pos = collection?.find((position) => position.id === element.id);
+      if (!isSurfaceStyledElementType(element.type)) continue;
+      const pos = surfaceModePositions(element.type)?.find(
+        (position) => position.id === element.id,
+      );
       if (!pos) continue;
-      const width = pos.width || (element.type === 'graph' ? 200 : 60);
-      const height = pos.height || (element.type === 'graph' ? 100 : 60);
+      const fallback = defaultElementSize(element.type);
+      const width = pos.width || fallback.width;
+      const height = pos.height || fallback.height;
       minX = Math.min(minX, pos.dx);
       minY = Math.min(minY, pos.dy);
       maxX = Math.max(maxX, pos.dx + width);
@@ -159,14 +161,16 @@ export const resolveGradientAxisBounds = ({
     };
   }
 
-  const collection = collectionsByKind[anchor.kind];
-  const pos = collection?.find((position) => position.id === anchor.id);
+  const pos = surfaceModePositions(anchor.kind)?.find(
+    (position) => position.id === anchor.id,
+  );
   if (!pos) return null;
+  const fallback = defaultElementSize(anchor.kind);
   return {
     x: pos.dx,
     y: pos.dy,
-    width: pos.width || (anchor.kind === 'graph' ? 200 : 60),
-    height: pos.height || (anchor.kind === 'graph' ? 100 : 60),
+    width: pos.width || fallback.width,
+    height: pos.height || fallback.height,
     ...(pos.rotation ? { rotation: pos.rotation } : {}),
   };
 };

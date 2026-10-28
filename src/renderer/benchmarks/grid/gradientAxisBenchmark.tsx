@@ -94,10 +94,13 @@ export const GradientAxisBenchmarkSurface = ({
           <GradientPreviewNode key={index} index={index} />
         ))}
         <GradientAxisOverlay
-          positions={positions}
-          statPositions={{}}
-          graphPositions={{}}
-          knobPositions={{}}
+          collections={{
+            keyPositions: positions,
+            statPositions: {},
+            graphPositions: {},
+            knobPositions: {},
+            spritePositions: {},
+          }}
           selectedElements={[]}
           selectedKeyType="benchmark"
           zoom={1}

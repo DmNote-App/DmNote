@@ -9,15 +9,17 @@ import { useGridMarquee } from './useGridMarquee';
 // (0,0)→(200,200) 마퀴가 감싸는 키 하나 - 잘못된 확정이 선택으로 드러나게
 const Harness = () => {
   useGridMarquee({
-    positions: {
-      benchmark: [
-        { id: 'key-1', dx: 0, dy: 0, width: 100, height: 100 },
-      ] as never,
+    collections: {
+      keyPositions: {
+        benchmark: [
+          { id: 'key-1', dx: 0, dy: 0, width: 100, height: 100 },
+        ] as never,
+      },
+      statPositions: {},
+      graphPositions: {},
+      knobPositions: {},
+      spritePositions: {},
     },
-    statPositions: {},
-    graphPositions: {},
-    knobPositions: {},
-    spritePositions: {},
     selectedKeyType: 'benchmark',
     pluginElements: [],
     clientToGridCoords: (x, y) => ({ x, y }),
@@ -217,11 +219,13 @@ describe('useGridMarquee 빈 공간 프레스', () => {
 
   const ApiHarness = () => {
     const api = useGridMarquee({
-      positions: {},
-      statPositions: {},
-      graphPositions: {},
-      knobPositions: {},
-      spritePositions: {},
+      collections: {
+        keyPositions: {},
+        statPositions: {},
+        graphPositions: {},
+        knobPositions: {},
+        spritePositions: {},
+      },
       selectedKeyType: 'benchmark',
       pluginElements: [],
       clientToGridCoords: (x, y) => ({ x, y }),

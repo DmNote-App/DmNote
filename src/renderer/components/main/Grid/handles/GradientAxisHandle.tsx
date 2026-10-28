@@ -1,10 +1,7 @@
 import React, { useEffect } from 'react';
 import { useTranslation } from '@contexts/useTranslation';
 import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
-import type { KeyPosition } from '@src/types/key/keys';
-import type { StatItemPosition } from '@src/types/key/statItems';
-import type { GraphItemPosition } from '@src/types/key/graphItems';
-import type { KnobItemPosition } from '@src/types/key/knobs';
+import type { ElementCollections } from '@src/types/editor';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import type { ContinuousInputStrategy } from '@utils/animation/rafLatestScheduler';
 import {
@@ -24,10 +21,7 @@ import { useGradientAxisDragSession } from './useGradientAxisDragSession';
  */
 
 interface GradientAxisOverlayProps {
-  positions: Record<string, KeyPosition[] | undefined>;
-  statPositions: Record<string, StatItemPosition[] | undefined>;
-  graphPositions?: Record<string, GraphItemPosition[] | undefined>;
-  knobPositions?: Record<string, KnobItemPosition[] | undefined>;
+  collections: ElementCollections;
   selectedElements: SelectedElement[];
   selectedKeyType: string;
   zoom: number;
@@ -52,10 +46,7 @@ const stopAll = (e: React.SyntheticEvent) => {
 };
 
 const GradientAxisOverlay = ({
-  positions,
-  statPositions,
-  graphPositions,
-  knobPositions,
+  collections,
   selectedElements,
   selectedKeyType,
   zoom,
@@ -74,10 +65,7 @@ const GradientAxisOverlay = ({
   const bounds = resolveGradientAxisBounds({
     session,
     registeredAnchorBounds,
-    positions,
-    statPositions,
-    graphPositions,
-    knobPositions,
+    collections,
     selectedElements,
     selectedKeyType,
   });

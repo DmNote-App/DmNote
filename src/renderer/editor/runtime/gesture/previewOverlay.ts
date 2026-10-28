@@ -9,7 +9,16 @@ import {
   useKeyStore,
 } from '@stores/data/useKeyStore';
 
-import type { PreviewEnvelope, PreviewDomain } from '@src/types/preview';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  ITEM_ELEMENT_TYPES,
+} from '@src/types/editor';
+import {
+  PREVIEW_DOMAIN_BY_ELEMENT_TYPE,
+  type PreviewEnvelope,
+  type PreviewDomain,
+} from '@src/types/preview';
+import type { ItemElementCollections } from '../../model/elementStores';
 
 interface PreviewSession {
   mode: string;
@@ -88,6 +97,23 @@ export const composePreviewPositions = <T extends { id: string }>(
   }
   return rendered;
 };
+
+// 키 외 종류 컬렉션에 활성 프리뷰 합성 - 키는 키 스토어가 렌더 positions로 합성한다
+export const composeItemPreviewCollections = (
+  collections: ItemElementCollections,
+): ItemElementCollections =>
+  Object.fromEntries(
+    ITEM_ELEMENT_TYPES.map((type) => {
+      const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
+      return [
+        field,
+        composePreviewPositions(
+          PREVIEW_DOMAIN_BY_ELEMENT_TYPE[type],
+          collections[field] as Record<string, { id: string }[]>,
+        ),
+      ];
+    }),
+  ) as unknown as ItemElementCollections;
 
 registerRenderedPositionsComposer((canonical) =>
   composePreviewPositions('keyPosition', canonical),

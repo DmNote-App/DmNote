@@ -52,7 +52,13 @@ describe('GridMinimap 연속 드래그', () => {
     act(() => {
       root.render(
         <GridMinimap
-          positions={[{ dx: 0, dy: 0, width: 60, height: 60 }]}
+          modeArrays={{
+            keyPositions: [{ dx: 0, dy: 0, width: 60, height: 60 }],
+            statPositions: [],
+            graphPositions: [],
+            knobPositions: [],
+            spritePositions: [],
+          }}
           zoom={1}
           panX={0}
           panY={0}

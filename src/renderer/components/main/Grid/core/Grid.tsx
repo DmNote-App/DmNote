@@ -28,19 +28,17 @@ import {
   captureElementCollections,
   getItemStoreState,
 } from '@src/renderer/editor/model/elementStores';
+import { useItemElementCollections } from '@hooks/Grid/useItemElementCollections';
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
   modeArraysOf,
+  type ElementCollections,
 } from '@src/types/editor';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import TabCssModal from '../../Modal/content/editors/TabCssModal';
 import TabNoteSettingModal from '../../Modal/content/editors/TabNoteSettingModal';
 import ListPopup from '../../Modal/listPopup/ListPopup';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { PluginElementsRenderer } from '@components/shared/plugin/PluginElementsRenderer';
@@ -89,7 +87,7 @@ import {
 } from '@utils/grid/groupActions';
 import { expandGroupSelection } from '@utils/grid/groupSelection';
 import {
-  composePreviewPositions,
+  composeItemPreviewCollections,
   getPreviewOverlayVersion,
   subscribePreviewOverlay,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
@@ -247,32 +245,19 @@ const Grid = ({
   const pluginElements = usePluginDisplayElementStore(
     (state) => state.elements,
   );
-  // 내장 통계 요소(Stat Items) 위치 정보
-  const canonicalStatPositions = useStatItemStore((state) => state.positions);
-  const canonicalGraphPositions = useGraphItemStore((state) => state.positions);
-  const canonicalKnobPositions = useKnobItemStore((state) => state.positions);
-  const canonicalSpritePositions = useSpriteStore((state) => state.positions);
+  // 키 외 요소 위치 정보 - canonical 위에 활성 프리뷰 합성
+  const canonicalItemCollections = useItemElementCollections();
   useSyncExternalStore(
     subscribePreviewOverlay,
     getPreviewOverlayVersion,
     getPreviewOverlayVersion,
   );
-  const statPositions = composePreviewPositions(
-    'statPosition',
-    canonicalStatPositions,
-  );
-  const graphPositions = composePreviewPositions(
-    'graphPosition',
-    canonicalGraphPositions,
-  );
-  const knobPositions = composePreviewPositions(
-    'knobPosition',
-    canonicalKnobPositions,
-  );
-  const spritePositions = composePreviewPositions(
-    'spritePosition',
-    canonicalSpritePositions,
-  );
+  const collections: ElementCollections = {
+    keyPositions: positions,
+    ...composeItemPreviewCollections(canonicalItemCollections),
+  };
+  const { statPositions, graphPositions, knobPositions, spritePositions } =
+    collections;
 
   // 선택 관련 로직 훅 사용
   const {
@@ -302,11 +287,7 @@ const Grid = ({
   // 마퀴 선택 훅 사용
   const { isMarqueeSelecting: _isMarqueeSelecting, startMarqueeSelection } =
     useGridMarquee({
-      positions,
-      statPositions,
-      graphPositions,
-      knobPositions,
-      spritePositions,
+      collections,
       selectedKeyType,
       pluginElements,
       clientToGridCoords,
@@ -399,15 +380,10 @@ const Grid = ({
     selectedElements.length >= 2
       ? {
           mode: selectedKeyType,
-          keyPositions: positions[selectedKeyType] || [],
-          statPositions:
-            useStatItemStore.getState().positions[selectedKeyType] || [],
-          graphPositions:
-            useGraphItemStore.getState().positions[selectedKeyType] || [],
-          knobPositions:
-            useKnobItemStore.getState().positions[selectedKeyType] || [],
-          spritePositions:
-            useSpriteStore.getState().positions[selectedKeyType] || [],
+          ...modeArraysOf(
+            { ...captureElementCollections(), keyPositions: positions },
+            selectedKeyType,
+          ),
           pluginElements: usePluginDisplayElementStore.getState().elements,
           modeGroups:
             useLayerGroupStore.getState().layerGroups[selectedKeyType] || [],
@@ -718,13 +694,8 @@ const Grid = ({
   const openElementEditor = (type: NativeElementType, index: number) => {
     const { selectedElements: currentSelection } =
       useGridSelectionStore.getState();
-    const positionsForType = {
-      key: positions,
-      stat: statPositions,
-      graph: graphPositions,
-      knob: knobPositions,
-      sprite: spritePositions,
-    }[type][selectedKeyType];
+    const positionsForType =
+      collections[EDITOR_ELEMENT_POSITION_FIELDS[type]][selectedKeyType];
     const targetId = positionsForType?.[index]?.id;
     const isMultiMember =
       currentSelection.length > 1 &&
@@ -962,11 +933,7 @@ const Grid = ({
       <MarqueeSelectionOverlay zoom={zoom} panX={panX} panY={panY} />
       <GridSelectionOverlays
         selectedElements={selectedElements}
-        positions={positions}
-        statPositions={statPositions}
-        graphPositions={graphPositions}
-        knobPositions={knobPositions}
-        spritePositions={spritePositions}
+        collections={collections}
         mode={selectedKeyType}
         pluginElements={pluginElements}
         zoom={zoom}
@@ -1261,11 +1228,7 @@ const Grid = ({
       {/* 미니맵 */}
       {minimapEnabled && (
         <GridMinimap
-          positions={positions[selectedKeyType] || []}
-          statPositions={statPositions?.[selectedKeyType] || []}
-          graphPositions={graphPositions?.[selectedKeyType] || []}
-          knobPositions={knobPositions?.[selectedKeyType] || []}
-          spritePositions={spritePositions?.[selectedKeyType] || []}
+          modeArrays={modeArraysOf(collections, selectedKeyType)}
           zoom={zoom}
           panX={panX}
           panY={panY}

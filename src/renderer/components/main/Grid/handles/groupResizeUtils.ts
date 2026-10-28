@@ -4,7 +4,11 @@
  */
 
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  type ElementCollections,
+} from '@src/types/editor';
+import { defaultElementSize } from '@src/types/elementKinds';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 
@@ -224,110 +228,56 @@ export function shrinkLimitSize(
  */
 export function isElementResizable(
   element: SelectedElement,
-  _positions: CanonicalEditorDocumentV1['keyPositions'],
-  _statPositions: CanonicalEditorDocumentV1['statPositions'],
-  _graphPositions: CanonicalEditorDocumentV1['graphPositions'],
-  _knobPositions: CanonicalEditorDocumentV1['knobPositions'],
-  _selectedKeyType: string,
   pluginElements: PluginDisplayElementInternal[],
 ): boolean {
-  if (element.type === 'key') {
+  if (element.type !== 'plugin') {
+    // 스프라이트 리사이즈는 resizeSprite op - 상자와 자세 이동값이 함께 비례 스케일된다
     return true;
-  } else if (element.type === 'stat') {
-    return true;
-  } else if (element.type === 'graph') {
-    return true;
-  } else if (element.type === 'knob') {
-    return true;
-  } else if (element.type === 'sprite') {
-    // 리사이즈는 resizeSprite op - 상자와 자세 이동값이 함께 비례 스케일된다
-    return true;
-  } else if (element.type === 'plugin') {
-    const pluginEl = pluginElements.find(
-      (p: PluginDisplayElementInternal) => p.fullId === element.id,
-    );
-    if (!pluginEl) return false;
-
-    const definitions = usePluginDisplayElementStore.getState().definitions;
-    const definition = pluginEl.definitionId
-      ? definitions.get(pluginEl.definitionId)
-      : null;
-
-    return definition?.resizable === true;
   }
-  return false;
+  const pluginEl = pluginElements.find(
+    (p: PluginDisplayElementInternal) => p.fullId === element.id,
+  );
+  if (!pluginEl) return false;
+
+  const definitions = usePluginDisplayElementStore.getState().definitions;
+  const definition = pluginEl.definitionId
+    ? definitions.get(pluginEl.definitionId)
+    : null;
+
+  return definition?.resizable === true;
 }
 
+type GeometryPosition = {
+  id: string;
+  dx: number;
+  dy: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+};
+
+const findNativePosition = (
+  element: SelectedElement,
+  collections: ElementCollections,
+  selectedKeyType: string,
+): GeometryPosition | undefined => {
+  if (element.type === 'plugin') return undefined;
+  const modePositions = collections[
+    EDITOR_ELEMENT_POSITION_FIELDS[element.type]
+  ][selectedKeyType] as readonly GeometryPosition[] | undefined;
+  return modePositions?.find((candidate) => candidate.id === element.id);
+};
+
 /**
- * 요소의 bounds 가져오기
+ * 요소의 bounds 가져오기 (스프라이트는 활동 영역 박스가 곧 리사이즈 대상)
  */
 export function getElementBounds(
   element: SelectedElement,
-  positions: CanonicalEditorDocumentV1['keyPositions'],
-  statPositions: CanonicalEditorDocumentV1['statPositions'],
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'],
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'],
+  collections: ElementCollections,
   selectedKeyType: string,
   pluginElements: PluginDisplayElementInternal[],
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'],
 ): Bounds | null {
-  if (element.type === 'key') {
-    const pos = positions[selectedKeyType]?.find(
-      (candidate) => candidate.id === element.id,
-    );
-    if (!pos) return null;
-    return {
-      x: pos.dx,
-      y: pos.dy,
-      width: pos.width || 60,
-      height: pos.height || 60,
-    };
-  } else if (element.type === 'stat') {
-    const pos = statPositions?.[selectedKeyType]?.find(
-      (candidate) => candidate.id === element.id,
-    );
-    if (!pos) return null;
-    return {
-      x: pos.dx,
-      y: pos.dy,
-      width: pos.width || 60,
-      height: pos.height || 60,
-    };
-  } else if (element.type === 'graph') {
-    const pos = graphPositions?.[selectedKeyType]?.find(
-      (candidate) => candidate.id === element.id,
-    );
-    if (!pos) return null;
-    return {
-      x: pos.dx,
-      y: pos.dy,
-      width: pos.width || 200,
-      height: pos.height || 100,
-    };
-  } else if (element.type === 'knob') {
-    const pos = knobPositions?.[selectedKeyType]?.find(
-      (candidate) => candidate.id === element.id,
-    );
-    if (!pos) return null;
-    return {
-      x: pos.dx,
-      y: pos.dy,
-      width: pos.width || 60,
-      height: pos.height || 60,
-    };
-  } else if (element.type === 'sprite') {
-    // 활동 영역 박스가 곧 리사이즈 대상
-    const pos = spritePositions[selectedKeyType]?.find(
-      (candidate) => candidate.id === element.id,
-    );
-    if (!pos) return null;
-    return {
-      x: pos.dx,
-      y: pos.dy,
-      width: pos.width || 200,
-      height: pos.height || 200,
-    };
-  } else if (element.type === 'plugin') {
+  if (element.type === 'plugin') {
     const pluginEl = pluginElements.find(
       (p: PluginDisplayElementInternal) => p.fullId === element.id,
     );
@@ -339,7 +289,15 @@ export function getElementBounds(
       height: pluginEl.measuredSize.height,
     };
   }
-  return null;
+  const pos = findNativePosition(element, collections, selectedKeyType);
+  if (!pos) return null;
+  const fallback = defaultElementSize(element.type);
+  return {
+    x: pos.dx,
+    y: pos.dy,
+    width: pos.width || fallback.width,
+    height: pos.height || fallback.height,
+  };
 }
 
 /**
@@ -347,13 +305,9 @@ export function getElementBounds(
  */
 export function calculateGroupBounds(
   selectedElements: SelectedElement[],
-  positions: CanonicalEditorDocumentV1['keyPositions'],
-  statPositions: CanonicalEditorDocumentV1['statPositions'],
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'],
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'],
+  collections: ElementCollections,
   selectedKeyType: string,
   pluginElements: PluginDisplayElementInternal[],
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'],
 ): (Bounds & { elementBounds: ElementBounds[] }) | null {
   let minX = Infinity;
   let minY = Infinity;
@@ -363,29 +317,15 @@ export function calculateGroupBounds(
   const elementBoundsList: ElementBounds[] = [];
 
   for (const element of selectedElements) {
-    if (
-      !isElementResizable(
-        element,
-        positions,
-        statPositions,
-        graphPositions,
-        knobPositions,
-        selectedKeyType,
-        pluginElements,
-      )
-    ) {
+    if (!isElementResizable(element, pluginElements)) {
       continue;
     }
 
     const bounds = getElementBounds(
       element,
-      positions,
-      statPositions,
-      graphPositions,
-      knobPositions,
+      collections,
       selectedKeyType,
       pluginElements,
-      spritePositions,
     );
     if (!bounds) continue;
 
@@ -413,55 +353,24 @@ export function calculateGroupBounds(
  */
 export function getNonResizableElementIds(
   selectedElements: SelectedElement[],
-  positions: CanonicalEditorDocumentV1['keyPositions'],
-  statPositions: CanonicalEditorDocumentV1['statPositions'],
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'],
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'],
-  selectedKeyType: string,
   pluginElements: PluginDisplayElementInternal[],
 ): string[] {
   return selectedElements
-    .filter(
-      (element) =>
-        !isElementResizable(
-          element,
-          positions,
-          statPositions,
-          graphPositions,
-          knobPositions,
-          selectedKeyType,
-          pluginElements,
-        ),
-    )
+    .filter((element) => !isElementResizable(element, pluginElements))
     .map((element) => element.id);
 }
 
 // 요소 배치 회전(도). 자세 회전은 별도 채널이며 플러그인은 0
 export function getElementRotation(
   element: SelectedElement,
-  positions: CanonicalEditorDocumentV1['keyPositions'],
-  statPositions: CanonicalEditorDocumentV1['statPositions'],
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'],
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'],
+  collections: ElementCollections,
   selectedKeyType: string,
-  spritePositions?: CanonicalEditorDocumentV1['spritePositions'],
 ): number {
-  const collection =
-    element.type === 'key'
-      ? positions
-      : element.type === 'stat'
-      ? statPositions
-      : element.type === 'graph'
-      ? graphPositions
-      : element.type === 'knob'
-      ? knobPositions
-      : element.type === 'sprite'
-      ? spritePositions
-      : null;
-  const pos = collection?.[selectedKeyType]?.find(
-    (candidate) => candidate.id === element.id,
-  );
-  const rotation = pos?.rotation;
+  const rotation = findNativePosition(
+    element,
+    collections,
+    selectedKeyType,
+  )?.rotation;
   return typeof rotation === 'number' && Number.isFinite(rotation)
     ? rotation
     : 0;

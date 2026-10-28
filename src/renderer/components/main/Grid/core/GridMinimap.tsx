@@ -4,6 +4,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useGridViewStore } from '@stores/grid/useGridViewStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  EDITOR_ELEMENT_TYPES,
+  type EditorElementTypeV1,
+  type ElementModeArrays,
+} from '@src/types/editor';
+import { defaultElementSize } from '@src/types/elementKinds';
 import DigitPopLayer from '@components/main/common/DigitPopLayer';
 import { useDigitPop } from '@hooks/ui/useDigitPop';
 import IconMotion from '@components/main/Tool/icons/IconMotion';
@@ -27,12 +34,17 @@ interface PluginElementPosition {
   height: number;
 }
 
+// 종류별 미니맵 표시 스타일 - 없으면 기본(불투명도 0.38, 모서리 1)
+const MINIMAP_KIND_STYLE: Partial<
+  Record<EditorElementTypeV1, { opacity?: number; round?: boolean }>
+> = {
+  key: { opacity: 0.55 },
+  knob: { round: true },
+};
+
 interface GridMinimapProps {
-  positions: Position[];
-  statPositions?: Position[];
-  graphPositions?: Position[];
-  knobPositions?: Position[];
-  spritePositions?: Position[];
+  // 현재 모드의 종류별 위치
+  modeArrays: ElementModeArrays<Position>;
   zoom: number;
   panX: number;
   panY: number;
@@ -85,11 +97,7 @@ const ZoomButton = ({ onClick, title, style, children }: ZoomButtonProps) => (
 );
 
 const GridMinimap = ({
-  positions,
-  statPositions = [],
-  graphPositions = [],
-  knobPositions = [],
-  spritePositions = [],
+  modeArrays,
   zoom,
   panX,
   panY,
@@ -193,16 +201,13 @@ const GridMinimap = ({
     };
   }, [containerRef]);
 
+  const hasNativeElements = EDITOR_ELEMENT_TYPES.some(
+    (type) => modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].length > 0,
+  );
+
   // 모든 키 + 플러그인 요소의 바운딩 박스 계산
   const contentBounds = (() => {
-    if (
-      positions.length === 0 &&
-      statPositions.length === 0 &&
-      graphPositions.length === 0 &&
-      knobPositions.length === 0 &&
-      spritePositions.length === 0 &&
-      pluginPositions.length === 0
-    ) {
+    if (!hasNativeElements && pluginPositions.length === 0) {
       return { minX: 0, minY: 0, maxX: 100, maxY: 100 };
     }
 
@@ -211,75 +216,22 @@ const GridMinimap = ({
     let maxX = -Infinity;
     let maxY = -Infinity;
 
-    // 키들의 바운딩 박스 계산
-    positions.forEach((pos) => {
-      if (pos.hidden) return;
-      const x = pos.dx || 0;
-      const y = pos.dy || 0;
-      const w = pos.width || 60;
-      const h = pos.height || 60;
+    // 종류별 요소 바운딩 박스
+    for (const type of EDITOR_ELEMENT_TYPES) {
+      const fallback = defaultElementSize(type);
+      modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].forEach((pos) => {
+        if (pos.hidden) return;
+        const x = pos.dx || 0;
+        const y = pos.dy || 0;
+        const w = pos.width || fallback.width;
+        const h = pos.height || fallback.height;
 
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x + w);
-      maxY = Math.max(maxY, y + h);
-    });
-
-    // 통계 요소 bounds
-    statPositions.forEach((pos) => {
-      if (pos.hidden) return;
-      const x = pos.dx || 0;
-      const y = pos.dy || 0;
-      const w = pos.width || 60;
-      const h = pos.height || 60;
-
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x + w);
-      maxY = Math.max(maxY, y + h);
-    });
-
-    // 그래프 요소 bounds
-    graphPositions.forEach((pos) => {
-      if (pos.hidden) return;
-      const x = pos.dx || 0;
-      const y = pos.dy || 0;
-      const w = pos.width || 200;
-      const h = pos.height || 100;
-
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x + w);
-      maxY = Math.max(maxY, y + h);
-    });
-
-    // 노브 요소 bounds
-    knobPositions.forEach((pos) => {
-      if (pos.hidden) return;
-      const x = pos.dx || 0;
-      const y = pos.dy || 0;
-      const w = pos.width || 60;
-      const h = pos.height || 60;
-
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x + w);
-      maxY = Math.max(maxY, y + h);
-    });
-
-    // 스프라이트 요소 bounds
-    spritePositions.forEach((pos) => {
-      if (pos.hidden) return;
-      const x = pos.dx || 0;
-      const y = pos.dy || 0;
-      const w = pos.width || 200;
-      const h = pos.height || 200;
-
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x + w);
-      maxY = Math.max(maxY, y + h);
-    });
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x + w);
+        maxY = Math.max(maxY, y + h);
+      });
+    }
 
     // 플러그인 요소들의 바운딩 박스 계산
     pluginPositions.forEach((pos) => {
@@ -417,14 +369,7 @@ const GridMinimap = ({
   };
 
   // 키 개수와 플러그인 요소가 모두 없으면 미니맵 숨김
-  if (
-    positions.length === 0 &&
-    statPositions.length === 0 &&
-    graphPositions.length === 0 &&
-    knobPositions.length === 0 &&
-    spritePositions.length === 0 &&
-    pluginPositions.length === 0
-  ) {
+  if (!hasNativeElements && pluginPositions.length === 0) {
     return null;
   }
 
@@ -579,21 +524,18 @@ const GridMinimap = ({
           height={MINIMAP_HEIGHT}
           className="absolute top-0 left-0"
         >
-          {/* 키 표시 */}
-          {renderElementRects('key', positions, { opacity: 0.55 })}
-          {/* 통계 요소 표시 */}
-          {renderElementRects('stat', statPositions)}
-          {/* 그래프 요소 표시 */}
-          {renderElementRects('graph', graphPositions, {
-            defaultW: 200,
-            defaultH: 100,
-          })}
-          {/* 노브 요소 표시 */}
-          {renderElementRects('knob', knobPositions, { round: true })}
-          {/* 스프라이트 요소 표시 */}
-          {renderElementRects('sprite', spritePositions, {
-            defaultW: 200,
-            defaultH: 200,
+          {/* 종류별 요소 표시 */}
+          {EDITOR_ELEMENT_TYPES.map((type) => {
+            const fallback = defaultElementSize(type);
+            return renderElementRects(
+              type,
+              modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]] as Position[],
+              {
+                ...MINIMAP_KIND_STYLE[type],
+                defaultW: fallback.width,
+                defaultH: fallback.height,
+              },
+            );
           })}
           {/* 플러그인 요소 표시 */}
           {renderElementRects(

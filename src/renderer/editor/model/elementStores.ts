@@ -7,6 +7,7 @@ import { useStatItemStore } from '@stores/data/useStatItemStore';
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
   EDITOR_ELEMENT_TYPES,
+  ITEM_ELEMENT_TYPES,
 } from '@src/types/editor';
 import type {
   EditorElementTypeV1,
@@ -23,6 +24,16 @@ const ITEM_STORES = {
 
 export const getItemStoreState = (type: ItemElementType) =>
   ITEM_STORES[type].getState();
+
+export type ItemElementCollections = Omit<ElementCollections, 'keyPositions'>;
+
+// 키 외 종류 스토어 변경 구독
+export const subscribeItemStores = (onChange: () => void) => {
+  const unsubscribes = ITEM_ELEMENT_TYPES.map((type) =>
+    ITEM_STORES[type].subscribe(onChange),
+  );
+  return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+};
 
 // 권위 컬렉션 - 키는 프리뷰 합성 전 canonical
 export const readAuthorityPositions = (type: EditorElementTypeV1) =>

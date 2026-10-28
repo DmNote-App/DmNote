@@ -10,17 +10,26 @@ import {
   type SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
-import { DEFAULT_SPRITE_SIZE } from '@src/types/key/sprites';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  EDITOR_ELEMENT_TYPES,
+  type ElementCollections,
+} from '@src/types/editor';
+import { defaultElementSize } from '@src/types/elementKinds';
+
+type MarqueePosition = {
+  id: string;
+  dx: number;
+  dy: number;
+  width?: number;
+  height?: number;
+  hidden?: boolean;
+};
 import { getActiveElement } from '@utils/dom/activeElement';
 import { isHTMLElementNode } from '@utils/dom/isElementNode';
 
 interface UseGridMarqueeParams {
-  positions: CanonicalEditorDocumentV1['keyPositions'];
-  statPositions: CanonicalEditorDocumentV1['statPositions'];
-  graphPositions: CanonicalEditorDocumentV1['graphPositions'];
-  knobPositions: CanonicalEditorDocumentV1['knobPositions'];
-  spritePositions: CanonicalEditorDocumentV1['spritePositions'];
+  collections: ElementCollections;
   selectedKeyType: string;
   pluginElements: PluginDisplayElementInternal[];
   clientToGridCoords: (
@@ -44,11 +53,7 @@ interface UseGridMarqueeReturn {
  * 마퀴 선택 훅
  */
 export function useGridMarquee({
-  positions,
-  statPositions,
-  graphPositions,
-  knobPositions,
-  spritePositions,
+  collections,
   selectedKeyType,
   pluginElements,
   clientToGridCoords,
@@ -144,101 +149,25 @@ export function useGridMarquee({
     if (rect && rect.width > 5 && rect.height > 5) {
       const newSelectedElements: SelectedElement[] = [];
 
-      // 키 요소 체크
-      const keyPositions = positions[selectedKeyType] || [];
-      keyPositions.forEach((pos, index) => {
-        if (pos.hidden) return;
-        const elementBounds = {
-          x: pos.dx,
-          y: pos.dy,
-          width: pos.width || 60,
-          height: pos.height || 60,
-        };
-        if (isElementInMarquee(elementBounds, rect)) {
-          newSelectedElements.push({
-            type: 'key',
-            id: pos.id,
-            index,
-          });
-        }
-      });
-
-      // 통계 요소 체크
-      const stats = statPositions[selectedKeyType] || [];
-      stats.forEach((pos, index) => {
-        if (!pos || pos.hidden) return;
-        const elementBounds = {
-          x: pos.dx,
-          y: pos.dy,
-          width: pos.width || 60,
-          height: pos.height || 60,
-        };
-        if (isElementInMarquee(elementBounds, rect)) {
-          newSelectedElements.push({
-            type: 'stat',
-            id: pos.id,
-            index,
-          });
-        }
-      });
-
-      // 그래프 요소 체크
-      const graphs = graphPositions[selectedKeyType] || [];
-      graphs.forEach((pos, index) => {
-        if (!pos || pos.hidden) return;
-        const elementBounds = {
-          x: pos.dx,
-          y: pos.dy,
-          width: pos.width || 200,
-          height: pos.height || 100,
-        };
-        if (isElementInMarquee(elementBounds, rect)) {
-          newSelectedElements.push({
-            type: 'graph',
-            id: pos.id,
-            index,
-          });
-        }
-      });
-
-      // 노브 요소 체크
-      const knobs = knobPositions[selectedKeyType] || [];
-      knobs.forEach((pos, index) => {
-        if (!pos || pos.hidden) return;
-        const elementBounds = {
-          x: pos.dx,
-          y: pos.dy,
-          width: pos.width || 60,
-          height: pos.height || 60,
-        };
-        if (isElementInMarquee(elementBounds, rect)) {
-          newSelectedElements.push({
-            type: 'knob',
-            id: pos.id,
-            index,
-          });
-        }
-      });
-
-      // 스프라이트 요소 체크
-      const sprites = spritePositions[selectedKeyType] || [];
-      sprites.forEach((pos, index) => {
-        if (!pos || pos.hidden) return;
-        const elementBounds = {
-          x: pos.dx,
-          y: pos.dy,
-          width: pos.width || DEFAULT_SPRITE_SIZE,
-          height: pos.height || DEFAULT_SPRITE_SIZE,
-        };
-        if (isElementInMarquee(elementBounds, rect)) {
-          newSelectedElements.push({
-            type: 'sprite',
-            id: pos.id,
-            index,
-          });
-        }
-      });
-
+      // 종류별 요소 체크 (키→stat→graph→knob→sprite 순서 유지)
+      for (const type of EDITOR_ELEMENT_TYPES) {
+        const fallback = defaultElementSize(type);
+        const modePositions = (collections[
+          EDITOR_ELEMENT_POSITION_FIELDS[type]
+        ][selectedKeyType] || []) as readonly (MarqueePosition | null)[];
+        modePositions.forEach((pos, index) => {
+          if (!pos || pos.hidden) return;
+          const elementBounds = {
+            x: pos.dx,
+            y: pos.dy,
+            width: pos.width || fallback.width,
+            height: pos.height || fallback.height,
+          };
+          if (isElementInMarquee(elementBounds, rect)) {
+            newSelectedElements.push({ type, id: pos.id, index });
+          }
+        });
+      }
       // 플러그인 요소 체크 (현재 탭에 속하는 것만)
       pluginElements.forEach((el) => {
         if (el.hidden) return;

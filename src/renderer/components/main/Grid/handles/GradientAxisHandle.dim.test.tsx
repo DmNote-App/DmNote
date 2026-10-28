@@ -65,8 +65,15 @@ describe('그라데이션 축 오버레이 흐림', () => {
     act(() => {
       root.render(
         <GradientAxisOverlay
-          positions={positions}
-          statPositions={{}}
+          collections={
+            {
+              keyPositions: positions,
+              statPositions: {},
+              graphPositions: {},
+              knobPositions: {},
+              spritePositions: {},
+            } as never
+          }
           selectedElements={[]}
           selectedKeyType="4key"
           zoom={1}

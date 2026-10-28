@@ -122,11 +122,15 @@ describe('GridSelectionOverlays', () => {
       root.render(
         <GridSelectionOverlays
           selectedElements={selectedElements}
-          positions={positions}
-          statPositions={statPositions}
-          graphPositions={graphPositions}
-          knobPositions={knobPositions}
-          spritePositions={spritePositions}
+          collections={
+            {
+              keyPositions: positions,
+              statPositions: statPositions,
+              graphPositions: graphPositions,
+              knobPositions: knobPositions,
+              spritePositions: spritePositions,
+            } as never
+          }
           mode="4key"
           pluginElements={pluginElements}
           zoom={zoom}

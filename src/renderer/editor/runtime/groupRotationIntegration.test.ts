@@ -247,16 +247,7 @@ describe('그룹 회전 편집 통합', () => {
       grouped.keyPositions[MODE][1],
     );
 
-    const group = harness.calculateGroupBounds(
-      expanded,
-      rotated.keyPositions,
-      rotated.statPositions,
-      rotated.graphPositions,
-      rotated.knobPositions,
-      MODE,
-      [],
-      rotated.spritePositions,
-    )!;
+    const group = harness.calculateGroupBounds(expanded, rotated, MODE, [])!;
     expect(group).toMatchObject({ x: 0, y: 20, width: 340, height: 20 });
     const plan = harness.calculateGroupResizePlan({
       handle: {
