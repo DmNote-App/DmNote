@@ -204,29 +204,44 @@ fn gradient_violation(value: &Value) -> bool {
     })
 }
 
+// 고칠 곳만 고치고 나머지(숫자 표기, 정지점의 모르는 칸)는 그대로 둔다
 fn normalize_gradient(value: &Value) -> Option<Value> {
     let object = value.as_object()?;
-    let angle = object
+    let mut next = object.clone();
+    if !object
         .get("angle")
         .and_then(Value::as_f64)
-        .filter(|angle| angle.is_finite())
-        .unwrap_or(DEFAULT_GRADIENT_ANGLE);
-    let stops: Vec<Value> = object
-        .get("stops")?
-        .as_array()?
-        .iter()
-        .filter_map(|stop| {
-            let color = stop.get("color")?.as_str().filter(|c| is_valid_color(c))?;
-            let pos = stop.get("pos")?.as_f64()?.clamp(0.0, 100.0);
-            Some(serde_json::json!({ "color": color, "pos": pos }))
-        })
-        .take(MAX_GRADIENT_STOPS)
-        .collect();
+        .is_some_and(f64::is_finite)
+    {
+        next.insert("angle".into(), DEFAULT_GRADIENT_ANGLE.into());
+    }
+    let mut stops = Vec::new();
+    for stop in object.get("stops")?.as_array()? {
+        let Some(stop) = stop.as_object() else {
+            continue;
+        };
+        if !stop
+            .get("color")
+            .and_then(Value::as_str)
+            .is_some_and(is_valid_color)
+        {
+            continue;
+        }
+        let Some(pos) = stop.get("pos").and_then(number_of) else {
+            continue;
+        };
+        let mut stop = stop.clone();
+        if !(0.0..=100.0).contains(&pos) {
+            stop.insert("pos".into(), pos.clamp(0.0, 100.0).into());
+        }
+        stops.push(Value::Object(stop));
+        if stops.len() == MAX_GRADIENT_STOPS {
+            break;
+        }
+    }
     if stops.len() < MIN_GRADIENT_STOPS {
         return None;
     }
-    let mut next = object.clone();
-    next.insert("angle".into(), angle.into());
     next.insert("stops".into(), Value::Array(stops));
     Some(Value::Object(next))
 }
@@ -484,7 +499,20 @@ pub fn validate_fields(
             }
             continue;
         }
-        rule.value.validate(value, &field_path, scope, out);
+        match (&rule.value, value.as_object()) {
+            // 안쪽 객체도 저장돼 있던 모르는 칸은 보존용으로 허용한다
+            (ValueKind::Object { fields }, Some(object)) => validate_fields(
+                fields,
+                object,
+                previous
+                    .and_then(|previous| previous.get(name))
+                    .and_then(Value::as_object),
+                &field_path,
+                scope,
+                out,
+            ),
+            _ => rule.value.validate(value, &field_path, scope, out),
+        }
     }
 }
 

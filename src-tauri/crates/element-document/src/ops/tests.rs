@@ -396,3 +396,42 @@ fn 장면당_개수_상한을_넘으면_거부한다() {
         .unwrap_err();
     assert_eq!(error[0].code, ViolationCode::ValueTooManyItems);
 }
+
+#[test]
+fn 손대지_않은_요소의_끊긴_참조는_다른_편집을_막지_않는다() {
+    let kinds = registry();
+    let mut values = dial_values();
+    values["target"] = json!("gone");
+    let mut doc = document(vec![Node::Element(element("d", "dial", values)), pad("a")]);
+    engine(&kinds)
+        .apply(
+            &mut doc,
+            &scene_ops(
+                json!([{ "op": "setFrame", "scene": "tab", "id": "a", "frame": { "x": 3 } }]),
+            ),
+        )
+        .unwrap();
+    // 끊긴 참조를 가진 요소 자신을 고치면 그때는 막는다
+    let error = engine(&kinds)
+        .apply(&mut doc, &scene_ops(json!([{ "op": "setValues", "scene": "tab", "id": "d", "values": { "mode": "slide" } }])))
+        .unwrap_err();
+    assert_eq!(error[0].code, ViolationCode::ReferenceNotFound);
+}
+
+#[test]
+fn 그룹과_그_자식을_함께_묶으면_그룹째_옮긴다() {
+    let kinds = registry();
+    let mut doc = document(vec![group("g", vec![pad("a"), pad("b")]), pad("c")]);
+    engine(&kinds)
+        .apply(
+            &mut doc,
+            &scene_ops(
+                json!([{ "op": "group", "scene": "tab", "id": "h", "ids": ["g", "a", "c"] }]),
+            ),
+        )
+        .unwrap();
+    assert_eq!(
+        ids(&doc),
+        vec!["h@0", "g@0.0", "a@0.0.0", "b@0.0.1", "c@0.1"]
+    );
+}

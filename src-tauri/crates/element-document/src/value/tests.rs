@@ -263,3 +263,49 @@ fn 값_방문은_목록과_객체_안까지_내려간다() {
     });
     assert_eq!(refs, vec![json!("p1"), json!("p2"), json!("p3")]);
 }
+
+#[test]
+fn 그라데이션_정리는_맞는_값의_표기와_모르는_칸을_지킨다() {
+    let gradient = kind(json!({ "type": "gradient" }));
+    let ok = json!({ "angle": 90, "stops": [{ "color": "#000", "pos": 0, "future": 1 }, { "color": "#FFF", "pos": 100 }] });
+    assert_eq!(gradient.normalize(&ok, &NoReferences), Some(ok));
+}
+
+#[test]
+fn 안쪽_객체에_저장돼_있던_모르는_칸도_보존용으로_허용한다() {
+    let rules: Vec<FieldRule> = serde_json::from_value(json!([
+        { "name": "n", "value": { "type": "number" }, "default": 0 },
+        { "name": "o", "value": { "type": "object", "fields": [
+            { "name": "a", "value": { "type": "bool" }, "default": false }
+        ] }, "default": { "a": false } }
+    ]))
+    .unwrap();
+    let previous = json!({ "n": 1, "o": { "a": true, "future": 3 } });
+    let next = json!({ "n": 5, "o": { "a": true, "future": 3 } });
+    let mut out = Vec::new();
+    validate_fields(
+        &rules,
+        next.as_object().unwrap(),
+        previous.as_object(),
+        "values",
+        &NoReferences,
+        &mut out,
+    );
+    assert!(out.is_empty(), "{out:?}");
+    let fresh = json!({ "n": 5, "o": { "a": true, "future": 4 } });
+    validate_fields(
+        &rules,
+        fresh.as_object().unwrap(),
+        previous.as_object(),
+        "values",
+        &NoReferences,
+        &mut out,
+    );
+    assert_eq!(
+        out,
+        vec![Violation::new(
+            ViolationCode::UnknownField,
+            "values.o.future"
+        )]
+    );
+}

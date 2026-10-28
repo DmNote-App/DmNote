@@ -14,7 +14,8 @@ import {
 
 let current: ElementDocumentStore | null = null;
 let loading: Promise<ElementDocumentStore> | null = null;
-const readyListeners = new Set<() => void>();
+// 구독 중인 컴포넌트 - 스토어가 준비되면 그때 스토어 구독을 붙인다
+const listeners = new Map<() => void, (() => void) | null>();
 
 const isEditingWindow = () =>
   window.__dmn_window_type === 'main' || window.__dmn_window_type === 'panel';
@@ -60,7 +61,10 @@ const create = async (): Promise<ElementDocumentStore> => {
 export const loadElementDocumentStore = (): Promise<ElementDocumentStore> => {
   loading ??= create().then((store) => {
     current = store;
-    for (const listener of [...readyListeners]) listener();
+    for (const listener of [...listeners.keys()]) {
+      listeners.set(listener, store.subscribe(listener));
+      listener();
+    }
     return store;
   });
   return loading;
@@ -69,11 +73,10 @@ export const loadElementDocumentStore = (): Promise<ElementDocumentStore> => {
 export const getElementDocumentStore = () => current;
 
 const subscribeStore = (listener: () => void) => {
-  readyListeners.add(listener);
-  const unsubscribe = current?.subscribe(listener);
+  listeners.set(listener, current?.subscribe(listener) ?? null);
   return () => {
-    readyListeners.delete(listener);
-    unsubscribe?.();
+    listeners.get(listener)?.();
+    listeners.delete(listener);
   };
 };
 

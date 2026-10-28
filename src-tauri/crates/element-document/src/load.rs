@@ -9,7 +9,7 @@ use serde_json::{Map, Value};
 use crate::bundles::BundleCatalog;
 use crate::document::{walk_mut, Document, Element, Frame, Node};
 use crate::schema::{KindRegistry, KindSchema, MigrationStep};
-use crate::value::normalize_fields;
+use crate::value::{normalize_fields, ReferenceScope};
 
 /// 새 id 발급 - 백엔드는 UUID, 테스트는 순번
 pub trait IdSource {
@@ -95,6 +95,22 @@ impl Loader<'_> {
                     *id = fresh;
                 }
             });
+        }
+        // 다른 장면의 요소와 겹쳐 새로 받은 id - 그 장면 안 참조도 새 id로 옮긴다.
+        // 같은 장면에 옛 id가 남아 있으면 참조는 그대로 남은 쪽을 가리킨다
+        for (scene_id, scene) in &mut document.scenes {
+            let remaining = scene.kind_index();
+            let mapping: BTreeMap<String, String> = report
+                .reissued
+                .iter()
+                .filter(|(owner, old, _)| {
+                    owner == scene_id && !old.is_empty() && remaining.kind_of(old).is_none()
+                })
+                .map(|(_, old, fresh)| (old.clone(), fresh.clone()))
+                .collect();
+            if !mapping.is_empty() {
+                crate::ops::remap_references(self.kinds, &mut scene.nodes, &mapping);
+            }
         }
     }
 
@@ -283,7 +299,8 @@ pub(crate) fn apply_steps(steps: &[MigrationStep], values: &mut Map<String, Valu
 }
 
 /// 편집 창이 돌린 코드 훅 결과 적용 - 백엔드는 결과가 새 규칙표에 맞는지만 본다.
-/// `elements`는 (장면, id, 옮긴 고유 값). 훅 앞뒤 선언 단계도 함께 적용한다
+/// `elements`는 (장면, id, 옮긴 고유 값). 편집 창이 저장 버전부터 최신까지의 선언 단계와
+/// 훅을 모두 돌린 결과여야 한다 (여기서는 단계를 다시 적용하지 않는다)
 pub fn apply_hook_result(
     kinds: &KindRegistry,
     document: &mut Document,

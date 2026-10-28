@@ -174,3 +174,31 @@ fn 다른_곳에서_관리하는_종류는_값도_id도_건드리지_않는다()
     );
     assert_eq!(doc.scenes["tab"].element("a").unwrap(), &broken);
 }
+
+#[test]
+fn 다른_장면과_겹쳐_새로_받은_id는_그_장면_참조도_옮긴다() {
+    let kinds = registry();
+    let mut values = dial_values();
+    values["target"] = json!("p");
+    // "aaa" 장면을 먼저 읽어 그쪽 p가 id를 지키고 "tab"의 p가 새 id를 받는다
+    let mut doc = document(vec![
+        Node::Element(element("p", "pad", json!({}))),
+        Node::Element(element("d", "dial", values)),
+    ]);
+    doc.scenes.insert(
+        "aaa".into(),
+        crate::document::Scene {
+            nodes: vec![Node::Element(element("p", "pad", json!({})))],
+            extra: Default::default(),
+        },
+    );
+    let report = loader(&kinds).load(&mut doc, &mut Sequence(0));
+    assert_eq!(
+        report.reissued,
+        vec![("tab".to_string(), "p".to_string(), "new-1".to_string())]
+    );
+    assert_eq!(
+        doc.scenes["tab"].element("d").unwrap().values["target"],
+        json!("new-1")
+    );
+}

@@ -327,17 +327,23 @@ impl Engine<'_> {
         Ok(changes)
     }
 
-    // 묶음 끝에서 장면 단위로 검사 - 참조, 종류별 개수 상한
+    // 묶음 끝에서 장면 단위로 검사 - 이 묶음이 바꾼 요소의 참조와 그 종류의 개수 상한.
+    // 손대지 않은 요소의 끊긴 참조(다른 경로가 남긴 것)는 이 편집을 막지 않는다
     fn check_scenes(&self, document: &Document, changes: &ChangeSet) -> Result<(), Vec<Violation>> {
         let mut violations = Vec::new();
-        for scene_id in changes.scenes.keys() {
+        for (scene_id, change) in &changes.scenes {
             let Some(scene) = document.scenes.get(scene_id) else {
                 continue;
             };
             let scope = scene.kind_index();
             let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+            let mut touched_kinds = HashSet::new();
             for element in scene.elements() {
                 *counts.entry(element.kind.as_str()).or_default() += 1;
+                if !change.changed.contains(&element.id) {
+                    continue;
+                }
+                touched_kinds.insert(element.kind.as_str());
                 let KindAccess::Editable(schema) = self.access(document, &element.kind) else {
                     continue;
                 };
@@ -353,6 +359,9 @@ impl Engine<'_> {
                 }
             }
             for (kind, count) in counts {
+                if !touched_kinds.contains(kind) {
+                    continue;
+                }
                 if let Some(schema) = self.kinds.get(kind) {
                     if schema.max_per_scene.is_some_and(|max| count > max) {
                         violations.push(Violation::new(
@@ -671,13 +680,28 @@ impl Engine<'_> {
                 }
                 let scene = document.scenes.get_mut(&scene_id).expect("scene checked");
                 // 멤버 중 가장 위 노드 자리(같은 부모)에 그룹을 만든다
-                let mut paths = Vec::new();
+                let mut members_by_path = Vec::new();
                 for member in ids {
                     let Some(path) = scene.find_path(member) else {
                         return Err(fail(ViolationCode::ElementNotFound, "ids"));
                     };
-                    paths.push(path);
+                    if !members_by_path.iter().any(|(_, other)| other == member) {
+                        members_by_path.push((path, member.clone()));
+                    }
                 }
+                // 다른 멤버(그룹)의 자손은 그 그룹과 함께 옮겨지므로 따로 넣지 않는다
+                let all_paths: Vec<Vec<usize>> = members_by_path
+                    .iter()
+                    .map(|(path, _)| path.clone())
+                    .collect();
+                members_by_path.retain(|(path, _)| {
+                    !all_paths
+                        .iter()
+                        .any(|other| other != path && path.starts_with(other))
+                });
+                let ids: Vec<String> = members_by_path.iter().map(|(_, id)| id.clone()).collect();
+                let mut paths: Vec<Vec<usize>> =
+                    members_by_path.into_iter().map(|(path, _)| path).collect();
                 paths.sort();
                 let top = paths.last().expect("not empty").clone();
                 let parent_path = top[..top.len() - 1].to_vec();
