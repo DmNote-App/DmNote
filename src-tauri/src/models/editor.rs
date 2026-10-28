@@ -1,13 +1,15 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::Infallible};
 
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 use super::{
-    AppStoreData, GradientSpec, GradientStop, GraphPosition, GraphPositions, GraphType, ImageFit,
-    ImageMode, KeyCounterAlign, KeyCounterAlignMode, KeyCounterPlacement, KeyCounters, KeyMappings,
-    KeyPosition, KeyPositions, KeySlot, KnobPosition, KnobPositions, LayerGroups, NoteAlignment,
-    SlotMatch, SpritePositions, StatPosition, StatPositions, StatType,
+    copy_element_collections, visit_collection_of, visit_collections, AppStoreData,
+    CollectionVisitor, ElementCollection, ElementItem, GradientSpec, GradientStop, GraphPosition,
+    GraphPositions, GraphType, ImageFit, ImageMode, KeyCounterAlign, KeyCounterAlignMode,
+    KeyCounterPlacement, KeyCounters, KeyMappings, KeyPosition, KeyPositions, KeySlot,
+    KnobPosition, KnobPositions, LayerGroups, NoteAlignment, SlotMatch, SpritePositions,
+    StatPosition, StatPositions, StatType,
 };
 
 pub const EDITOR_SCHEMA_VERSION: u16 = 1;
@@ -56,58 +58,67 @@ impl EditorDocumentV1 {
 
     pub fn apply_to_store(&self, store: &mut AppStoreData) {
         store.keys = self.keys.clone();
-        store.key_positions = self.key_positions.clone();
-        store.stat_positions = self.stat_positions.clone();
-        store.graph_positions = self.graph_positions.clone();
-        store.knob_positions = self.knob_positions.clone();
-        store.sprite_positions = self.sprite_positions.clone();
+        copy_element_collections(self, store);
         store.layer_groups = self.layer_groups.clone();
     }
 
     pub fn apply_patch(&mut self, patch: &EditorPatchV1) {
+        struct ApplyPatch<'a> {
+            document: &'a mut EditorDocumentV1,
+            patch: &'a EditorPatchV1,
+        }
+
+        impl CollectionVisitor for ApplyPatch<'_> {
+            type Error = Infallible;
+
+            fn visit<C: ElementCollection>(&mut self) -> Result<(), Infallible> {
+                if let Some(value) = C::optional(self.patch).as_ref() {
+                    *C::positions_mut(self.document) = value.clone();
+                }
+                Ok(())
+            }
+        }
+
         if let Some(value) = patch.keys.as_ref() {
             self.keys = value.clone();
         }
-        if let Some(value) = patch.key_positions.as_ref() {
-            self.key_positions = value.clone();
-        }
-        if let Some(value) = patch.stat_positions.as_ref() {
-            self.stat_positions = value.clone();
-        }
-        if let Some(value) = patch.graph_positions.as_ref() {
-            self.graph_positions = value.clone();
-        }
-        if let Some(value) = patch.knob_positions.as_ref() {
-            self.knob_positions = value.clone();
-        }
-        if let Some(value) = patch.sprite_positions.as_ref() {
-            self.sprite_positions = value.clone();
-        }
+        let Ok(()) = visit_collections(&mut ApplyPatch {
+            document: self,
+            patch,
+        });
         if let Some(value) = patch.layer_groups.as_ref() {
             self.layer_groups = value.clone();
         }
     }
 
     pub fn changed_fields(&self, next: &Self) -> Vec<EditorField> {
-        let mut fields = Vec::new();
+        struct ChangedFields<'a> {
+            current: &'a EditorDocumentV1,
+            next: &'a EditorDocumentV1,
+            fields: Vec<EditorField>,
+        }
+
+        impl CollectionVisitor for ChangedFields<'_> {
+            type Error = Infallible;
+
+            fn visit<C: ElementCollection>(&mut self) -> Result<(), Infallible> {
+                if C::positions(self.current) != C::positions(self.next) {
+                    self.fields.push(C::FIELD);
+                }
+                Ok(())
+            }
+        }
+
+        let mut changed = ChangedFields {
+            current: self,
+            next,
+            fields: Vec::new(),
+        };
         if self.keys != next.keys {
-            fields.push(EditorField::Keys);
+            changed.fields.push(EditorField::Keys);
         }
-        if self.key_positions != next.key_positions {
-            fields.push(EditorField::KeyPositions);
-        }
-        if self.stat_positions != next.stat_positions {
-            fields.push(EditorField::StatPositions);
-        }
-        if self.graph_positions != next.graph_positions {
-            fields.push(EditorField::GraphPositions);
-        }
-        if self.knob_positions != next.knob_positions {
-            fields.push(EditorField::KnobPositions);
-        }
-        if self.sprite_positions != next.sprite_positions {
-            fields.push(EditorField::SpritePositions);
-        }
+        let Ok(()) = visit_collections(&mut changed);
+        let mut fields = changed.fields;
         if self.layer_groups != next.layer_groups {
             fields.push(EditorField::LayerGroups);
         }
@@ -115,27 +126,37 @@ impl EditorDocumentV1 {
     }
 
     pub fn patch_for_fields(&self, fields: &[EditorField]) -> EditorPatchV1 {
+        struct CopyIntoPatch<'a> {
+            document: &'a EditorDocumentV1,
+            patch: &'a mut EditorPatchV1,
+        }
+
+        impl CollectionVisitor for CopyIntoPatch<'_> {
+            type Error = Infallible;
+
+            fn visit<C: ElementCollection>(&mut self) -> Result<(), Infallible> {
+                *C::optional_mut(self.patch) = Some(C::positions(self.document).clone());
+                Ok(())
+            }
+        }
+
         let mut patch = EditorPatchV1::default();
         for field in fields {
             match field {
                 EditorField::Keys => patch.keys = Some(self.keys.clone()),
-                EditorField::KeyPositions => {
-                    patch.key_positions = Some(self.key_positions.clone());
-                }
-                EditorField::StatPositions => {
-                    patch.stat_positions = Some(self.stat_positions.clone());
-                }
-                EditorField::GraphPositions => {
-                    patch.graph_positions = Some(self.graph_positions.clone());
-                }
-                EditorField::KnobPositions => {
-                    patch.knob_positions = Some(self.knob_positions.clone());
-                }
-                EditorField::SpritePositions => {
-                    patch.sprite_positions = Some(self.sprite_positions.clone());
-                }
                 EditorField::LayerGroups => {
                     patch.layer_groups = Some(self.layer_groups.clone());
+                }
+                field => {
+                    if let Some(kind) = field.element_kind() {
+                        let Ok(()) = visit_collection_of(
+                            kind,
+                            &mut CopyIntoPatch {
+                                document: self,
+                                patch: &mut patch,
+                            },
+                        );
+                    }
                 }
             }
         }
@@ -314,30 +335,39 @@ impl Default for EditorPatchV1 {
 
 impl EditorPatchV1 {
     pub fn includes(&self, field: EditorField) -> bool {
+        struct Includes<'a> {
+            patch: &'a EditorPatchV1,
+            included: bool,
+        }
+
+        impl CollectionVisitor for Includes<'_> {
+            type Error = Infallible;
+
+            fn visit<C: ElementCollection>(&mut self) -> Result<(), Infallible> {
+                self.included = C::optional(self.patch).is_some();
+                Ok(())
+            }
+        }
+
         match field {
             EditorField::Keys => self.keys.is_some(),
-            EditorField::KeyPositions => self.key_positions.is_some(),
-            EditorField::StatPositions => self.stat_positions.is_some(),
-            EditorField::GraphPositions => self.graph_positions.is_some(),
-            EditorField::KnobPositions => self.knob_positions.is_some(),
-            EditorField::SpritePositions => self.sprite_positions.is_some(),
             EditorField::LayerGroups => self.layer_groups.is_some(),
+            field => field.element_kind().is_some_and(|kind| {
+                let mut includes = Includes {
+                    patch: self,
+                    included: false,
+                };
+                let Ok(()) = visit_collection_of(kind, &mut includes);
+                includes.included
+            }),
         }
     }
 
     pub fn included_fields(&self) -> Vec<EditorField> {
-        [
-            EditorField::Keys,
-            EditorField::KeyPositions,
-            EditorField::StatPositions,
-            EditorField::GraphPositions,
-            EditorField::KnobPositions,
-            EditorField::SpritePositions,
-            EditorField::LayerGroups,
-        ]
-        .into_iter()
-        .filter(|field| self.includes(*field))
-        .collect()
+        EditorField::ALL
+            .into_iter()
+            .filter(|field| self.includes(*field))
+            .collect()
     }
 
     pub(crate) fn merge_omitted_sprite_fields(&mut self, current: &SpritePositions) {
@@ -923,24 +953,42 @@ pub struct EditorFrozenMultiKeySlotV1 {
 }
 
 impl EditorFrozenElementV1 {
-    pub fn id(&self) -> &str {
+    pub(crate) fn element_type(&self) -> EditorElementTypeV1 {
         match self {
-            Self::Key { position, .. } => &position.id,
-            Self::Stat { position } => &position.position.id,
-            Self::Graph { position } => &position.position.id,
-            Self::Knob { position } => &position.position.id,
-            Self::Sprite { position } => &position.id,
+            Self::Key { .. } => EditorElementTypeV1::Key,
+            Self::Stat { .. } => EditorElementTypeV1::Stat,
+            Self::Graph { .. } => EditorElementTypeV1::Graph,
+            Self::Knob { .. } => EditorElementTypeV1::Knob,
+            Self::Sprite { .. } => EditorElementTypeV1::Sprite,
         }
     }
 
-    pub(crate) fn key_position_mut(&mut self) -> Option<&mut KeyPosition> {
+    pub(crate) fn item(&self) -> &dyn ElementItem {
         match self {
-            Self::Key { position, .. } => Some(position),
-            Self::Stat { position } => Some(&mut position.position),
-            Self::Graph { position } => Some(&mut position.position),
-            Self::Knob { position } => Some(&mut position.position),
-            Self::Sprite { .. } => None,
+            Self::Key { position, .. } => position,
+            Self::Stat { position } => position,
+            Self::Graph { position } => position,
+            Self::Knob { position } => position,
+            Self::Sprite { position } => position,
         }
+    }
+
+    fn item_mut(&mut self) -> &mut dyn ElementItem {
+        match self {
+            Self::Key { position, .. } => position,
+            Self::Stat { position } => position,
+            Self::Graph { position } => position,
+            Self::Knob { position } => position,
+            Self::Sprite { position } => position,
+        }
+    }
+
+    pub fn id(&self) -> &str {
+        self.item().id()
+    }
+
+    pub(crate) fn key_position_mut(&mut self) -> Option<&mut KeyPosition> {
+        self.item_mut().key_position_mut()
     }
 }
 
