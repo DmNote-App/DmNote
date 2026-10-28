@@ -1,5 +1,8 @@
+'use no memo';
+// 프리뷰 오버레이(모듈 상태)를 previewVersion으로 다시 읽어야 해서 컴파일러 메모 제외
 import React, {
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -247,15 +250,25 @@ const Grid = ({
   );
   // 키 외 요소 위치 정보 - canonical 위에 활성 프리뷰 합성
   const canonicalItemCollections = useItemElementCollections();
-  useSyncExternalStore(
+  const previewVersion = useSyncExternalStore(
     subscribePreviewOverlay,
     getPreviewOverlayVersion,
     getPreviewOverlayVersion,
   );
-  const collections: ElementCollections = {
-    keyPositions: positions,
-    ...composeItemPreviewCollections(canonicalItemCollections),
-  };
+  // 묶음 identity 유지 - 컴파일된 자식(선택 오버레이·미니맵)의 메모가 기대는 참조
+  const collections = useMemo<ElementCollections>(
+    () => ({
+      keyPositions: positions,
+      ...composeItemPreviewCollections(canonicalItemCollections),
+    }),
+    // canonical 밖 프리뷰 patch가 바뀔 때도 다시 합성
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [positions, canonicalItemCollections, previewVersion],
+  );
+  const currentModeArrays = useMemo(
+    () => modeArraysOf(collections, selectedKeyType),
+    [collections, selectedKeyType],
+  );
   const { statPositions } = collections;
 
   // 선택 관련 로직 훅 사용
@@ -825,7 +838,7 @@ const Grid = ({
         >
           <NativeGridElements
             mode={selectedKeyType}
-            modeArrays={modeArraysOf(collections, selectedKeyType)}
+            modeArrays={currentModeArrays}
             keyMappings={keyMappings[selectedKeyType]}
             pluginElements={pluginElements}
             selectedElements={selectedElements}
@@ -1180,7 +1193,7 @@ const Grid = ({
       {/* 미니맵 */}
       {minimapEnabled && (
         <GridMinimap
-          modeArrays={modeArraysOf(collections, selectedKeyType)}
+          modeArrays={currentModeArrays}
           zoom={zoom}
           panX={panX}
           panY={panY}
