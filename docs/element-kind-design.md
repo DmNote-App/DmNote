@@ -11,7 +11,7 @@
 
 - 새 캔버스 요소 종류를 추가하려면 백엔드 36개·프론트 85개 파일을 고쳐야 했다(1단계 착수 전 조사).
 - 1~3단계에서 종류 목록과 연결 지점을 표로 모았다. 그래도 저장 모양, 검증, 패널, 창별 그리기는 종류마다 따로 남아 있다.
-- 같은 내용을 TS와 Rust에 두 번 적는다. `KeyPosition`의 칸 77개가 [Rust 구조체](../src-tauri/src/models/element_positions.rs)와 [TS zod 스키마](../src/types/key/keys.ts)에 각각 있고, 코드 생성 도구는 없다. 두 벌이 같은지는 `tests/fixtures/`의 동기화 데이터 9개로 확인한다.
+- 같은 내용을 TS와 Rust에 두 번 적는다. `KeyPosition`의 칸 77개가 [Rust 구조체](../src-tauri/src/models/element_positions.rs)와 [TS zod 스키마](../src/types/key/keys.ts)에 각각 있고, 코드 생성 도구는 없다. 두 벌을 맞추는 동기화 데이터가 `tests/fixtures/`에 9개 있지만(오류 코드, 편집 연산, 종류 목록, 회전·스프라이트 계산 등), `KeyPosition` 칸 일치는 그중 어디에도 고정돼 있지 않다.
 - 편집 화면과 오버레이가 같은 요소를 따로 그린다. 그리기 핵심([GraphPanel](../src/renderer/components/shared/graph/GraphPanel.tsx), [KnobFace](../src/renderer/components/shared/KnobFace.tsx))은 공유하지만, 데이터를 모으고 겉모습을 조립하는 바깥 코드는 창마다 있다. 그래프·노브 모두 오버레이 파일을 고친 커밋 20개 중 14개가 편집 화면 파일도 같이 고쳤다.
 - 같은 값을 여러 곳에서 다룬다. 그래프 속도 범위(500~60000ms)가 단일 선택 패널, 다중 선택 패널 쪽 2개 파일, 오버레이 그리기에 따로 적혀 있고 백엔드는 검사하지 않는다. 다중 선택 패널은 선택 조합마다 손으로 고른다([selectionPanelRoute.ts](../src/renderer/components/main/Grid/PropertiesPanel/selection/selectionPanelRoute.ts)).
 
@@ -84,7 +84,10 @@
 - 문서를 읽을 때 엔진이 최신 버전으로 맞추고, 저장은 항상 최신 버전으로 한다.
 - 옛 앱이 더 새 버전 데이터를 만나면 그대로 보존하고 그 요소만 편집을 잠근다.
 - 코드 훅은 TS로 쓰므로 백엔드가 직접 돌리지 못한다(3.8). 편집 창이 훅을 돌려 결과를 저장하고, 백엔드는 결과가 새 규칙표에 맞는지만 검사한다. 저장 전까지 백엔드는 옛 데이터를 보존하고, 오버레이는 같은 정의의 훅을 읽을 때 적용해서 그린다.
-- 지금 있는 옮기기 코드는 대부분 글꼴·이미지 파일을 앱 폴더로 옮기거나 경로를 고치는 일이다([assets.rs](../src-tauri/src/state/migration/assets.rs)). 이런 일은 값 종류 단위로 앱이 Rust에서 처리한다. 종류별 훅이 필요했던 예는 스프라이트의 이미지 원래 크기 채우기 정도다.
+- 지금 불러올 때 도는 옮기기([normalization.rs](../src-tauri/src/state/migration/normalization.rs), [assets.rs](../src-tauri/src/state/migration/assets.rs))는 세 갈래다.
+  - 값 바꾸기·기본값: 노브 감도 옛 기본값 1.40625를 1.0으로, 옛 글꼴 굵기 상태, 빈 글꼴 색 등. 선언으로 옮길 수 있다.
+  - 값 종류 단위 정리: 색 rgba→hex, 숫자 범위 고치기, 이미지 모드·그라데이션 짝 정리, 끊긴 그룹 참조 지우기, 글꼴·이미지 파일을 앱 폴더로 옮기기와 경로 고치기. 앱이 값 종류를 보고 Rust에서 처리한다.
+  - 칸 사이 계산이나 파일 읽기: 스프라이트 옛 `imageRect`를 `dx`·`dy`·크기에 합치고 옛 칸을 지우기(`migrate_legacy_sprite_positions_value`), 스프라이트 이미지 원래 크기 채우기. 코드 훅이 필요한 것은 이 갈래다.
 
 ### 3.6 그리기와 동작 — **[확정]**
 
@@ -137,6 +140,7 @@
   - `contextMenu`, `maxInstances`, `resizable`·`preserveAxis`·`resizeAnchor`, `messages` 등 → 정의의 해당 항목
 - 플러그인 저장소의 인스턴스(`plugin_data_{id}/instances`)는 처음 한 번 편집 문서로 옮긴다.
 - 플러그인은 `storage.get('instances')`로 자기 인스턴스를 직접 읽을 수 있다. 쓰기는 `PLUGIN_INSTANCES_KEY_RESERVED`로 막혀 있지만 읽기·`keys()`·`hasData`는 열려 있다. 옮긴 뒤에도 이 읽기는 같은 모양으로 돌려준다.
+- 플러그인의 `storage.clear()`는 `clearByPrefix('{id}/')`로 이어지고, 백엔드는 인스턴스 버킷까지 함께 지운다(1.6.1부터의 "모든 데이터 삭제" 약속, [plugin_storage.rs](../src-tauri/src/state/store/plugin_storage.rs)). 옮긴 뒤에도 `clear()`가 그 플러그인의 요소를 함께 지우게 한다.
 - 옛 API는 지금 모양으로 고정하고 새 기능은 새 API에만 넣는다.
 
 ### 3.10 다른 공개 약속 — **[확정] 유지**
