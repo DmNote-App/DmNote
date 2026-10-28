@@ -926,7 +926,10 @@ impl AppState {
                 overlay.open_devtools();
             }
         }
-        self.start_keyboard_hook(app.clone())?;
+        // 요소 문서 비교 측정은 입력 권한 요청 없이 편집 창만 띄운다
+        if std::env::var_os("DMN_ELEMENT_BENCHMARK").is_none() {
+            self.start_keyboard_hook(app.clone())?;
+        }
         // CSS 핫리로딩 워처 초기화
         self.initialize_css_watcher(app);
         // OBS 모드 자동 복원

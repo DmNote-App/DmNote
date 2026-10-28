@@ -76,6 +76,13 @@ async function bootstrap() {
       <App />
     </I18nProvider>,
   );
+
+  if (new URLSearchParams(window.location.search).has('element-benchmark')) {
+    const { startElementDocumentBenchmark } = await import(
+      '../../benchmarks/elementDocument/elementDocumentBenchmark'
+    );
+    void startElementDocumentBenchmark();
+  }
 }
 
 void bootstrap();

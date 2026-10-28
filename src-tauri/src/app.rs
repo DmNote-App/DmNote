@@ -22,6 +22,8 @@ use tauri::{
 use state::{AppState, AppStore, PANEL_LABEL};
 
 const INTERACTION_BENCHMARK_ENV: &str = "DMN_INTERACTION_WEBVIEW_BENCHMARK";
+// 요소 문서 구조 전환 비교 측정 - 값은 메인 창 주소에 붙일 쿼리
+const ELEMENT_BENCHMARK_ENV: &str = "DMN_ELEMENT_BENCHMARK";
 
 // 메인 창 논리 크기 - 고정 크기이고, 분리 패널이 이 사각형을 기준으로 옆에 붙는다
 const MAIN_WINDOW_WIDTH: f64 = 902.0;
@@ -68,7 +70,7 @@ pub fn run() {
 
     // macOS: 접근성 권한 확인 및 미부여 시 시스템 노브로그 표시
     #[cfg(target_os = "macos")]
-    if !interaction_benchmark {
+    if !interaction_benchmark && std::env::var_os(ELEMENT_BENCHMARK_ENV).is_none() {
         request_accessibility_permission();
     }
 
@@ -550,6 +552,21 @@ fn build_main_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>>
         .find(|window| window.label == "main")
         .cloned()
         .ok_or("main window config is missing")?;
+    let mut config = config;
+    if let (Ok(query), tauri::WebviewUrl::App(path)) =
+        (std::env::var(ELEMENT_BENCHMARK_ENV), &config.url)
+    {
+        // 앱 경로에 쿼리를 붙이면 파일 이름으로 읽히므로 같은 출처의 전체 주소로 연다
+        let origin = if cfg!(windows) {
+            "http://tauri.localhost"
+        } else {
+            "tauri://localhost"
+        };
+        if let Ok(url) = url::Url::parse(&format!("{origin}/{}?{query}", path.display())) {
+            config.url = tauri::WebviewUrl::External(url);
+            config.visible = true;
+        }
+    }
     let handle = app.handle().clone();
     tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
         .on_new_window(move |url, features| {
