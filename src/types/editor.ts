@@ -196,6 +196,27 @@ export type ElementCollections = Pick<
 export type CanonicalPositionOf<K extends EditorElementTypeV1> =
   CanonicalEditorDocumentV1[(typeof EDITOR_ELEMENT_POSITION_FIELDS)[K]][string][number];
 
+// 한 모드의 종류별 배열 묶음 - 필드 이름은 문서와 같다
+export type ElementModeArrays<T> = Record<
+  EditorElementPositionField,
+  readonly T[]
+>;
+
+export type ElementCollectionsModeArrays = {
+  [F in EditorElementPositionField]: ElementCollections[F][string];
+};
+
+export const modeArraysOf = (
+  collections: ElementCollections,
+  mode: string,
+): ElementCollectionsModeArrays =>
+  Object.fromEntries(
+    EDITOR_ELEMENT_TYPES.map((type) => {
+      const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
+      return [field, collections[field][mode] ?? []];
+    }),
+  ) as unknown as ElementCollectionsModeArrays;
+
 // 문서·투영 결과에서 종류별 컬렉션만 뽑는다
 export const pickElementCollections = (
   source: ElementCollections,

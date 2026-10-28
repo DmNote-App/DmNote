@@ -4,15 +4,18 @@
  */
 
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
-import { EDITOR_ELEMENT_TYPES } from '@src/types/editor';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  EDITOR_ELEMENT_TYPES,
+  modeArraysOf,
+  type EditorElementTypeV1,
+  type ElementModeArrays,
+} from '@src/types/editor';
+import { captureElementCollections } from '@src/renderer/editor/model/elementStores';
 import type { LayerGroupDef } from '@src/types/layerGroups';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import { isPluginVisibleInMode } from '@utils/layerGroupUtils';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 
@@ -25,31 +28,22 @@ type PluginGroupSelectableLike = Pick<
   'fullId' | 'tabId' | 'groupId'
 >;
 
-export interface GroupSelectionSource {
+export type GroupSelectionSource = ElementModeArrays<
+  GroupablePositionLike | null | undefined
+> & {
   mode: string;
-  keyPositions: readonly (GroupablePositionLike | null | undefined)[];
-  statPositions: readonly (GroupablePositionLike | null | undefined)[];
-  graphPositions: readonly (GroupablePositionLike | null | undefined)[];
-  knobPositions: readonly (GroupablePositionLike | null | undefined)[];
-  spritePositions: readonly (GroupablePositionLike | null | undefined)[];
   pluginElements: readonly PluginGroupSelectableLike[];
   // 현재 모드의 그룹 def 목록 - def가 없는 groupId는 확장하지 않는다
   modeGroups: readonly Pick<LayerGroupDef, 'id'>[];
-}
+};
 
 export type SelectionGroupingSummary =
   | { kind: 'none' }
   | { kind: 'same'; groupId: string }
   | { kind: 'mixed' };
 
-const nativeCollections = (source: GroupSelectionSource) =>
-  ({
-    key: source.keyPositions,
-    stat: source.statPositions,
-    graph: source.graphPositions,
-    knob: source.knobPositions,
-    sprite: source.spritePositions,
-  } as const);
+const modeArrayOf = (source: GroupSelectionSource, type: EditorElementTypeV1) =>
+  source[EDITOR_ELEMENT_POSITION_FIELDS[type]];
 
 const resolveClickedGroupId = (
   clicked: SelectedElement,
@@ -60,9 +54,8 @@ const resolveClickedGroupId = (
       ?.groupId;
   }
   return (
-    nativeCollections(source)[clicked.type].find(
-      (pos) => pos?.id === clicked.id,
-    )?.groupId ?? undefined
+    modeArrayOf(source, clicked.type).find((pos) => pos?.id === clicked.id)
+      ?.groupId ?? undefined
   );
 };
 
@@ -78,7 +71,7 @@ const resolveSelectionGroupId = (
     return groupId && modeGroupIds.has(groupId) ? groupId : undefined;
   }
 
-  return nativeCollections(source)[element.type].find(
+  return modeArrayOf(source, element.type).find(
     (position) => position?.id === element.id,
   )?.groupId;
 };
@@ -130,9 +123,8 @@ export const expandGroupSelection = (
     return selection;
   }
 
-  const collections = nativeCollections(source);
   EDITOR_ELEMENT_TYPES.forEach((memberType) => {
-    collections[memberType].forEach((pos, index) => {
+    modeArrayOf(source, memberType).forEach((pos, index) => {
       if (!pos || pos.groupId !== groupId) return;
       if (clicked.type === memberType && clicked.id === pos.id) return;
       selection.push({ type: memberType, id: pos.id, index });
@@ -154,11 +146,14 @@ export const expandGroupSelectionFromStores = (
 ): SelectedElement[] =>
   expandGroupSelection(clicked, {
     mode,
-    keyPositions: useKeyStore.getState().positions[mode] || [],
-    statPositions: useStatItemStore.getState().positions[mode] || [],
-    graphPositions: useGraphItemStore.getState().positions[mode] || [],
-    knobPositions: useKnobItemStore.getState().positions[mode] || [],
-    spritePositions: useSpriteStore.getState().positions[mode] || [],
+    ...modeArraysOf(
+      {
+        ...captureElementCollections(),
+        // 키는 렌더 positions 기준
+        keyPositions: useKeyStore.getState().positions,
+      },
+      mode,
+    ),
     pluginElements: usePluginDisplayElementStore.getState().elements,
     modeGroups: useLayerGroupStore.getState().layerGroups[mode] || [],
   });

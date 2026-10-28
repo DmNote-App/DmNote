@@ -24,7 +24,14 @@ import {
   resolveElementById,
   type NativeElementType,
 } from '@src/renderer/editor/model/elementIdMap';
-import { getItemStoreState } from '@src/renderer/editor/model/elementStores';
+import {
+  captureElementCollections,
+  getItemStoreState,
+} from '@src/renderer/editor/model/elementStores';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  modeArraysOf,
+} from '@src/types/editor';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import TabCssModal from '../../Modal/content/editors/TabCssModal';
 import TabNoteSettingModal from '../../Modal/content/editors/TabNoteSettingModal';
@@ -667,15 +674,12 @@ const Grid = ({
       setIsContextOpen(false);
       setContextPosition(null);
     }
-    const collections = {
-      key: positions[selectedKeyType] || [],
-      stat: useStatItemStore.getState().positions[selectedKeyType] || [],
-      graph: useGraphItemStore.getState().positions[selectedKeyType] || [],
-      knob: useKnobItemStore.getState().positions[selectedKeyType] || [],
-      sprite: useSpriteStore.getState().positions[selectedKeyType] || [],
-    } as const;
+    const modeArrays = modeArraysOf(
+      { ...captureElementCollections(), keyPositions: positions },
+      selectedKeyType,
+    );
 
-    const clicked = collections[type][index];
+    const clicked = modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]][index];
     // stat·graph·knob·sprite는 렌더 클로저가 아니라 live 스토어를 읽는다. 렌더와
     // 클릭 사이에 배열이 줄면 대상이 없을 수 있어 fail-closed로 닫는다
     if (!clicked) {
@@ -687,11 +691,7 @@ const Grid = ({
       { type, id: clicked.id, index },
       {
         mode: selectedKeyType,
-        keyPositions: collections.key,
-        statPositions: collections.stat,
-        graphPositions: collections.graph,
-        knobPositions: collections.knob,
-        spritePositions: collections.sprite,
+        ...modeArrays,
         pluginElements: usePluginDisplayElementStore.getState().elements,
         modeGroups:
           useLayerGroupStore.getState().layerGroups[selectedKeyType] || [],

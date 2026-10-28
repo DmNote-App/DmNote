@@ -2,6 +2,12 @@ import {
   isElementInMarquee,
   type SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  ITEM_ELEMENT_TYPES,
+  type ElementModeArrays,
+} from '@src/types/editor';
+import { defaultElementSize } from '@src/types/elementKinds';
 
 export interface KeySelectionBounds {
   x: number;
@@ -29,15 +35,13 @@ interface PluginRangeElement {
   measuredSize?: { width: number; height: number };
 }
 
-interface KeyRangeSelectionSource {
+type KeyRangeSelectionSource = ElementModeArrays<
+  NativeRangeElement | null | undefined
+> & {
   mode: string;
   keyPositions: readonly NativeRangeElement[];
   pluginElements: readonly PluginRangeElement[];
-  statPositions: readonly (NativeRangeElement | null | undefined)[];
-  graphPositions: readonly (NativeRangeElement | null | undefined)[];
-  knobPositions: readonly (NativeRangeElement | null | undefined)[];
-  spritePositions: readonly (NativeRangeElement | null | undefined)[];
-}
+};
 
 const boundsFor = (
   position: NativeRangeBounds,
@@ -92,29 +96,14 @@ export const collectElementsInKeyRange = (
     }
   });
 
-  const collectNative = (
-    type: 'stat' | 'graph' | 'knob' | 'sprite',
-    positions: readonly (NativeRangeElement | null | undefined)[],
-    defaultWidth: number,
-    defaultHeight: number,
-  ) => {
-    positions.forEach((position, index) => {
+  for (const type of ITEM_ELEMENT_TYPES) {
+    const { width, height } = defaultElementSize(type);
+    source[EDITOR_ELEMENT_POSITION_FIELDS[type]].forEach((position, index) => {
       if (!position || position.hidden) return;
-      if (
-        isElementInMarquee(
-          boundsFor(position, defaultWidth, defaultHeight),
-          rangeRect,
-        )
-      ) {
+      if (isElementInMarquee(boundsFor(position, width, height), rangeRect)) {
         selected.push({ type, id: position.id, index });
       }
     });
-  };
-
-  collectNative('stat', source.statPositions, 60, 60);
-  collectNative('graph', source.graphPositions, 200, 100);
-  collectNative('knob', source.knobPositions, 80, 80);
-  // 범위 내 스프라이트 요소도 선택
-  collectNative('sprite', source.spritePositions, 200, 200);
+  }
   return selected;
 };
