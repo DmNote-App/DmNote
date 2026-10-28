@@ -1,4 +1,22 @@
 use super::super::*;
+use crate::models::{GraphCollection, KnobCollection, StatCollection};
+
+// 종류 전용 속성 대상 - 위치 색인이 문서와 어긋나면 ELEMENT_LOCATOR_INVALID
+fn property_target_mut<'a, C: ElementCollection>(
+    candidate: &'a mut EditorDocumentV1,
+    location: &ElementLocation,
+    label: &str,
+) -> Result<&'a mut C::Item, EditorCommitError> {
+    C::positions_mut(candidate)
+        .get_mut(&location.mode)
+        .and_then(|positions| positions.get_mut(location.index))
+        .ok_or_else(|| {
+            EditorCommitError::validation(
+                "ELEMENT_LOCATOR_INVALID",
+                format!("{label} property target no longer matches its stable ID"),
+            )
+        })
+}
 
 pub(super) fn apply_element_patch(
     candidate: &mut EditorDocumentV1,
@@ -26,16 +44,7 @@ pub(super) fn apply_element_patch(
             }
         }
         EditorElementPropertyPatchV1::GraphType(patch) => {
-            let graph = candidate
-                .graph_positions
-                .get_mut(&location.mode)
-                .and_then(|positions| positions.get_mut(location.index))
-                .ok_or_else(|| {
-                    EditorCommitError::validation(
-                        "ELEMENT_LOCATOR_INVALID",
-                        "graph property target no longer matches its stable ID",
-                    )
-                })?;
+            let graph = property_target_mut::<GraphCollection>(candidate, location, "graph")?;
             if graph.graph_type == *patch {
                 false
             } else {
@@ -44,16 +53,7 @@ pub(super) fn apply_element_patch(
             }
         }
         EditorElementPropertyPatchV1::GraphColor(patch) => {
-            let graph = candidate
-                .graph_positions
-                .get_mut(&location.mode)
-                .and_then(|positions| positions.get_mut(location.index))
-                .ok_or_else(|| {
-                    EditorCommitError::validation(
-                        "ELEMENT_LOCATOR_INVALID",
-                        "graph property target no longer matches its stable ID",
-                    )
-                })?;
+            let graph = property_target_mut::<GraphCollection>(candidate, location, "graph")?;
             if graph.graph_color == *patch {
                 false
             } else {
@@ -62,16 +62,7 @@ pub(super) fn apply_element_patch(
             }
         }
         EditorElementPropertyPatchV1::ShowAvgLine(patch) => {
-            let graph = candidate
-                .graph_positions
-                .get_mut(&location.mode)
-                .and_then(|positions| positions.get_mut(location.index))
-                .ok_or_else(|| {
-                    EditorCommitError::validation(
-                        "ELEMENT_LOCATOR_INVALID",
-                        "graph property target no longer matches its stable ID",
-                    )
-                })?;
+            let graph = property_target_mut::<GraphCollection>(candidate, location, "graph")?;
             if graph.show_avg_line == *patch {
                 false
             } else {
@@ -80,16 +71,7 @@ pub(super) fn apply_element_patch(
             }
         }
         EditorElementPropertyPatchV1::GraphAnimationEnabled(patch) => {
-            let graph = candidate
-                .graph_positions
-                .get_mut(&location.mode)
-                .and_then(|positions| positions.get_mut(location.index))
-                .ok_or_else(|| {
-                    EditorCommitError::validation(
-                        "ELEMENT_LOCATOR_INVALID",
-                        "graph property target no longer matches its stable ID",
-                    )
-                })?;
+            let graph = property_target_mut::<GraphCollection>(candidate, location, "graph")?;
             if graph.position.graph_animation_enabled == Some(*patch) {
                 false
             } else {
@@ -98,16 +80,7 @@ pub(super) fn apply_element_patch(
             }
         }
         EditorElementPropertyPatchV1::GraphSpeed(patch) => {
-            let graph = candidate
-                .graph_positions
-                .get_mut(&location.mode)
-                .and_then(|positions| positions.get_mut(location.index))
-                .ok_or_else(|| {
-                    EditorCommitError::validation(
-                        "ELEMENT_LOCATOR_INVALID",
-                        "graph property target no longer matches its stable ID",
-                    )
-                })?;
+            let graph = property_target_mut::<GraphCollection>(candidate, location, "graph")?;
             if graph.graph_speed == *patch {
                 false
             } else {
@@ -116,16 +89,7 @@ pub(super) fn apply_element_patch(
             }
         }
         EditorElementPropertyPatchV1::Reverse(patch) => {
-            let knob = candidate
-                .knob_positions
-                .get_mut(&location.mode)
-                .and_then(|positions| positions.get_mut(location.index))
-                .ok_or_else(|| {
-                    EditorCommitError::validation(
-                        "ELEMENT_LOCATOR_INVALID",
-                        "knob property target no longer matches its stable ID",
-                    )
-                })?;
+            let knob = property_target_mut::<KnobCollection>(candidate, location, "knob")?;
             if knob.reverse == *patch {
                 false
             } else {
@@ -134,16 +98,7 @@ pub(super) fn apply_element_patch(
             }
         }
         EditorElementPropertyPatchV1::Sensitivity(patch) => {
-            let knob = candidate
-                .knob_positions
-                .get_mut(&location.mode)
-                .and_then(|positions| positions.get_mut(location.index))
-                .ok_or_else(|| {
-                    EditorCommitError::validation(
-                        "ELEMENT_LOCATOR_INVALID",
-                        "knob property target no longer matches its stable ID",
-                    )
-                })?;
+            let knob = property_target_mut::<KnobCollection>(candidate, location, "knob")?;
             if knob.sensitivity == *patch {
                 false
             } else {
@@ -152,16 +107,7 @@ pub(super) fn apply_element_patch(
             }
         }
         EditorElementPropertyPatchV1::AxisId(patch) => {
-            let knob = candidate
-                .knob_positions
-                .get_mut(&location.mode)
-                .and_then(|positions| positions.get_mut(location.index))
-                .ok_or_else(|| {
-                    EditorCommitError::validation(
-                        "ELEMENT_LOCATOR_INVALID",
-                        "knob property target no longer matches its stable ID",
-                    )
-                })?;
+            let knob = property_target_mut::<KnobCollection>(candidate, location, "knob")?;
             if knob.axis_id == *patch {
                 false
             } else {
@@ -622,16 +568,7 @@ pub(super) fn apply_element_patch(
             changed
         }
         EditorElementPropertyPatchV1::StatType(patch) => {
-            let stat = candidate
-                .stat_positions
-                .get_mut(&location.mode)
-                .and_then(|positions| positions.get_mut(location.index))
-                .ok_or_else(|| {
-                    EditorCommitError::validation(
-                        "ELEMENT_LOCATOR_INVALID",
-                        "stat property target no longer matches its stable ID",
-                    )
-                })?;
+            let stat = property_target_mut::<StatCollection>(candidate, location, "stat")?;
             if stat.stat_type == *patch {
                 false
             } else {
