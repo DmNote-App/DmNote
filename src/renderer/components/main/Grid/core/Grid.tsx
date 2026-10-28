@@ -24,6 +24,7 @@ import {
   resolveElementById,
   type NativeElementType,
 } from '@src/renderer/editor/model/elementIdMap';
+import { getItemStoreState } from '@src/renderer/editor/model/elementStores';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import TabCssModal from '../../Modal/content/editors/TabCssModal';
 import TabNoteSettingModal from '../../Modal/content/editors/TabNoteSettingModal';
@@ -704,16 +705,11 @@ const Grid = ({
     type: NativeElementType,
     index: number,
   ) => {
-    const elementId =
+    const elementId = (
       type === 'key'
-        ? positions[selectedKeyType][index].id
-        : type === 'stat'
-        ? useStatItemStore.getState().positions[selectedKeyType][index].id
-        : type === 'graph'
-        ? useGraphItemStore.getState().positions[selectedKeyType][index].id
-        : type === 'sprite'
-        ? useSpriteStore.getState().positions[selectedKeyType][index].id
-        : useKnobItemStore.getState().positions[selectedKeyType][index].id;
+        ? positions[selectedKeyType]
+        : getItemStoreState(type).positions[selectedKeyType]
+    )[index].id;
     toggleSelection({ type, id: elementId, index });
   };
 
@@ -722,16 +718,13 @@ const Grid = ({
   const openElementEditor = (type: NativeElementType, index: number) => {
     const { selectedElements: currentSelection } =
       useGridSelectionStore.getState();
-    const positionsForType =
-      type === 'key'
-        ? positions[selectedKeyType]
-        : type === 'stat'
-        ? statPositions[selectedKeyType]
-        : type === 'graph'
-        ? graphPositions[selectedKeyType]
-        : type === 'sprite'
-        ? spritePositions[selectedKeyType]
-        : knobPositions[selectedKeyType];
+    const positionsForType = {
+      key: positions,
+      stat: statPositions,
+      graph: graphPositions,
+      knob: knobPositions,
+      sprite: spritePositions,
+    }[type][selectedKeyType];
     const targetId = positionsForType?.[index]?.id;
     const isMultiMember =
       currentSelection.length > 1 &&
@@ -755,16 +748,11 @@ const Grid = ({
       setDuplicateState(null);
       setDuplicateCursor(null);
     }
-    const clickedPosition =
+    const clickedPosition = (
       type === 'key'
-        ? positions[selectedKeyType]?.[index]
-        : type === 'stat'
-        ? useStatItemStore.getState().positions[selectedKeyType]?.[index]
-        : type === 'graph'
-        ? useGraphItemStore.getState().positions[selectedKeyType]?.[index]
-        : type === 'sprite'
-        ? useSpriteStore.getState().positions[selectedKeyType]?.[index]
-        : useKnobItemStore.getState().positions[selectedKeyType]?.[index];
+        ? positions[selectedKeyType]
+        : getItemStoreState(type).positions[selectedKeyType]
+    )?.[index];
     // 조회가 옵셔널인데 여기서 무방비로 풀면, 렌더와 우클릭 사이에 배열이 줄었을 때
     // TypeError가 나고 에러 바운더리가 없어 앱이 통째로 언마운트된다.
     // id가 없으면 혼합 선택 판정 자체가 성립하지 않으므로 그냥 건너뛴다

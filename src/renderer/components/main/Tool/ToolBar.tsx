@@ -13,9 +13,10 @@ import { useSingleFlightAction } from '@hooks/useSingleFlightAction';
 import { useIconMotion } from '@hooks/useIconMotion';
 import { appApi } from '@api/modules/app/appApi';
 import { useModalLayerActive } from '../Modal/popupLayer';
+import type { EditorElementTypeV1 } from '@src/types/editor';
 
 interface ToolBarProps {
-  onAddItem: (type: 'key' | 'stat' | 'graph' | 'knob' | 'sprite') => void;
+  onAddItem: (type: EditorElementTypeV1) => void;
   onTogglePalette: () => void;
   onClosePalette: () => void;
   isPaletteOpen: boolean;

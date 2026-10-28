@@ -23,6 +23,11 @@ import {
   captureEditorDocument,
   editorCoordinator,
 } from '../coordinator/editorStateCoordinator';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  EDITOR_ELEMENT_TYPES,
+  isEditorElementType,
+} from '@src/types/editor';
 import type {
   CanonicalEditorDocumentV1,
   EditorElementGroupTargetV1,
@@ -30,11 +35,7 @@ import type {
   EditorTargetLayerGroupV1,
 } from '@src/types/editor';
 import { patchElementPropertyById } from './elementPropertyCore';
-import {
-  FIELD_BY_TYPE,
-  findInRecord,
-  type LooseRecord,
-} from '../intent/elementDocumentModel';
+import { findInRecord, type LooseRecord } from '../intent/elementDocumentModel';
 
 interface ElementPropertyPatchTarget {
   type: NativeElementType;
@@ -55,8 +56,10 @@ export const setLayerGroupHidden = (
   >();
   const initial = captureEditorDocument();
   const initialTargets: Array<{ type: NativeElementType; id: string }> = [];
-  for (const type of Object.keys(FIELD_BY_TYPE) as NativeElementType[]) {
-    for (const position of initial[FIELD_BY_TYPE[type]][mode] ?? []) {
+  for (const type of EDITOR_ELEMENT_TYPES) {
+    for (const position of initial[EDITOR_ELEMENT_POSITION_FIELDS[type]][
+      mode
+    ] ?? []) {
       if (
         position.groupId !== groupId ||
         typeof position.id !== 'string' ||
@@ -80,7 +83,7 @@ export const setLayerGroupHidden = (
       initialTargets.flatMap(({ type, id }) => {
         if (currentMemberIds?.has(id)) return [];
         const located = findInRecord(
-          base[FIELD_BY_TYPE[type]] as unknown as LooseRecord,
+          base[EDITOR_ELEMENT_POSITION_FIELDS[type]] as unknown as LooseRecord,
           id,
         );
         if (!located) return [];
@@ -90,7 +93,9 @@ export const setLayerGroupHidden = (
             id,
             field: 'hidden',
             before:
-              base[FIELD_BY_TYPE[type]][located.mode]?.[located.index]?.hidden,
+              base[EDITOR_ELEMENT_POSITION_FIELDS[type]][located.mode]?.[
+                located.index
+              ]?.hidden,
             expected: hidden,
           },
         ];
@@ -103,8 +108,10 @@ export const setLayerGroupHidden = (
     (latest) => {
       const targets: ElementPropertyPatchTarget[] = [];
       let unsupported = false;
-      for (const type of Object.keys(FIELD_BY_TYPE) as NativeElementType[]) {
-        for (const position of latest[FIELD_BY_TYPE[type]][mode] ?? []) {
+      for (const type of EDITOR_ELEMENT_TYPES) {
+        for (const position of latest[EDITOR_ELEMENT_POSITION_FIELDS[type]][
+          mode
+        ] ?? []) {
           if (position.groupId !== groupId) continue;
           if (
             typeof position.id !== 'string' ||
@@ -173,8 +180,7 @@ const validElementGroupTargets = (
   targets.length <= 4096 &&
   targets.every(
     ({ elementType, id }) =>
-      ['key', 'stat', 'graph', 'knob', 'sprite'].includes(elementType) &&
-      isNativeElementId(id),
+      isEditorElementType(elementType) && isNativeElementId(id),
   ) &&
   new Set(targets.map(({ id }) => id)).size === targets.length;
 

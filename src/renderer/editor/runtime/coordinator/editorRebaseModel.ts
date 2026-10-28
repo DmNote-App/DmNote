@@ -1,6 +1,6 @@
 import { stableStringify } from '@utils/core/stableStringify';
-import { SEMANTIC_POSITION_FIELDS } from '../projection/semanticOpsProjection';
 import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
   EDITOR_FIELDS,
   EDITOR_SCHEMA_VERSION,
   assertCanonicalEditorDocument,
@@ -60,10 +60,9 @@ const findPositionEntryById = (
   elementType: EditorElementTypeV1,
   id: string,
 ): Record<string, unknown> | null => {
-  const record = document[SEMANTIC_POSITION_FIELDS[elementType]] as Record<
-    string,
-    Array<Record<string, unknown> & { id: string }>
-  >;
+  const record = document[
+    EDITOR_ELEMENT_POSITION_FIELDS[elementType]
+  ] as Record<string, Array<Record<string, unknown> & { id: string }>>;
   for (const positions of Object.values(record)) {
     const match = positions.find((position) => position.id === id);
     if (match) return match;

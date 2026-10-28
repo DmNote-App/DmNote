@@ -32,6 +32,10 @@ import {
 } from '../operations/elementOps';
 import { runMixedGestureElementIntent } from './mixedElementIntent';
 
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  isEditorElementType,
+} from '@src/types/editor';
 import type {
   CanonicalEditorDocumentV1,
   EditorElementGroupTargetV1,
@@ -39,6 +43,7 @@ import type {
   EditorTargetLayerGroupV1,
 } from '@src/types/editor';
 import type { NativeElementType } from '../../model/elementIdMap';
+import { readAuthorityPositions } from '../../model/elementStores';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
 const validStructuralText = (value: string, maxBytes: number): boolean =>
@@ -51,8 +56,7 @@ const validNativeGroupTargets = (
   targets.length <= 4096 &&
   targets.every(
     ({ elementType, id }) =>
-      ['key', 'stat', 'graph', 'knob', 'sprite'].includes(elementType) &&
-      isNativeElementId(id),
+      isEditorElementType(elementType) && isNativeElementId(id),
   ) &&
   new Set(targets.map(({ id }) => id)).size === targets.length;
 
@@ -348,28 +352,12 @@ const collectNativeGroupMembers = (
 };
 
 const readStorePositions = (type: NativeElementType): PositionSlice =>
-  (type === 'key'
-    ? useKeyStore.getState().canonicalPositions
-    : type === 'stat'
-    ? useStatItemStore.getState().positions
-    : type === 'graph'
-    ? useGraphItemStore.getState().positions
-    : type === 'knob'
-    ? useKnobItemStore.getState().positions
-    : useSpriteStore.getState().positions) as unknown as PositionSlice;
+  readAuthorityPositions(type) as unknown as PositionSlice;
 
 const readDocumentPositions =
   (base: CanonicalEditorDocumentV1) =>
   (type: NativeElementType): PositionSlice =>
-    (type === 'key'
-      ? base.keyPositions
-      : type === 'stat'
-      ? base.statPositions
-      : type === 'graph'
-      ? base.graphPositions
-      : type === 'knob'
-      ? base.knobPositions
-      : base.spritePositions) as unknown as PositionSlice;
+    base[EDITOR_ELEMENT_POSITION_FIELDS[type]] as unknown as PositionSlice;
 
 // 플러그인 hidden eager 반영 - CAS receipt (groupId eager 패턴과 동일)
 const applyPluginHiddenEagerly = (

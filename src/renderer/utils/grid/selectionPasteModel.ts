@@ -5,6 +5,7 @@ import type {
   CanonicalKnobItemPosition,
   CanonicalReactiveSpritePosition,
   CanonicalStatItemPosition,
+  EditorElementTypeV1,
   EditorInsertFrozenElementsOpV1,
 } from '@src/types/editor';
 import type { KeySlot } from '@src/types/key/keys';
@@ -418,7 +419,7 @@ export const createFrozenPasteModel = ({
     ];
     const zUpdates: EditorInsertFrozenElementsOpV1['zUpdates'] = [];
     const collectZUpdates = (
-      elementType: 'key' | 'stat' | 'graph' | 'knob' | 'sprite',
+      elementType: EditorElementTypeV1,
       current: Array<{ id: string }>,
       final: Map<string, { id: string; zIndex?: number }>,
     ) => {

@@ -28,9 +28,10 @@ import {
 import { normalizeLayerGroupsForMode } from '@utils/layerGroupUtils';
 
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
-import type { EditorOpV1 } from '@src/types/editor';
+import { EDITOR_ELEMENT_POSITION_FIELDS } from '@src/types/editor';
+import type { EditorElementTypeV1, EditorOpV1 } from '@src/types/editor';
 
-type NativeType = 'key' | 'stat' | 'graph' | 'knob' | 'sprite';
+type NativeType = EditorElementTypeV1;
 
 interface DeleteDocumentView {
   keys: Record<string, unknown[]>;
@@ -96,13 +97,6 @@ export const deleteFrozenSelection = async (
   const hasNative = stableTargets.length > 0;
 
   const collectRemoval = (document: DeleteDocumentView) => {
-    const fields = {
-      key: 'keyPositions',
-      stat: 'statPositions',
-      graph: 'graphPositions',
-      knob: 'knobPositions',
-      sprite: 'spritePositions',
-    } as const;
     const removal = new Map<NativeType, Map<string, Set<number>>>();
     let found = 0;
     const mark = (type: NativeType, mode: string, index: number) => {
@@ -115,7 +109,7 @@ export const deleteFrozenSelection = async (
     };
     for (const target of stableTargets) {
       for (const [mode, list] of Object.entries(
-        document[fields[target.type]],
+        document[EDITOR_ELEMENT_POSITION_FIELDS[target.type]],
       )) {
         const index = list.findIndex((position) => position.id === target.id);
         if (index >= 0) {
@@ -141,16 +135,7 @@ export const deleteFrozenSelection = async (
     };
     const affectedModes = new Set<string>();
     for (const [type, byMode] of removal) {
-      const field =
-        type === 'key'
-          ? 'keyPositions'
-          : type === 'stat'
-          ? 'statPositions'
-          : type === 'graph'
-          ? 'graphPositions'
-          : type === 'knob'
-          ? 'knobPositions'
-          : 'spritePositions';
+      const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
       for (const [mode, indices] of byMode) {
         affectedModes.add(mode);
         next[field] = {

@@ -5,13 +5,14 @@ import {
   type BatchGeometryOperation,
 } from '@src/renderer/editor/runtime/geometry/batchGeometryPlan';
 
+import type { EditorElementTypeV1 } from '@src/types/editor';
 import type { KeyPosition } from '@src/types/key/keys';
 import type { StatItemPosition } from '@src/types/key/statItems';
 import type { GraphItemPosition } from '@src/types/key/graphItems';
 import type { KnobItemPosition } from '@src/types/key/knobs';
 import type { ReactiveSpritePosition } from '@src/types/key/sprites';
 
-type KeyLikeType = 'key' | 'stat' | 'graph' | 'knob' | 'sprite';
+type KeyLikeType = EditorElementTypeV1;
 
 export interface BatchCommitOptions {
   gestureId?: string;
@@ -68,16 +69,13 @@ export function useBatchHandlers({
   const getPosition = (type: KeyLikeType, id: string) => {
     const locator = resolveElementById(type, id);
     if (!locator || locator.mode !== selectedKeyType) return null;
-    const record =
-      type === 'key'
-        ? keyPositions
-        : type === 'stat'
-        ? statPositions
-        : type === 'graph'
-        ? graphPositions
-        : type === 'knob'
-        ? knobPositions
-        : spritePositions;
+    const record = {
+      key: keyPositions,
+      stat: statPositions,
+      graph: graphPositions,
+      knob: knobPositions,
+      sprite: spritePositions,
+    }[type];
     const position = record?.[selectedKeyType]?.[locator.index];
     return position?.id === id ? position : null;
   };

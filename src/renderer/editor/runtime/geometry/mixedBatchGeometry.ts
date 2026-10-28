@@ -2,11 +2,6 @@
 // setBounds op, 플러그인은 같은 gestureId의 position pluginChanges로
 // 단일 커밋에 실린다 - history compound 병합으로 undo가 원자 복원된다
 
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import {
   beginMixedGestureTransaction,
@@ -34,8 +29,13 @@ import {
 } from '../operations/elementOps';
 import { runMixedGestureElementIntent } from '../intent/mixedElementIntent';
 
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  isEditorElementType,
+} from '@src/types/editor';
 import type { CanonicalEditorDocumentV1, EditorOpV1 } from '@src/types/editor';
 import type { NativeElementType } from '../../model/elementIdMap';
+import { readAuthorityPositions } from '../../model/elementStores';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
 const MAX_BATCH_GEOMETRY_TARGETS = 4096;
@@ -57,9 +57,7 @@ const validNativeGeometryTargets = (
 ): boolean =>
   descriptor.targets.length <= MAX_BATCH_GEOMETRY_TARGETS &&
   descriptor.targets.every(
-    ({ type, id }) =>
-      ['key', 'stat', 'graph', 'knob', 'sprite'].includes(type) &&
-      isNativeElementId(id),
+    ({ type, id }) => isEditorElementType(type) && isNativeElementId(id),
   ) &&
   new Set(descriptor.targets.map(({ id }) => id)).size ===
     descriptor.targets.length;
@@ -70,28 +68,12 @@ type PositionSlice = Record<
 >;
 
 const readStorePositions = (type: NativeElementType): PositionSlice =>
-  (type === 'key'
-    ? useKeyStore.getState().canonicalPositions
-    : type === 'stat'
-    ? useStatItemStore.getState().positions
-    : type === 'graph'
-    ? useGraphItemStore.getState().positions
-    : type === 'knob'
-    ? useKnobItemStore.getState().positions
-    : useSpriteStore.getState().positions) as unknown as PositionSlice;
+  readAuthorityPositions(type) as unknown as PositionSlice;
 
 const readDocumentPositions =
   (base: CanonicalEditorDocumentV1) =>
   (type: NativeElementType): PositionSlice =>
-    (type === 'key'
-      ? base.keyPositions
-      : type === 'stat'
-      ? base.statPositions
-      : type === 'graph'
-      ? base.graphPositions
-      : type === 'knob'
-      ? base.knobPositions
-      : base.spritePositions) as unknown as PositionSlice;
+    base[EDITOR_ELEMENT_POSITION_FIELDS[type]] as unknown as PositionSlice;
 
 // native 대상 bounds 수집 - 지정 모드에서의 소실·비유한 값은 전체 거절
 const readNativeLayoutElements = (

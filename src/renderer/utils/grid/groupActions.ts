@@ -4,10 +4,6 @@
  */
 
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import {
@@ -17,6 +13,7 @@ import {
 import { setMixedElementGroups } from '@src/renderer/editor/runtime/intent/mixedElementGroups';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
+import { readAuthorityPositions } from '@src/renderer/editor/model/elementStores';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
 import type { EditorElementGroupTargetV1 } from '@src/types/editor';
 
@@ -64,14 +61,7 @@ const currentNativeGroupId = (
       undefined
     );
   }
-  const record =
-    target.elementType === 'key'
-      ? useKeyStore.getState().canonicalPositions
-      : target.elementType === 'stat'
-      ? useStatItemStore.getState().positions
-      : target.elementType === 'graph'
-      ? useGraphItemStore.getState().positions
-      : useKnobItemStore.getState().positions;
+  const record = readAuthorityPositions(target.elementType);
   return record[mode]?.[locator.index]?.groupId;
 };
 

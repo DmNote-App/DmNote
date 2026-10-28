@@ -40,6 +40,7 @@ import type {
   EditorShadowPropertyPatchV1,
   EditorStylePropertyPreviewPatchV1,
 } from '@src/types/editor';
+import { PREVIEW_DOMAIN_BY_ELEMENT_TYPE } from '@src/types/preview';
 import type { ImageFit } from '@src/types/key/keys';
 import { projectNotePaintPatch } from '@src/types/key/notePaint';
 import {
@@ -91,14 +92,7 @@ const stableGeometryPreviewHandler = (
             },
           ],
           {
-            domain:
-              type === 'key'
-                ? 'keyPosition'
-                : type === 'stat'
-                ? 'statPosition'
-                : type === 'graph'
-                ? 'graphPosition'
-                : 'knobPosition',
+            domain: PREVIEW_DOMAIN_BY_ELEMENT_TYPE[type],
           },
         );
       }

@@ -15,6 +15,7 @@ import type {
   EditorShadowPropertyPatchV1,
 } from '@src/types/editor';
 import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
   isEditorPaintPropertyPatchV1,
   isEditorShadowPropertyPatchV1,
 } from '@src/types/editor';
@@ -56,14 +57,7 @@ const paintPropertyIntents = (
   for (const { elementType, id } of targets) {
     // 스프라이트는 페인트 속성이 없다
     if (elementType === 'sprite') continue;
-    const collection =
-      elementType === 'key'
-        ? document.keyPositions
-        : elementType === 'stat'
-        ? document.statPositions
-        : elementType === 'graph'
-        ? document.graphPositions
-        : document.knobPositions;
+    const collection = document[EDITOR_ELEMENT_POSITION_FIELDS[elementType]];
     const current = Object.values(collection)
       .flat()
       .find((position) => position.id === id) as

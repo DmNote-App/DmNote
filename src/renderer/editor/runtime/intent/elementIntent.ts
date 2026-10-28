@@ -1,22 +1,27 @@
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
 
 import { stableStringify } from '@utils/core/stableStringify';
 
 import { enqueueEditorCompatibilityOperation } from '../lifecycle/editorCompatibilityQueue';
 import { editorCoordinator } from '../coordinator/editorStateCoordinator';
 
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  ELEMENT_TYPE_BY_POSITION_FIELD,
+} from '@src/types/editor';
 import type {
   CanonicalEditorDocumentV1,
+  EditorField,
   EditorOpV1,
   EditorPatchV1,
 } from '@src/types/editor';
 
 import type { NativeElementType } from '../../model/elementIdMap';
+import {
+  readAuthorityPositions,
+  writeAuthorityPositions,
+} from '../../model/elementStores';
 
 // 요소 의도 커밋 러너: eager 낙관 반영과 wire 생성·실패 복원의 소유권을
 // 한 곳에 고정한다.
@@ -130,29 +135,10 @@ export type PropertyIntents = ReadonlyMap<
 >;
 
 const readRecord = (type: NativeElementType): LooseRecord =>
-  (type === 'key'
-    ? useKeyStore.getState().canonicalPositions
-    : type === 'stat'
-    ? useStatItemStore.getState().positions
-    : type === 'graph'
-    ? useGraphItemStore.getState().positions
-    : type === 'knob'
-    ? useKnobItemStore.getState().positions
-    : useSpriteStore.getState().positions) as LooseRecord;
+  readAuthorityPositions(type) as LooseRecord;
 
-const writeRecord = (type: NativeElementType, next: LooseRecord): void => {
-  if (type === 'key') {
-    useKeyStore.getState().setPositions(next as never);
-  } else if (type === 'stat') {
-    useStatItemStore.getState().setPositions(next as never);
-  } else if (type === 'graph') {
-    useGraphItemStore.getState().setPositions(next as never);
-  } else if (type === 'knob') {
-    useKnobItemStore.getState().setPositions(next as never);
-  } else {
-    useSpriteStore.getState().setPositions(next as never);
-  }
-};
+const writeRecord = (type: NativeElementType, next: LooseRecord): void =>
+  writeAuthorityPositions(type, next);
 
 export interface PropertyReceiptEntry {
   type: NativeElementType;
@@ -313,21 +299,6 @@ export const applyPropertyIntentsEagerly = (
   return createPropertyReceipt(entries);
 };
 
-const GEOMETRY_FIELD_BY_TYPE: Record<
-  NativeElementType,
-  | 'keyPositions'
-  | 'statPositions'
-  | 'graphPositions'
-  | 'knobPositions'
-  | 'spritePositions'
-> = {
-  key: 'keyPositions',
-  stat: 'statPositions',
-  graph: 'graphPositions',
-  knob: 'knobPositions',
-  sprite: 'spritePositions',
-};
-
 // 최신 base에서 기하 의도를 setBounds op으로 재생성한다. 크기는 base 값을
 // 그대로 실어 슬롯 안에서 먼저 착지한 병행 리사이즈를 되돌리지 않는다.
 // base에 없는 대상은 건너뛴다 - 전량 소실이면 빈 배열이라 호출자가 중단한다
@@ -338,7 +309,9 @@ export const generateGeometryIntentOps = (
   const ops: EditorOpV1[] = [];
   for (const [type, byId] of intents) {
     if (byId.size === 0) continue;
-    const record = base[GEOMETRY_FIELD_BY_TYPE[type]] as unknown as LooseRecord;
+    const record = base[
+      EDITOR_ELEMENT_POSITION_FIELDS[type]
+    ] as unknown as LooseRecord;
     for (const list of Object.values(record)) {
       for (const position of list) {
         const id = position.id;
@@ -370,7 +343,7 @@ export const generatePropertyIntentPatch = (
   const patch: EditorPatchV1 = { schemaVersion: 1 };
   let touchedAny = false;
   for (const [type, byId] of intents) {
-    const field = GEOMETRY_FIELD_BY_TYPE[type];
+    const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
     const record = base[field] as unknown as LooseRecord;
     let touched = 0;
     const next: LooseRecord = {};
@@ -404,14 +377,7 @@ export const reportElementOpSkipped = (context: string): void => {
   console.warn('Element operation skipped (fail-closed)', context);
 };
 
-type SealedSliceField =
-  | 'keys'
-  | 'keyPositions'
-  | 'statPositions'
-  | 'graphPositions'
-  | 'knobPositions'
-  | 'spritePositions'
-  | 'layerGroups';
+type SealedSliceField = EditorField;
 
 // ---------------------------------------------------------------------------
 // 봉인 구조 변경 receipt: 삭제·paste처럼 배열 구조 자체가 바뀌는 eager는
@@ -423,17 +389,12 @@ type SealedSliceField =
 const readFieldRecord = (field: SealedSliceField): Record<string, unknown> =>
   (field === 'keys'
     ? useKeyStore.getState().keyMappings
-    : field === 'keyPositions'
-    ? useKeyStore.getState().canonicalPositions
-    : field === 'statPositions'
-    ? useStatItemStore.getState().positions
-    : field === 'graphPositions'
-    ? useGraphItemStore.getState().positions
-    : field === 'knobPositions'
-    ? useKnobItemStore.getState().positions
-    : field === 'spritePositions'
-    ? useSpriteStore.getState().positions
-    : useLayerGroupStore.getState().layerGroups) as Record<string, unknown>;
+    : field === 'layerGroups'
+    ? useLayerGroupStore.getState().layerGroups
+    : readAuthorityPositions(ELEMENT_TYPE_BY_POSITION_FIELD[field])) as Record<
+    string,
+    unknown
+  >;
 
 const writeFieldModeSlices = (
   field: SealedSliceField,
@@ -449,18 +410,10 @@ const writeFieldModeSlices = (
   }
   if (field === 'keys') {
     useKeyStore.getState().setKeyMappings(merged as never);
-  } else if (field === 'keyPositions') {
-    useKeyStore.getState().setPositions(merged as never);
-  } else if (field === 'statPositions') {
-    useStatItemStore.getState().setPositions(merged as never);
-  } else if (field === 'graphPositions') {
-    useGraphItemStore.getState().setPositions(merged as never);
-  } else if (field === 'knobPositions') {
-    useKnobItemStore.getState().setPositions(merged as never);
-  } else if (field === 'spritePositions') {
-    useSpriteStore.getState().setPositions(merged as never);
-  } else {
+  } else if (field === 'layerGroups') {
     useLayerGroupStore.getState().setLayerGroups(merged as never);
+  } else {
+    writeAuthorityPositions(ELEMENT_TYPE_BY_POSITION_FIELD[field], merged);
   }
 };
 

@@ -10,6 +10,7 @@ import {
   inheritedPaintMaterialization,
   paintPropertyFields,
 } from '@src/types/color';
+import { EDITOR_ELEMENT_POSITION_FIELDS } from '@src/types/editor';
 import type {
   EditorElementTypeV1,
   EditorPaintPropertyPatchV1,
@@ -17,7 +18,10 @@ import type {
   EditorStylePropertyPreviewPatchV1,
 } from '@src/types/editor';
 import type { KeyPosition } from '@src/types/key/keys';
-import type { PreviewDomain } from '@src/types/preview';
+import {
+  PREVIEW_DOMAIN_BY_ELEMENT_TYPE,
+  type PreviewDomain,
+} from '@src/types/preview';
 import { projectElementShadowPatch } from '@src/types/key/shadows';
 import {
   DEFAULT_ELEMENT_SHADOW_SPEC,
@@ -32,13 +36,7 @@ interface PreviewTarget {
 }
 
 const previewDomainOf = (type: PreviewTargetType): PreviewDomain =>
-  type === 'key'
-    ? 'keyPosition'
-    : type === 'stat'
-    ? 'statPosition'
-    : type === 'graph'
-    ? 'graphPosition'
-    : 'knobPosition';
+  PREVIEW_DOMAIN_BY_ELEMENT_TYPE[type];
 
 // nullable leaf의 null은 eager intent 경로와 동일하게 undefined로 투영
 export const projectPreviewStylePropertyPatch = (
@@ -59,13 +57,7 @@ const currentPositionOf = (
   index: number,
 ): KeyPosition | undefined => {
   const collection =
-    target.elementType === 'key'
-      ? document.keyPositions
-      : target.elementType === 'stat'
-      ? document.statPositions
-      : target.elementType === 'graph'
-      ? document.graphPositions
-      : document.knobPositions;
+    document[EDITOR_ELEMENT_POSITION_FIELDS[target.elementType]];
   return collection[mode]?.[index] as KeyPosition | undefined;
 };
 
@@ -237,13 +229,7 @@ export const previewBatchPaint = (
     const locator = resolveElementById(target.elementType, target.id);
     if (!locator || locator.mode !== selectedKeyType) return;
     const collection =
-      target.elementType === 'key'
-        ? document.keyPositions
-        : target.elementType === 'stat'
-        ? document.statPositions
-        : target.elementType === 'graph'
-        ? document.graphPositions
-        : document.knobPositions;
+      document[EDITOR_ELEMENT_POSITION_FIELDS[target.elementType]];
     const current = collection[locator.mode]?.[locator.index] as
       | KeyPosition
       | undefined;

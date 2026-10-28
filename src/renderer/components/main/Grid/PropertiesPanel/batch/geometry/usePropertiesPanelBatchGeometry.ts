@@ -10,6 +10,7 @@ import { computeBatchGeometryPlan } from '@src/renderer/editor/runtime/geometry/
 import { commitMixedBatchGeometry } from '@src/renderer/editor/runtime/geometry/mixedBatchGeometry';
 import { spriteResizePatch } from '@utils/sprite/resizeProjection';
 import type { EditorElementTypeV1 } from '@src/types/editor';
+import { PREVIEW_DOMAIN_BY_ELEMENT_TYPE } from '@src/types/preview';
 import type { KeyPosition } from '@src/types/key/keys';
 
 type PropertiesPanelSelection = ReturnType<typeof usePropertiesPanelSelection>;
@@ -44,7 +45,7 @@ export const usePropertiesPanelBatchGeometry = ({
 }: UsePropertiesPanelBatchGeometryProps) =>
   useBatchHandlers({
     selectedKeyLikeElements: selectedBatchGeometryElements as {
-      type: 'key' | 'stat' | 'graph' | 'knob' | 'sprite';
+      type: EditorElementTypeV1;
       id: string;
       index?: number;
     }[],
@@ -65,20 +66,18 @@ export const usePropertiesPanelBatchGeometry = ({
           position: Pick<KeyPosition, 'id' | 'dx' | 'dy' | 'width' | 'height'>;
         }
       >();
+      const recordsByType = {
+        key: positions,
+        stat: statItemPositions,
+        graph: graphItemPositions,
+        knob: knobItemPositions,
+        sprite: spriteItemPositions,
+      } satisfies Record<EditorElementTypeV1, unknown>;
       for (const target of stableBatchGeometryTargets) {
         const locator = resolveElementById(target.type, target.id);
         if (!locator || locator.mode !== selectedKeyType) return;
-        const record =
-          target.type === 'key'
-            ? positions
-            : target.type === 'stat'
-            ? statItemPositions
-            : target.type === 'graph'
-            ? graphItemPositions
-            : target.type === 'knob'
-            ? knobItemPositions
-            : spriteItemPositions;
-        const position = record[selectedKeyType]?.[locator.index];
+        const position =
+          recordsByType[target.type][selectedKeyType]?.[locator.index];
         if (!position || position.id !== target.id) return;
         targetsByKey.set(`${target.type}:${target.id}`, {
           type: target.type,
@@ -153,16 +152,7 @@ export const usePropertiesPanelBatchGeometry = ({
       }
       for (const [type, entries] of byType) {
         editGestureController.preview(selectedKeyType, entries, {
-          domain:
-            type === 'key'
-              ? 'keyPosition'
-              : type === 'stat'
-              ? 'statPosition'
-              : type === 'graph'
-              ? 'graphPosition'
-              : type === 'knob'
-              ? 'knobPosition'
-              : 'spritePosition',
+          domain: PREVIEW_DOMAIN_BY_ELEMENT_TYPE[type],
         });
       }
     },

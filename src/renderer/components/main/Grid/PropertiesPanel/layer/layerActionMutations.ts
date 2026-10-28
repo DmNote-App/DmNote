@@ -1,9 +1,5 @@
 import { setPluginElementsHidden } from '@plugins/runtime/displayElement/pluginElementActions';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import { readAuthorityPositions } from '@src/renderer/editor/model/elementStores';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import type { LayerGroups } from '@src/types/layerGroups';
@@ -61,16 +57,7 @@ export const stableSelectionGroupId = (
   for (const element of native) {
     const locator = resolveElementById(element.type, element.id);
     if (!locator || locator.mode !== mode) return { stable: true };
-    const record =
-      element.type === 'key'
-        ? useKeyStore.getState().canonicalPositions
-        : element.type === 'stat'
-        ? useStatItemStore.getState().positions
-        : element.type === 'graph'
-        ? useGraphItemStore.getState().positions
-        : element.type === 'knob'
-        ? useKnobItemStore.getState().positions
-        : useSpriteStore.getState().positions;
+    const record = readAuthorityPositions(element.type);
     const groupId = record[mode]?.[locator.index]?.groupId;
     if (groupId) groupIds.add(groupId);
   }

@@ -5,15 +5,12 @@ import type { StatItemPosition } from '@src/types/key/statItems';
 import type { GraphItemPosition } from '@src/types/key/graphItems';
 import type { KnobItemPosition } from '@src/types/key/knobs';
 import type { ReactiveSpritePosition } from '@src/types/key/sprites';
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
+import type {
+  CanonicalEditorDocumentV1,
+  EditorElementTypeV1,
+} from '@src/types/editor';
 
-export type SelectableElementType =
-  | 'key'
-  | 'stat'
-  | 'graph'
-  | 'knob'
-  | 'sprite'
-  | 'plugin';
+export type SelectableElementType = EditorElementTypeV1 | 'plugin';
 
 export type IndexedSelectableElementType = Exclude<
   SelectableElementType,

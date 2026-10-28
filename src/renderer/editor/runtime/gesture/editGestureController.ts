@@ -5,13 +5,13 @@
  */
 
 import { previewApi } from '@api/modules/editor/previewApi';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
+import { readAuthorityPositions } from '../../model/elementStores';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { PREVIEW_SCHEMA_VERSION, type PreviewDomain } from '@src/types/preview';
+import {
+  ELEMENT_TYPE_BY_PREVIEW_DOMAIN,
+  PREVIEW_SCHEMA_VERSION,
+  type PreviewDomain,
+} from '@src/types/preview';
 import { stableStringify } from '@utils/core/stableStringify';
 import { isNativeElementId } from '../../model/elementId';
 
@@ -67,15 +67,9 @@ type PositionsRecordLike = Record<
 >;
 
 const authorityRecordFor = (domain: PreviewDomain): PositionsRecordLike =>
-  (domain === 'keyPosition'
-    ? useKeyStore.getState().canonicalPositions
-    : domain === 'statPosition'
-    ? useStatItemStore.getState().positions
-    : domain === 'graphPosition'
-    ? useGraphItemStore.getState().positions
-    : domain === 'knobPosition'
-    ? useKnobItemStore.getState().positions
-    : useSpriteStore.getState().positions) as PositionsRecordLike;
+  readAuthorityPositions(
+    ELEMENT_TYPE_BY_PREVIEW_DOMAIN[domain],
+  ) as PositionsRecordLike;
 
 const currentIndexForId = (
   domain: PreviewDomain,
@@ -356,16 +350,9 @@ export const editGestureController = {
     // 복원(편입 전·대상 소실)은 runElementIntent가 소유하고, wire는 직렬
     // 슬롯 안에서 최신 base로 재생성된다. 정산에는 거절되는 원 promise가
     // 필요하므로 오류를 삼키는 applier 경로는 쓰지 않는다
-    const DOMAIN_TO_TYPE = {
-      keyPosition: 'key',
-      statPosition: 'stat',
-      graphPosition: 'graph',
-      knobPosition: 'knob',
-      spritePosition: 'sprite',
-    } as const;
     const propertyIntents: PropertyIntents = new Map(
       [...intents].map(([domain, resolved]) => [
-        DOMAIN_TO_TYPE[domain],
+        ELEMENT_TYPE_BY_PREVIEW_DOMAIN[domain],
         resolved,
       ]),
     );

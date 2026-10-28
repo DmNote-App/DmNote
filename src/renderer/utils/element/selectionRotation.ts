@@ -1,5 +1,6 @@
 import {
   EDITOR_BOUNDS_LIMITS,
+  isEditorElementType,
   type EditorDocumentV1,
   type EditorElementTypeV1,
 } from '@src/types/editor';
@@ -229,11 +230,7 @@ export const createSelectionRotationSnapshot = (
   const ids = new Set<string>();
   const sorted: SelectionRotationTarget[] = [];
   for (const target of targets) {
-    if (
-      !['key', 'stat', 'graph', 'knob', 'sprite'].includes(target.type) ||
-      !target.id ||
-      ids.has(target.id)
-    ) {
+    if (!isEditorElementType(target.type) || !target.id || ids.has(target.id)) {
       return null;
     }
     ids.add(target.id);

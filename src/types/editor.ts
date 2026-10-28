@@ -143,7 +143,42 @@ export interface EditorPatchCommitRequest extends EditorCommitRequestBase {
   ops?: never;
 }
 
-export type EditorElementTypeV1 = 'key' | 'stat' | 'graph' | 'knob' | 'sprite';
+// 요소 종류 단일 목록 - 순서·이름은 Rust EditorElementTypeV1과 같다 (tests/element-kind-parity)
+export const EDITOR_ELEMENT_TYPES = [
+  'key',
+  'stat',
+  'graph',
+  'knob',
+  'sprite',
+] as const;
+
+export type EditorElementTypeV1 = (typeof EDITOR_ELEMENT_TYPES)[number];
+
+// 종류별 문서 컬렉션 필드
+export const EDITOR_ELEMENT_POSITION_FIELDS = {
+  key: 'keyPositions',
+  stat: 'statPositions',
+  graph: 'graphPositions',
+  knob: 'knobPositions',
+  sprite: 'spritePositions',
+} as const satisfies Record<EditorElementTypeV1, EditorField>;
+
+export type EditorElementPositionField =
+  (typeof EDITOR_ELEMENT_POSITION_FIELDS)[EditorElementTypeV1];
+
+export const ELEMENT_TYPE_BY_POSITION_FIELD = {
+  keyPositions: 'key',
+  statPositions: 'stat',
+  graphPositions: 'graph',
+  knobPositions: 'knob',
+  spritePositions: 'sprite',
+} as const satisfies Record<EditorElementPositionField, EditorElementTypeV1>;
+
+export const isEditorElementType = (
+  value: unknown,
+): value is EditorElementTypeV1 =>
+  typeof value === 'string' &&
+  (EDITOR_ELEMENT_TYPES as readonly string[]).includes(value);
 
 export interface EditorBoundsV1 {
   dx: number;
@@ -1963,12 +1998,7 @@ export function assertEditorOpsV1(
     if (!isRecord(op)) throw new EditorProtocolError(`${opLabel} is invalid`);
     if (op.kind === 'setBounds') {
       assertExactKeys(op, ['kind', 'elementType', 'id', 'bounds'], opLabel);
-      if (
-        !['key', 'stat', 'graph', 'knob', 'sprite'].includes(
-          op.elementType as string,
-        ) ||
-        !isNativeElementId(op.id)
-      ) {
+      if (!isEditorElementType(op.elementType) || !isNativeElementId(op.id)) {
         throw new EditorProtocolError(`${opLabel} target is invalid`);
       }
       assertUniqueDirectTarget(op.id, opLabel);
@@ -1986,12 +2016,7 @@ export function assertEditorOpsV1(
     }
     if (op.kind === 'deleteElement') {
       assertExactKeys(op, ['kind', 'elementType', 'id'], opLabel);
-      if (
-        !['key', 'stat', 'graph', 'knob', 'sprite'].includes(
-          op.elementType as string,
-        ) ||
-        !isNativeElementId(op.id)
-      ) {
+      if (!isEditorElementType(op.elementType) || !isNativeElementId(op.id)) {
         throw new EditorProtocolError(`${opLabel} target is invalid`);
       }
       assertUniqueDirectTarget(op.id, opLabel);
@@ -2000,9 +2025,7 @@ export function assertEditorOpsV1(
     if (op.kind === 'patchElement') {
       assertExactKeys(op, ['kind', 'elementType', 'id', 'patch'], opLabel);
       if (
-        !['key', 'stat', 'graph', 'knob', 'sprite'].includes(
-          op.elementType as string,
-        ) ||
+        !isEditorElementType(op.elementType) ||
         !isNativeElementId(op.id) ||
         !isRecord(op.patch)
       ) {
@@ -2041,9 +2064,7 @@ export function assertEditorOpsV1(
         }
         assertExactKeys(target, ['elementType', 'id'], targetLabel);
         if (
-          !['key', 'stat', 'graph', 'knob', 'sprite'].includes(
-            target.elementType as string,
-          ) ||
+          !isEditorElementType(target.elementType) ||
           typeof target.id !== 'string' ||
           !isNativeElementId(target.id) ||
           targetIds.has(target.id)
@@ -2147,9 +2168,7 @@ export function assertEditorOpsV1(
         targetLabel: string,
       ) => {
         if (
-          !['key', 'stat', 'graph', 'knob', 'sprite'].includes(
-            target.elementType as string,
-          ) ||
+          !isEditorElementType(target.elementType) ||
           !isNativeElementId(target.id)
         ) {
           throw new EditorProtocolError(`${targetLabel} target is invalid`);
@@ -2266,9 +2285,7 @@ export function assertEditorOpsV1(
       }
       assertExactKeys(update, ['elementType', 'id', 'zIndex'], updateLabel);
       if (
-        !['key', 'stat', 'graph', 'knob', 'sprite'].includes(
-          update.elementType as string,
-        ) ||
+        !isEditorElementType(update.elementType) ||
         !isNativeElementId(update.id) ||
         !Number.isSafeInteger(update.zIndex) ||
         (update.zIndex as number) < -2_147_483_648 ||
@@ -2342,13 +2359,6 @@ export function assertEditorOpCommitResult(
 ): void {
   assertEditorCommitResult(value, ops.length);
   const opResults = value.opResults!;
-  const positionFields: Record<EditorElementTypeV1, EditorField> = {
-    key: 'keyPositions',
-    stat: 'statPositions',
-    graph: 'graphPositions',
-    knob: 'knobPositions',
-    sprite: 'spritePositions',
-  };
   const requiredFields = new Set<EditorField>();
   const allowedFields = new Set<EditorField>();
   ops.forEach((op, index) => {
@@ -2364,8 +2374,8 @@ export function assertEditorOpCommitResult(
         );
       }
       if (result.status === 'applied') {
-        requiredFields.add(positionFields[op.elementType]);
-        allowedFields.add(positionFields[op.elementType]);
+        requiredFields.add(EDITOR_ELEMENT_POSITION_FIELDS[op.elementType]);
+        allowedFields.add(EDITOR_ELEMENT_POSITION_FIELDS[op.elementType]);
       }
       return;
     }
@@ -2395,8 +2405,8 @@ export function assertEditorOpCommitResult(
         );
       }
       if (result.status !== 'applied') return;
-      requiredFields.add(positionFields[op.elementType]);
-      allowedFields.add(positionFields[op.elementType]);
+      requiredFields.add(EDITOR_ELEMENT_POSITION_FIELDS[op.elementType]);
+      allowedFields.add(EDITOR_ELEMENT_POSITION_FIELDS[op.elementType]);
       allowedFields.add('layerGroups');
       if (op.elementType === 'key') {
         requiredFields.add('keys');
@@ -2412,7 +2422,9 @@ export function assertEditorOpCommitResult(
       }
       if (result.status === 'applied') {
         const field =
-          op.kind === 'setKeySlot' ? 'keys' : positionFields[op.elementType];
+          op.kind === 'setKeySlot'
+            ? 'keys'
+            : EDITOR_ELEMENT_POSITION_FIELDS[op.elementType];
         requiredFields.add(field);
         allowedFields.add(field);
       }
@@ -2426,7 +2438,7 @@ export function assertEditorOpCommitResult(
       }
       const touched = new Set<EditorField>(['layerGroups']);
       op.targets.forEach((target) =>
-        touched.add(positionFields[target.elementType]),
+        touched.add(EDITOR_ELEMENT_POSITION_FIELDS[target.elementType]),
       );
       touched.forEach((field) => allowedFields.add(field));
       if (result.status === 'applied') {
@@ -2469,10 +2481,10 @@ export function assertEditorOpCommitResult(
       }
       const touched = new Set<EditorField>();
       op.zUpdates.forEach((update) =>
-        touched.add(positionFields[update.elementType]),
+        touched.add(EDITOR_ELEMENT_POSITION_FIELDS[update.elementType]),
       );
       op.groupUpdates.forEach((update) =>
-        touched.add(positionFields[update.elementType]),
+        touched.add(EDITOR_ELEMENT_POSITION_FIELDS[update.elementType]),
       );
       if (op.completeModeOrder) touched.add('layerGroups');
       touched.forEach((field) => allowedFields.add(field));
@@ -2501,11 +2513,11 @@ export function assertEditorOpCommitResult(
     }
     const touched = new Set<EditorField>();
     op.elements.forEach((element) => {
-      touched.add(positionFields[element.elementType]);
+      touched.add(EDITOR_ELEMENT_POSITION_FIELDS[element.elementType]);
       if (element.elementType === 'key') touched.add('keys');
     });
     op.zUpdates.forEach((update) =>
-      touched.add(positionFields[update.elementType]),
+      touched.add(EDITOR_ELEMENT_POSITION_FIELDS[update.elementType]),
     );
     if (op.groups.length > 0) touched.add('layerGroups');
     touched.forEach((field) => allowedFields.add(field));
@@ -2518,7 +2530,7 @@ export function assertEditorOpCommitResult(
       return;
     }
     op.elements.forEach((element) => {
-      requiredFields.add(positionFields[element.elementType]);
+      requiredFields.add(EDITOR_ELEMENT_POSITION_FIELDS[element.elementType]);
       if (element.elementType === 'key') requiredFields.add('keys');
     });
     if (op.groups.length > 0) requiredFields.add('layerGroups');

@@ -1,12 +1,11 @@
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
+import type {
+  CanonicalEditorDocumentV1,
+  EditorElementPositionField,
+  EditorElementTypeV1,
+} from '@src/types/editor';
+import { readAuthorityPositions } from './elementStores';
 
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
-
-export type NativeElementType = 'key' | 'stat' | 'graph' | 'knob' | 'sprite';
+export type NativeElementType = EditorElementTypeV1;
 
 export interface ElementLocator {
   type: NativeElementType;
@@ -15,22 +14,8 @@ export interface ElementLocator {
 }
 
 type CanonicalPosition =
-  | CanonicalEditorDocumentV1['keyPositions'][string][number]
-  | CanonicalEditorDocumentV1['statPositions'][string][number]
-  | CanonicalEditorDocumentV1['graphPositions'][string][number]
-  | CanonicalEditorDocumentV1['knobPositions'][string][number]
-  | CanonicalEditorDocumentV1['spritePositions'][string][number];
+  CanonicalEditorDocumentV1[EditorElementPositionField][string][number];
 type PositionsRecord = Record<string, readonly CanonicalPosition[]> | undefined;
-
-// 권위 컬렉션만 읽는다. 키의 렌더 positions는 canonical + 프리뷰 합성이라
-// 조회 기준으로 쓰면 프리뷰 재합성 타이밍에 따라 결과가 흔들린다
-const authorityRecords = (): Record<NativeElementType, PositionsRecord> => ({
-  key: useKeyStore.getState().canonicalPositions,
-  stat: useStatItemStore.getState().positions,
-  graph: useGraphItemStore.getState().positions,
-  knob: useKnobItemStore.getState().positions,
-  sprite: useSpriteStore.getState().positions,
-});
 
 interface CacheEntry {
   source: PositionsRecord;
@@ -74,7 +59,9 @@ export const resolveElementById = (
   id: string,
 ): ElementLocator | null => {
   if (!id) return null;
-  return lookupIn(type, authorityRecords()[type], id);
+  // 권위 컬렉션만 읽는다. 키의 렌더 positions는 canonical + 프리뷰 합성이라
+  // 조회 기준으로 쓰면 프리뷰 재합성 타이밍에 따라 결과가 흔들린다
+  return lookupIn(type, readAuthorityPositions(type), id);
 };
 
 // 여러 타입에 걸쳐 조회. id는 전역 유일이라 최대 한 곳에서만 발견된다

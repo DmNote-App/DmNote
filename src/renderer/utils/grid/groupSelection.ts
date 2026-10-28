@@ -4,6 +4,7 @@
  */
 
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
+import { EDITOR_ELEMENT_TYPES } from '@src/types/editor';
 import type { LayerGroupDef } from '@src/types/layerGroups';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import { isPluginVisibleInMode } from '@utils/layerGroupUtils';
@@ -130,15 +131,13 @@ export const expandGroupSelection = (
   }
 
   const collections = nativeCollections(source);
-  (['key', 'stat', 'graph', 'knob', 'sprite'] as const).forEach(
-    (memberType) => {
-      collections[memberType].forEach((pos, index) => {
-        if (!pos || pos.groupId !== groupId) return;
-        if (clicked.type === memberType && clicked.id === pos.id) return;
-        selection.push({ type: memberType, id: pos.id, index });
-      });
-    },
-  );
+  EDITOR_ELEMENT_TYPES.forEach((memberType) => {
+    collections[memberType].forEach((pos, index) => {
+      if (!pos || pos.groupId !== groupId) return;
+      if (clicked.type === memberType && clicked.id === pos.id) return;
+      selection.push({ type: memberType, id: pos.id, index });
+    });
+  });
   source.pluginElements.forEach((el) => {
     if (el.groupId !== groupId) return;
     if (!isPluginVisibleInMode(el, source.mode)) return;

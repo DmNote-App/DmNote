@@ -9,7 +9,10 @@ import type {
 } from '@src/types/key/keys';
 import type { KnobItemPosition, KnobItemPositions } from '@src/types/key/knobs';
 import type { StatItemPositions } from '@src/types/key/statItems';
-import type { CanonicalReactiveSpritePosition } from '@src/types/editor';
+import type {
+  CanonicalReactiveSpritePosition,
+  EditorElementTypeV1,
+} from '@src/types/editor';
 import { getKeyInfoByGlobalKey } from '@utils/input/KeyMaps';
 import { aggregateMixedValue } from '@src/renderer/components/main/Grid/PropertiesPanel/batch/mixedValue';
 import { slotCanonical, slotDisplayName } from '@utils/keySlot';
@@ -78,9 +81,7 @@ export interface BatchSelectionModelInput {
     'key' | 'stat' | 'graph' | 'knob'
   >[];
   // resize가 실제로 조절하는 집합 - 스타일 집합에 sprite가 더해진다
-  selectedBatchGeometryElements: readonly BatchSelectedElement<
-    'key' | 'stat' | 'graph' | 'knob' | 'sprite'
-  >[];
+  selectedBatchGeometryElements: readonly BatchSelectedElement<EditorElementTypeV1>[];
 }
 
 export const createBatchSelectionModel = ({
@@ -182,14 +183,14 @@ export const createBatchSelectionModel = ({
   const keyLikeDataById = indexSelectionDataById(selectedKeysData);
   const graphDataById = indexSelectionDataById(selectedGraphsData);
   const knobDataById = indexSelectionDataById(selectedKnobsData);
+  const styleDataIndexByType = {
+    key: keyLikeDataById,
+    stat: keyLikeDataById,
+    graph: graphDataById,
+    knob: knobDataById,
+  };
   const selectedBatchStyleData = selectedBatchStyleElements
-    .map((element) =>
-      element.type === 'key' || element.type === 'stat'
-        ? keyLikeDataById.get(element.id)
-        : element.type === 'graph'
-        ? graphDataById.get(element.id)
-        : knobDataById.get(element.id),
-    )
+    .map((element) => styleDataIndexByType[element.type].get(element.id))
     .filter((data): data is NonNullable<typeof data> => data !== undefined);
 
   const selectedKeyOnlyPositions = selectedKeyElements
@@ -200,18 +201,16 @@ export const createBatchSelectionModel = ({
   // 두 집합이 갈릴 수 없게 한다 - 스타일 집합에는 스프라이트가 없어서 그걸 쓰면
   // 키 60·스프라이트 200이 Mixed 없이 60으로 보이고, 그 값을 확정하면
   // 스프라이트의 모든 자세 오프셋까지 배율이 먹는다
+  const geometryIndexByType = {
+    key: keyIndex,
+    stat: statIndex,
+    graph: graphIndex,
+    knob: knobIndex,
+    sprite: spriteIndex,
+  };
   const selectedGeometryPositions = selectedBatchGeometryElements
     .map((element) => {
-      const indexed =
-        element.type === 'key'
-          ? keyIndex.get(element.id)
-          : element.type === 'stat'
-          ? statIndex.get(element.id)
-          : element.type === 'graph'
-          ? graphIndex.get(element.id)
-          : element.type === 'knob'
-          ? knobIndex.get(element.id)
-          : spriteIndex.get(element.id);
+      const indexed = geometryIndexByType[element.type].get(element.id);
       return indexed ? (indexed.position as KeyPosition) : null;
     })
     .filter((position): position is KeyPosition => position !== null);

@@ -32,7 +32,15 @@ import {
   runMixedElementOpsIntent,
   runMixedGestureElementIntent,
 } from '@src/renderer/editor/runtime/intent/mixedElementIntent';
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
+import {
+  EDITOR_ELEMENT_POSITION_FIELDS,
+  EDITOR_ELEMENT_TYPES,
+} from '@src/types/editor';
+import type {
+  CanonicalEditorDocumentV1,
+  EditorElementTypeV1,
+} from '@src/types/editor';
+import { snapshotAuthorityPositions } from '@src/renderer/editor/model/elementStores';
 import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { editorCoordinator } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
@@ -111,11 +119,7 @@ export function useGridSelection({
     gestureId?: string,
     frozenTargets?: readonly SelectedElement[],
   ) => {
-    const currentPositions = useKeyStore.getState().canonicalPositions;
-    const currentStatPositions = useStatItemStore.getState().positions;
-    const currentGraphPositions = useGraphItemStore.getState().positions;
-    const currentKnobPositions = useKnobItemStore.getState().positions;
-    const currentSpritePositions = useSpriteStore.getState().positions;
+    const currentRecords = snapshotAuthorityPositions();
     const frozen = frozenTargets ?? frozenGestureTargetsRef.current;
     frozenGestureTargetsRef.current = null;
     const currentSelection =
@@ -146,7 +150,7 @@ export function useGridSelection({
           element.type !== 'plugin',
       )
       .map((element) => ({
-        type: element.type as 'key' | 'stat' | 'graph' | 'knob' | 'sprite',
+        type: element.type as EditorElementTypeV1,
         id: element.id,
       }));
     const allStableIds =
@@ -168,23 +172,14 @@ export function useGridSelection({
         // 이동 정산은 dx·dy만 동결 - width·height까지 실으면 병행 리사이즈를
         // 되돌린다. wire는 슬롯 generator가 최신 base에 id 의도를 재적용
         const geometryIntents: PropertyIntents = new Map(
-          (['key', 'stat', 'graph', 'knob', 'sprite'] as const).map((type) => [
+          EDITOR_ELEMENT_TYPES.map((type) => [
             type,
             new Map(
               nativeTargets
                 .filter((target) => target.type === type)
                 .flatMap((target) => {
                   const locator = resolveElementById(type, target.id);
-                  const record =
-                    type === 'key'
-                      ? currentPositions
-                      : type === 'stat'
-                      ? currentStatPositions
-                      : type === 'graph'
-                      ? currentGraphPositions
-                      : type === 'knob'
-                      ? currentKnobPositions
-                      : currentSpritePositions;
+                  const record = currentRecords[type];
                   const position = locator
                     ? (
                         record as Record<
@@ -210,16 +205,7 @@ export function useGridSelection({
         const receiptEntries: PropertyReceiptEntry[] = [];
         if (lastAck) {
           for (const [type, byId] of geometryIntents) {
-            const field =
-              type === 'key'
-                ? 'keyPositions'
-                : type === 'stat'
-                ? 'statPositions'
-                : type === 'graph'
-                ? 'graphPositions'
-                : type === 'knob'
-                ? 'knobPositions'
-                : 'spritePositions';
+            const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
             const collections = lastAck[field] as Record<
               string,
               Array<{ id: string } & Record<string, unknown>>
@@ -331,9 +317,7 @@ export function useGridSelection({
     const currentPluginElements =
       usePluginDisplayElementStore.getState().elements;
 
-    const selectedNativeIds = (
-      type: 'key' | 'stat' | 'graph' | 'knob' | 'sprite',
-    ): Set<string> =>
+    const selectedNativeIds = (type: EditorElementTypeV1): Set<string> =>
       new Set(
         selectedElements
           .filter((element) => element.type === type)

@@ -16,16 +16,13 @@ import {
   computeBatchGeometryPlan,
   type BatchGeometryOperation,
 } from '../geometry/batchGeometryPlan';
+import { EDITOR_ELEMENT_POSITION_FIELDS } from '@src/types/editor';
 import type {
   CanonicalEditorDocumentV1,
   EditorBoundsV1,
   EditorOpV1,
 } from '@src/types/editor';
-import {
-  FIELD_BY_TYPE,
-  findInRecord,
-  type LooseRecord,
-} from '../intent/elementDocumentModel';
+import { findInRecord, type LooseRecord } from '../intent/elementDocumentModel';
 
 // 다중 선택 정산: 대상 id들의 현재 canonical 기하(dx·dy)를 의도로 캡처해
 // 슬롯 안에서 id 재해석으로 적용한다. 4컬렉션 full-record 캡처는 배타
@@ -62,7 +59,9 @@ const readBatchGeometryElements = (
   for (const target of descriptor.targets) {
     if (!isNativeElementId(target.id) || seen.has(target.id)) return null;
     seen.add(target.id);
-    const record = base[FIELD_BY_TYPE[target.type]] as unknown as LooseRecord;
+    const record = base[
+      EDITOR_ELEMENT_POSITION_FIELDS[target.type]
+    ] as unknown as LooseRecord;
     const locator = findInRecord(record, target.id);
     if (!locator || locator.mode !== descriptor.mode) return null;
     const position = record[locator.mode]?.[locator.index];
@@ -267,7 +266,9 @@ export const commitElementGeometryById = (
 
   return commitGeneratedSemanticOps(
     (base) => {
-      const record = base[FIELD_BY_TYPE[type]] as unknown as LooseRecord;
+      const record = base[
+        EDITOR_ELEMENT_POSITION_FIELDS[type]
+      ] as unknown as LooseRecord;
       const locator = findInRecord(record, id);
       if (!locator) return null;
       const position = record[locator.mode]?.[locator.index];

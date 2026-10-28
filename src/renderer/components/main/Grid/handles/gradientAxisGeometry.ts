@@ -93,6 +93,12 @@ export const resolveGradientAxisBounds = ({
   selectedKeyType,
 }: ResolveGradientAxisBoundsOptions): GradientAxisBounds | null => {
   if (!session) return null;
+  const collectionsByKind = {
+    key: positions[selectedKeyType],
+    stat: statPositions[selectedKeyType],
+    graph: graphPositions?.[selectedKeyType],
+    knob: knobPositions?.[selectedKeyType],
+  };
   // 표면 소유 레이어가 실측 박스를 등록했으면 우선 사용 - 카운터 표면은
   // 요소(키) 박스가 아니라 실제 카운터 텍스트 박스가 축의 기준
   if (registeredAnchorBounds?.sessionKey === session.sessionKey) {
@@ -100,14 +106,7 @@ export const resolveGradientAxisBounds = ({
     const anchor = session.anchor;
     // 등록 후 요소가 이동하면 저장 좌표 델타로 실측 박스를 추종
     if (origin && anchor.kind !== 'batch') {
-      const collection =
-        anchor.kind === 'key'
-          ? positions[selectedKeyType]
-          : anchor.kind === 'stat'
-          ? statPositions[selectedKeyType]
-          : anchor.kind === 'graph'
-          ? graphPositions?.[selectedKeyType]
-          : knobPositions?.[selectedKeyType];
+      const collection = collectionsByKind[anchor.kind];
       const pos = collection?.find((position) => position.id === anchor.id);
       if (pos && (pos.dx !== origin.x || pos.dy !== origin.y)) {
         return {
@@ -160,14 +159,7 @@ export const resolveGradientAxisBounds = ({
     };
   }
 
-  const collection =
-    anchor.kind === 'key'
-      ? positions[selectedKeyType]
-      : anchor.kind === 'stat'
-      ? statPositions[selectedKeyType]
-      : anchor.kind === 'graph'
-      ? graphPositions?.[selectedKeyType]
-      : knobPositions?.[selectedKeyType];
+  const collection = collectionsByKind[anchor.kind];
   const pos = collection?.find((position) => position.id === anchor.id);
   if (!pos) return null;
   return {

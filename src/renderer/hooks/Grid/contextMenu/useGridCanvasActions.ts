@@ -25,6 +25,7 @@ import { useGraphItemStore } from '@stores/data/useGraphItemStore';
 import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
+import type { EditorElementTypeV1 } from '@src/types/editor';
 import type { KeySlot, KeyPosition } from '@src/types/key/keys';
 import type { StatItemPosition } from '@src/types/key/statItems';
 import type { GraphItemPosition } from '@src/types/key/graphItems';
@@ -147,7 +148,7 @@ export interface CanvasActions {
 }
 
 export interface DuplicateState {
-  elementType: 'key' | 'stat' | 'graph' | 'knob' | 'sprite';
+  elementType: EditorElementTypeV1;
   sourceIndex: number;
   // 키 복제의 시작 시점 동결 슬롯 - 배치 시 sourceIndex 재조회 금지
   slot?: KeySlot;
@@ -160,12 +161,7 @@ export interface DuplicateState {
     | ReactiveSpritePosition;
 }
 
-export type NativeCanvasElementType =
-  | 'key'
-  | 'stat'
-  | 'graph'
-  | 'knob'
-  | 'sprite';
+export type NativeCanvasElementType = EditorElementTypeV1;
 
 export const addCanvasElementAt = (
   actions: Pick<
@@ -180,11 +176,27 @@ export const addCanvasElementAt = (
   dx: number,
   dy: number,
 ) => {
-  if (type === 'key') actions.addKeyAtPosition(dx, dy);
-  else if (type === 'stat') actions.addStatAtPosition(dx, dy);
-  else if (type === 'graph') actions.addGraphAtPosition(dx, dy);
-  else if (type === 'sprite') actions.addSpriteAtPosition(dx, dy);
-  else actions.addKnobAtPosition(dx, dy);
+  switch (type) {
+    case 'key':
+      actions.addKeyAtPosition(dx, dy);
+      return;
+    case 'stat':
+      actions.addStatAtPosition(dx, dy);
+      return;
+    case 'graph':
+      actions.addGraphAtPosition(dx, dy);
+      return;
+    case 'knob':
+      actions.addKnobAtPosition(dx, dy);
+      return;
+    case 'sprite':
+      actions.addSpriteAtPosition(dx, dy);
+      return;
+    default: {
+      const exhaustive: never = type;
+      return exhaustive;
+    }
+  }
 };
 
 export const placeFrozenDuplicateAt = (
@@ -200,31 +212,48 @@ export const placeFrozenDuplicateAt = (
   dx: number,
   dy: number,
 ) => {
-  if (duplicate.elementType === 'key') {
-    if (typeof duplicate.slot === 'undefined') return false;
-    actions.placeDuplicateKey(
-      { slot: duplicate.slot, position: duplicate.position as KeyPosition },
-      dx,
-      dy,
-    );
-  } else if (duplicate.elementType === 'stat') {
-    actions.placeDuplicateStat(duplicate.position as StatItemPosition, dx, dy);
-  } else if (duplicate.elementType === 'graph') {
-    actions.placeDuplicateGraph(
-      duplicate.position as GraphItemPosition,
-      dx,
-      dy,
-    );
-  } else if (duplicate.elementType === 'sprite') {
-    actions.placeDuplicateSprite(
-      duplicate.position as ReactiveSpritePosition,
-      dx,
-      dy,
-    );
-  } else {
-    actions.placeDuplicateKnob(duplicate.position as KnobItemPosition, dx, dy);
+  switch (duplicate.elementType) {
+    case 'key':
+      if (typeof duplicate.slot === 'undefined') return false;
+      actions.placeDuplicateKey(
+        { slot: duplicate.slot, position: duplicate.position as KeyPosition },
+        dx,
+        dy,
+      );
+      return true;
+    case 'stat':
+      actions.placeDuplicateStat(
+        duplicate.position as StatItemPosition,
+        dx,
+        dy,
+      );
+      return true;
+    case 'graph':
+      actions.placeDuplicateGraph(
+        duplicate.position as GraphItemPosition,
+        dx,
+        dy,
+      );
+      return true;
+    case 'knob':
+      actions.placeDuplicateKnob(
+        duplicate.position as KnobItemPosition,
+        dx,
+        dy,
+      );
+      return true;
+    case 'sprite':
+      actions.placeDuplicateSprite(
+        duplicate.position as ReactiveSpritePosition,
+        dx,
+        dy,
+      );
+      return true;
+    default: {
+      const exhaustive: never = duplicate.elementType;
+      return exhaustive;
+    }
   }
-  return true;
 };
 
 export function useGridCanvasActions(selectedKeyType: string): CanvasActions {

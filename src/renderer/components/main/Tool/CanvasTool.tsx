@@ -13,9 +13,10 @@ import ListPopup from '../Modal/listPopup/ListPopup';
 import { useIconMotion } from '@hooks/useIconMotion';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { SPRITE_CREATION_ENABLED } from '@src/types/key/sprites';
+import type { EditorElementTypeV1 } from '@src/types/editor';
 
 type SelectableTool = 'move' | 'eraser';
-type AddItemType = 'key' | 'stat' | 'graph' | 'knob' | 'sprite';
+type AddItemType = EditorElementTypeV1;
 
 interface CanvasToolProps {
   onAddItem: (type: AddItemType) => void;

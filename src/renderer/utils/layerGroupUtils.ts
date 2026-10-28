@@ -1,9 +1,10 @@
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import type { LayerGroups, LayerGroupDef } from '@src/types/layerGroups';
 import type {
-  EditorElementGroupTargetV1,
-  EditorTargetLayerGroupV1,
   CanonicalEditorDocumentV1,
+  EditorElementGroupTargetV1,
+  EditorElementTypeV1,
+  EditorTargetLayerGroupV1,
 } from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import { normalizePluginInstanceTabId } from '@plugins/runtime/displayElement/instanceLifecycle';
@@ -29,7 +30,7 @@ export const isPluginGroupMemberInMode = (
 ): boolean => normalizePluginInstanceTabId(element.tabId) === mode;
 
 type Groupable = SelectedElement & {
-  type: 'key' | 'stat' | 'graph' | 'knob' | 'sprite';
+  type: EditorElementTypeV1;
 };
 
 function isGroupableElement(el: SelectedElement): el is Groupable {
@@ -563,7 +564,7 @@ export function normalizeLayerGroupsForMode(params: {
 // ============================================================================
 
 export interface LayerItemForOrder {
-  type: 'key' | 'stat' | 'graph' | 'knob' | 'sprite' | 'plugin';
+  type: EditorElementTypeV1 | 'plugin';
   id: string;
   index?: number;
   zIndex: number;

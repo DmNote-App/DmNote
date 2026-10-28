@@ -53,8 +53,9 @@ import { settingsApi } from '@api/modules/app/settingsApi';
 import { appApi } from '@api/modules/app/appApi';
 
 import { useUIStore } from '@stores/useUIStore';
+import type { EditorElementTypeV1 } from '@src/types/editor';
 
-type ToolbarAddItemType = 'key' | 'stat' | 'graph' | 'knob' | 'sprite';
+type ToolbarAddItemType = EditorElementTypeV1;
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {

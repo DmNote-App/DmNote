@@ -29,12 +29,13 @@ import { assertCanonicalEditorDocument } from '@src/types/editor';
 
 import type {
   CanonicalEditorDocumentV1,
+  EditorElementTypeV1,
   EditorReorderElementsOpV1,
 } from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import type { DisplayItem, LayerItem } from '../types';
 
-type NativeType = 'key' | 'stat' | 'graph' | 'knob' | 'sprite';
+type NativeType = EditorElementTypeV1;
 
 export interface DropAnchors {
   toDisplayIndex: number;

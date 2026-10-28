@@ -15,6 +15,7 @@ import type {
   CanonicalKnobItemPosition,
   CanonicalReactiveSpritePosition,
   CanonicalStatItemPosition,
+  EditorElementTypeV1,
 } from '@src/types/editor';
 import type { KeySlot } from '@src/types/key/keys';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
@@ -487,7 +488,7 @@ export const pasteSelection = async ({
     // 편입 전 abort로 롤백되면 정산 뒤 pruneRolledBackPasteSelection이 정리한다
     const newSelectedElements: SelectedElement[] = [];
     const collect = (
-      type: 'key' | 'stat' | 'graph' | 'knob' | 'sprite',
+      type: EditorElementTypeV1,
       record: Record<string, Array<{ id: string }>>,
       ids: readonly string[],
     ) => {

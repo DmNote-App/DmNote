@@ -1,5 +1,5 @@
 import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
-import type { PreviewDomain } from '@src/types/preview';
+import { PREVIEW_DOMAIN_BY_ELEMENT_TYPE } from '@src/types/preview';
 import {
   createSelectionRotationSnapshot,
   rotateSelection,
@@ -14,14 +14,6 @@ import {
   type PropertyIntents,
 } from '../intent/elementIntent';
 import { captureEditorDocument } from '../coordinator/editorStateCoordinator';
-
-const PREVIEW_DOMAIN: Record<NativeElementType, PreviewDomain> = {
-  key: 'keyPosition',
-  stat: 'statPosition',
-  graph: 'graphPosition',
-  knob: 'knobPosition',
-  sprite: 'spritePosition',
-};
 
 const currentRotationUpdates = (
   document: CanonicalEditorDocumentV1,
@@ -69,7 +61,7 @@ export const previewSelectionRotation = (
     editGestureController.preview(
       snapshot.mode,
       [...byId].map(([id, patch]) => ({ id, patch })),
-      { domain: PREVIEW_DOMAIN[type] },
+      { domain: PREVIEW_DOMAIN_BY_ELEMENT_TYPE[type] },
     );
   }
   return true;

@@ -7,15 +7,16 @@ import type {
 import type { CommitStrategy } from '@hooks/useOptimisticBooleanCommit';
 import type {
   EditorCounterAnimationPresetIntentV1,
+  EditorCounterFillPropertyPatchV1,
   EditorCounterLayoutPropertyPatchV1,
   EditorCounterTypographyPropertyPatchV1,
-  EditorCounterFillPropertyPatchV1,
-  EditorPreviewStylePropertyPatchV1,
-  EditorStylePropertyPreviewPatchV1,
-  EditorPaintPropertyPatchV1,
-  EditorShadowPropertyPatchV1,
-  EditorNotePaintPropertyPatchV1,
   EditorElementPropertyPatchV1,
+  EditorElementTypeV1,
+  EditorNotePaintPropertyPatchV1,
+  EditorPaintPropertyPatchV1,
+  EditorPreviewStylePropertyPatchV1,
+  EditorShadowPropertyPatchV1,
+  EditorStylePropertyPreviewPatchV1,
 } from '@src/types/editor';
 
 // ============================================================================
@@ -244,7 +245,7 @@ export interface KeyData {
 // ============================================================================
 
 export interface LayerItem {
-  type: 'key' | 'stat' | 'graph' | 'knob' | 'sprite' | 'plugin';
+  type: EditorElementTypeV1 | 'plugin';
   id: string;
   index?: number;
   name: string;

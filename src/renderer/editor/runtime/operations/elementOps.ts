@@ -9,6 +9,10 @@ import {
   resolveElementById,
   type NativeElementType,
 } from '../../model/elementIdMap';
+import {
+  getItemStoreState,
+  readAuthorityPositions,
+} from '../../model/elementStores';
 import { isNativeElementId } from '../../model/elementId';
 import { currentPluginGroupMembers } from '../intent/pluginGroupMembers';
 import {
@@ -27,6 +31,7 @@ import {
   captureEditorDocument,
   editorCoordinator,
 } from '../coordinator/editorStateCoordinator';
+import { EDITOR_ELEMENT_POSITION_FIELDS } from '@src/types/editor';
 import type {
   CanonicalEditorDocumentV1,
   EditorFrozenElementV1,
@@ -80,14 +85,7 @@ export const deleteElementById = (
       );
       state.setKeyMappingsAndPositions(nextMappings, nextPositions as never);
     } else {
-      const state =
-        type === 'stat'
-          ? useStatItemStore.getState()
-          : type === 'graph'
-          ? useGraphItemStore.getState()
-          : type === 'knob'
-          ? useKnobItemStore.getState()
-          : useSpriteStore.getState();
+      const state = getItemStoreState(type);
       removedPosition = (state.positions as unknown as LooseRecord)[
         locator.mode
       ]?.[locator.index];
@@ -140,28 +138,12 @@ export const deleteElementById = (
       rollback: () => {
         const canonical = editorCoordinator.getState().lastAck;
         const canonicalRecord = canonical?.[
-          type === 'key'
-            ? 'keyPositions'
-            : type === 'stat'
-            ? 'statPositions'
-            : type === 'graph'
-            ? 'graphPositions'
-            : type === 'knob'
-            ? 'knobPositions'
-            : 'spritePositions'
+          EDITOR_ELEMENT_POSITION_FIELDS[type]
         ] as LooseRecord | undefined;
         if (canonicalRecord && !findInRecord(canonicalRecord, id)) return;
-        const currentRecord =
-          type === 'key'
-            ? (useKeyStore.getState()
-                .canonicalPositions as unknown as LooseRecord)
-            : type === 'stat'
-            ? (useStatItemStore.getState().positions as unknown as LooseRecord)
-            : type === 'graph'
-            ? (useGraphItemStore.getState().positions as unknown as LooseRecord)
-            : type === 'knob'
-            ? (useKnobItemStore.getState().positions as unknown as LooseRecord)
-            : (useSpriteStore.getState().positions as unknown as LooseRecord);
+        const currentRecord = readAuthorityPositions(
+          type,
+        ) as unknown as LooseRecord;
         // 다른 경로가 같은 ID를 이미 복원·갱신했으면 그룹까지 그 경로 소유
         if (findInRecord(currentRecord, id)) return;
         if (removedGroups.length > 0) {
@@ -215,14 +197,7 @@ export const deleteElementById = (
           );
           return;
         }
-        const state =
-          type === 'stat'
-            ? useStatItemStore.getState()
-            : type === 'graph'
-            ? useGraphItemStore.getState()
-            : type === 'knob'
-            ? useKnobItemStore.getState()
-            : useSpriteStore.getState();
+        const state = getItemStoreState(type);
         const record = state.positions as unknown as LooseRecord;
         if (findInRecord(record, id)) return;
         const list = record[locator.mode] ?? [];
@@ -278,16 +253,7 @@ const documentHasExactFrozenElement = (
   mode: string,
   element: EditorFrozenElementV1,
 ) => {
-  const field =
-    element.elementType === 'key'
-      ? 'keyPositions'
-      : element.elementType === 'stat'
-      ? 'statPositions'
-      : element.elementType === 'graph'
-      ? 'graphPositions'
-      : element.elementType === 'knob'
-      ? 'knobPositions'
-      : 'spritePositions';
+  const field = EDITOR_ELEMENT_POSITION_FIELDS[element.elementType];
   const index = document[field][mode]?.findIndex(
     (position) => position.id === element.position.id,
   );
@@ -335,14 +301,7 @@ const insertFrozenElement = (
         },
       );
     } else {
-      const state =
-        element.elementType === 'stat'
-          ? useStatItemStore.getState()
-          : element.elementType === 'graph'
-          ? useGraphItemStore.getState()
-          : element.elementType === 'knob'
-          ? useKnobItemStore.getState()
-          : useSpriteStore.getState();
+      const state = getItemStoreState(element.elementType);
       const positions = state.positions as unknown as LooseRecord;
       state.setPositions({
         ...positions,
@@ -377,14 +336,7 @@ const insertFrozenElement = (
           );
           return;
         }
-        const state =
-          element.elementType === 'stat'
-            ? useStatItemStore.getState()
-            : element.elementType === 'graph'
-            ? useGraphItemStore.getState()
-            : element.elementType === 'knob'
-            ? useKnobItemStore.getState()
-            : useSpriteStore.getState();
+        const state = getItemStoreState(element.elementType);
         const positions = state.positions as unknown as LooseRecord;
         const located = findInRecord(positions, id);
         if (!located) return;

@@ -7,6 +7,7 @@ import {
 } from '../intent/elementIntent';
 import { commitSemanticOps } from './editorSemanticOps';
 import { captureEditorDocument } from '../coordinator/editorStateCoordinator';
+import { EDITOR_ELEMENT_POSITION_FIELDS } from '@src/types/editor';
 import type { EditorElementPropertyPatchV1 } from '@src/types/editor';
 import {
   applyImageTransformLeaf,
@@ -14,21 +15,13 @@ import {
 } from '@src/types/key/imageLayer';
 import { implicitElementFontBold } from '@utils/typography/fontWeights';
 
-const POSITION_FIELD_BY_TYPE: Record<NativeElementType, string> = {
-  key: 'keyPositions',
-  stat: 'statPositions',
-  graph: 'graphPositions',
-  knob: 'knobPositions',
-  sprite: 'spritePositions',
-};
-
 // 현재 문서의 요소 레코드 (없으면 null)
 const findCurrentPosition = (
   document: Record<string, unknown> | null | undefined,
   elementType: NativeElementType,
   id: string,
 ): (Record<string, unknown> & { id: string }) | null => {
-  const record = document?.[POSITION_FIELD_BY_TYPE[elementType]];
+  const record = document?.[EDITOR_ELEMENT_POSITION_FIELDS[elementType]];
   if (!record || typeof record !== 'object') return null;
   return (
     Object.values(record as Record<string, unknown>)

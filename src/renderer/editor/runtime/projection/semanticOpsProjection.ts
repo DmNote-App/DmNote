@@ -6,8 +6,10 @@ import {
 import { projectSpriteResize } from '@utils/sprite/resizeProjection';
 import { applySemanticElementPatch } from './semanticElementPatchProjection';
 import { currentPluginGroupMembers } from '../intent/pluginGroupMembers';
+import { EDITOR_ELEMENT_POSITION_FIELDS } from '@src/types/editor';
 import type {
   CanonicalEditorDocumentV1,
+  EditorElementPositionField,
   EditorElementTypeV1,
   EditorField,
   EditorOpResultV1,
@@ -16,26 +18,15 @@ import type {
 
 const clone = <T>(value: T): T => structuredClone(value);
 
-export const SEMANTIC_POSITION_FIELDS = {
-  key: 'keyPositions',
-  stat: 'statPositions',
-  graph: 'graphPositions',
-  knob: 'knobPositions',
-  sprite: 'spritePositions',
-} as const satisfies Record<EditorElementTypeV1, EditorField>;
-
-type SemanticPositionField =
-  (typeof SEMANTIC_POSITION_FIELDS)[EditorElementTypeV1];
-
 export const fieldsForSemanticOp = (op: EditorOpV1): EditorField[] => {
   if (op.kind === 'insertFrozenElements') {
     const fields = new Set<EditorField>();
     op.elements.forEach((element) => {
-      fields.add(SEMANTIC_POSITION_FIELDS[element.elementType]);
+      fields.add(EDITOR_ELEMENT_POSITION_FIELDS[element.elementType]);
       if (element.elementType === 'key') fields.add('keys');
     });
     op.zUpdates.forEach((update) =>
-      fields.add(SEMANTIC_POSITION_FIELDS[update.elementType]),
+      fields.add(EDITOR_ELEMENT_POSITION_FIELDS[update.elementType]),
     );
     if (op.groups.length > 0) fields.add('layerGroups');
     return [...fields];
@@ -43,10 +34,10 @@ export const fieldsForSemanticOp = (op: EditorOpV1): EditorField[] => {
   if (op.kind === 'reorderElements') {
     const fields = new Set<EditorField>();
     op.zUpdates.forEach((update) =>
-      fields.add(SEMANTIC_POSITION_FIELDS[update.elementType]),
+      fields.add(EDITOR_ELEMENT_POSITION_FIELDS[update.elementType]),
     );
     op.groupUpdates.forEach((update) =>
-      fields.add(SEMANTIC_POSITION_FIELDS[update.elementType]),
+      fields.add(EDITOR_ELEMENT_POSITION_FIELDS[update.elementType]),
     );
     if (op.completeModeOrder) fields.add('layerGroups');
     return [...fields];
@@ -55,7 +46,7 @@ export const fieldsForSemanticOp = (op: EditorOpV1): EditorField[] => {
     return [
       ...new Set([
         ...op.targets.map(
-          (target) => SEMANTIC_POSITION_FIELDS[target.elementType],
+          (target) => EDITOR_ELEMENT_POSITION_FIELDS[target.elementType],
         ),
         'layerGroups' as const,
       ]),
@@ -63,11 +54,11 @@ export const fieldsForSemanticOp = (op: EditorOpV1): EditorField[] => {
   }
   if (op.kind === 'renameLayerGroup') return ['layerGroups'];
   if (op.kind === 'patchElement') {
-    return [SEMANTIC_POSITION_FIELDS[op.elementType]];
+    return [EDITOR_ELEMENT_POSITION_FIELDS[op.elementType]];
   }
   if (op.kind === 'setKeySlot') return ['keys'];
   if (op.kind === 'resizeSprite') return ['spritePositions'];
-  const positionField = SEMANTIC_POSITION_FIELDS[op.elementType];
+  const positionField = EDITOR_ELEMENT_POSITION_FIELDS[op.elementType];
   if (op.kind === 'setBounds') return [positionField];
   return op.elementType === 'key' ? ['keys', 'keyPositions'] : [positionField];
 };
@@ -106,8 +97,8 @@ export const applySemanticOps = (
           | { elementType: EditorElementTypeV1; mode: string; index: number }
           | undefined;
         for (const [elementType, field] of Object.entries(
-          SEMANTIC_POSITION_FIELDS,
-        ) as Array<[EditorElementTypeV1, SemanticPositionField]>) {
+          EDITOR_ELEMENT_POSITION_FIELDS,
+        ) as Array<[EditorElementTypeV1, EditorElementPositionField]>) {
           const positionsByMode: Record<string, readonly { id: string }[]> =
             next[field];
           for (const [mode, positions] of Object.entries(positionsByMode)) {
@@ -128,7 +119,7 @@ export const applySemanticOps = (
           ) {
             continue;
           }
-          const field = SEMANTIC_POSITION_FIELDS[element.elementType];
+          const field = EDITOR_ELEMENT_POSITION_FIELDS[element.elementType];
           const record = next[field] as Record<
             string,
             Array<Record<string, unknown>>
@@ -164,7 +155,7 @@ export const applySemanticOps = (
             ],
           };
         } else {
-          const field = SEMANTIC_POSITION_FIELDS[element.elementType];
+          const field = EDITOR_ELEMENT_POSITION_FIELDS[element.elementType];
           const record = next[field] as Record<
             string,
             Array<Record<string, unknown>>
@@ -179,7 +170,7 @@ export const applySemanticOps = (
         }
       }
       for (const update of op.zUpdates) {
-        const field = SEMANTIC_POSITION_FIELDS[update.elementType];
+        const field = EDITOR_ELEMENT_POSITION_FIELDS[update.elementType];
         const record = next[field] as Record<
           string,
           Array<Record<string, unknown> & { id: string }>
@@ -215,7 +206,7 @@ export const applySemanticOps = (
         ...op.groupUpdates.map((update) => update.elementType),
       ]);
       for (const elementType of touchedTypes) {
-        const field = SEMANTIC_POSITION_FIELDS[elementType];
+        const field = EDITOR_ELEMENT_POSITION_FIELDS[elementType];
         const record = next[field] as Record<
           string,
           Array<Record<string, unknown> & { id: string }>
@@ -299,7 +290,12 @@ export const applySemanticOps = (
       return;
     }
     if (op.kind === 'patchElement') {
-      applySemanticElementPatch(next, op, result, SEMANTIC_POSITION_FIELDS);
+      applySemanticElementPatch(
+        next,
+        op,
+        result,
+        EDITOR_ELEMENT_POSITION_FIELDS,
+      );
       return;
     }
     if (op.kind === 'setKeySlot') {
@@ -335,7 +331,7 @@ export const applySemanticOps = (
       }
       return;
     }
-    const field = SEMANTIC_POSITION_FIELDS[op.elementType];
+    const field = EDITOR_ELEMENT_POSITION_FIELDS[op.elementType];
     const positionsByMode = next[field] as Record<
       string,
       Array<Record<string, unknown>>
