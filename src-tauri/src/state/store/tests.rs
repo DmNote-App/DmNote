@@ -91,7 +91,7 @@ fn store_initialization_fills_missing_sprite_metrics_after_paths_resolve() {
         ],
     );
     std::fs::write(
-        directory.join("store.json"),
+        directory.join("store-v2.json"),
         serde_json::to_vec(&data).unwrap(),
     )
     .unwrap();
@@ -154,7 +154,7 @@ fn initialize_neutral_editor_store(dir: &Path) -> AppStore {
         ..AppStoreData::default()
     });
     crate::state::native_element_id::backfill_store_element_ids(&mut data);
-    let store = AppStore::new(dir.join("store.json"), data, false).unwrap();
+    let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
     store.persist_current().unwrap();
     store
 }
@@ -728,7 +728,7 @@ fn editor_reset_mode_preserves_malformed_entries_and_skips_non_array_buckets() {
     );
     data.plugin_data
         .insert(non_array_key.clone(), non_array.clone());
-    let store = AppStore::new(dir.join("store.json"), data, false).unwrap();
+    let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
 
     let admission = store.admit_editor_mutation().unwrap();
     let transaction = store
@@ -931,7 +931,7 @@ fn canonical_plugin_bucket_preserves_legacy_outlier_while_editing_sibling() {
         super::plugin_instances_storage_key("plugin-a"),
         serde_json::to_value(vec![legacy.clone(), sibling.clone()]).unwrap(),
     );
-    let store = AppStore::new(dir.join("store.json"), data, false).unwrap();
+    let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
 
     assert_eq!(
         store.plugin_instances_get("plugin-a").unwrap().0,
@@ -984,7 +984,7 @@ fn canonical_get_keeps_valid_instances_next_to_malformed_storage_entries() {
             { "position": "broken" }
         ]),
     );
-    let store = AppStore::new(dir.join("store.json"), data, false).unwrap();
+    let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
 
     assert_eq!(
         store.plugin_instances_get("plugin-a").unwrap().0,
@@ -2007,7 +2007,7 @@ fn plugin_group_refs_by_plugin_includes_unloaded_data_and_skips_broken_keys() {
         "plugin_data_grouped-plugin/settings".to_string(),
         json!({ "groupId": "not-a-ref" }),
     );
-    let store = AppStore::new(dir.join("store.json"), data, false).unwrap();
+    let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
 
     let (refs, model_revision) = store.plugin_group_refs_by_plugin();
     assert_eq!(model_revision, store.plugin_model_revision());
@@ -4768,7 +4768,7 @@ fn strict_editor_commit_persists_once_and_synchronizes_key_counters() {
 
     store.flush_and_shutdown().unwrap();
     drop(store);
-    let reloaded = crate::state::migration::load_store_from_path(&dir.join("store.json"))
+    let reloaded = crate::state::migration::load_store_from_path(&dir.join("store-v2.json"))
         .unwrap()
         .data;
     assert_eq!(reloaded.editor_revision, 1);
@@ -5028,7 +5028,7 @@ fn alternate_uuid_spellings_remain_raw_distinct_through_load_bootstrap_and_event
         position.hidden = false;
     }
     std::fs::write(
-        dir.join("store.json"),
+        dir.join("store-v2.json"),
         serde_json::to_vec_pretty(&data).unwrap(),
     )
     .unwrap();
@@ -5275,7 +5275,7 @@ fn strict_editor_commit_rechecks_multi_key_capability_under_store_lock() {
     capable_request.multi_key = true;
     store.commit_editor_document(capable_request).unwrap();
     let committed_keys = serde_json::to_vec(&store.snapshot().keys).unwrap();
-    let committed_disk = std::fs::read(dir.join("store.json")).unwrap();
+    let committed_disk = std::fs::read(dir.join("store-v2.json")).unwrap();
     let persist_count = store.writer.persist_count();
 
     let error = store.commit_editor_document(legacy_request).unwrap_err();
@@ -5293,7 +5293,7 @@ fn strict_editor_commit_rechecks_multi_key_capability_under_store_lock() {
     );
     assert_eq!(store.writer.persist_count(), persist_count);
     assert_eq!(
-        std::fs::read(dir.join("store.json")).unwrap(),
+        std::fs::read(dir.join("store-v2.json")).unwrap(),
         committed_disk
     );
 
@@ -5598,7 +5598,7 @@ fn element_rotation_survives_legacy_updates_gesture_history_and_restart() {
 
     store.flush_and_shutdown().unwrap();
     let disk: AppStoreData =
-        serde_json::from_slice(&std::fs::read(directory.path().join("store.json")).unwrap())
+        serde_json::from_slice(&std::fs::read(directory.path().join("store-v2.json")).unwrap())
             .unwrap();
     assert_eq!(EditorDocumentV1::from_store(&disk), ungrouped);
     drop(store);
@@ -6701,7 +6701,7 @@ fn legacy_sprite_changes_preserve_omitted_canonical_fields_and_undo_full_snapsho
     };
     data.sprite_positions
         .insert("4key".to_string(), vec![sprite]);
-    let store = AppStore::new(dir.join("store.json"), data, false).unwrap();
+    let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
     store.persist_current().unwrap();
     let initial = store.editor_get().document.sprite_positions;
 
@@ -6851,7 +6851,7 @@ fn user_sprite_pose_rotation_v1_patch_commits_with_missing_image_files() {
             ..ReactiveSpritePosition::default()
         }],
     );
-    let store = AppStore::new(dir.join("store.json"), data, false).unwrap();
+    let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
     let mut sprite_positions = store.editor_get().document.sprite_positions;
     sprite_positions.get_mut("4key").unwrap()[0].poses[0]
         .transform
@@ -10831,7 +10831,8 @@ fn note_paint_batch_replays_and_round_trips_one_history_entry() {
 
     store.flush_and_shutdown().unwrap();
     drop(store);
-    let reloaded = crate::state::migration::load_store_from_path(&dir.join("store.json")).unwrap();
+    let reloaded =
+        crate::state::migration::load_store_from_path(&dir.join("store-v2.json")).unwrap();
     assert!(!reloaded.needs_persist);
     assert_eq!(EditorDocumentV1::from_store(&reloaded.data), redone);
     let _ = std::fs::remove_dir_all(dir);
@@ -13053,7 +13054,7 @@ fn resize_sprite_and_set_bounds_batch_undoes_as_one_history_entry() {
         }],
     );
     crate::state::native_element_id::backfill_store_element_ids(&mut data);
-    let store = AppStore::new(dir.join("store.json"), data, false).unwrap();
+    let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
     store.persist_current().unwrap();
     let initial = store.editor_get();
     let key = initial.document.key_positions["4key"][0].clone();
@@ -14203,7 +14204,7 @@ fn tab_history_transaction_normalizes_metadata_before_recording() {
                     }
                 }
                 let persisted: AppStoreData = serde_json::from_slice(
-                    &std::fs::read(directory.path().join("store.json")).unwrap(),
+                    &std::fs::read(directory.path().join("store-v2.json")).unwrap(),
                 )
                 .unwrap();
                 assert_eq!(persisted.tab_order, snapshot.tab_order);
@@ -15829,7 +15830,8 @@ fn editor_commit_gradient_repair_keeps_disk_document_and_event_identical() {
     let committed_document = change.document;
     store.flush_and_shutdown().unwrap();
     drop(store);
-    let reloaded = crate::state::migration::load_store_from_path(&dir.join("store.json")).unwrap();
+    let reloaded =
+        crate::state::migration::load_store_from_path(&dir.join("store-v2.json")).unwrap();
     assert!(!reloaded.needs_persist);
     assert_eq!(
         EditorDocumentV1::from_store(&reloaded.data),
@@ -16027,7 +16029,7 @@ fn strict_editor_io_failure_is_not_committed_or_acknowledged() {
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let before = store.snapshot();
-    let disk_before = std::fs::read(dir.join("store.json")).unwrap();
+    let disk_before = std::fs::read(dir.join("store-v2.json")).unwrap();
     let request = editor_request(
         0,
         uuid::Uuid::new_v4().to_string(),
@@ -16038,7 +16040,10 @@ fn strict_editor_io_failure_is_not_committed_or_acknowledged() {
     let error = store.commit_editor_document(request.clone()).unwrap_err();
     assert_eq!(error.error_code, EditorCommitErrorCode::IoError);
     assert_eq!(store.snapshot(), before);
-    assert_eq!(std::fs::read(dir.join("store.json")).unwrap(), disk_before);
+    assert_eq!(
+        std::fs::read(dir.join("store-v2.json")).unwrap(),
+        disk_before
+    );
 
     let retried = store.commit_editor_document(request).unwrap();
     assert_eq!(retried.result.revision, 1);
@@ -16288,7 +16293,7 @@ fn strict_editor_commit_preserves_existing_ghost_modes_losslessly() {
             ..KeyPosition::default()
         }],
     );
-    let store = AppStore::new(dir.join("store.json"), data, false).unwrap();
+    let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
 
     store
         .commit_editor_document(editor_request(
@@ -16314,7 +16319,7 @@ fn editor_get_exposes_recovered_safe_revision_after_loading_unsafe_wire_value() 
     data.editor_revision = crate::state::editor::MAX_SAFE_WIRE_REVISION + 1;
     data.key_positions.get_mut("4key").unwrap()[0].dx = 12_345.0;
     std::fs::write(
-        dir.join("store.json"),
+        dir.join("store-v2.json"),
         serde_json::to_vec_pretty(&data).unwrap(),
     )
     .unwrap();
@@ -16325,7 +16330,7 @@ fn editor_get_exposes_recovered_safe_revision_after_loading_unsafe_wire_value() 
     assert_eq!(editor.revision, 0);
     assert_eq!(editor.document.key_positions["4key"][0].dx, 12_345.0);
     let on_disk: AppStoreData =
-        serde_json::from_slice(&std::fs::read(dir.join("store.json")).unwrap()).unwrap();
+        serde_json::from_slice(&std::fs::read(dir.join("store-v2.json")).unwrap()).unwrap();
     assert_eq!(on_disk.editor_revision, 0);
     store.flush_and_shutdown().unwrap();
     drop(store);
@@ -16415,7 +16420,7 @@ fn keys_with_positions_commit_is_atomic_without_implicit_padding() {
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let before = store.snapshot();
-    let disk_before = std::fs::read(dir.join("store.json")).unwrap();
+    let disk_before = std::fs::read(dir.join("store-v2.json")).unwrap();
     let mut mappings = before.keys.clone();
     mappings.get_mut("4key").unwrap().push("F5".into());
     mappings.get_mut("5key").unwrap().push(KeySlot::default());
@@ -16442,7 +16447,10 @@ fn keys_with_positions_commit_is_atomic_without_implicit_padding() {
     )
     .is_err());
     assert_eq!(store.snapshot(), before);
-    assert_eq!(std::fs::read(dir.join("store.json")).unwrap(), disk_before);
+    assert_eq!(
+        std::fs::read(dir.join("store-v2.json")).unwrap(),
+        disk_before
+    );
 
     let persist_count = store.writer.persist_count();
     let change = legacy_editor_commit(
@@ -16598,7 +16606,7 @@ fn preset_style_layout_and_settings_commit_in_one_writer_revision() {
     assert_eq!(updated.plugin_data["plugin_data_fixture"]["kept"], true);
 
     let before_failure = store.snapshot();
-    let disk_before_failure = std::fs::read(dir.join("store.json")).unwrap();
+    let disk_before_failure = std::fs::read(dir.join("store-v2.json")).unwrap();
     store.writer.fail_next_persist();
     let result = store.commit_legacy_editor_transaction(
         EditorCommitOrigin::LegacyAdapter("preset_test".to_string()),
@@ -16624,7 +16632,7 @@ fn preset_style_layout_and_settings_commit_in_one_writer_revision() {
         true
     );
     assert_eq!(
-        std::fs::read(dir.join("store.json")).unwrap(),
+        std::fs::read(dir.join("store-v2.json")).unwrap(),
         disk_before_failure
     );
 
@@ -16640,7 +16648,7 @@ fn failed_preset_style_commit_keeps_revision_and_key_runtime_unchanged() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let state = AppState::initialize(store).unwrap();
     let before_store = state.store.snapshot();
-    let before_disk = std::fs::read(dir.join("store.json")).unwrap();
+    let before_disk = std::fs::read(dir.join("store-v2.json")).unwrap();
     let before_mode = state.keyboard.current_mode();
     let before_counters = state.snapshot_key_counters();
     let mut keys = before_store.keys.clone();
@@ -16660,7 +16668,10 @@ fn failed_preset_style_commit_keeps_revision_and_key_runtime_unchanged() {
 
     assert!(result.is_err());
     assert_eq!(state.store.snapshot(), before_store);
-    assert_eq!(std::fs::read(dir.join("store.json")).unwrap(), before_disk);
+    assert_eq!(
+        std::fs::read(dir.join("store-v2.json")).unwrap(),
+        before_disk
+    );
     assert_eq!(state.keyboard.current_mode(), before_mode);
     assert_eq!(state.snapshot_key_counters(), before_counters);
 
@@ -16738,7 +16749,7 @@ fn group_ids_and_definitions_commit_atomically() {
 fn dangling_group_ids_are_cleaned_and_persisted_on_boot() {
     let dir = test_directory("dangling-persist-test");
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("store.json");
+    let path = dir.join("store-v2.json");
 
     let mut data = AppStoreData::default();
     let mut positions = default_positions().clone();
@@ -16765,7 +16776,7 @@ fn dangling_group_ids_are_cleaned_and_persisted_on_boot() {
 fn repaired_store_is_backed_up_before_persist() {
     let dir = test_directory("store-backup-test");
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("store.json");
+    let path = dir.join("store-v2.json");
     let mut fixture = serde_json::to_value(AppStoreData::default()).unwrap();
     fixture.as_object_mut().unwrap().insert(
         "alwaysOnTop".to_string(),
@@ -16777,8 +16788,11 @@ fn repaired_store_is_backed_up_before_persist() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     store.flush_and_shutdown().unwrap();
 
-    assert_eq!(std::fs::read(dir.join("store.json.bak")).unwrap(), original);
-    assert!(!dir.join("store.json.pre-migration.bak").exists());
+    assert_eq!(
+        std::fs::read(dir.join("store-v2.json.bak")).unwrap(),
+        original
+    );
+    assert!(!dir.join("store-v2.json.pre-migration.bak").exists());
     assert!(serde_json::from_slice::<AppStoreData>(&std::fs::read(path).unwrap()).is_ok());
 
     drop(store);
@@ -16789,7 +16803,7 @@ fn repaired_store_is_backed_up_before_persist() {
 fn invalid_note_gradient_stop_repair_backs_up_persists_and_is_idempotent() {
     let dir = test_directory("note-border-stop-repair-test");
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("store.json");
+    let path = dir.join("store-v2.json");
     let mut data = super::initialize_default_state();
     let position = &mut data.key_positions.get_mut("4key").unwrap()[0];
     position.note_color = NoteColor::Gradient {
@@ -16862,7 +16876,10 @@ fn invalid_note_gradient_stop_repair_backs_up_persists_and_is_idempotent() {
     assert!(position.note_border_gradient.is_none());
     assert_eq!(position.display_text.as_deref(), Some("preserved sibling"));
     assert_eq!(position.counter.font_size, 37);
-    assert_eq!(std::fs::read(dir.join("store.json.bak")).unwrap(), original);
+    assert_eq!(
+        std::fs::read(dir.join("store-v2.json.bak")).unwrap(),
+        original
+    );
 
     let on_disk: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
@@ -16893,7 +16910,7 @@ fn invalid_note_gradient_stop_repair_backs_up_persists_and_is_idempotent() {
 fn note_settings_1_2_four_field_store_preserves_speed_on_boot() {
     let dir = test_directory("note-settings-1-2-test");
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("store.json");
+    let path = dir.join("store-v2.json");
     let mut fixture = serde_json::to_value(AppStoreData::default()).unwrap();
     // 1.2.0 시절 noteSettings 실형식 — 4필드뿐
     let legacy_note_settings = r#"{
@@ -16924,7 +16941,7 @@ fn note_settings_1_2_four_field_store_preserves_speed_on_boot() {
 fn backup_failure_keeps_damaged_store_untouched() {
     let dir = test_directory("store-backup-failure-test");
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("store.json");
+    let path = dir.join("store-v2.json");
     let mut fixture = serde_json::to_value(AppStoreData::default()).unwrap();
     fixture.as_object_mut().unwrap().insert(
         "alwaysOnTop".to_string(),
@@ -16932,7 +16949,7 @@ fn backup_failure_keeps_damaged_store_untouched() {
     );
     let original = serde_json::to_vec_pretty(&fixture).unwrap();
     std::fs::write(&path, &original).unwrap();
-    std::fs::create_dir(dir.join("store.json.bak")).unwrap();
+    std::fs::create_dir(dir.join("store-v2.json.bak")).unwrap();
 
     let result = AppStore::initialize_in_dir(&dir);
     if let Ok(store) = result {
@@ -16969,7 +16986,7 @@ fn deferred_updates_coalesce_into_one_writer_persist() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let initial_persist_count = store.writer.persist_count();
     let initial_revision = store.state.read().revision;
-    let initial_disk = std::fs::read(dir.join("store.json")).unwrap();
+    let initial_disk = std::fs::read(dir.join("store-v2.json")).unwrap();
 
     for index in 0..UPDATE_COUNT {
         defer_test_bounds(&store, index as f64);
@@ -16978,7 +16995,10 @@ fn deferred_updates_coalesce_into_one_writer_persist() {
     assert_eq!(store.writer.persist_count(), initial_persist_count);
     assert_eq!(store.state.read().revision, initial_revision);
     assert!(store.state.read().dirty);
-    assert_eq!(std::fs::read(dir.join("store.json")).unwrap(), initial_disk);
+    assert_eq!(
+        std::fs::read(dir.join("store-v2.json")).unwrap(),
+        initial_disk
+    );
     assert_eq!(
         store.snapshot().overlay_bounds.unwrap().x,
         (UPDATE_COUNT - 1) as f64
@@ -16989,7 +17009,7 @@ fn deferred_updates_coalesce_into_one_writer_persist() {
     assert_eq!(store.state.read().revision, initial_revision + 1);
     assert!(!store.state.read().dirty);
     let persisted: AppStoreData =
-        serde_json::from_slice(&std::fs::read(dir.join("store.json")).unwrap()).unwrap();
+        serde_json::from_slice(&std::fs::read(dir.join("store-v2.json")).unwrap()).unwrap();
     assert_eq!(
         persisted.overlay_bounds.unwrap().x,
         (UPDATE_COUNT - 1) as f64
@@ -17035,7 +17055,7 @@ fn panel_detached_persists_immediately_and_restores_across_store_reopen() {
         .unwrap();
     store.flush().unwrap();
     let persisted: AppStoreData =
-        serde_json::from_slice(&std::fs::read(dir.join("store.json")).unwrap()).unwrap();
+        serde_json::from_slice(&std::fs::read(dir.join("store-v2.json")).unwrap()).unwrap();
     assert!(persisted.panel_detached);
 
     store.flush_and_shutdown().unwrap();
@@ -17053,7 +17073,7 @@ fn panel_detached_persists_immediately_and_restores_across_store_reopen() {
 fn panel_detached_missing_field_defaults_to_docked() {
     let dir = test_directory("panel-detached-default-test");
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("store.json");
+    let path = dir.join("store-v2.json");
     let mut fixture = serde_json::to_value(AppStoreData::default()).unwrap();
     assert!(fixture
         .as_object_mut()
@@ -17073,7 +17093,7 @@ fn panel_detached_missing_field_defaults_to_docked() {
 fn ui_theme_missing_field_defaults_to_system() {
     let dir = test_directory("ui-theme-default-test");
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("store.json");
+    let path = dir.join("store-v2.json");
     let mut fixture = serde_json::to_value(AppStoreData::default()).unwrap();
     assert!(fixture.as_object_mut().unwrap().remove("uiTheme").is_some());
     std::fs::write(&path, serde_json::to_vec_pretty(&fixture).unwrap()).unwrap();
@@ -17103,7 +17123,7 @@ fn regular_update_commits_pending_deferred_state() {
     assert!(!store.state.read().dirty);
     assert_eq!(store.writer.persist_count(), initial_persist_count + 1);
     let persisted: AppStoreData =
-        serde_json::from_slice(&std::fs::read(dir.join("store.json")).unwrap()).unwrap();
+        serde_json::from_slice(&std::fs::read(dir.join("store-v2.json")).unwrap()).unwrap();
     assert_eq!(persisted.overlay_bounds.unwrap().x, 321.0);
     assert_eq!(persisted.plugin_data["unrelated"], json!(true));
 
@@ -17120,7 +17140,7 @@ fn failed_flush_keeps_deferred_state_dirty_and_committed_in_memory() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let initial_persist_count = store.writer.persist_count();
     let initial_revision = store.state.read().revision;
-    let initial_disk = std::fs::read(dir.join("store.json")).unwrap();
+    let initial_disk = std::fs::read(dir.join("store-v2.json")).unwrap();
     defer_test_bounds(&store, 654.0);
     store.writer.fail_next_persist();
 
@@ -17128,7 +17148,10 @@ fn failed_flush_keeps_deferred_state_dirty_and_committed_in_memory() {
     assert!(store.state.read().dirty);
     assert_eq!(store.state.read().revision, initial_revision);
     assert_eq!(store.snapshot().overlay_bounds.unwrap().x, 654.0);
-    assert_eq!(std::fs::read(dir.join("store.json")).unwrap(), initial_disk);
+    assert_eq!(
+        std::fs::read(dir.join("store-v2.json")).unwrap(),
+        initial_disk
+    );
     assert_eq!(store.writer.persist_count(), initial_persist_count + 1);
 
     store.flush().unwrap();
@@ -17144,14 +17167,17 @@ fn flush_without_dirty_state_is_idempotent() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let initial_persist_count = store.writer.persist_count();
     let initial_revision = store.state.read().revision;
-    let initial_disk = std::fs::read(dir.join("store.json")).unwrap();
+    let initial_disk = std::fs::read(dir.join("store-v2.json")).unwrap();
 
     store.flush().unwrap();
     store.flush().unwrap();
 
     assert_eq!(store.writer.persist_count(), initial_persist_count);
     assert_eq!(store.state.read().revision, initial_revision);
-    assert_eq!(std::fs::read(dir.join("store.json")).unwrap(), initial_disk);
+    assert_eq!(
+        std::fs::read(dir.join("store-v2.json")).unwrap(),
+        initial_disk
+    );
     store.flush_and_shutdown().unwrap();
     drop(store);
     let _ = std::fs::remove_dir_all(dir);
@@ -17207,7 +17233,7 @@ fn concurrent_updates_persist_all_revisions_without_replace_races() {
         .is_err());
     assert_eq!(store.snapshot(), final_snapshot);
     let persisted: AppStoreData =
-        serde_json::from_slice(&std::fs::read(dir.join("store.json")).unwrap()).unwrap();
+        serde_json::from_slice(&std::fs::read(dir.join("store-v2.json")).unwrap()).unwrap();
     assert_eq!(
         persisted.plugin_data["concurrent_update_count"].as_u64(),
         Some(UPDATE_COUNT as u64)
@@ -17228,7 +17254,7 @@ fn concurrent_updates_persist_all_revisions_without_replace_races() {
 fn writer_failure_keeps_snapshot_and_disk_unchanged_and_does_not_leak() {
     let dir = test_directory("store-transaction-failure-test");
     let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let path = dir.join("store.json");
+    let path = dir.join("store-v2.json");
     let before_snapshot = store.snapshot();
     let before_disk = std::fs::read(&path).unwrap();
     let before_revision = store.state.read().revision;
@@ -17284,14 +17310,17 @@ fn counter_persist_failure_keeps_runtime_mirror_unchanged() {
     let state = AppState::initialize(store).unwrap();
     let before_runtime = state.snapshot_key_counters();
     let before_store = state.store.snapshot();
-    let before_disk = std::fs::read(dir.join("store.json")).unwrap();
+    let before_disk = std::fs::read(dir.join("store-v2.json")).unwrap();
     state.store.writer.fail_next_persist();
     let emitter = TestCounterEmitter::new(Arc::new(Mutex::new(Vec::new())), mode, key);
 
     assert!(state.reset_key_counters(&emitter, None).is_err());
     assert_eq!(state.snapshot_key_counters(), before_runtime);
     assert_eq!(state.store.snapshot(), before_store);
-    assert_eq!(std::fs::read(dir.join("store.json")).unwrap(), before_disk);
+    assert_eq!(
+        std::fs::read(dir.join("store-v2.json")).unwrap(),
+        before_disk
+    );
 
     state.shutdown();
     drop(state);
@@ -17527,11 +17556,14 @@ fn existing_obs_token_is_reused_without_persist() {
         .unwrap();
     let state = AppState::initialize(store).unwrap();
     let persist_count_before = state.store.writer.persist_count();
-    let disk_before = std::fs::read(dir.join("store.json")).unwrap();
+    let disk_before = std::fs::read(dir.join("store-v2.json")).unwrap();
 
     assert_eq!(state.resolve_and_save_obs_token().unwrap(), token);
     assert_eq!(state.store.writer.persist_count(), persist_count_before);
-    assert_eq!(std::fs::read(dir.join("store.json")).unwrap(), disk_before);
+    assert_eq!(
+        std::fs::read(dir.join("store-v2.json")).unwrap(),
+        disk_before
+    );
 
     state.shutdown();
     drop(state);
@@ -18061,7 +18093,7 @@ fn missing_foreign_file_url_holds_sweep_and_keeps_unreferenced_image() {
         "file:///C:/Users/me/AppData/Roaming/com.dmnote.desktop/images/missing.png".to_string(),
     );
     std::fs::write(
-        dir.join("store.json"),
+        dir.join("store-v2.json"),
         serde_json::to_vec_pretty(&data).unwrap(),
     )
     .unwrap();
@@ -18120,7 +18152,7 @@ fn foreign_asset_references_rehome_before_persist_and_sweep() {
     );
 
     let original = serde_json::to_vec_pretty(&data).unwrap();
-    let store_path = dir.join("store.json");
+    let store_path = dir.join("store-v2.json");
     std::fs::write(&store_path, &original).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let snapshot = store.snapshot();
@@ -18157,7 +18189,7 @@ fn foreign_asset_references_rehome_before_persist_and_sweep() {
         0
     );
     assert_eq!(
-        std::fs::read(dir.join("store.json.pre-migration.bak")).unwrap(),
+        std::fs::read(dir.join("store-v2.json.pre-migration.bak")).unwrap(),
         original
     );
 
@@ -18365,7 +18397,7 @@ fn tauri_1_6_1_literal_fixture_preserves_collections_and_assets_through_shutdown
                 "__SOUND_PATH_JSON__",
                 &serde_json::to_string(&stored_sound_path).unwrap(),
             );
-    let store_path = dir.join("store.json");
+    let store_path = dir.join("store-v2.json");
     std::fs::write(&store_path, fixture.as_bytes()).unwrap();
 
     let store = AppStore::initialize_in_dir(&dir).unwrap();
@@ -18385,9 +18417,9 @@ fn tauri_1_6_1_literal_fixture_preserves_collections_and_assets_through_shutdown
     assert!(snapshot.tab_note_overrides.contains_key(tab_id));
     assert!(snapshot.sound_library.contains_key(&stored_sound_path));
     assert!(!snapshot.sound_library[&stored_sound_path].hidden);
-    assert!(!dir.join("store.json.bak").exists());
+    assert!(!dir.join("store-v2.json.bak").exists());
     assert_eq!(
-        std::fs::read(dir.join("store.json.pre-migration.bak")).unwrap(),
+        std::fs::read(dir.join("store-v2.json.pre-migration.bak")).unwrap(),
         fixture.as_bytes()
     );
 
@@ -18396,7 +18428,7 @@ fn tauri_1_6_1_literal_fixture_preserves_collections_and_assets_through_shutdown
 
     assert!(image_path.exists());
     assert!(sound_path.exists());
-    assert!(!dir.join("store.json.bak").exists());
+    assert!(!dir.join("store-v2.json.bak").exists());
     let reloaded = crate::state::migration::load_store_from_path(&store_path).unwrap();
     assert!(!reloaded.repaired);
     assert_eq!(reloaded.data.custom_tabs.len(), 1);
@@ -18416,8 +18448,8 @@ fn tauri_1_6_1_literal_fixture_preserves_collections_and_assets_through_shutdown
 fn pre_migration_backup_preserves_first_original_across_rewrites() {
     let dir = test_directory("pre-migration-backup-test");
     std::fs::create_dir_all(&dir).unwrap();
-    let store_path = dir.join("store.json");
-    let backup_path = dir.join("store.json.pre-migration.bak");
+    let store_path = dir.join("store-v2.json");
+    let backup_path = dir.join("store-v2.json.pre-migration.bak");
     let first_original = br##"{
   "hardwareAcceleration": true,
   "alwaysOnTop": true,
@@ -18440,7 +18472,7 @@ fn pre_migration_backup_preserves_first_original_across_rewrites() {
 
     let first = AppStore::initialize_in_dir(&dir).unwrap();
     assert_eq!(std::fs::read(&backup_path).unwrap(), first_original);
-    assert!(!dir.join("store.json.bak").exists());
+    assert!(!dir.join("store-v2.json.bak").exists());
     first.flush_cleanup_and_shutdown().unwrap();
     drop(first);
     assert_eq!(std::fs::read(&backup_path).unwrap(), first_original);
@@ -18462,7 +18494,7 @@ fn pre_migration_backup_preserves_first_original_across_rewrites() {
 
     let second = AppStore::initialize_in_dir(&dir).unwrap();
     assert_eq!(std::fs::read(&backup_path).unwrap(), first_original);
-    assert!(!dir.join("store.json.bak").exists());
+    assert!(!dir.join("store-v2.json.bak").exists());
     second.flush_cleanup_and_shutdown().unwrap();
     drop(second);
     assert_eq!(std::fs::read(&backup_path).unwrap(), first_original);
@@ -18474,7 +18506,7 @@ fn pre_migration_backup_preserves_first_original_across_rewrites() {
 fn invalid_pre_migration_backup_path_aborts_before_store_rewrite() {
     let dir = test_directory("pre-migration-backup-path-failure-test");
     std::fs::create_dir_all(&dir).unwrap();
-    let store_path = dir.join("store.json");
+    let store_path = dir.join("store-v2.json");
     let original = br#"{
   "hardwareAcceleration": true,
   "alwaysOnTop": true,
@@ -18494,7 +18526,7 @@ fn invalid_pre_migration_backup_path_aborts_before_store_rewrite() {
   }
 }"#;
     std::fs::write(&store_path, original).unwrap();
-    std::fs::create_dir(dir.join("store.json.pre-migration.bak")).unwrap();
+    std::fs::create_dir(dir.join("store-v2.json.pre-migration.bak")).unwrap();
 
     let result = AppStore::initialize_in_dir(&dir);
 
@@ -18511,7 +18543,7 @@ fn invalid_pre_migration_backup_path_aborts_before_store_rewrite() {
 fn malformed_existing_pre_migration_backup_aborts_before_store_rewrite() {
     let dir = test_directory("pre-migration-backup-content-failure-test");
     std::fs::create_dir_all(&dir).unwrap();
-    let store_path = dir.join("store.json");
+    let store_path = dir.join("store-v2.json");
     let original = br#"{
   "hardwareAcceleration": true,
   "alwaysOnTop": true,
@@ -18531,7 +18563,7 @@ fn malformed_existing_pre_migration_backup_aborts_before_store_rewrite() {
   }
 }"#;
     std::fs::write(&store_path, original).unwrap();
-    std::fs::write(dir.join("store.json.pre-migration.bak"), b"not-json").unwrap();
+    std::fs::write(dir.join("store-v2.json.pre-migration.bak"), b"not-json").unwrap();
 
     let result = AppStore::initialize_in_dir(&dir);
 
@@ -18551,7 +18583,7 @@ fn symlink_pre_migration_backup_aborts_before_store_rewrite() {
 
     let dir = test_directory("pre-migration-backup-symlink-failure-test");
     std::fs::create_dir_all(&dir).unwrap();
-    let store_path = dir.join("store.json");
+    let store_path = dir.join("store-v2.json");
     let original = br#"{
   "hardwareAcceleration": true,
   "alwaysOnTop": true,
@@ -18573,7 +18605,7 @@ fn symlink_pre_migration_backup_aborts_before_store_rewrite() {
     std::fs::write(&store_path, original).unwrap();
     let target = dir.join("unrelated.json");
     std::fs::write(&target, b"{}").unwrap();
-    symlink(&target, dir.join("store.json.pre-migration.bak")).unwrap();
+    symlink(&target, dir.join("store-v2.json.pre-migration.bak")).unwrap();
 
     let result = AppStore::initialize_in_dir(&dir);
 
@@ -18743,7 +18775,7 @@ fn repaired_non_utf8_store_skips_every_asset_sweep() {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, b"asset-fixture").unwrap();
     }
-    std::fs::write(dir.join("store.json"), [b'{', 0xFF, b'}']).unwrap();
+    std::fs::write(dir.join("store-v2.json"), [b'{', 0xFF, b'}']).unwrap();
 
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     assert!(store.skip_asset_sweep);
@@ -18794,7 +18826,7 @@ fn repaired_sound_library_keeps_valid_local_asset_through_cleanup() {
         json!({ "source": 42, "displayName": "Invalid local" }),
     );
     std::fs::write(
-        dir.join("store.json"),
+        dir.join("store-v2.json"),
         serde_json::to_vec_pretty(&fixture).unwrap(),
     )
     .unwrap();
@@ -18942,7 +18974,7 @@ fn repaired_asset_references_survive_the_next_normal_session_sweep() {
         json!({ "asset-mode": [sprite, { "width": "invalid" }] }),
     );
     std::fs::write(
-        dir.join("store.json"),
+        dir.join("store-v2.json"),
         serde_json::to_vec_pretty(&fixture).unwrap(),
     )
     .unwrap();

@@ -63,6 +63,7 @@ use super::plugin::{
 mod asset_references;
 mod editor_commit;
 mod editor_transactions;
+mod element_tree;
 mod gesture_commit;
 mod history_restore;
 mod legacy_transactions;
@@ -84,6 +85,7 @@ use editor_transactions::{
     project_editor_history_key_counters, project_history_key_counters, require_history_entry,
     validate_observed_history_epoch,
 };
+pub(crate) use element_tree::{attach_loaded_document, ELEMENT_DOCUMENT_FIELD};
 use persistence::StoreWriter;
 pub(crate) use sound_assets::{
     move_staged_sound_deletions_to_trash, restore_staged_sound_deletions,
@@ -97,6 +99,10 @@ use sound_assets::{
 };
 
 const KEY_COUNTER_BASELINE_REQUIRED: &str = "KEY_COUNTER_BASELINE_REQUIRED";
+
+// 요소 트리 문서를 담는 저장 파일. 이전 형식(store.json)은 처음 한 번 가져오기만 한다
+pub(crate) const STORE_FILE_NAME: &str = "store-v2.json";
+pub(crate) const PREVIOUS_STORE_FILE_NAME: &str = "store.json";
 
 fn key_counter_baseline_required() -> EditorCommitError {
     EditorCommitError::validation(
@@ -288,27 +294,45 @@ impl AppStore {
         fs::create_dir_all(dir)
             .with_context(|| format!("failed to create data directory at {}", dir.display()))?;
 
-        let default_path = dir.join("store.json");
+        let default_path = dir.join(STORE_FILE_NAME);
+        let previous_path = dir.join(PREVIOUS_STORE_FILE_NAME);
         let had_existing_default_store = default_path.exists();
-        let (path, mut state, mut needs_persist, skip_asset_sweep) = if default_path.exists() {
-            let loaded = load_store_from_path(&default_path)?;
-            if loaded.repaired {
-                backup_store_file(&default_path)?;
-            }
-            (
-                default_path.clone(),
-                loaded.data,
-                loaded.needs_persist,
-                loaded.repaired,
-            )
-        } else if let Some(legacy_path) = find_legacy_store_file() {
-            // 레거시 파일 로드 후 새 포맷으로 default_path에 저장
-            let loaded = load_store_from_path(&legacy_path)?;
-            (default_path.clone(), loaded.data, true, true)
-        } else {
-            (default_path, initialize_default_state(), true, false)
-        };
+        let (path, mut state, mut needs_persist, skip_asset_sweep, document_missing) =
+            if default_path.exists() {
+                let loaded = load_store_from_path(&default_path)?;
+                if loaded.repaired {
+                    backup_store_file(&default_path)?;
+                }
+                (
+                    default_path.clone(),
+                    loaded.data,
+                    loaded.needs_persist,
+                    loaded.repaired,
+                    loaded.element_document_missing,
+                )
+            } else if previous_path.exists() {
+                // 트리 문서 이전 store.json - 가져와서 새 파일에 저장하고 원본은 건드리지 않는다.
+                // 옛 버전으로 돌아가면 업데이트 직전 상태가 열린다
+                let loaded = load_store_from_path(&previous_path)?;
+                if loaded.repaired {
+                    backup_store_file(&previous_path)?;
+                }
+                (
+                    default_path.clone(),
+                    loaded.data,
+                    true,
+                    loaded.repaired,
+                    true,
+                )
+            } else if let Some(legacy_path) = find_legacy_store_file() {
+                // 레거시 파일 로드 후 새 포맷으로 default_path에 저장
+                let loaded = load_store_from_path(&legacy_path)?;
+                (default_path.clone(), loaded.data, true, true, true)
+            } else {
+                (default_path, initialize_default_state(), true, false, true)
+            };
 
+        let loaded_state = state.clone();
         // 외래 기기 자산 참조를 먼저 재연결 — 이후 마이그레이션이 실존 파일 기준으로 판단
         if rehome_foreign_asset_references(dir, &mut state) {
             needs_persist = true;
@@ -329,6 +353,14 @@ impl AppStore {
         }
 
         warn_unresolved_asset_references(dir, &state);
+
+        // 불러온 뒤 정리(자산 경로·이미지 크기 등)가 옛 모양을 바꿨으면 트리에도 반영
+        if state.element_document.scenes.is_empty() {
+            attach_loaded_document(&mut state, None)?;
+        } else {
+            element_tree::sync_element_document(&loaded_state, &mut state)?;
+        }
+        needs_persist |= document_missing;
 
         if needs_persist && had_existing_default_store && !skip_asset_sweep {
             if let Some(backup_path) = preserve_pre_migration_store(&path).with_context(|| {
@@ -400,9 +432,10 @@ impl AppStore {
     fn commit_locked<T>(
         &self,
         state: &mut VersionedStoreState,
-        scratch: AppStoreData,
+        mut scratch: AppStoreData,
         result: T,
     ) -> Result<T> {
+        element_tree::sync_element_document(&state.data, &mut scratch)?;
         let revision = state
             .revision
             .checked_add(1)

@@ -231,6 +231,10 @@ fn serialize_store(state: &AppStoreData) -> Result<String> {
                 reorder(value);
             }
         }
+        obj.insert(
+            super::element_tree::ELEMENT_DOCUMENT_FIELD.to_string(),
+            to_value(&state.element_document)?,
+        );
     }
 
     serde_json::to_string_pretty(&root).context("failed to serialize store")

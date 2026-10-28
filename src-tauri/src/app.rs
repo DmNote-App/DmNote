@@ -500,14 +500,19 @@ fn apply_renderer_settings() {
     }
 }
 
-/// 앱 데이터 디렉토리에서 store.json 경로 찾기
+/// 앱 데이터 디렉토리에서 store 파일 경로 찾기 - 새 형식(store-v2.json)이 있으면 그쪽
 #[cfg(target_os = "windows")]
 fn get_store_path() -> Option<PathBuf> {
-    // Windows 경로: %APPDATA%/com.dmnote.desktop/store.json
-    dirs_next::config_dir().map(|config| config.join("com.dmnote.desktop").join("store.json"))
+    // Windows 경로: %APPDATA%/com.dmnote.desktop/store-v2.json (없으면 store.json)
+    let dir = dirs_next::config_dir()?.join("com.dmnote.desktop");
+    let current = dir.join(state::STORE_FILE_NAME);
+    if current.exists() {
+        return Some(current);
+    }
+    Some(dir.join(state::PREVIOUS_STORE_FILE_NAME))
 }
 
-/// store.json에서 angleMode 값 읽기
+/// store 파일에서 angleMode 값 읽기
 #[cfg(target_os = "windows")]
 fn read_angle_mode_from_store(path: &PathBuf) -> Option<String> {
     let content = fs::read_to_string(path).ok()?;

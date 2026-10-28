@@ -2468,7 +2468,7 @@ fn sigterm_preserves_pending_state_and_allows_retry_after_canceled_flush() {
             );
         }
         let persisted: AppStoreData =
-            serde_json::from_slice(&std::fs::read(directory.path().join("store.json")).unwrap())
+            serde_json::from_slice(&std::fs::read(directory.path().join("store-v2.json")).unwrap())
                 .unwrap();
         let key = persisted.keys[&persisted.selected_key_type][0].canonical();
         let counter = persisted.key_counters[&persisted.selected_key_type][&key];

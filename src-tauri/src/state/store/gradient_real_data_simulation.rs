@@ -391,7 +391,7 @@ fn import_editor_preset(directory: &Path, preset: PresetFile) -> AppStoreData {
         ..AppStoreData::default()
     });
     fs::write(
-        directory.join("store.json"),
+        directory.join("store-v2.json"),
         serde_json::to_vec_pretty(&seed).expect("seed store must be serializable"),
     )
     .expect("seed store must be writable");
@@ -459,7 +459,7 @@ fn import_editor_preset(directory: &Path, preset: PresetFile) -> AppStoreData {
         .expect("imported preset must flush");
     drop(store);
 
-    let reloaded = load_store_from_path(&directory.join("store.json"))
+    let reloaded = load_store_from_path(&directory.join("store-v2.json"))
         .expect("imported preset store must reload");
     assert!(!reloaded.repaired);
     assert_eq!(reloaded.data.editor_revision, committed.editor_revision);
@@ -552,13 +552,13 @@ fn removed_outline_field_count(value: &Value) -> usize {
     count
 }
 
-// 실행: DMNOTE_SIM_STORE_PATH=/path/to/store.json cargo test -- --ignored
+// 실행: DMNOTE_SIM_STORE_PATH=/path/to/store-v2.json cargo test -- --ignored
 #[test]
 #[ignore]
 fn simulation_1_real_legacy_store_load_is_gradient_neutral() {
     let fixture = RealFixture::from_env(1);
     let directory = SimulationDir::new("legacy-load");
-    let path = write_store_copy(&directory, "store.json", &fixture.bytes);
+    let path = write_store_copy(&directory, "store-v2.json", &fixture.bytes);
 
     let directly_parsed: AppStoreData = serde_json::from_slice(&fixture.bytes)
         .expect("real store must deserialize without collection recovery");
@@ -578,13 +578,13 @@ fn simulation_1_real_legacy_store_load_is_gradient_neutral() {
     );
 }
 
-// 실행: DMNOTE_SIM_STORE_PATH=/path/to/store.json cargo test -- --ignored
+// 실행: DMNOTE_SIM_STORE_PATH=/path/to/store-v2.json cargo test -- --ignored
 #[test]
 #[ignore]
 fn simulation_2_real_solid_store_migration_is_gradient_neutral_and_idempotent() {
     let fixture = RealFixture::from_env(2);
     let directory = SimulationDir::new("solid-round-trip");
-    let path = write_store_copy(&directory, "store.json", &fixture.bytes);
+    let path = write_store_copy(&directory, "store-v2.json", &fixture.bytes);
     let source: Value =
         serde_json::from_slice(&fixture.bytes).expect("real store JSON must be readable");
     assert!(!contains_gradient_fields(&source));
@@ -632,7 +632,7 @@ fn simulation_2_real_solid_store_migration_is_gradient_neutral_and_idempotent() 
     assert_eq!(reloaded.data, loaded.data);
 }
 
-// 실행: DMNOTE_SIM_STORE_PATH=/path/to/store.json cargo test -- --ignored
+// 실행: DMNOTE_SIM_STORE_PATH=/path/to/store-v2.json cargo test -- --ignored
 #[test]
 #[ignore]
 fn simulation_3_gradient_store_and_preset_chain_stays_canonical() {
@@ -759,7 +759,7 @@ fn simulation_3_gradient_store_and_preset_chain_stays_canonical() {
     );
 }
 
-// 실행: DMNOTE_SIM_STORE_PATH=/path/to/store.json cargo test -- --ignored
+// 실행: DMNOTE_SIM_STORE_PATH=/path/to/store-v2.json cargo test -- --ignored
 #[test]
 #[ignore]
 fn simulation_4_damaged_gradient_fields_are_isolated() {
@@ -976,7 +976,7 @@ fn simulation_6_removed_outline_fields_are_scrubbed_and_persisted_in_place() {
     let directory = SimulationDir::new("removed-outline-persistence");
     let path = write_store_copy(
         &directory,
-        "store.json",
+        "store-v2.json",
         &serde_json::to_vec_pretty(&raw).unwrap(),
     );
     let loaded = load_store_from_path(&path).expect("removed outline fields must not block load");
@@ -1092,7 +1092,7 @@ fn simulation_7_removed_stroke_evidence_blocks_default_promotion_after_persisten
     let directory = SimulationDir::new("removed-stroke-default-collision");
     let path = write_store_copy(
         &directory,
-        "store.json",
+        "store-v2.json",
         &serde_json::to_vec_pretty(&raw).unwrap(),
     );
     let loaded =

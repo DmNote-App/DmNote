@@ -88,6 +88,8 @@ pub(crate) struct LoadedStore {
     pub(crate) data: AppStoreData,
     pub(crate) needs_persist: bool,
     pub(crate) repaired: bool,
+    // 저장 파일에 트리 문서가 없었음 (옛 store.json 등) - 새로 만든 문서를 저장해야 한다
+    pub(crate) element_document_missing: bool,
 }
 
 /// store 파일 로드 및 마이그레이션 적용
@@ -95,9 +97,14 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     // 바이트로 읽어 잘못된 UTF-8도 IO 에러 대신 JSON 파싱 실패로 흘려 복구 분기에 합류
     let content = fs::read(path)
         .with_context(|| format!("failed to read store file at {}", path.display()))?;
+    // 요소 트리 문서는 옛 모양 정리가 끝난 뒤 붙인다 (플러그인 데이터 칸으로 새지 않게 먼저 뺀다)
+    let mut stored_element_document = None;
     let (state, needs_persist, repaired, seed_active_css_history, explicit_invalid_element_id) =
         match serde_json::from_slice::<Value>(&content) {
             Ok(mut value) => {
+                stored_element_document = value
+                    .as_object_mut()
+                    .and_then(|object| object.remove(super::store::ELEMENT_DOCUMENT_FIELD));
                 let seed_active_css_history = value.get("customCssHistory").is_none();
                 let explicit_invalid_element_id = has_explicit_invalid_element_id(&value);
                 let sprite_wire_migrated = migrate_legacy_sprite_wire(&mut value);
@@ -238,6 +245,8 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     let plugin_id_backfill = super::plugin::backfill_plugin_instance_ids(&mut state);
     needs_persist |= plugin_id_backfill.changed;
     repaired |= plugin_id_backfill.repaired;
+    let element_document_missing = stored_element_document.is_none();
+    needs_persist |= super::store::attach_loaded_document(&mut state, stored_element_document)?;
     if needs_persist {
         log::info!(
             "[Store] Persisting migrated store file at {}",
@@ -248,6 +257,7 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
         data: state,
         needs_persist,
         repaired,
+        element_document_missing,
     })
 }
 
