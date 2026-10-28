@@ -606,3 +606,71 @@ fn 바로_아래_키가_그룹에_들어가거나_지워져도_트리_요소는_
     let at = scene.find_path("probe-1").unwrap()[0];
     assert!(at > 0, "맨 아래로 떨어지지 않는다");
 }
+
+fn graft_scene(nodes: serde_json::Value) -> Scene {
+    serde_json::from_value(json!({ "nodes": nodes })).unwrap()
+}
+
+fn node_json(id: &str, kind: &str) -> serde_json::Value {
+    json!({ "type": "element", "id": id, "kind": kind,
+            "frame": { "x": 0, "y": 0, "width": 1, "height": 1 } })
+}
+
+fn shape_of(scene: &Scene) -> Vec<String> {
+    let mut out = Vec::new();
+    walk(&scene.nodes, &mut |node, path| {
+        out.push(format!("{}@{}", node.id(), path.len()))
+    });
+    out
+}
+
+#[test]
+fn 끼울_자리가_같으면_기준점이_달라도_트리_요소_순서를_지킨다() {
+    // [A, T1, B, T2] 에서 A·B를 그룹 S로 묶은 뒤
+    let previous = graft_scene(json!([
+        node_json("A", "key"),
+        node_json("T1", "probe"),
+        node_json("B", "key"),
+        node_json("T2", "probe")
+    ]));
+    let mut next = graft_scene(json!([
+        { "type": "group", "id": "S", "name": "S", "children": [node_json("A", "key"), node_json("B", "key")] }
+    ]));
+    graft_tree_only(&previous, &mut next);
+    assert_eq!(shape_of(&next), vec!["S@1", "A@2", "B@2", "T1@1", "T2@1"]);
+}
+
+#[test]
+fn 옛_종류_멤버_없는_그룹_위의_트리_요소는_그_그룹_위에_남는다() {
+    let previous = graft_scene(json!([
+        node_json("A", "key"),
+        { "type": "group", "id": "E", "name": "E", "children": [node_json("T3", "probe")] },
+        node_json("T1", "probe")
+    ]));
+    let mut next = graft_scene(json!([
+        node_json("A", "key"),
+        { "type": "group", "id": "E", "name": "E", "children": [] }
+    ]));
+    graft_tree_only(&previous, &mut next);
+    assert_eq!(shape_of(&next), vec!["A@1", "E@1", "T3@2", "T1@1"]);
+}
+
+#[test]
+fn 앞선_끼우기로_경로가_밀려도_같은_그룹_안_순서를_지킨다() {
+    // [P{X, Ta, D, Tm}, G{Tb}] → P가 없어지고 X는 G로, D는 G 앞 맨 위로
+    let previous = graft_scene(json!([
+        { "type": "group", "id": "P", "name": "P", "children": [
+            node_json("X", "key"), node_json("Ta", "probe"), node_json("D", "key"), node_json("Tm", "probe")
+        ] },
+        { "type": "group", "id": "G", "name": "G", "children": [node_json("Tb", "probe")] }
+    ]));
+    let mut next = graft_scene(json!([
+        node_json("D", "key"),
+        { "type": "group", "id": "G", "name": "G", "children": [node_json("X", "key")] }
+    ]));
+    graft_tree_only(&previous, &mut next);
+    let shape = shape_of(&next);
+    let ta = shape.iter().position(|id| id.starts_with("Ta@")).unwrap();
+    let tb = shape.iter().position(|id| id.starts_with("Tb@")).unwrap();
+    assert!(ta < tb, "Ta(아래)가 Tb(위)보다 먼저: {shape:?}");
+}
