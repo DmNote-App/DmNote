@@ -37,7 +37,6 @@ import { useLayerActions } from './useLayerActions';
 import { useLayerDnD } from './useLayerDnD';
 import LayerRenameInput from './LayerRenameInput';
 import DocumentLayerRow from './DocumentLayerRow';
-import { placeDocumentLayerRows } from './documentLayerRows';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documentElementOrder';
 import { useOptimisticBooleanCommit } from '@hooks/useOptimisticBooleanCommit';
@@ -239,7 +238,6 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
     collapsedGroups,
     defaultGroupName: t('layerGroup.defaultName'),
   });
-  const documentPlacement = placeDocumentLayerRows(displayItems, documentSlots);
 
   // Refs (이벤트 핸들러에서 최신 값 참조)
   const layerItemsRef = useRef(layerItems);
@@ -715,35 +713,7 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
           </div>
         ) : (
           <div className="relative">
-            {displayItems.map((displayItem, displayIndex) => (
-              <React.Fragment
-                key={
-                  displayItem.displayType === 'group-header'
-                    ? `group:${displayItem.groupId}`
-                    : displayItem.item.id
-                }
-              >
-                {documentPlacement.before
-                  .get(displayIndex)
-                  ?.map(({ element }) => (
-                    <DocumentLayerRow
-                      key={`document:${element.id}`}
-                      sceneId={selectedKeyType}
-                      element={element}
-                      t={t}
-                    />
-                  ))}
-                {renderDisplayItem(displayItem, displayIndex)}
-              </React.Fragment>
-            ))}
-            {documentPlacement.after.map(({ element }) => (
-              <DocumentLayerRow
-                key={`document:${element.id}`}
-                sceneId={selectedKeyType}
-                element={element}
-                t={t}
-              />
-            ))}
+            {displayItems.map(renderDisplayItem)}
 
             {/* 마지막 아이템 뒤 드롭 인디케이터 */}
             {dnd.draggedItemId &&
@@ -758,6 +728,16 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
               )}
           </div>
         )}
+        {/* 트리 문서에만 있는 요소(커서 트래커 등) - 옛 행의 끌기 계산(행 높이 × 순번)을
+            흔들지 않게 옛 목록 아래에 위→아래 겹침 순서로 둔다 */}
+        {[...documentSlots].reverse().map(({ element }) => (
+          <DocumentLayerRow
+            key={`document:${element.id}`}
+            sceneId={selectedKeyType}
+            element={element}
+            t={t}
+          />
+        ))}
       </div>
 
       {/* 컨텍스트 메뉴 */}

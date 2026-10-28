@@ -132,6 +132,8 @@ const DocumentGridElement = ({
 
 interface DocumentGridLayerProps {
   sceneId: string;
+  // bottom: 아래에 옛 종류 요소가 없는 요소 - 옛 요소보다 먼저 그리는 자리에 둔다
+  placement: 'bottom' | 'stacked';
   zoom: number;
   onElementContextMenu: (event: React.MouseEvent, element: ElementNode) => void;
 }
@@ -139,6 +141,7 @@ interface DocumentGridLayerProps {
 /** 편집 화면 - 트리 문서에만 있는 종류를 미리보기 상태로 그리고 고르고 옮긴다 */
 const DocumentGridLayer = ({
   sceneId,
+  placement,
   zoom,
   onElementContextMenu,
 }: DocumentGridLayerProps) => {
@@ -150,16 +153,18 @@ const DocumentGridLayer = ({
   const scene = useElementDocumentScene(sceneId);
   return (
     <>
-      {documentElementSlots(scene).map(({ element, zIndex }) => (
-        <DocumentGridElement
-          key={element.id}
-          sceneId={sceneId}
-          element={element}
-          zIndex={zIndex}
-          zoom={zoom}
-          onContextMenu={onElementContextMenu}
-        />
-      ))}
+      {documentElementSlots(scene)
+        .filter(({ aboveLegacy }) => aboveLegacy === (placement === 'stacked'))
+        .map(({ element, zIndex }) => (
+          <DocumentGridElement
+            key={element.id}
+            sceneId={sceneId}
+            element={element}
+            zIndex={zIndex}
+            zoom={zoom}
+            onContextMenu={onElementContextMenu}
+          />
+        ))}
     </>
   );
 };

@@ -5,7 +5,8 @@ import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 export interface DocumentElementSlot {
   element: ElementNode;
   // 옛 종류 요소와 같은 쌓임 맥락에서 쓸 zIndex - 바로 아래 옛 종류 요소와 같고 DOM 순서로 그 위에 온다.
-  // 아래에 옛 종류 요소가 없으면 가장 낮은 옛 요소보다 1 낮다
+  // 아래에 옛 종류 요소가 없으면 가장 낮은 옛 요소와 같고, 옛 요소보다 먼저 그려서 그 아래에 온다
+  // (배경보다 아래로 내려가지 않게 음수로 빼지 않는다)
   zIndex: number;
   // 바로 아래 옛 종류 요소가 있는지
   aboveLegacy: boolean;
@@ -51,7 +52,7 @@ export const documentElementSlots = (
       if (includeHidden || (!hidden && !node.hidden)) {
         slots.push({
           element: node,
-          zIndex: below ?? (lowest ?? 0) - 1,
+          zIndex: below ?? lowest ?? 0,
           aboveLegacy: below !== null,
         });
       }

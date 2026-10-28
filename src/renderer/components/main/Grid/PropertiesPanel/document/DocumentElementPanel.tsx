@@ -219,6 +219,26 @@ const DocumentElementPanel = ({
       }
       onGeometryCommit={(field, value) => {
         useDocumentFramePreviewStore.getState().clear(element.id);
+        const { width, height } = element.frame;
+        // 비율을 잠근 종류는 너비·높이를 함께 바꿔 지금 비율을 지킨다
+        const locked =
+          definition?.lockAspect?.(values as never) === true &&
+          width > 0 &&
+          height > 0;
+        if (locked && field === 'width') {
+          void setDocumentFrame(sceneId, element.id, {
+            width: value,
+            height: Math.max(1, Math.round((value * height) / width)),
+          });
+          return;
+        }
+        if (locked && field === 'height') {
+          void setDocumentFrame(sceneId, element.id, {
+            width: Math.max(1, Math.round((value * width) / height)),
+            height: value,
+          });
+          return;
+        }
         void setDocumentFrame(sceneId, element.id, {
           [field === 'dx' ? 'x' : field === 'dy' ? 'y' : field]: value,
         });

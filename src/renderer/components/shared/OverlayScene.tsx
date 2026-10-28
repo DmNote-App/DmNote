@@ -135,6 +135,13 @@ const OverlayScene = ({
             backgroundColor === 'transparent' ? 'transparent' : backgroundColor,
         }}
       />
+      <DocumentElementsLayer
+        sceneId={selectedKeyType}
+        placement="bottom"
+        live
+        inputs={OVERLAY_INPUTS}
+        offset={positionOffset}
+      />
       {noteEffect && (
         <Suspense fallback={null}>
           <Tracks
@@ -181,6 +188,7 @@ const OverlayScene = ({
       ))}
       <DocumentElementsLayer
         sceneId={selectedKeyType}
+        placement="stacked"
         live
         inputs={OVERLAY_INPUTS}
         offset={positionOffset}

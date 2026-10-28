@@ -745,6 +745,21 @@ const Grid = ({
   // 그리드 좌클릭 핸들러 (빈 공간에서 드래그로 마퀴 선택 시작)
   useDocumentKeyboard();
 
+  const openDocumentElementContextMenu = (
+    event: React.MouseEvent,
+    element: { id: string },
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    useDocumentSelectionStore.getState().select(selectedKeyType, element.id);
+    useDocumentContextMenuStore.getState().open({
+      sceneId: selectedKeyType,
+      id: element.id,
+      x: event.clientX,
+      y: event.clientY,
+    });
+  };
+
   const handleGridMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     // 좌클릭만 처리
     if (e.button !== 0) return;
@@ -849,6 +864,12 @@ const Grid = ({
           data-dmn-user-css-scope=""
           style={gridViewportStyles.scale}
         >
+          <DocumentGridLayer
+            sceneId={selectedKeyType}
+            placement="bottom"
+            zoom={zoom}
+            onElementContextMenu={openDocumentElementContextMenu}
+          />
           <NativeGridElements
             mode={selectedKeyType}
             modeArrays={currentModeArrays}
@@ -923,20 +944,9 @@ const Grid = ({
           {/* 트리 문서에만 있는 종류 (커서 트래커 등) */}
           <DocumentGridLayer
             sceneId={selectedKeyType}
+            placement="stacked"
             zoom={zoom}
-            onElementContextMenu={(event, element) => {
-              event.preventDefault();
-              event.stopPropagation();
-              useDocumentSelectionStore
-                .getState()
-                .select(selectedKeyType, element.id);
-              useDocumentContextMenuStore.getState().open({
-                sceneId: selectedKeyType,
-                id: element.id,
-                x: event.clientX,
-                y: event.clientY,
-              });
-            }}
+            onElementContextMenu={openDocumentElementContextMenu}
           />
         </div>
       </div>

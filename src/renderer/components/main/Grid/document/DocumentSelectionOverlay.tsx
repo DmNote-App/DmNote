@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
-import { useDocumentElement } from '@src/renderer/editor/document/elementDocumentRuntime';
+import {
+  getElementDocumentStore,
+  useDocumentElement,
+} from '@src/renderer/editor/document/elementDocumentRuntime';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import ResizeHandles from '../handles/ResizeHandles';
 import { SELECTION_BORDER_WIDTH } from '../handles/selectionOutline';
@@ -29,6 +32,11 @@ const DocumentSelectionOverlay = ({
   const preview = useDocumentFramePreviewStore((state) =>
     selectedId ? state.frames[selectedId] : undefined,
   );
+  // 되돌리기·다른 창 편집으로 고른 요소가 없어지면 선택을 푼다
+  const missing = !!selectedId && !element && !!getElementDocumentStore();
+  useEffect(() => {
+    if (missing) useDocumentSelectionStore.getState().clear();
+  }, [missing]);
   if (!selectedId || !element) return null;
   const frame = preview ?? element.frame;
   const bounds = {

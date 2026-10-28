@@ -57,6 +57,8 @@ DocumentElementView.displayName = 'DocumentElementView';
 
 interface DocumentElementsLayerProps {
   sceneId: string;
+  // bottom: 아래에 옛 종류 요소가 없는 요소 - 옛 요소보다 먼저 그리는 자리에 둔다
+  placement: 'bottom' | 'stacked';
   live: boolean;
   inputs: ElementRenderInputs;
   offset?: { x: number; y: number };
@@ -67,6 +69,7 @@ const NO_OFFSET = { x: 0, y: 0 };
 /** 트리 문서에만 있는 종류(커서 트래커 등)를 옛 종류 요소와 같은 쌓임 맥락에 그린다 */
 const DocumentElementsLayer = ({
   sceneId,
+  placement,
   live,
   inputs,
   offset = NO_OFFSET,
@@ -79,16 +82,18 @@ const DocumentElementsLayer = ({
   const scene = useElementDocumentScene(sceneId);
   return (
     <>
-      {documentElementSlots(scene).map(({ element, zIndex }) => (
-        <DocumentElementView
-          key={element.id}
-          element={element}
-          zIndex={zIndex}
-          offset={offset}
-          live={live}
-          inputs={inputs}
-        />
-      ))}
+      {documentElementSlots(scene)
+        .filter(({ aboveLegacy }) => aboveLegacy === (placement === 'stacked'))
+        .map(({ element, zIndex }) => (
+          <DocumentElementView
+            key={element.id}
+            element={element}
+            zIndex={zIndex}
+            offset={offset}
+            live={live}
+            inputs={inputs}
+          />
+        ))}
     </>
   );
 };
