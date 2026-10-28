@@ -11,7 +11,7 @@ import {
   EDITOR_ELEMENT_TYPES,
   modeArraysOf,
 } from '@src/types/editor';
-import { defaultElementSize } from '@src/types/elementKinds';
+import { fallbackElementSize } from '@src/types/elementKinds';
 
 /**
  * 특정 요소를 제외한 모든 요소의 bounds를 반환
@@ -38,7 +38,7 @@ const getOtherElementsSnapshot = (
     selectedKeyType,
   );
   for (const type of EDITOR_ELEMENT_TYPES) {
-    const fallback = defaultElementSize(type);
+    const fallback = fallbackElementSize(type);
     (
       modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]] as ReadonlyArray<{
         id: string;

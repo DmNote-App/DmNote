@@ -15,7 +15,7 @@ import {
   EDITOR_ELEMENT_TYPES,
   type ElementCollections,
 } from '@src/types/editor';
-import { defaultElementSize } from '@src/types/elementKinds';
+import { fallbackElementSize } from '@src/types/elementKinds';
 
 type MarqueePosition = {
   id: string;
@@ -151,7 +151,7 @@ export function useGridMarquee({
 
       // 종류별 요소 체크 (키→stat→graph→knob→sprite 순서 유지)
       for (const type of EDITOR_ELEMENT_TYPES) {
-        const fallback = defaultElementSize(type);
+        const fallback = fallbackElementSize(type);
         const modePositions = (collections[
           EDITOR_ELEMENT_POSITION_FIELDS[type]
         ][selectedKeyType] || []) as readonly (MarqueePosition | null)[];

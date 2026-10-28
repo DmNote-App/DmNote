@@ -9,7 +9,7 @@ import {
   type ItemElementModeArrays,
   type ItemElementType,
 } from '@src/types/editor';
-import { defaultElementSize } from '@src/types/elementKinds';
+import { fallbackElementSize } from '@src/types/elementKinds';
 import type { NoteSettings } from '@src/types/settings/noteSettings';
 // 레이아웃이 읽을 수 있는 플러그인 필드는 투영 타입으로 제한 —
 // 필드 추가 시 selectPluginLayoutElements·pluginLayoutElementsEqual 동반 수정 필요
@@ -133,7 +133,7 @@ export function computeLayout(input: LayoutInput) {
 
     // 키 외 요소 상자 (스프라이트는 기본 이미지 상자)
     for (const type of ITEM_ELEMENT_TYPES) {
-      const fallback = defaultElementSize(type);
+      const fallback = fallbackElementSize(type);
       itemArrayOf(type).forEach((pos) => {
         if (!pos || pos.hidden) return;
         xs.push(pos.dx);
@@ -242,7 +242,7 @@ export function computeLayout(input: LayoutInput) {
     };
     currentPositions.forEach((pos) => collect(pos, 60, 60));
     for (const type of ITEM_ELEMENT_TYPES) {
-      const fallback = defaultElementSize(type);
+      const fallback = fallbackElementSize(type);
       itemArrayOf(type).forEach((pos) =>
         collect(pos, fallback.width, fallback.height),
       );

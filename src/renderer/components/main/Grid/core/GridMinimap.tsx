@@ -10,7 +10,7 @@ import {
   type EditorElementTypeV1,
   type ElementModeArrays,
 } from '@src/types/editor';
-import { defaultElementSize } from '@src/types/elementKinds';
+import { fallbackElementSize } from '@src/types/elementKinds';
 import DigitPopLayer from '@components/main/common/DigitPopLayer';
 import { useDigitPop } from '@hooks/ui/useDigitPop';
 import IconMotion from '@components/main/Tool/icons/IconMotion';
@@ -218,7 +218,7 @@ const GridMinimap = ({
 
     // 종류별 요소 바운딩 박스
     for (const type of EDITOR_ELEMENT_TYPES) {
-      const fallback = defaultElementSize(type);
+      const fallback = fallbackElementSize(type);
       modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].forEach((pos) => {
         if (pos.hidden) return;
         const x = pos.dx || 0;
@@ -526,7 +526,7 @@ const GridMinimap = ({
         >
           {/* 종류별 요소 표시 */}
           {EDITOR_ELEMENT_TYPES.map((type) => {
-            const fallback = defaultElementSize(type);
+            const fallback = fallbackElementSize(type);
             return renderElementRects(
               type,
               modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]] as Position[],

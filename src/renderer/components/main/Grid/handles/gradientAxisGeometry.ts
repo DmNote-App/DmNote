@@ -9,7 +9,7 @@ import {
   type ElementCollections,
 } from '@src/types/editor';
 import {
-  defaultElementSize,
+  fallbackElementSize,
   isSurfaceStyledElementType,
   type SurfaceStyledElementType,
 } from '@src/types/elementKinds';
@@ -144,7 +144,7 @@ export const resolveGradientAxisBounds = ({
         (position) => position.id === element.id,
       );
       if (!pos) continue;
-      const fallback = defaultElementSize(element.type);
+      const fallback = fallbackElementSize(element.type);
       const width = pos.width || fallback.width;
       const height = pos.height || fallback.height;
       minX = Math.min(minX, pos.dx);
@@ -165,7 +165,7 @@ export const resolveGradientAxisBounds = ({
     (position) => position.id === anchor.id,
   );
   if (!pos) return null;
-  const fallback = defaultElementSize(anchor.kind);
+  const fallback = fallbackElementSize(anchor.kind);
   return {
     x: pos.dx,
     y: pos.dy,

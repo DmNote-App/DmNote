@@ -8,7 +8,7 @@ import {
   EDITOR_ELEMENT_POSITION_FIELDS,
   type ElementCollections,
 } from '@src/types/editor';
-import { defaultElementSize } from '@src/types/elementKinds';
+import { fallbackElementSize } from '@src/types/elementKinds';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 
@@ -291,7 +291,7 @@ export function getElementBounds(
   }
   const pos = findNativePosition(element, collections, selectedKeyType);
   if (!pos) return null;
-  const fallback = defaultElementSize(element.type);
+  const fallback = fallbackElementSize(element.type);
   return {
     x: pos.dx,
     y: pos.dy,
