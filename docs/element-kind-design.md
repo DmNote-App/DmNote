@@ -12,7 +12,7 @@
 - 새 캔버스 요소 종류를 추가하려면 백엔드 36개·프론트 85개 파일을 고쳐야 했다(1단계 착수 전 조사).
 - 1~3단계에서 종류 목록과 연결 지점을 표로 모았다. 그래도 저장 모양, 검증, 패널, 창별 그리기는 종류마다 따로 남아 있다.
 - 같은 내용을 TS와 Rust에 두 번 적는다. `KeyPosition`의 칸 77개가 [Rust 구조체](../src-tauri/src/models/element_positions.rs)와 [TS zod 스키마](../src/types/key/keys.ts)에 각각 있고, 코드 생성 도구는 없다. 두 벌을 맞추는 동기화 데이터가 `tests/fixtures/`에 9개 있지만(오류 코드, 편집 연산, 종류 목록, 회전·스프라이트 계산 등), `KeyPosition` 칸 일치는 그중 어디에도 고정돼 있지 않다.
-- 편집 화면과 오버레이가 같은 요소를 따로 그린다. 그리기 핵심([GraphPanel](../src/renderer/components/shared/graph/GraphPanel.tsx), [KnobFace](../src/renderer/components/shared/KnobFace.tsx))은 공유하지만, 데이터를 모으고 겉모습을 조립하는 바깥 코드는 창마다 있다. 그래프·노브 모두 오버레이 파일을 고친 커밋 20개 중 14개가 편집 화면 파일도 같이 고쳤다.
+- 편집 화면과 오버레이가 같은 요소를 따로 그린다. 그리기 핵심([GraphPanel](../src/renderer/components/shared/graph/GraphPanel.tsx), [KnobFace](../src/renderer/components/shared/KnobFace.tsx))은 공유하지만, 데이터를 모으고 겉모습을 조립하는 바깥 코드는 창마다 있다. 그래프·노브 모두 오버레이 파일(`OverlayGraphItem.tsx`, `OverlayKnobItem.tsx`)을 고친 커밋 20개 중 14개가 짝이 되는 편집 화면 파일도 같이 고쳤다(`git log --follow` 기준).
 - 같은 값을 여러 곳에서 다룬다. 그래프 속도 범위(500~60000ms)가 단일 선택 패널, 다중 선택 패널 쪽 2개 파일, 오버레이 그리기에 따로 적혀 있고 백엔드는 검사하지 않는다. 다중 선택 패널은 선택 조합마다 손으로 고른다([selectionPanelRoute.ts](../src/renderer/components/main/Grid/PropertiesPanel/selection/selectionPanelRoute.ts)).
 
 ## 2. 목표와 원칙
@@ -196,13 +196,13 @@
 
 1~3단계에서 만든 표는 새 정의의 항목으로 흡수된다.
 
-| 1~3단계                                                            | 새 정의에서                       |
-| ------------------------------------------------------------------ | --------------------------------- |
-| `ELEMENT_KIND_MODELS`(기본 크기, 회전·표면 스타일 여부)            | 정의의 기본 크기와 쓰는 기능 묶음 |
-| `CANVAS_ITEM_RENDERERS`, `OVERLAY_ITEM_RENDERERS`                  | 종류마다 그리기 코드 하나         |
-| `ITEM_CANVAS_RULES`의 생성 기본값                                  | 규칙표 기본값과 기능 묶음 기본값  |
-| `ITEM_KIND_MENUS`                                                  | 정의의 메뉴 선언                  |
-| `ElementCollections`, Rust `ElementCollection`·`visit_collections` | 문서 엔진의 트리 순회             |
+| 1~3단계                                                            | 새 정의에서                                                                             |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `ELEMENT_KIND_MODELS`(생성 크기, 대체 크기, 회전·표면 스타일 여부) | 정의의 생성 크기·대체 크기와 쓰는 기능 묶음 (그래프는 120×60과 200×100으로 서로 다르다) |
+| `CANVAS_ITEM_RENDERERS`, `OVERLAY_ITEM_RENDERERS`                  | 종류마다 그리기 코드 하나                                                               |
+| `ITEM_CANVAS_RULES`의 생성 기본값                                  | 규칙표 기본값과 기능 묶음 기본값                                                        |
+| `ITEM_KIND_MENUS`                                                  | 정의의 메뉴 선언                                                                        |
+| `ElementCollections`, Rust `ElementCollection`·`visit_collections` | 문서 엔진의 트리 순회                                                                   |
 
 ## 6. 진행 순서
 
