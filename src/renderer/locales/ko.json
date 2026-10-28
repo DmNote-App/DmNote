@@ -744,5 +744,32 @@
     "previewReady": "폰트 미리보기 준비됨",
     "previewPangram": "다람쥐 헌 쳇바퀴에 타고파",
     "weightLoadFailed": "로드 실패"
+  },
+  "elementKinds": {
+    "cursorTracker": {
+      "name": "커서 트래커",
+      "add": "커서 트래커 추가",
+      "duplicate": "커서 트래커 복제",
+      "delete": "커서 트래커 삭제",
+      "tracker": "트래커",
+      "mode": "모드",
+      "modeMotion": "이동량",
+      "modePosition": "화면 위치",
+      "sensitivity": "감도",
+      "returnMs": "복귀 시간",
+      "aspect": "비율",
+      "aspectLocked": "고정",
+      "aspectFree": "자유",
+      "monitor": "모니터",
+      "monitorPrimary": "주 모니터",
+      "dot": "점",
+      "dotSize": "크기",
+      "dotColor": "색",
+      "trail": "궤적",
+      "trailMs": "유지 시간",
+      "trailColor": "색",
+      "trailWidth": "두께"
+    },
+    "unknownKind": "알 수 없는 요소"
   }
 }

@@ -3,6 +3,9 @@
 // 빌드할 때 scripts/extract-element-kinds.mjs가 이 부분만 뽑아 Rust가 읽는다.
 // 함수가 섞이면 추출에서 막는다. 그리기·동작·패널 같은 코드는 같은 정의에 함께 둔다.
 
+import type { ComponentType } from 'react';
+
+import type { ElementRenderProps } from './runtime/renderTypes';
 import type {
   AssetKind,
   Condition,
@@ -103,12 +106,16 @@ export type FieldValues<Fields extends readonly FieldDecl[]> = {
 export type KindValues<D extends { fields: readonly FieldDecl[] }> =
   FieldValues<D['fields']>;
 
-// 코드 부분은 종류를 옮기는 단계에서 채운다 (그리기·동작·미리보기·패널·메뉴)
+// 코드 부분 - 그리기·미리보기·이름 (백엔드는 읽지 않는다)
 export interface ElementKindCode<Values> {
   // 선언으로 못 옮기는 버전 옮기기 - 옛 값을 받아 새 규칙표에 맞는 값을 돌려준다
   readonly hooks?: Readonly<
     Record<string, (values: Record<string, JsonValue>) => Values>
   >;
+  // 레이어·메뉴에 보이는 이름 (i18n 키)
+  readonly label?: string;
+  // 그리기 코드 하나 - 편집 화면(미리보기)과 오버레이·OBS(실제 신호)가 같이 쓴다
+  readonly render?: ComponentType<ElementRenderProps<Values>>;
 }
 
 export type ElementKindDefinition<D extends ElementKindData = ElementKindData> =

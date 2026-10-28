@@ -18,28 +18,12 @@ mod tests {
     use crate::models::EditorElementTypeV1;
 
     #[test]
-    fn 내장_종류_정의는_편집_종류_목록과_같다() {
-        let kinds: Vec<String> = builtin_kind_registry()
-            .kinds()
-            .map(|schema| schema.kind.clone())
-            .collect();
-        let mut expected: Vec<String> = [
-            EditorElementTypeV1::Key,
-            EditorElementTypeV1::Stat,
-            EditorElementTypeV1::Graph,
-            EditorElementTypeV1::Knob,
-            EditorElementTypeV1::Sprite,
-        ]
-        .iter()
-        .map(|kind| {
-            serde_json::to_value(kind)
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_string()
-        })
-        .collect();
-        expected.sort();
-        assert_eq!(kinds, expected);
+    fn 옛_저장_모양_종류는_모두_정의돼_있다() {
+        let registry = builtin_kind_registry();
+        for kind in EditorElementTypeV1::ALL {
+            let name = serde_json::to_value(kind).unwrap();
+            assert!(registry.get(name.as_str().unwrap()).is_some(), "{name}");
+        }
+        assert!(registry.get("cursorTracker").is_some());
     }
 }

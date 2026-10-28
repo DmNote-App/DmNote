@@ -24,6 +24,8 @@ import {
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useStoreWithEqualityFn } from 'zustand/traditional';
+import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { documentLayoutElements } from '@src/renderer/elementKinds/runtime/documentElementOrder';
 import {
   selectPluginLayoutElements,
   pluginLayoutElementsEqual,
@@ -192,6 +194,15 @@ export default function App() {
 
   // 레이아웃 입력이 실제로 바뀔 때만 재계산 - webglTracks identity가 안정되어
   // updateTrackLayouts effect·WebGL uniform effect가 무관한 리렌더에 재실행되지 않음
+  // 트리 문서에만 있는 종류(커서 트래커 등)도 창 크기 계산에 넣는다
+  const documentScene = useElementDocumentScene(selectedKeyType);
+  const layoutExtraElements = useMemo(
+    () => [
+      ...pluginElements,
+      ...documentLayoutElements(documentScene, selectedKeyType),
+    ],
+    [pluginElements, documentScene, selectedKeyType],
+  );
   const layout = useMemo(
     () =>
       computeLayout({
@@ -201,7 +212,7 @@ export default function App() {
         trackHeight,
         noteSettings,
         selectedKeyType,
-        pluginElements,
+        pluginElements: layoutExtraElements,
         overlayPadding,
       }),
     [
@@ -211,7 +222,7 @@ export default function App() {
       trackHeight,
       noteSettings,
       selectedKeyType,
-      pluginElements,
+      layoutExtraElements,
       overlayPadding,
     ],
   );

@@ -744,5 +744,32 @@
     "previewReady": "Предпросмотр шрифта готов",
     "previewPangram": "Съешь же ещё этих мягких французских булок",
     "weightLoadFailed": "Не удалось загрузить"
+  },
+  "elementKinds": {
+    "cursorTracker": {
+      "name": "Трекер курсора",
+      "add": "Добавить трекер курсора",
+      "duplicate": "Дублировать трекер курсора",
+      "delete": "Удалить трекер курсора",
+      "tracker": "Трекер",
+      "mode": "Режим",
+      "modeMotion": "Перемещение",
+      "modePosition": "Положение на экране",
+      "sensitivity": "Чувствительность",
+      "returnMs": "Время возврата",
+      "aspect": "Пропорции",
+      "aspectLocked": "Фиксированные",
+      "aspectFree": "Свободные",
+      "monitor": "Монитор",
+      "monitorPrimary": "Основной монитор",
+      "dot": "Точка",
+      "dotSize": "Размер",
+      "dotColor": "Цвет",
+      "trail": "След",
+      "trailMs": "Длительность",
+      "trailColor": "Цвет",
+      "trailWidth": "Толщина"
+    },
+    "unknownKind": "Неизвестный элемент"
   }
 }

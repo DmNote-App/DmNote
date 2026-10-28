@@ -744,5 +744,32 @@
     "previewReady": "Font preview ready",
     "previewPangram": "The quick brown fox jumps over the lazy dog",
     "weightLoadFailed": "Failed to load"
+  },
+  "elementKinds": {
+    "cursorTracker": {
+      "name": "Cursor Tracker",
+      "add": "Add Cursor Tracker",
+      "duplicate": "Duplicate Cursor Tracker",
+      "delete": "Delete Cursor Tracker",
+      "tracker": "Tracker",
+      "mode": "Mode",
+      "modeMotion": "Movement",
+      "modePosition": "Screen Position",
+      "sensitivity": "Sensitivity",
+      "returnMs": "Return Time",
+      "aspect": "Aspect",
+      "aspectLocked": "Locked",
+      "aspectFree": "Free",
+      "monitor": "Monitor",
+      "monitorPrimary": "Primary Monitor",
+      "dot": "Dot",
+      "dotSize": "Size",
+      "dotColor": "Color",
+      "trail": "Trail",
+      "trailMs": "Duration",
+      "trailColor": "Color",
+      "trailWidth": "Width"
+    },
+    "unknownKind": "Unknown Element"
   }
 }

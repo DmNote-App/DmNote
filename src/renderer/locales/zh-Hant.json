@@ -744,5 +744,32 @@
     "previewReady": "字體預覽已就緒",
     "previewPangram": "視野無限廣，窗外有藍天",
     "weightLoadFailed": "載入失敗"
+  },
+  "elementKinds": {
+    "cursorTracker": {
+      "name": "游標追蹤器",
+      "add": "新增游標追蹤器",
+      "duplicate": "複製游標追蹤器",
+      "delete": "刪除游標追蹤器",
+      "tracker": "追蹤器",
+      "mode": "模式",
+      "modeMotion": "移動量",
+      "modePosition": "螢幕位置",
+      "sensitivity": "靈敏度",
+      "returnMs": "回位時間",
+      "aspect": "比例",
+      "aspectLocked": "鎖定",
+      "aspectFree": "自由",
+      "monitor": "螢幕",
+      "monitorPrimary": "主螢幕",
+      "dot": "點",
+      "dotSize": "大小",
+      "dotColor": "顏色",
+      "trail": "軌跡",
+      "trailMs": "保留時間",
+      "trailColor": "顏色",
+      "trailWidth": "粗細"
+    },
+    "unknownKind": "未知元素"
   }
 }

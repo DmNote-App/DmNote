@@ -10,7 +10,7 @@ import {
 } from '../scripts/extract-element-kinds.mjs';
 import { BUILTIN_ELEMENT_KINDS } from '../src/renderer/elementKinds/builtinKinds';
 import { elementKindData } from '../src/renderer/elementKinds/defineElementKind';
-import { EDITOR_ELEMENT_TYPES } from '../src/types/editor';
+import { EDITOR_ELEMENT_TYPES, isEditorElementType } from '../src/types/editor';
 import { ELEMENT_KIND_MODELS } from '../src/types/elementKinds';
 import { DEFAULT_SPRITE_SIZE } from '../src/types/key/sprites';
 
@@ -30,11 +30,13 @@ describe('요소 종류 정의 추출', () => {
     );
   });
 
-  it('내장 종류 목록과 크기가 기존 종류 모델과 같다', () => {
-    expect(BUILTIN_ELEMENT_KINDS.map((definition) => definition.kind)).toEqual([
+  it('옛 저장 모양 종류는 앞에 같은 순서로 두고 크기가 기존 종류 모델과 같다', () => {
+    const legacy = BUILTIN_ELEMENT_KINDS.slice(0, EDITOR_ELEMENT_TYPES.length);
+    expect(legacy.map((definition) => definition.kind)).toEqual([
       ...EDITOR_ELEMENT_TYPES,
     ]);
-    for (const definition of BUILTIN_ELEMENT_KINDS) {
+    for (const definition of legacy) {
+      if (!isEditorElementType(definition.kind)) continue;
       const model = ELEMENT_KIND_MODELS[definition.kind];
       expect(definition.defaultSize).toEqual(model.defaultSize);
       expect(definition.fallbackSize).toEqual(model.fallbackSize);
@@ -43,6 +45,10 @@ describe('요소 종류 정의 추출', () => {
       (definition) => definition.kind === 'sprite',
     );
     expect(sprite?.defaultSize.width).toBe(DEFAULT_SPRITE_SIZE);
+    // 트리에만 있는 종류는 옛 종류 이름과 겹치지 않는다
+    for (const definition of BUILTIN_ELEMENT_KINDS.slice(legacy.length)) {
+      expect(isEditorElementType(definition.kind)).toBe(false);
+    }
   });
 
   it('데이터 칸에 함수나 외부 값이 섞이면 실패한다', () => {

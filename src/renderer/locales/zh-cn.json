@@ -744,5 +744,32 @@
     "previewReady": "字体预览已就绪",
     "previewPangram": "视野无限广，窗外有蓝天",
     "weightLoadFailed": "加载失败"
+  },
+  "elementKinds": {
+    "cursorTracker": {
+      "name": "光标追踪器",
+      "add": "添加光标追踪器",
+      "duplicate": "复制光标追踪器",
+      "delete": "删除光标追踪器",
+      "tracker": "追踪器",
+      "mode": "模式",
+      "modeMotion": "移动量",
+      "modePosition": "屏幕位置",
+      "sensitivity": "灵敏度",
+      "returnMs": "回位时间",
+      "aspect": "比例",
+      "aspectLocked": "锁定",
+      "aspectFree": "自由",
+      "monitor": "显示器",
+      "monitorPrimary": "主显示器",
+      "dot": "点",
+      "dotSize": "大小",
+      "dotColor": "颜色",
+      "trail": "轨迹",
+      "trailMs": "保留时间",
+      "trailColor": "颜色",
+      "trailWidth": "粗细"
+    },
+    "unknownKind": "未知元素"
   }
 }

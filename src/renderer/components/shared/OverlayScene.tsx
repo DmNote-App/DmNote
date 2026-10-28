@@ -5,6 +5,8 @@ import KeyCounterLayer from '@components/overlay/counters/KeyCounterLayer';
 import StatCounterLayer from '@components/overlay/counters/StatCounterLayer';
 import { renderOverlayItem } from '@components/overlay/counters/overlayItemRenderers';
 import { PluginElementsRenderer } from '@components/shared/plugin/PluginElementsRenderer';
+import DocumentElementsLayer from '@src/renderer/elementKinds/runtime/DocumentElementsLayer';
+import { pointerInputSource } from '@src/renderer/elementKinds/runtime/pointerInput';
 import { getKeyInfoByGlobalKey } from '@utils/input/KeyMaps';
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
@@ -31,6 +33,8 @@ type NoteSubscriber = (event: any) => void;
 
 // 미지정 시 identity 안정 기본값
 const EMPTY_SPRITE_KEY_MAP: ReadonlyMap<string, string> = new Map();
+// 오버레이·OBS는 실제 신호를 넣어 준다
+const OVERLAY_INPUTS = { pointer: pointerInputSource };
 
 interface OverlaySceneProps {
   // 키/위치 데이터 (currentKeys = canonical 문자열)
@@ -175,6 +179,12 @@ const OverlayScene = ({
           )}
         </Fragment>
       ))}
+      <DocumentElementsLayer
+        sceneId={selectedKeyType}
+        live
+        inputs={OVERLAY_INPUTS}
+        offset={positionOffset}
+      />
       {keyCounterEnabled ? (
         <KeyCounterLayer
           keys={currentKeys}
