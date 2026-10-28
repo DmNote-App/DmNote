@@ -53,6 +53,8 @@ pub enum Op {
         hidden: Option<bool>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         class_name: Option<Option<String>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        use_inline_styles: Option<Option<bool>>,
     },
     // 고유 값 일부 바꾸기 - 적은 칸만 바뀐다
     SetValues {
@@ -547,6 +549,7 @@ impl Engine<'_> {
                 name,
                 hidden,
                 class_name,
+                use_inline_styles,
                 ..
             } => {
                 let scene = document.scenes.get_mut(&scene_id).expect("scene checked");
@@ -562,6 +565,9 @@ impl Engine<'_> {
                 }
                 if let Some(class_name) = class_name {
                     element.class_name = class_name.clone();
+                }
+                if let Some(use_inline_styles) = use_inline_styles {
+                    element.use_inline_styles = *use_inline_styles;
                 }
                 if *element != before {
                     changes.scene(&scene_id).changed.insert(id.clone());

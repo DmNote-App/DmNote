@@ -71,6 +71,7 @@ pub fn element(id: &str, kind: &str, values: Value) -> Element {
         name: None,
         hidden: false,
         class_name: None,
+        use_inline_styles: None,
         bundles: Default::default(),
         values: values.as_object().cloned().unwrap_or_default(),
         input: None,

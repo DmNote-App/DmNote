@@ -8,6 +8,7 @@ fn loader(kinds: &KindRegistry) -> Loader<'_> {
     Loader {
         kinds,
         bundles: &NoBundles,
+        managed_elsewhere: &|_| false,
     }
 }
 
@@ -150,4 +151,26 @@ fn 받지_않는_입력은_떼어_낸다() {
     let mut doc = document(vec![Node::Element(wrong)]);
     loader(&kinds).load(&mut doc, &mut Sequence(0));
     assert_eq!(doc.scenes["tab"].element("d").unwrap().input, None);
+}
+
+#[test]
+fn 다른_곳에서_관리하는_종류는_값도_id도_건드리지_않는다() {
+    let kinds = registry();
+    let broken = element("a", "dial", json!({ "sensitivity": "fast" }));
+    let mut doc = document(vec![
+        Node::Element(element("a", "pad", json!({}))),
+        Node::Element(broken.clone()),
+    ]);
+    let loader = Loader {
+        kinds: &kinds,
+        bundles: &NoBundles,
+        managed_elsewhere: &|kind| kind == "dial",
+    };
+    let report = loader.load(&mut doc, &mut Sequence(0));
+    // 겹친 id는 관리되지 않는 쪽(pad)을 새로 발급한다
+    assert_eq!(
+        report.reissued,
+        vec![("tab".to_string(), "a".to_string(), "new-1".to_string())]
+    );
+    assert_eq!(doc.scenes["tab"].element("a").unwrap(), &broken);
 }

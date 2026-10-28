@@ -166,6 +166,9 @@ fn check_fields(fields: &[FieldRule]) -> Result<(), String> {
                     check_fields(fields)?;
                 }
             }
+            ValueKind::Json {} => {
+                return Err(format!("{}: json 값 종류는 앱 구조 전용", rule.name));
+            }
             ValueKind::Enum { options } if options.is_empty() => {
                 return Err(format!("{}: 선택지가 비어 있음", rule.name));
             }

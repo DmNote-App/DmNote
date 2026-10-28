@@ -41,6 +41,8 @@ impl LoadReport {
 pub struct Loader<'a> {
     pub kinds: &'a KindRegistry,
     pub bundles: &'a dyn BundleCatalog,
+    // 다른 곳(옛 저장 모양)에서 검증·정리하는 종류 - 값을 건드리지 않고 id도 다시 발급하지 않는다
+    pub managed_elsewhere: &'a dyn Fn(&str) -> bool,
 }
 
 impl Loader<'_> {
@@ -60,11 +62,24 @@ impl Loader<'_> {
         report: &mut LoadReport,
     ) {
         let mut seen = HashSet::new();
+        for scene in document.scenes.values() {
+            for element in scene.elements() {
+                if (self.managed_elsewhere)(&element.kind) {
+                    seen.insert(element.id.clone());
+                }
+            }
+        }
+        let managed = self.managed_elsewhere;
         for (scene_id, scene) in &mut document.scenes {
             walk_mut(&mut scene.nodes, &mut |node| {
                 let id = match node {
                     Node::Group(group) => &mut group.id,
-                    Node::Element(element) => &mut element.id,
+                    Node::Element(element) => {
+                        if managed(&element.kind) {
+                            return;
+                        }
+                        &mut element.id
+                    }
                 };
                 if id.is_empty() || !seen.insert(id.clone()) {
                     let fresh = loop {
@@ -152,6 +167,9 @@ impl Loader<'_> {
                 let Node::Element(element) = node else {
                     return;
                 };
+                if (self.managed_elsewhere)(&element.kind) {
+                    return;
+                }
                 let schema = self.kinds.get(&element.kind);
                 // 잠근 종류와 훅을 기다리는 종류는 값을 건드리지 않는다
                 let current =

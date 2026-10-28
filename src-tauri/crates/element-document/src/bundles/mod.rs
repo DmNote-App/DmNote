@@ -55,3 +55,7 @@ impl BundleCatalog for NoBundles {
         Some(value.clone())
     }
 }
+
+mod builtin;
+
+pub use builtin::{BuiltinBundles, BUILTIN_BUNDLE_NAMES};

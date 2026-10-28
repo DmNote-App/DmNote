@@ -64,6 +64,8 @@ pub enum ValueKind {
     Object {
         fields: Vec<FieldRule>,
     },
+    // 앱 구조(기능 묶음) 전용 - 안쪽 모양은 앱의 Rust 타입이 검사한다. 종류 정의에는 못 쓴다
+    Json {},
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -348,6 +350,7 @@ impl ValueKind {
                 None => out.push(Violation::new(ViolationCode::ValueTypeMismatch, path)),
                 Some(object) => validate_fields(fields, object, None, path, scope, out),
             },
+            ValueKind::Json {} => {}
         }
     }
 
@@ -424,6 +427,7 @@ impl ValueKind {
                 let object = value.as_object()?;
                 Some(Value::Object(normalize_fields(fields, object, scope).0))
             }
+            ValueKind::Json {} => Some(value.clone()),
         }
     }
 }

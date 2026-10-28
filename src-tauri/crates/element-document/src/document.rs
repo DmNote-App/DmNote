@@ -88,6 +88,9 @@ pub struct Element {
     pub hidden: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub class_name: Option<String>,
+    // 사용자 CSS를 쓸 때 앱 인라인 스타일을 함께 쓸지
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_inline_styles: Option<bool>,
     // 기능 묶음 - 종류가 쓰는 것만 붙는다
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub bundles: BTreeMap<String, Value>,
