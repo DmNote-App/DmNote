@@ -1,4 +1,4 @@
-import React, { Suspense, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 
 import Checkbox from '@components/main/common/checkbox/Checkbox';
 import Dropdown from '@components/main/common/dropdown/Dropdown';
@@ -182,6 +182,11 @@ const DocumentElementPanel = ({
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
   const renameCancelledRef = useRef(false);
+  // 다른 요소로 바뀌거나 패널이 닫히면 확정 안 된 미리보기를 걷는다
+  useEffect(
+    () => () => useDocumentFramePreviewStore.getState().clear(elementId),
+    [elementId],
+  );
   if (!element) return null;
   const definition = elementKindDefinition(element.kind);
   const values = (element.values ?? {}) as Values;

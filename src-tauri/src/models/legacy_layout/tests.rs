@@ -526,3 +526,83 @@ fn 그룹_바로_위의_맨_위_트리_요소는_구조가_바뀌어도_그룹�
     let path = scene.find_path("probe-1").unwrap();
     assert_eq!(scene.nodes[path[0] - 1].id(), "g1");
 }
+
+#[test]
+fn 바로_아래_이웃이_그룹을_떠나거나_사라져도_트리_요소는_제자리_근처에_남는다() {
+    let legacy = sample();
+    let base = import_document(&legacy).unwrap();
+    let probe: Node = serde_json::from_value(json!({
+        "type": "element", "id": "probe-1", "kind": "probe",
+        "frame": { "x": 0, "y": 0, "width": 10, "height": 10 }
+    }))
+    .unwrap();
+    // 맨 위 단계에서 그룹 g1 바로 위
+    let mut document = base.clone();
+    let scene = document.scenes.get_mut("4key").unwrap();
+    let group_at = scene.find_path("g1").unwrap()[0];
+    scene.nodes.insert(group_at + 1, probe.clone());
+    let probe_before = scene.find_path("probe-1").unwrap()[0];
+    assert!(probe_before > 0);
+
+    // 그룹 해제 - 멤버가 맨 위 단계로 나오고, 트리 요소는 그 위에 남는다
+    let mut ungrouped = legacy.clone();
+    for position in ungrouped.key_positions.get_mut("4key").unwrap() {
+        position.group_id = None;
+    }
+    ungrouped.graph_positions.get_mut("4key").unwrap()[0]
+        .position
+        .group_id = None;
+    let next = reconcile_document(&document, Some(LegacyRef::from(&legacy)), &ungrouped).unwrap();
+    let scene = &next.scenes["4key"];
+    assert_eq!(scene.parent_of("probe-1"), Some(None));
+    assert_ne!(
+        scene.find_path("probe-1").unwrap(),
+        vec![0],
+        "맨 아래로 떨어지지 않는다"
+    );
+    let probe_at = scene.find_path("probe-1").unwrap()[0];
+    let below = scene.nodes[probe_at - 1]
+        .as_element()
+        .map(|element| element.kind.clone());
+    assert!(below.is_some_and(|kind| is_legacy_kind(&kind)));
+}
+
+#[test]
+fn 바로_아래_키가_그룹에_들어가거나_지워져도_트리_요소는_맨_아래로_떨어지지_않는다() {
+    let mut legacy = sample();
+    for position in legacy.key_positions.get_mut("4key").unwrap() {
+        position.group_id = None;
+    }
+    legacy.graph_positions.get_mut("4key").unwrap()[0]
+        .position
+        .group_id = None;
+    let base = import_document(&legacy).unwrap();
+    let probe: Node = serde_json::from_value(json!({
+        "type": "element", "id": "probe-1", "kind": "probe",
+        "frame": { "x": 0, "y": 0, "width": 10, "height": 10 }
+    }))
+    .unwrap();
+    let anchor_id = legacy.key_positions["4key"][3].id.clone();
+    let mut document = base.clone();
+    let scene = document.scenes.get_mut("4key").unwrap();
+    let anchor_at = scene.find_path(&anchor_id).unwrap()[0];
+    scene.nodes.insert(anchor_at + 1, probe);
+
+    // 바로 아래 키를 그룹에 넣는다 - 트리 요소는 맨 위 단계에서 그 그룹 바로 위
+    let mut grouped = legacy.clone();
+    grouped.key_positions.get_mut("4key").unwrap()[3].group_id = Some("g1".into());
+    let next = reconcile_document(&document, Some(LegacyRef::from(&legacy)), &grouped).unwrap();
+    let scene = &next.scenes["4key"];
+    assert_eq!(scene.parent_of("probe-1"), Some(None));
+    let at = scene.find_path("probe-1").unwrap()[0];
+    assert_eq!(scene.nodes[at - 1].id(), "g1");
+
+    // 바로 아래 키를 지운다 - 그다음 아래 옛 요소 위
+    let mut removed = legacy.clone();
+    removed.key_positions.get_mut("4key").unwrap().remove(3);
+    removed.keys.get_mut("4key").unwrap().remove(3);
+    let next = reconcile_document(&document, Some(LegacyRef::from(&legacy)), &removed).unwrap();
+    let scene = &next.scenes["4key"];
+    let at = scene.find_path("probe-1").unwrap()[0];
+    assert!(at > 0, "맨 아래로 떨어지지 않는다");
+}
