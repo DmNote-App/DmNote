@@ -43,16 +43,26 @@ fn legacy_changed(before: &AppStoreData, after: &AppStoreData) -> bool {
         || before.layer_groups != after.layer_groups
 }
 
-/// 불러온 store에 트리 문서를 붙인다. 저장할 것이 생기면 true
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct AttachOutcome {
+    // 저장할 것이 생김
+    pub(crate) changed: bool,
+    // 저장된 트리 문서를 읽지 못해 옛 모양에서 다시 만듦 - 손상 복구처럼 백업한다
+    pub(crate) unreadable: bool,
+}
+
+/// 불러온 store에 트리 문서를 붙인다
 pub(crate) fn attach_loaded_document(
     state: &mut AppStoreData,
     stored: Option<Value>,
-) -> Result<bool> {
+) -> Result<AttachOutcome> {
     let legacy = EditorDocumentV1::from_store(state);
+    let mut unreadable = false;
     let stored = stored.and_then(|value| match serde_json::from_value::<Document>(value) {
         Ok(document) => Some(document),
         Err(error) => {
             log::warn!("[Store] 요소 트리 문서를 읽지 못해 옛 모양에서 다시 만듭니다: {error}");
+            unreadable = true;
             None
         }
     });
@@ -76,9 +86,12 @@ pub(crate) fn attach_loaded_document(
         );
     }
     // 트리 문서가 없던 파일(옛 store.json)은 부르는 쪽이 새 파일로 저장한다
-    let changed = stored.as_ref().is_some_and(|stored| stored != &document);
+    let changed = unreadable || stored.as_ref().is_some_and(|stored| stored != &document);
     state.element_document = std::sync::Arc::new(document);
-    Ok(changed)
+    Ok(AttachOutcome {
+        changed,
+        unreadable,
+    })
 }
 
 /// 영속 커밋 직전 - 옛 모양이 바뀌었으면 트리에 반영한다
@@ -228,13 +241,19 @@ fn strip_tree_only(nodes: &mut Vec<Node>) {
 }
 
 /// 되돌리기 - 옛 종류 요소는 그대로 두고 트리에만 있는 요소를 기록 시점 자리로 되돌린다
+/// `revive_missing`: 지금 없는 장면을 뼈대로 되살린다 (지운 탭 되돌리기). 아니면 건너뛴다
 pub(crate) fn restore_element_tree(
     document: &Document,
     snapshot: &ElementTreeHistorySnapshot,
+    revive_missing: bool,
 ) -> Document {
     let mut next = document.clone();
     for (scene_id, skeleton) in &snapshot.scenes {
         let Some(scene) = next.scenes.get_mut(scene_id) else {
+            // 지운 탭을 되살릴 때 - 뼈대를 두면 커밋 때 옛 종류 요소가 제자리에 채워진다
+            if revive_missing {
+                next.scenes.insert(scene_id.clone(), skeleton.clone());
+            }
             continue;
         };
         strip_tree_only(&mut scene.nodes);

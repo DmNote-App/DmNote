@@ -226,6 +226,7 @@ impl AppStore {
                         std::sync::Arc::new(super::element_tree::restore_element_tree(
                             &scratch.element_document,
                             &before,
+                            false,
                         ));
                     self.commit_locked(&mut guard, scratch, ())
                         .map_err(|error| error.to_string())?;
@@ -501,6 +502,11 @@ impl AppStore {
             &target.document.keys,
         );
         target.apply_override_patches(&mut scratch);
+        scratch.element_document = Arc::new(super::element_tree::restore_element_tree(
+            &scratch.element_document,
+            &target.element_tree,
+            true,
+        ));
         crate::state::migration::canonicalize_gradient_pairs(&mut scratch);
         crate::state::migration::canonicalize_image_modes(&mut scratch);
         crate::state::migration::normalize_sprite_triggers(&mut scratch);

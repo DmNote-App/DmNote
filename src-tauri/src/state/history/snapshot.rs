@@ -68,6 +68,8 @@ pub(crate) struct CustomTabsHistorySnapshot {
     pub(crate) tab_css_patch: HashMap<String, Option<TabCss>>,
     pub(crate) tab_note_patch: HashMap<String, Option<TabNoteSettings>>,
     pub(crate) plugin_instances_patch: HashMap<String, Option<Value>>,
+    // 탭을 지우거나 되살릴 때 그 탭의 트리에만 있는 요소(커서 트래커 등)
+    pub(crate) element_tree: ElementTreeHistorySnapshot,
 }
 
 impl CustomTabsHistorySnapshot {
@@ -88,6 +90,16 @@ impl CustomTabsHistorySnapshot {
                 .into_iter()
                 .filter(|(key, _)| is_plugin_instances_storage_key(key))
                 .collect(),
+            element_tree: crate::state::store::element_tree_snapshot(
+                &before.element_document,
+                before
+                    .element_document
+                    .scenes
+                    .iter()
+                    .filter_map(|(id, scene)| {
+                        (after.element_document.scenes.get(id) != Some(scene)).then_some(id)
+                    }),
+            ),
         }
     }
 
@@ -110,6 +122,10 @@ impl CustomTabsHistorySnapshot {
             plugin_instances_patch: current_values_for_keys(
                 &store.plugin_data,
                 target.plugin_instances_patch.keys(),
+            ),
+            element_tree: crate::state::store::element_tree_snapshot(
+                &store.element_document,
+                target.element_tree.scenes.keys(),
             ),
         }
     }
@@ -313,7 +329,7 @@ pub(crate) enum HistorySnapshot {
 
 /// 장면마다 트리에만 있는 요소는 그대로, 옛 종류 요소는 id·종류만 남긴 뼈대.
 /// 되돌릴 때 옛 종류 요소는 건드리지 않고 트리에만 있는 요소를 그 이웃 자리에 다시 끼운다
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ElementTreeHistorySnapshot {
     pub(crate) scenes: std::collections::BTreeMap<String, element_document::Scene>,

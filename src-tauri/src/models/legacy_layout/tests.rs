@@ -479,3 +479,28 @@ fn 측정_요소_많을_때_맞추기_시간() {
     }
     eprintln!("옛 모양 복사 600 keys: {:?} / 회", started.elapsed() / 20);
 }
+
+#[test]
+fn 구조가_바뀌어도_트리_전용_요소는_원래_그룹_안에_남는다() {
+    let legacy = sample();
+    let mut document = import_document(&legacy).unwrap();
+    let probe: Node = serde_json::from_value(json!({
+        "type": "element", "id": "probe-1", "kind": "probe",
+        "frame": { "x": 0, "y": 0, "width": 10, "height": 10 }
+    }))
+    .unwrap();
+    // 그룹 g1의 맨 아래에 둔다 - 같은 그룹 안 아래 이웃이 없다
+    let scene = document.scenes.get_mut("4key").unwrap();
+    let group_path = scene.find_path("g1").unwrap();
+    if let Some(Node::Group(group)) = scene.node_at_mut(&group_path) {
+        group.children.insert(0, probe);
+    }
+    let mut edited = legacy.clone();
+    // 구조 변화 - 키 하나의 zIndex를 바꾼다
+    edited.key_positions.get_mut("4key").unwrap()[1].z_index = Some(999);
+    let next = reconcile_document(&document, Some(LegacyRef::from(&legacy)), &edited).unwrap();
+    assert_eq!(
+        next.scenes["4key"].parent_of("probe-1"),
+        Some(Some("g1".to_string()))
+    );
+}

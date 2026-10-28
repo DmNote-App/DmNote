@@ -16,7 +16,7 @@ fn default_state() -> AppStoreData {
 #[test]
 fn 옛_store를_불러오면_트리_문서를_만들고_옛_모양과_같은_내용을_가리킨다() {
     let mut state = default_state();
-    let changed = attach_loaded_document(&mut state, None).unwrap();
+    let changed = attach_loaded_document(&mut state, None).unwrap().changed;
     assert!(!changed, "트리 문서가 없던 파일은 부르는 쪽이 저장한다");
     let projected = project_document(&state.element_document).unwrap();
     assert_eq!(projected.keys, state.keys);
@@ -30,14 +30,20 @@ fn 저장된_트리_문서가_옛_모양과_같으면_저장할_것이_없다() 
     attach_loaded_document(&mut state, None).unwrap();
     let stored = serde_json::to_value(&state.element_document).unwrap();
     let mut reloaded = state.clone();
-    assert!(!attach_loaded_document(&mut reloaded, Some(stored)).unwrap());
+    assert!(
+        !attach_loaded_document(&mut reloaded, Some(stored))
+            .unwrap()
+            .changed
+    );
     assert_eq!(reloaded.element_document, state.element_document);
 }
 
 #[test]
 fn 읽지_못하는_트리_문서는_옛_모양에서_다시_만든다() {
     let mut state = default_state();
-    attach_loaded_document(&mut state, Some(serde_json::json!({ "scenes": 3 }))).unwrap();
+    let outcome =
+        attach_loaded_document(&mut state, Some(serde_json::json!({ "scenes": 3 }))).unwrap();
+    assert!(outcome.unreadable && outcome.changed);
     assert_eq!(state.element_document.scenes.len(), state.keys.len());
 }
 
@@ -248,4 +254,57 @@ fn 트리_전용_요소_편집을_되돌리고_다시_한다() {
         .is_some());
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 지운_탭을_되살리면_트리_전용_요소도_돌아온다() {
+    let mut state = default_state();
+    attach_loaded_document(&mut state, None).unwrap();
+    let engine = Engine {
+        kinds: builtin_kind_registry(),
+        bundles: &BuiltinBundles,
+    };
+    let insert: Op = serde_json::from_value(serde_json::json!({
+        "op": "insert", "scene": "4key", "parent": null, "index": null,
+        "node": { "type": "element", "id": "tracker-1", "kind": "cursorTracker",
+                  "frame": { "x": 5, "y": 5, "width": 120, "height": 120 } }
+    }))
+    .unwrap();
+    engine
+        .apply(
+            std::sync::Arc::make_mut(&mut state.element_document),
+            &[insert],
+        )
+        .unwrap();
+    let with_tab = state.clone();
+
+    // 탭 지우기 (옛 모양에서 4key가 빠진다)
+    let mut deleted = with_tab.clone();
+    deleted.keys.remove("4key");
+    deleted.key_positions.remove("4key");
+    deleted.stat_positions.remove("4key");
+    sync_element_document(&with_tab, &mut deleted).unwrap();
+    assert!(!deleted.element_document.scenes.contains_key("4key"));
+    let snapshot = element_tree_snapshot(&with_tab.element_document, ["4key".to_string()].iter());
+
+    // 되돌리기 - 옛 모양을 되살리고 뼈대로 트리를 되살린 뒤 커밋 때 맞춘다
+    let mut restored = deleted.clone();
+    restored.keys = with_tab.keys.clone();
+    restored.key_positions = with_tab.key_positions.clone();
+    restored.stat_positions = with_tab.stat_positions.clone();
+    restored.element_document = std::sync::Arc::new(restore_element_tree(
+        &restored.element_document,
+        &snapshot,
+        true,
+    ));
+    sync_element_document(&deleted, &mut restored).unwrap();
+    let scene = &restored.element_document.scenes["4key"];
+    assert!(scene.element("tracker-1").is_some());
+    // 옛 종류 요소는 뼈대가 아니라 실제 값으로 채워진다
+    let key = &restored.key_positions["4key"][0];
+    assert_eq!(scene.element(&key.id).unwrap().frame.x, key.dx);
+    assert_eq!(
+        scene.elements().len(),
+        with_tab.element_document.scenes["4key"].elements().len()
+    );
 }

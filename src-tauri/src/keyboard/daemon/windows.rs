@@ -237,6 +237,13 @@ pub(super) fn run_raw_input() -> Result<()> {
     let output = super::start_output_writer(sink)?;
     let wheel = super::wheel::spawn_wheel_engine(output.clone())?;
     let pointer = super::pointer::spawn_pointer_engine(output.clone())?;
+    // GetCursorPos를 물리 픽셀로 받는다 - 앱(모니터 목록)과 같은 좌표 공간.
+    // 데몬은 tao가 뜨기 전에 갈라져 나와 DPI 인식이 따로 필요하다
+    unsafe {
+        let _ = windows::Win32::UI::HiDpi::SetProcessDpiAwarenessContext(
+            windows::Win32::UI::HiDpi::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
+        );
+    }
 
     // 글로벌 단축키 상태 추적기
     let hotkeys = super::load_hotkeys_from_env();

@@ -67,16 +67,18 @@ pub(crate) fn publish_element_document_changes(app: &AppHandle) {
     if state.store.element_document_revision() == publication.published.load(Ordering::Acquire) {
         return;
     }
-    let payload = {
-        let mut last = publication.last.lock();
-        let (revision, document) = state.store.element_document_snapshot();
-        if revision == publication.published.load(Ordering::Acquire) {
-            return;
-        }
-        let patch = make_patch(&last, &document);
-        *last = document;
-        publication.published.store(revision, Ordering::Release);
-        ElementDocumentChangedPayload { revision, patch }
-    };
-    publish_event(app, ELEMENT_DOCUMENT_CHANGED_EVENT, payload);
+    // 잠금을 쥔 채로 보낸다 - 다른 스레드의 다음 패치가 먼저 나가면 창이 이 패치를 건너뛴다
+    let mut last = publication.last.lock();
+    let (revision, document) = state.store.element_document_snapshot();
+    if revision == publication.published.load(Ordering::Acquire) {
+        return;
+    }
+    let patch = make_patch(&last, &document);
+    *last = document;
+    publication.published.store(revision, Ordering::Release);
+    publish_event(
+        app,
+        ELEMENT_DOCUMENT_CHANGED_EVENT,
+        ElementDocumentChangedPayload { revision, patch },
+    );
 }

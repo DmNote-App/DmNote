@@ -881,28 +881,81 @@ fn take_elements(nodes: &[Node]) -> HashMap<String, Element> {
 
 // 트리에만 있는 노드를 새 구조에 다시 끼운다 - 바로 아래 옛 종류 요소 뒤에 둔다
 pub(crate) fn graft_tree_only(previous: &Scene, next: &mut Scene) {
+    // (속한 그룹, 같은 그룹 안 바로 아래 옛 종류 요소, 장면 전체에서 바로 아래 옛 종류 요소, 요소)
+    struct Graft {
+        group: Option<String>,
+        below_in_group: Option<String>,
+        below: Option<String>,
+        element: Element,
+    }
+    let mut grafts: Vec<Graft> = Vec::new();
+    let mut ancestors: Vec<(usize, String)> = Vec::new();
+    let mut last_legacy: HashMap<Option<String>, String> = HashMap::new();
     let mut below: Option<String> = None;
-    let mut grafts: Vec<(Option<String>, Element)> = Vec::new();
-    walk(&previous.nodes, &mut |node, _| {
-        if let Node::Element(element) = node {
-            if is_legacy_kind(&element.kind) {
-                below = Some(element.id.clone());
-            } else {
-                grafts.push((below.clone(), element.clone()));
+    walk(&previous.nodes, &mut |node, path| {
+        ancestors.retain(|(depth, _)| *depth < path.len());
+        match node {
+            Node::Group(group) => ancestors.push((path.len(), group.id.clone())),
+            Node::Element(element) => {
+                let group = ancestors.last().map(|(_, id)| id.clone());
+                if is_legacy_kind(&element.kind) {
+                    below = Some(element.id.clone());
+                    last_legacy.insert(None, element.id.clone());
+                    for (_, ancestor) in &ancestors {
+                        last_legacy.insert(Some(ancestor.clone()), element.id.clone());
+                    }
+                } else {
+                    grafts.push(Graft {
+                        below_in_group: group
+                            .as_ref()
+                            .and_then(|group| last_legacy.get(&Some(group.clone())).cloned()),
+                        group,
+                        below: below.clone(),
+                        element: element.clone(),
+                    });
+                }
             }
         }
     });
-    let mut inserted_after: HashMap<Option<String>, usize> = HashMap::new();
-    for (anchor, element) in grafts {
-        let offset = inserted_after.entry(anchor.clone()).or_insert(0);
-        let placed = anchor
+    // 같은 자리에 여럿이면 원래 순서대로 이어 붙인다
+    let mut offsets: HashMap<(Option<String>, Option<String>), usize> = HashMap::new();
+    for graft in grafts {
+        // 원래 그룹이 남아 있으면 그 안에 - 같은 그룹 안 아래 이웃 뒤, 없으면 그룹 맨 아래
+        let in_group = graft
+            .group
             .as_ref()
-            .and_then(|anchor| next.find_path(anchor))
-            .map(|path| {
-                let (last, parent) = path.split_last().expect("not empty");
-                (parent.to_vec(), last + 1 + *offset)
-            });
-        let (parent, index) = placed.unwrap_or((Vec::new(), *offset));
+            .and_then(|group| next.find_path(group).map(|path| (group.clone(), path)));
+        let (key, parent, index) = match in_group {
+            Some((group, group_path)) => {
+                let anchor = graft
+                    .below_in_group
+                    .as_ref()
+                    .and_then(|anchor| next.find_path(anchor))
+                    .filter(|path| {
+                        path.len() == group_path.len() + 1 && path.starts_with(&group_path)
+                    });
+                match anchor {
+                    Some(path) => (
+                        (Some(group), graft.below_in_group.clone()),
+                        group_path,
+                        path.last().copied().unwrap_or(0) + 1,
+                    ),
+                    None => ((Some(group), None), group_path, 0),
+                }
+            }
+            None => match graft
+                .below
+                .as_ref()
+                .and_then(|anchor| next.find_path(anchor))
+            {
+                Some(path) => {
+                    let (last, parent) = path.split_last().expect("not empty");
+                    ((None, graft.below.clone()), parent.to_vec(), last + 1)
+                }
+                None => ((None, None), Vec::new(), 0),
+            },
+        };
+        let offset = offsets.entry(key).or_insert(0);
         let siblings = if parent.is_empty() {
             &mut next.nodes
         } else {
@@ -911,8 +964,8 @@ pub(crate) fn graft_tree_only(previous: &Scene, next: &mut Scene) {
                 _ => &mut next.nodes,
             }
         };
-        let index = index.min(siblings.len());
-        siblings.insert(index, Node::Element(element));
+        let at = (index + *offset).min(siblings.len());
+        siblings.insert(at, Node::Element(graft.element));
         *offset += 1;
     }
     // 그룹 숨김은 트리에만 있다

@@ -86,7 +86,9 @@ use editor_transactions::{
     validate_observed_history_epoch,
 };
 pub use element_tree::ElementDocumentCommitResult;
-pub(crate) use element_tree::{attach_loaded_document, ELEMENT_DOCUMENT_FIELD};
+pub(crate) use element_tree::{
+    attach_loaded_document, element_tree_snapshot, ELEMENT_DOCUMENT_FIELD,
+};
 use persistence::StoreWriter;
 pub(crate) use sound_assets::{
     move_staged_sound_deletions_to_trash, restore_staged_sound_deletions,

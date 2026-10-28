@@ -120,6 +120,7 @@ extern "C" {
     fn IOHIDElementGetPhysicalMin(element: IOHIDElementRef) -> CFIndex;
     fn IOHIDElementGetPhysicalMax(element: IOHIDElementRef) -> CFIndex;
     fn IOHIDElementGetUnitExponent(element: IOHIDElementRef) -> u32;
+    fn IOHIDElementIsRelative(element: IOHIDElementRef) -> u8;
     fn IOHIDCheckAccess(request_type: u32) -> u32;
 }
 
@@ -310,7 +311,7 @@ extern "C" fn on_input_value(
 ) {
     let captured = super::InputCapture::now();
     let context = unsafe { &*(context as *const HidContext) };
-    let (usage_page, usage, raw, key) = unsafe {
+    let (usage_page, usage, raw, key, relative) = unsafe {
         let element = IOHIDValueGetElement(value);
         let device = IOHIDElementGetDevice(element);
         (
@@ -318,13 +319,18 @@ extern "C" fn on_input_value(
             IOHIDElementGetUsage(element),
             IOHIDValueGetIntegerValue(value) as i64,
             (device as usize, IOHIDElementGetCookie(element)),
+            IOHIDElementIsRelative(element) != 0,
         )
     };
     if raw == 0 {
         return;
     }
-    // 하드웨어 이동량 - 커서 가속·화면 끝 멈춤이 적용되기 전 값
+    // 하드웨어 이동량 - 커서 가속·화면 끝 멈춤이 적용되기 전 값.
+    // 절대 좌표를 보내는 장치(태블릿, 가상 포인터 등)는 좌표 차이로 채운다
     if usage_page == HID_PAGE_GENERIC_DESKTOP && (usage == HID_USAGE_X || usage == HID_USAGE_Y) {
+        if !relative {
+            return;
+        }
         let delta = raw as f64;
         context.pointer.send(if usage == HID_USAGE_X {
             PointerInput::Delta { dx: delta, dy: 0.0 }
