@@ -1,0 +1,14 @@
+[package]
+name = "element-document"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+publish = false
+description = "DmNote 요소 문서 엔진 - 트리 문서, 규칙표 검증, 편집 연산, 버전 옮기기"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
