@@ -8,7 +8,7 @@ export const knobKind = defineElementKind({
     { name: 'sensitivity', value: { type: 'number', min: 0 }, default: 1 },
     { name: 'reverse', value: { type: 'bool' }, default: false },
   ],
-  bundles: ['surface'],
+  bundles: ['surface', 'image'],
   inputs: ['axis'],
   defaultSize: { width: 60, height: 60 },
   fallbackSize: { width: 60, height: 60 },

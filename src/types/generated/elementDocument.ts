@@ -62,3 +62,12 @@ export type KindMigration = { from: number, steps: Array<MigrationStep>, };
 export type MigrationStep = { "op": "rename", from: string, to: string, } | { "op": "mapValue", field: string, from: JsonValue, to: JsonValue, } | { "op": "setDefault", field: string, value: JsonValue, } | { "op": "remove", field: string, } | { "op": "hook", name: string, };
 
 export type DefinitionError = { kind: string, message: string, };
+
+export const BUILTIN_BUNDLE_FIELDS = {
+  surface: ['backgroundColor', 'backgroundGradient', 'activeBackgroundColor', 'activeBackgroundGradient', 'borderColor', 'borderGradient', 'activeBorderColor', 'activeBorderGradient', 'borderWidth', 'borderRadius', 'shadow', 'activeShadow'],
+  font: ['fontSize', 'fontColor', 'fontGradient', 'activeFontColor', 'activeFontGradient', 'fontFamily', 'fontWeight', 'fontBold', 'fontItalic', 'fontUnderline', 'fontStrikethrough'],
+  image: ['activeImage', 'inactiveImage', 'imageFit', 'idleImageFit', 'activeImageFit', 'imageMode', 'idleImageTransform', 'activeImageTransform', 'activeTransparent', 'idleTransparent'],
+  note: ['noteColor', 'noteGradient', 'noteOpacity', 'noteOpacityTop', 'noteOpacityBottom', 'noteBorderRadius', 'noteWidth', 'noteAlignment', 'noteEffectEnabled', 'noteGlowEnabled', 'noteGlowSyncPaint', 'noteGlowSize', 'noteGlowOpacity', 'noteGlowOpacityTop', 'noteGlowOpacityBottom', 'noteGlowColor', 'noteGlowGradient', 'noteAutoYCorrection', 'noteOffsetX', 'noteOffsetY', 'noteBorderWidth', 'noteBorderColor', 'noteBorderGradient', 'noteBorderOpacity', 'noteBorderSide'],
+  counter: ['counter'],
+  sound: ['soundEnabled', 'soundPath', 'soundVolume'],
+} as const;

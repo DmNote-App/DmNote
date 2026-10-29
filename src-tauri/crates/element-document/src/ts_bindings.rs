@@ -62,6 +62,14 @@ fn generate() -> String {
         out.push_str(&declaration);
         out.push_str("\n\n");
     }
+    // 기능 묶음 칸 이름 - 옛 위치 칸과 같은 이름이라 프론트가 칸이 어느 묶음인지 고를 때 쓴다
+    out.push_str("export const BUILTIN_BUNDLE_FIELDS = {\n");
+    for name in crate::bundles::BUILTIN_BUNDLE_NAMES {
+        let fields = crate::bundles::BuiltinBundles::fields(name).unwrap_or_default();
+        let names: Vec<String> = fields.iter().map(|rule| format!("'{}'", rule.name)).collect();
+        out.push_str(&format!("  {name}: [{}],\n", names.join(", ")));
+    }
+    out.push_str("} as const;\n");
     out.truncate(out.trim_end().len());
     out.push('\n');
     out
