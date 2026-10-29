@@ -16,8 +16,8 @@ use serde_json::Value;
 
 use super::AppStore;
 use crate::models::legacy_layout::{
-    graft_tree_only, import_document, is_legacy_kind, project_document, reconcile_document,
-    LegacyRef,
+    graft_tree_only, import_document, is_legacy_kind, persisted_document, project_document,
+    reconcile_document, LegacyRef,
 };
 use crate::models::{builtin_kind_registry, AppStoreData, EditorDocumentV1};
 use crate::state::history::ElementTreeHistorySnapshot;
@@ -86,7 +86,10 @@ pub(crate) fn attach_loaded_document(
         );
     }
     // 트리 문서가 없던 파일(옛 store.json)은 부르는 쪽이 새 파일로 저장한다
-    let changed = unreadable || stored.as_ref().is_some_and(|stored| stored != &document);
+    let changed = unreadable
+        || stored
+            .as_ref()
+            .is_some_and(|stored| stored != &persisted_document(&document));
     state.element_document = std::sync::Arc::new(document);
     Ok(AttachOutcome {
         changed,

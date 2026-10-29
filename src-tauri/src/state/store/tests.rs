@@ -17232,8 +17232,10 @@ fn concurrent_updates_persist_all_revisions_without_replace_races() {
         .update(|state| state.always_on_top = !state.always_on_top)
         .is_err());
     assert_eq!(store.snapshot(), final_snapshot);
-    let persisted: AppStoreData =
-        serde_json::from_slice(&std::fs::read(dir.join("store-v2.json")).unwrap()).unwrap();
+    // 트리 문서는 뼈대로 저장되므로 실제 불러오기 경로로 읽는다
+    let persisted = crate::state::migration::load_store_from_path(&dir.join("store-v2.json"))
+        .unwrap()
+        .data;
     assert_eq!(
         persisted.plugin_data["concurrent_update_count"].as_u64(),
         Some(UPDATE_COUNT as u64)
@@ -17281,7 +17283,9 @@ fn writer_failure_keeps_snapshot_and_disk_unchanged_and_does_not_leak() {
         })
         .unwrap();
     let after_snapshot = store.snapshot();
-    let after_disk: AppStoreData = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let after_disk = crate::state::migration::load_store_from_path(&path)
+        .unwrap()
+        .data;
     assert_eq!(after_snapshot.always_on_top, before_snapshot.always_on_top);
     assert_eq!(after_disk.always_on_top, before_snapshot.always_on_top);
     assert_eq!(after_snapshot.plugin_data["unrelated"], json!(true));

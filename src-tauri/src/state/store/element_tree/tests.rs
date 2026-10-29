@@ -28,7 +28,7 @@ fn 옛_store를_불러오면_트리_문서를_만들고_옛_모양과_같은_내
 fn 저장된_트리_문서가_옛_모양과_같으면_저장할_것이_없다() {
     let mut state = default_state();
     attach_loaded_document(&mut state, None).unwrap();
-    let stored = serde_json::to_value(&state.element_document).unwrap();
+    let stored = serde_json::to_value(persisted_document(&state.element_document)).unwrap();
     let mut reloaded = state.clone();
     assert!(
         !attach_loaded_document(&mut reloaded, Some(stored))
@@ -103,7 +103,7 @@ fn 옛_store_json은_가져오기만_하고_새_파일에_저장한다() {
     .unwrap();
     assert_eq!(
         current[ELEMENT_DOCUMENT_FIELD],
-        serde_json::to_value(&snapshot.element_document).unwrap()
+        serde_json::to_value(persisted_document(&snapshot.element_document)).unwrap()
     );
     assert_eq!(snapshot.element_document.scenes.len(), snapshot.keys.len());
 
@@ -307,4 +307,69 @@ fn 지운_탭을_되살리면_트리_전용_요소도_돌아온다() {
         scene.elements().len(),
         with_tab.element_document.scenes["4key"].elements().len()
     );
+}
+
+fn with_tree_only_element(state: &mut AppStoreData) -> String {
+    let document = std::sync::Arc::make_mut(&mut state.element_document);
+    let scene = document.scenes.get_mut("4key").unwrap();
+    let tracker: element_document::Element = serde_json::from_value(serde_json::json!({
+        "id": "tracker-1",
+        "kind": "cursorTracker",
+        "frame": { "x": 5.0, "y": 6.0, "width": 120.0, "height": 120.0, "rotation": 0.0 },
+        "values": { "mode": "position" },
+        "bundles": { "surface": { "borderWidth": 2 } },
+    }))
+    .unwrap();
+    scene.nodes.insert(1, Node::Element(tracker));
+    // 읽기 정리(기본값 채우기)를 거친 모양으로 맞춘다
+    let stored = serde_json::to_value(&*state.element_document).unwrap();
+    attach_loaded_document(state, Some(stored)).unwrap();
+    "tracker-1".into()
+}
+
+#[test]
+fn 저장할_때_옛_종류_요소는_뼈대만_남기고_읽으면_같은_문서가_된다() {
+    let mut state = default_state();
+    attach_loaded_document(&mut state, None).unwrap();
+    let tracker = with_tree_only_element(&mut state);
+    let persisted = persisted_document(&state.element_document);
+    let mut legacy_seen = 0;
+    walk(&persisted.scenes["4key"].nodes, &mut |node, _| {
+        let Node::Element(element) = node else { return };
+        if element.id == tracker {
+            assert!(!element.bundles.is_empty() && !element.values.is_empty());
+            return;
+        }
+        legacy_seen += 1;
+        assert!(element.bundles.is_empty() && element.values.is_empty());
+        let legacy = element.extra["legacy"].as_object().unwrap();
+        assert!(!legacy.contains_key("fields"), "칸 값은 옛 모양에 있다");
+        assert!(legacy.contains_key("index"));
+    });
+    assert!(legacy_seen > 0);
+    let full = serde_json::to_vec(&*state.element_document).unwrap().len();
+    let skeleton = serde_json::to_vec(&persisted).unwrap().len();
+    assert!(skeleton * 3 < full, "뼈대 {skeleton}B, 전체 {full}B");
+
+    let mut reloaded = state.clone();
+    reloaded.element_document = Default::default();
+    let outcome = attach_loaded_document(
+        &mut reloaded,
+        Some(serde_json::to_value(&persisted).unwrap()),
+    )
+    .unwrap();
+    assert!(!outcome.changed);
+    assert_eq!(reloaded.element_document, state.element_document);
+}
+
+#[test]
+fn 전체를_담은_예전_저장_모양도_읽고_뼈대로_다시_저장한다() {
+    let mut state = default_state();
+    attach_loaded_document(&mut state, None).unwrap();
+    with_tree_only_element(&mut state);
+    let full = serde_json::to_value(&*state.element_document).unwrap();
+    let mut reloaded = state.clone();
+    let outcome = attach_loaded_document(&mut reloaded, Some(full)).unwrap();
+    assert!(outcome.changed && !outcome.unreadable);
+    assert_eq!(reloaded.element_document, state.element_document);
 }
