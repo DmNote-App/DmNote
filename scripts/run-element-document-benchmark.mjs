@@ -71,6 +71,8 @@ if (!skipBuild) {
 }
 
 let pending = null;
+// 편집 가능해진 뒤 측정 전 대기 구간 알림
+let onIdle = null;
 const server = createServer((request, response) => {
   response.setHeader('Access-Control-Allow-Origin', '*');
   response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -93,6 +95,7 @@ const server = createServer((request, response) => {
     const parsed = JSON.parse(body);
     if (parsed.phase === 'started' || parsed.phase === 'progress') {
       console.info(`  ${parsed.phase}${parsed.step ? `: ${parsed.step}` : ''}`);
+      if (parsed.step?.startsWith('idle')) onIdle?.();
       return;
     }
     const resolveReport = pending;
@@ -182,22 +185,25 @@ const launch = async (phase) => {
 
   let memory = null;
   if (phase === 'measure') {
-    // 편집 가능해진 뒤 대기 구간(1.5초) 안에서 한 번 잰다
+    // 편집 가능해진 뒤 측정을 시작하기 전 대기 구간 가운데에서 한 번 잰다
+    // (시작 뒤 고정 시각에 재면 측정 단계가 어디까지 왔는지에 따라 값이 흔들린다)
     const sampleWhenReady = async () => {
-      for (let attempt = 0; attempt < 120; attempt += 1) {
-        await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));
-        const fresh = [...webContentPids()].filter((pid) => !before.has(pid));
-        if (fresh.length > 0 && Date.now() - spawnedAt > 4000) {
-          return {
-            webContent: fresh.map((pid) => ({
-              pid,
-              bytes: footprintBytes(pid),
-            })),
-            host: footprintBytes(child.pid),
-          };
-        }
-      }
-      return null;
+      const idle = await Promise.race([
+        new Promise((resolvePromise) => {
+          onIdle = () => resolvePromise(true);
+        }),
+        new Promise((resolvePromise) =>
+          setTimeout(() => resolvePromise(false), 60_000),
+        ),
+      ]);
+      onIdle = null;
+      if (!idle) return null;
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 1000));
+      const fresh = [...webContentPids()].filter((pid) => !before.has(pid));
+      return {
+        webContent: fresh.map((pid) => ({ pid, bytes: footprintBytes(pid) })),
+        host: footprintBytes(child.pid),
+      };
     };
     memory = await sampleWhenReady();
   }

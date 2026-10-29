@@ -248,7 +248,9 @@ const measure = async (config: BenchmarkConfig) => {
   };
   await waitFor(() => keyElementCount() >= BENCHMARK_KEYS_PER_TAB);
   const editableMs = performance.now();
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+  // 이 대기 구간 가운데에서 창 메모리를 잰다
+  await progress(config, 'idle');
+  await new Promise((resolve) => setTimeout(resolve, 2500));
 
   const { document: initial } = await api().editor.get();
   const keyIds = (
