@@ -66,7 +66,10 @@ fn generate() -> String {
     out.push_str("export const BUILTIN_BUNDLE_FIELDS = {\n");
     for name in crate::bundles::BUILTIN_BUNDLE_NAMES {
         let fields = crate::bundles::BuiltinBundles::fields(name).unwrap_or_default();
-        let names: Vec<String> = fields.iter().map(|rule| format!("'{}'", rule.name)).collect();
+        let names: Vec<String> = fields
+            .iter()
+            .map(|rule| format!("'{}'", rule.name))
+            .collect();
         out.push_str(&format!("  {name}: [{}],\n", names.join(", ")));
     }
     out.push_str("} as const;\n");
