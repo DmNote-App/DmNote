@@ -196,12 +196,11 @@ export default function App() {
   // updateTrackLayouts effect·WebGL uniform effect가 무관한 리렌더에 재실행되지 않음
   // 트리 문서에만 있는 종류(커서 트래커 등)도 창 크기 계산에 넣는다
   const documentScene = useElementDocumentScene(selectedKeyType);
+  // 상자가 그대로면 같은 배열 - 옛 종류 요소만 바뀐 트리 패치에 레이아웃을 다시 계산하지 않는다
+  const documentBoxes = documentLayoutElements(documentScene, selectedKeyType);
   const layoutExtraElements = useMemo(
-    () => [
-      ...pluginElements,
-      ...documentLayoutElements(documentScene, selectedKeyType),
-    ],
-    [pluginElements, documentScene, selectedKeyType],
+    () => [...pluginElements, ...documentBoxes],
+    [pluginElements, documentBoxes],
   );
   const layout = useMemo(
     () =>

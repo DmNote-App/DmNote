@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Node, Scene } from '@src/types/generated/elementDocument';
-import { documentElementSlots } from './documentElementOrder';
+import {
+  documentElementSlots,
+  documentLayoutElements,
+} from './documentElementOrder';
 
 const frame = { x: 0, y: 0, width: 10, height: 10, rotation: 0 };
 
@@ -50,5 +53,36 @@ describe('트리 전용 요소 쌓임 순서', () => {
       ['t1', 5],
       ['t2', 3],
     ]);
+  });
+});
+
+describe('오버레이 창 크기용 트리 요소 상자', () => {
+  it('상자가 같으면 장면이 바뀌어도 같은 배열을 돌려준다', () => {
+    const first = documentLayoutElements(
+      { nodes: [legacyKey('k1', 1, 0), tracker('t1')] },
+      'layout-test',
+    );
+    // 옛 종류 요소만 바뀐 패치
+    const legacyMoved = documentLayoutElements(
+      {
+        nodes: [
+          { ...legacyKey('k1', 1, 0), frame: { ...frame, x: 50 } } as Node,
+          tracker('t1'),
+        ],
+      },
+      'layout-test',
+    );
+    expect(legacyMoved).toBe(first);
+    const trackerMoved = documentLayoutElements(
+      {
+        nodes: [
+          legacyKey('k1', 1, 0),
+          { ...tracker('t1'), frame: { ...frame, x: 5 } } as Node,
+        ],
+      },
+      'layout-test',
+    );
+    expect(trackerMoved).not.toBe(first);
+    expect(trackerMoved[0].position).toEqual({ x: 5, y: 0 });
   });
 });

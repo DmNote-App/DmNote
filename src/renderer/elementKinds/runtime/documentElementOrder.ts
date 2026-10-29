@@ -62,13 +62,38 @@ export const documentElementSlots = (
   return slots;
 };
 
-/** 오버레이 창 크기 계산용 상자 - 플러그인 요소와 같은 모양 */
+type LayoutBox = {
+  tabId: string;
+  position: { x: number; y: number };
+  measuredSize: { width: number; height: number };
+};
+
+const sameBoxes = (left: LayoutBox[], right: LayoutBox[]) =>
+  left.length === right.length &&
+  left.every(
+    (box, index) =>
+      box.position.x === right[index].position.x &&
+      box.position.y === right[index].position.y &&
+      box.measuredSize.width === right[index].measuredSize.width &&
+      box.measuredSize.height === right[index].measuredSize.height,
+  );
+
+// 탭마다 마지막 상자 - 옛 종류 요소만 바뀐 패치에도 같은 배열을 돌려준다
+const lastBoxes = new Map<string, LayoutBox[]>();
+
+/** 오버레이 창 크기 계산용 상자 - 플러그인 요소와 같은 모양.
+ * 상자가 그대로면 이전 배열을 돌려줘 창 레이아웃(WebGL 트랙·히트 영역)이 다시 계산되지 않게 한다 */
 export const documentLayoutElements = (
   scene: Scene | undefined,
   tabId: string,
-) =>
-  documentElementSlots(scene).map(({ element }) => ({
+): LayoutBox[] => {
+  const boxes = documentElementSlots(scene).map(({ element }) => ({
     tabId,
     position: { x: element.frame.x, y: element.frame.y },
     measuredSize: { width: element.frame.width, height: element.frame.height },
   }));
+  const previous = lastBoxes.get(tabId);
+  if (previous && sameBoxes(previous, boxes)) return previous;
+  lastBoxes.set(tabId, boxes);
+  return boxes;
+};
