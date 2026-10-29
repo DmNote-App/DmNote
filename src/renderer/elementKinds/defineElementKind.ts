@@ -3,6 +3,7 @@
 // 빌드할 때 scripts/extract-element-kinds.mjs가 이 부분만 뽑아 Rust가 읽는다.
 // 함수가 섞이면 추출에서 막는다. 그리기·동작·패널 같은 코드는 같은 정의에 함께 둔다.
 
+import type { OverlayItemContext } from '@components/overlay/counters/overlayItemRenderers';
 import type { ComponentType } from 'react';
 
 import type { ElementRenderProps } from './runtime/renderTypes';
@@ -120,6 +121,7 @@ export interface ElementKindCode<Values> {
   // 있으면 감싸는 상자 없이 이것을 그린다 (사용자 CSS 클래스가 두 번 붙지 않게)
   readonly legacyOverlay?: ComponentType<{
     position: Record<string, unknown>;
+    context: OverlayItemContext;
   }>;
   // 크기 조절 때 비율을 지킬지
   readonly lockAspect?: (values: Values) => boolean;

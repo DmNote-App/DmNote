@@ -101,6 +101,7 @@ const OverlayScene = ({
   showPluginElements = true,
 }: OverlaySceneProps) => {
   const macOS = isMac();
+  const overlayContext = { spriteKeyCanonicalMap };
 
   return (
     <div
@@ -142,6 +143,7 @@ const OverlayScene = ({
         live
         inputs={OVERLAY_INPUTS}
         offset={positionOffset}
+        overlayContext={overlayContext}
       />
       {noteEffect && (
         <Suspense fallback={null}>
@@ -193,6 +195,7 @@ const OverlayScene = ({
         live
         inputs={OVERLAY_INPUTS}
         offset={positionOffset}
+        overlayContext={overlayContext}
       />
       {keyCounterEnabled ? (
         <KeyCounterLayer

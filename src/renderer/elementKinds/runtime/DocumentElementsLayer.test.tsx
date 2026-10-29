@@ -23,6 +23,31 @@ const scene: Scene = {
       input: { type: 'axis', axisId: 'axis-1' },
       legacy: { index: 0, zIndex: 4 },
     },
+    {
+      type: 'element',
+      id: 'g1',
+      kind: 'graph',
+      frame: { x: 0, y: 100, width: 200, height: 100, rotation: 0 },
+      values: { statType: 'kpsAvg', graphType: 'bar', graphSpeed: 2000 },
+      legacy: { index: 0, zIndex: 2 },
+    },
+    {
+      type: 'element',
+      id: 's1',
+      kind: 'stat',
+      frame: { x: 0, y: 220, width: 60, height: 60, rotation: 0 },
+      values: { statType: 'total', displayText: '합계', count: 0 },
+      bundles: { font: { fontSize: 18 } },
+      legacy: { index: 0, zIndex: 1 },
+    },
+    {
+      type: 'element',
+      id: 'p1',
+      kind: 'sprite',
+      frame: { x: 30, y: 300, width: 200, height: 150, rotation: 0 },
+      values: { baseImage: 'base.png', poses: [], transitionMs: 120 },
+      legacy: { index: 0, zIndex: 6 },
+    },
   ],
 };
 
@@ -39,12 +64,42 @@ vi.mock('@components/overlay/counters/OverlayKnobItem', () => ({
   },
 }));
 
+const graphProps = vi.fn();
+vi.mock('@components/overlay/counters/OverlayGraphItem', () => ({
+  default: (props: { position: Record<string, unknown> }) => {
+    graphProps(props.position);
+    return <div data-graph-element="" />;
+  },
+}));
+
+const statProps = vi.fn();
+vi.mock('@components/overlay/counters/OverlayStatItem', () => ({
+  default: (props: { position: Record<string, unknown> }) => {
+    statProps(props.position);
+    return <div data-stat-element="" />;
+  },
+}));
+
+const spriteProps = vi.fn();
+vi.mock('@components/overlay/counters/OverlaySpriteItem', () => ({
+  default: (props: {
+    position: Record<string, unknown>;
+    keyCanonicalMap: ReadonlyMap<string, string>;
+  }) => {
+    spriteProps(props);
+    return <div data-sprite-element="" />;
+  },
+}));
+
 const { default: DocumentElementsLayer } = await import(
   './DocumentElementsLayer'
 );
 
 describe('오버레이가 트리에서 그리는 옛 종류', () => {
-  it('노브는 옛 위치 객체로 한 번 그리고 창 오프셋을 더한다', () => {
+  it('노브·그래프·스탯·스프라이트는 옛 위치 객체로 한 번 그리고 창 오프셋을 더한다', () => {
+    const overlayContext = {
+      spriteKeyCanonicalMap: new Map([['k1', 'KeyA']]),
+    };
     const container = document.createElement('div');
     const root = createRoot(container);
     act(() => {
@@ -56,6 +111,7 @@ describe('오버레이가 트리에서 그리는 옛 종류', () => {
             live
             inputs={{}}
             offset={{ x: 5, y: 7 }}
+            overlayContext={overlayContext}
           />
           <DocumentElementsLayer
             sceneId="4key"
@@ -63,6 +119,7 @@ describe('오버레이가 트리에서 그리는 옛 종류', () => {
             live
             inputs={{}}
             offset={{ x: 5, y: 7 }}
+            overlayContext={overlayContext}
           />
         </>,
       );
@@ -83,6 +140,43 @@ describe('오버레이가 트리에서 그리는 옛 종류', () => {
         zIndex: 4,
       }),
     );
+    expect(container.querySelectorAll('[data-graph-element]')).toHaveLength(1);
+    expect(graphProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        id: 'g1',
+        dx: 5,
+        dy: 107,
+        statType: 'kpsAvg',
+        graphType: 'bar',
+        graphSpeed: 2000,
+        zIndex: 2,
+      }),
+    );
+    expect(container.querySelectorAll('[data-stat-element]')).toHaveLength(1);
+    expect(statProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        id: 's1',
+        dy: 227,
+        statType: 'total',
+        displayText: '합계',
+        fontSize: 18,
+        zIndex: 1,
+      }),
+    );
+    expect(container.querySelectorAll('[data-sprite-element]')).toHaveLength(1);
+    expect(spriteProps).toHaveBeenLastCalledWith({
+      position: expect.objectContaining({
+        id: 'p1',
+        dx: 35,
+        dy: 307,
+        width: 200,
+        height: 150,
+        baseImage: 'base.png',
+        transitionMs: 120,
+        zIndex: 6,
+      }),
+      keyCanonicalMap: overlayContext.spriteKeyCanonicalMap,
+    });
     act(() => root.unmount());
   });
 });

@@ -11,6 +11,7 @@ import { legacyPositionOf } from './legacyPosition';
 import type { ElementRenderInputs } from './renderTypes';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import type { SurfaceBundle } from './ElementSurface';
+import type { OverlayItemContext } from '@components/overlay/counters/overlayItemRenderers';
 
 interface DocumentElementViewProps {
   element: ElementNode;
@@ -18,10 +19,18 @@ interface DocumentElementViewProps {
   offset: { x: number; y: number };
   live: boolean;
   inputs: ElementRenderInputs;
+  overlayContext: OverlayItemContext;
 }
 
 const DocumentElementView = React.memo(
-  ({ element, zIndex, offset, live, inputs }: DocumentElementViewProps) => {
+  ({
+    element,
+    zIndex,
+    offset,
+    live,
+    inputs,
+    overlayContext,
+  }: DocumentElementViewProps) => {
     const definition = elementKindDefinition(element.kind);
     const Render = definition?.render;
     const { x, y, width, height, rotation } = element.frame;
@@ -35,6 +44,7 @@ const DocumentElementView = React.memo(
             dy: y + offset.y,
             zIndex,
           }}
+          context={overlayContext}
         />
       );
     }
@@ -76,9 +86,14 @@ interface DocumentElementsLayerProps {
   live: boolean;
   inputs: ElementRenderInputs;
   offset?: { x: number; y: number };
+  // 오버레이가 트리에서 그리는 옛 종류에 넘기는 맥락 (스프라이트 트리거 키 등)
+  overlayContext?: OverlayItemContext;
 }
 
 const NO_OFFSET = { x: 0, y: 0 };
+const NO_OVERLAY_CONTEXT: OverlayItemContext = {
+  spriteKeyCanonicalMap: new Map(),
+};
 
 /** 트리 문서에만 있는 종류(커서 트래커 등)를 옛 종류 요소와 같은 쌓임 맥락에 그린다 */
 const DocumentElementsLayer = ({
@@ -87,6 +102,7 @@ const DocumentElementsLayer = ({
   live,
   inputs,
   offset = NO_OFFSET,
+  overlayContext = NO_OVERLAY_CONTEXT,
 }: DocumentElementsLayerProps) => {
   useEffect(() => {
     void loadElementDocumentStore().catch((error) =>
@@ -106,6 +122,7 @@ const DocumentElementsLayer = ({
             offset={offset}
             live={live}
             inputs={inputs}
+            overlayContext={overlayContext}
           />
         ))}
     </>

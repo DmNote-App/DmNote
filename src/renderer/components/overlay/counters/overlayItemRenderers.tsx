@@ -1,10 +1,9 @@
 import type { ReactElement } from 'react';
-import StatItem from './StatItem';
+import OverlayStatItem from './OverlayStatItem';
 import OverlayGraphItem from './OverlayGraphItem';
 import OverlayKnobItem from './OverlayKnobItem';
 import OverlaySpriteItem from './OverlaySpriteItem';
 import { resolveZIndexFallback } from '@utils/element/zIndexFallback';
-import { getStatTypeLabel } from '@utils/grid/statTypeLabel';
 import type { CanonicalPositionOf, ItemElementType } from '@src/types/editor';
 
 export interface OverlayItemContext {
@@ -22,20 +21,12 @@ type OverlayItemRenderer<K extends ItemElementType> = (
 const OVERLAY_ITEM_RENDERERS: {
   [K in ItemElementType]: OverlayItemRenderer<K>;
 } = {
-  stat: (pos, index) => {
-    const statType = pos.statType ?? 'kps';
-    const defaultLabel = getStatTypeLabel(statType);
-    const label = (pos.displayText || '').trim() || defaultLabel;
-    return (
-      <StatItem
-        key={pos.id}
-        statType={statType}
-        label={label}
-        position={{ ...pos, zIndex: pos.zIndex ?? index }}
-        counterEnabled={true}
-      />
-    );
-  },
+  stat: (pos, index) => (
+    <OverlayStatItem
+      key={pos.id}
+      position={{ ...pos, zIndex: pos.zIndex ?? index }}
+    />
+  ),
   graph: (pos, index) => (
     <OverlayGraphItem
       key={pos.id}
