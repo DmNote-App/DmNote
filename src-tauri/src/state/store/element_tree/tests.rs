@@ -118,7 +118,11 @@ fn 옛_store_json은_가져오기만_하고_새_파일에_저장한다() {
     )
     .unwrap();
     assert!(!reloaded.needs_persist);
-    assert_eq!(reloaded.data.element_document, snapshot.element_document);
+    // 저장은 빈 칸을 뺀 압축 모양 - 뜻은 같다
+    assert_eq!(
+        compact_document(&reloaded.data.element_document),
+        compact_document(&snapshot.element_document)
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 

@@ -223,13 +223,16 @@ pub(crate) fn attach_loaded_document(
     state: &mut AppStoreData,
     stored: Option<Value>,
 ) -> Result<AttachOutcome> {
-    attach_parsed_document(state, stored.map(parse_document_lenient))
+    attach_parsed_document(state, stored.map(parse_document_lenient), None)
 }
 
-/// 이미 읽은 트리 문서를 붙인다 - (문서, 읽지 못해 뺀 노드 수)
+/// 이미 읽은 트리 문서를 붙인다 - (문서, 읽지 못해 뺀 노드 수).
+/// `projected`: 트리에서 만든 옛 모양(트리만 저장한 파일) - 읽기 정리가 옛 모양을 바꾸지
+/// 않았으면 트리를 그대로 쓰고, 바꿨으면 바뀐 요소만 다시 맞춘다
 pub(crate) fn attach_parsed_document(
     state: &mut AppStoreData,
     stored: Option<(Document, usize)>,
+    projected: Option<&EditorDocumentV1>,
 ) -> Result<AttachOutcome> {
     let legacy = EditorDocumentV1::from_store(state);
     let mut unreadable = false;
@@ -240,11 +243,13 @@ pub(crate) fn attach_parsed_document(
         }
         document
     });
-    let mut document = match &stored {
-        Some(stored) => {
-            reconcile_document(stored, None, &legacy).context("요소 트리 맞추기 실패")?
+    let mut document = match (&stored, projected) {
+        (Some(stored), Some(projected)) if *projected == legacy => stored.clone(),
+        (Some(stored), projected) => {
+            reconcile_document(stored, projected.map(LegacyRef::from), &legacy)
+                .context("요소 트리 맞추기 실패")?
         }
-        None => import_document(&legacy).context("요소 트리 가져오기 실패")?,
+        (None, _) => import_document(&legacy).context("요소 트리 가져오기 실패")?,
     };
     let report = Loader {
         kinds: builtin_kind_registry(),

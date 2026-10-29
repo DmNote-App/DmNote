@@ -98,22 +98,22 @@ fn fill_legacy_fields_from_tree(
     value: &mut Value,
     document: &element_document::Document,
     dropped: usize,
-) -> bool {
+) -> (bool, Option<crate::models::EditorDocumentV1>) {
     let Some(object) = value.as_object_mut() else {
-        return false;
+        return (false, None);
     };
     if super::store::LEGACY_ELEMENT_FIELDS
         .iter()
         .any(|field| object.contains_key(*field))
     {
-        return false;
+        return (false, None);
     }
     let (projected, replaced) =
         match crate::models::legacy_layout::project_document_lenient(document) {
             Ok(projected) => projected,
             Err(error) => {
                 log::warn!("[Store] 트리에서 옛 모양을 만들지 못했습니다: {error:#}");
-                return true;
+                return (true, None);
             }
         };
     if replaced {
@@ -121,14 +121,14 @@ fn fill_legacy_fields_from_tree(
     }
     let repaired = dropped > 0 || replaced;
     let Ok(Value::Object(fields)) = serde_json::to_value(&projected) else {
-        return true;
+        return (true, None);
     };
     for (name, field) in fields {
         if super::store::LEGACY_ELEMENT_FIELDS.contains(&name.as_str()) {
             object.insert(name, field);
         }
     }
-    repaired
+    (repaired, Some(projected))
 }
 
 /// 테스트 - 저장 파일을 옛 모양 칸까지 채운 값으로 읽는다 (트리에서 다시 만들고 정리는 하지 않는다)
@@ -137,9 +137,7 @@ pub(crate) fn read_store_value_with_legacy(path: &Path) -> Value {
     let mut value: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
     if let Some(document) = value.get(super::store::ELEMENT_DOCUMENT_FIELD).cloned() {
         let (document, dropped) = super::store::parse_document_lenient(document);
-        assert!(!fill_legacy_fields_from_tree(
-            &mut value, &document, dropped
-        ));
+        assert!(!fill_legacy_fields_from_tree(&mut value, &document, dropped).0);
     }
     value
 }
@@ -152,6 +150,8 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     // 요소 트리 문서는 옛 모양 정리가 끝난 뒤 붙인다 (플러그인 데이터 칸으로 새지 않게 먼저 뺀다)
     let mut parsed_element_document: Option<(element_document::Document, usize)> = None;
     let mut projection_failed = false;
+    // 트리에서 만든 옛 모양 - 읽기 정리가 바꾸지 않았으면 붙일 때 트리를 그대로 쓴다
+    let mut projected_legacy: Option<crate::models::EditorDocumentV1> = None;
     let (state, needs_persist, repaired, seed_active_css_history, explicit_invalid_element_id) =
         match serde_json::from_slice::<Value>(&content) {
             Ok(mut value) => {
@@ -163,7 +163,7 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
                 parsed_element_document =
                     stored_element_document.map(super::store::parse_document_lenient);
                 if let Some((document, dropped)) = parsed_element_document.as_ref() {
-                    projection_failed =
+                    (projection_failed, projected_legacy) =
                         fill_legacy_fields_from_tree(&mut value, document, *dropped);
                 }
                 let seed_active_css_history = value.get("customCssHistory").is_none();
@@ -307,7 +307,11 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     needs_persist |= plugin_id_backfill.changed;
     repaired |= plugin_id_backfill.repaired;
     let element_document_missing = parsed_element_document.is_none();
-    let attached = super::store::attach_parsed_document(&mut state, parsed_element_document)?;
+    let attached = super::store::attach_parsed_document(
+        &mut state,
+        parsed_element_document,
+        projected_legacy.as_ref(),
+    )?;
     needs_persist |= attached.changed;
     // 읽지 못한 트리 문서는 손상 복구와 같이 원본을 백업하고 자산 정리를 건너뛴다
     repaired |= attached.unreadable || projection_failed;

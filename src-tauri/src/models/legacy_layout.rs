@@ -354,9 +354,10 @@ fn element_from_legacy(
         object.remove(field);
     }
 
+    // 빈(null) 칸은 싣지 않는다 - 옛 칸은 Option이라 빈 칸과 null이 같고, 저장 모양과 같아진다
     let mut values = Map::new();
     for rule in &schema.fields {
-        if let Some(value) = object.remove(&rule.name) {
+        if let Some(value) = object.remove(&rule.name).filter(|value| !value.is_null()) {
             values.insert(rule.name.clone(), value);
         }
     }
@@ -367,7 +368,7 @@ fn element_from_legacy(
         };
         let mut part = Map::new();
         for rule in fields {
-            if let Some(value) = object.remove(&rule.name) {
+            if let Some(value) = object.remove(&rule.name).filter(|value| !value.is_null()) {
                 part.insert(rule.name.clone(), value);
             }
         }
