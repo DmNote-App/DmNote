@@ -874,9 +874,9 @@ fn scene_positions<'a>(elements: &'a [ProjectedElement<'a>]) -> HashMap<&'a str,
 }
 
 /// 트리 쓰기로 옮기거나 넣은 옛 종류 요소의 zIndex - (장면, 요소 id, 새 zIndex).
-/// 옮긴 요소만 트리에서 바로 아래 요소와 바로 위 (옮기지 않은) 요소 사이에 놓는다.
-/// 자리가 없으면 위쪽 요소들을 같은 만큼 밀어 서로의 순서를 지킨다. 옮기지 않은 요소끼리의
-/// 순서(흩어진 그룹 포함)는 건드리지 않는다
+/// 옮기지 않은 요소는 지금 겹침 순서(stacking_key)대로 두고, 옮긴 요소는 트리에서 바로 위
+/// 요소 바로 아래(없으면 바로 아래 요소 바로 위)에 끼운다. 그 순서를 지키지 못하는 요소만
+/// 앞 요소보다 하나 큰 zIndex를 받는다 - 옮기지 않은 요소끼리의 순서(흩어진 그룹 포함)는 그대로다
 pub(crate) fn moved_z_fixes(
     document: &Document,
     scene_id: &str,
@@ -888,57 +888,59 @@ pub(crate) fn moved_z_fixes(
     let (mut elements, _) = collect_projection(scene);
     elements.sort_by_key(|entry| entry.order);
     let positions = scene_positions(&elements);
-    let original: Vec<i64> = elements
-        .iter()
-        .map(|entry| {
-            stored_z_index(entry.element).unwrap_or(positions[entry.element.id.as_str()] as i64)
-        })
-        .collect();
+    let key_of = |index: usize, z: Option<i64>| {
+        let entry = &elements[index];
+        stacking_key(z, entry.kind, positions[entry.element.id.as_str()])
+    };
     let is_moved: Vec<bool> = elements
         .iter()
         .map(|entry| moved.contains(&entry.element.id))
         .collect();
-    let mut z = original.clone();
-    for index in 0..elements.len() {
-        if !is_moved[index] {
-            continue;
-        }
-        let below = index.checked_sub(1).map(|previous| z[previous]);
-        let above = (index + 1..elements.len())
-            .find(|&next| !is_moved[next])
-            .map(|next| z[next]);
-        let fits = stored_z_index(elements[index].element).is_some()
-            && below.is_none_or(|below| z[index] > below)
-            && above.is_none_or(|above| z[index] < above)
-            && z.iter()
-                .enumerate()
-                .all(|(other, value)| other == index || *value != z[index]);
-        if fits {
-            continue;
-        }
-        // 트리에서 바로 아래 요소의 바로 위(없으면 바로 위 요소의 자리)에 끼우고, 그 값 이상인
-        // 다른 요소를 모두 한 칸 올린다 - 옮기지 않은 요소끼리의 순서는 그대로다
-        let target = match (below, above) {
-            (Some(below), _) => below + 1,
-            (None, Some(above)) => above,
-            (None, None) => 0,
+    // 옮기지 않은 요소의 지금 겹침 순서
+    let mut sequence: Vec<usize> = (0..elements.len())
+        .filter(|&index| !is_moved[index])
+        .collect();
+    sequence.sort_by_key(|&index| key_of(index, stored_z_index(elements[index].element)));
+    // 옮긴 요소를 트리 순서대로 끼운다
+    for (index, _) in is_moved.iter().enumerate().filter(|(_, moved)| **moved) {
+        let placed = |other: &usize| sequence.contains(other);
+        let at = if let Some(successor) = (index + 1..elements.len()).find(|other| placed(other)) {
+            sequence
+                .iter()
+                .position(|&other| other == successor)
+                .unwrap_or(0)
+        } else if let Some(predecessor) = (0..index).rev().find(|other| placed(other)) {
+            sequence
+                .iter()
+                .position(|&other| other == predecessor)
+                .map_or(0, |at| at + 1)
+        } else {
+            0
         };
-        for (other, value) in z.iter_mut().enumerate() {
-            if other != index && *value >= target {
-                *value += 1;
-            }
-        }
-        z[index] = target;
+        sequence.insert(at, index);
     }
-    elements
-        .iter()
-        .enumerate()
-        .filter(|(index, entry)| {
-            z[*index] != original[*index]
-                || stored_z_index(entry.element).is_none() && is_moved[*index]
-        })
-        .map(|(index, entry)| (scene_id.to_string(), entry.element.id.clone(), z[index]))
-        .collect()
+    // 순서를 지키지 못하는 요소만 앞 요소보다 하나 큰 zIndex
+    let mut fixes = Vec::new();
+    let mut previous: Option<((i64, usize, usize), i64)> = None;
+    for &index in &sequence {
+        let stored = stored_z_index(elements[index].element);
+        let key = key_of(index, stored);
+        let keep = !is_moved[index] || stored.is_some();
+        let (key, z) = match previous {
+            Some((previous_key, _)) if keep && key > previous_key => (key, key.0),
+            None if keep => (key, key.0),
+            Some((_, previous_z)) => {
+                let z = previous_z + 1;
+                (key_of(index, Some(z)), z)
+            }
+            None => (key, key.0),
+        };
+        if stored != Some(z) && (is_moved[index] || stored.is_some() || z != key.0) {
+            fixes.push((scene_id.to_string(), elements[index].element.id.clone(), z));
+        }
+        previous = Some((key, z));
+    }
+    fixes
 }
 
 // 트리 쓰기로 옛 종류 요소 순서가 바뀐 장면 - 저장된 zIndex를 트리 순서로 맞춰 옛 모양에 반영한다

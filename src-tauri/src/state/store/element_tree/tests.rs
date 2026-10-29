@@ -1084,3 +1084,92 @@ fn 트리_쓰기로_장면을_만들거나_지울_수_없다() {
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+fn set_key_layout(store: &crate::state::AppStore, layout: &[(Option<i32>, Option<&str>)]) {
+    let mut guard = store.state.write();
+    let mut scratch = guard.data.clone();
+    let positions = scratch.key_positions.get_mut("4key").unwrap();
+    for (index, position) in positions.iter_mut().enumerate() {
+        let (z, group) = layout
+            .get(index)
+            .copied()
+            .unwrap_or((Some(100 + index as i32), None));
+        position.z_index = z;
+        position.group_id = group.map(str::to_string);
+    }
+    store.commit_locked(&mut guard, scratch, ()).unwrap();
+}
+
+fn tree_key_order(store: &crate::state::AppStore) -> Vec<String> {
+    let mut out = Vec::new();
+    walk(
+        &store.element_document_snapshot().1.scenes["4key"].nodes,
+        &mut |node, _| {
+            if let Node::Element(element) = node {
+                if element.kind == "key" {
+                    out.push(element.id.clone());
+                }
+            }
+        },
+    );
+    out
+}
+
+#[test]
+fn 같은_z가_있어도_옮긴_요소는_놓은_자리에_남는다() {
+    let (dir, store) = open_store();
+    set_key_layout(&store, &[(Some(0), None), (Some(0), None)]);
+    let keys: Vec<String> = store.snapshot().key_positions["4key"]
+        .iter()
+        .map(|position| position.id.clone())
+        .collect();
+    let scene = store.element_document_snapshot().1.scenes["4key"].clone();
+    let k0_at = scene.find_path(&keys[0]).unwrap()[0];
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "move", "scene": "4key", "ids": [keys[7]], "parent": null, "index": k0_at + 1 }]),
+    );
+    let order = tree_key_order(&store);
+    let at = |id: &String| order.iter().position(|other| other == id).unwrap();
+    assert!(
+        at(&keys[0]) < at(&keys[7]) && at(&keys[7]) < at(&keys[1]),
+        "{order:?}"
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 흩어진_그룹_맨_앞에_넣으면_그_그룹_맨_아래에_남는다() {
+    let (dir, store) = open_store();
+    // X=z1, A=z0(g1), B=z2(g1), Y=z3
+    set_key_layout(
+        &store,
+        &[
+            (Some(1), None),
+            (Some(0), Some("g1")),
+            (Some(2), Some("g1")),
+            (Some(3), None),
+        ],
+    );
+    let keys: Vec<String> = store.snapshot().key_positions["4key"]
+        .iter()
+        .map(|position| position.id.clone())
+        .collect();
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "move", "scene": "4key", "ids": [keys[3]], "parent": "g1", "index": 0 }]),
+    );
+    let scene = store.element_document_snapshot().1.scenes["4key"].clone();
+    let group = scene.find_path("g1").unwrap();
+    let Some(Node::Group(group)) = scene.node_at(&group) else {
+        panic!()
+    };
+    let members: Vec<&str> = group.children.iter().map(Node::id).collect();
+    assert_eq!(
+        members,
+        vec![keys[3].as_str(), keys[1].as_str(), keys[2].as_str()]
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
