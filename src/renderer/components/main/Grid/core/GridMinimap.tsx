@@ -4,6 +4,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useGridViewStore } from '@stores/grid/useGridViewStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
+import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documentElementOrder';
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
   EDITOR_ELEMENT_TYPES,
@@ -175,6 +177,18 @@ const GridMinimap = ({
     }));
   })();
 
+  // 트리 문서에만 있는 종류(커서 트래커 등) - 플러그인 요소와 같은 모양으로 표시
+  const documentScene = useElementDocumentScene(selectedKeyType);
+  const documentPositions: PluginElementPosition[] = documentElementSlots(
+    documentScene,
+  ).map(({ element }) => ({
+    x: element.frame.x,
+    y: element.frame.y,
+    width: element.frame.width,
+    height: element.frame.height,
+  }));
+  const otherPositions = [...pluginPositions, ...documentPositions];
+
   // 컨테이너 크기 추적 (ResizeObserver 사용)
   useEffect(() => {
     if (!containerRef.current) return;
@@ -207,7 +221,7 @@ const GridMinimap = ({
 
   // 모든 키 + 플러그인 요소의 바운딩 박스 계산
   const contentBounds = (() => {
-    if (!hasNativeElements && pluginPositions.length === 0) {
+    if (!hasNativeElements && otherPositions.length === 0) {
       return { minX: 0, minY: 0, maxX: 100, maxY: 100 };
     }
 
@@ -234,7 +248,7 @@ const GridMinimap = ({
     }
 
     // 플러그인 요소들의 바운딩 박스 계산
-    pluginPositions.forEach((pos) => {
+    otherPositions.forEach((pos) => {
       minX = Math.min(minX, pos.x);
       minY = Math.min(minY, pos.y);
       maxX = Math.max(maxX, pos.x + pos.width);
@@ -369,7 +383,7 @@ const GridMinimap = ({
   };
 
   // 키 개수와 플러그인 요소가 모두 없으면 미니맵 숨김
-  if (!hasNativeElements && pluginPositions.length === 0) {
+  if (!hasNativeElements && otherPositions.length === 0) {
     return null;
   }
 
@@ -540,7 +554,7 @@ const GridMinimap = ({
           {/* 플러그인 요소 표시 */}
           {renderElementRects(
             'plugin',
-            pluginPositions.map((pos) => ({
+            otherPositions.map((pos) => ({
               dx: pos.x,
               dy: pos.y,
               width: pos.width,
