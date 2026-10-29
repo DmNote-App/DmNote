@@ -1,4 +1,5 @@
 use super::*;
+use element_document::document::walk;
 use crate::defaults::{default_keys, default_positions, default_stat_positions};
 use crate::models::legacy_layout::project_document;
 
@@ -372,4 +373,138 @@ fn 전체를_담은_예전_저장_모양도_읽고_뼈대로_다시_저장한다
     let outcome = attach_loaded_document(&mut reloaded, Some(full)).unwrap();
     assert!(outcome.changed && !outcome.unreadable);
     assert_eq!(reloaded.element_document, state.element_document);
+}
+
+fn commit(store: &crate::state::AppStore, ops: serde_json::Value) -> ElementDocumentCommitResult {
+    let ops: Vec<Op> = serde_json::from_value(ops).unwrap();
+    store.commit_element_document(&ops).unwrap()
+}
+
+fn tracker_json(id: &str) -> serde_json::Value {
+    serde_json::json!({ "type": "element", "id": id, "kind": "cursorTracker",
+                        "frame": { "x": 5, "y": 5, "width": 120, "height": 120 } })
+}
+
+#[test]
+fn 트리_요소끼리는_트리에서_묶고_풀고_이름을_바꾸며_옛_그룹_목록에는_나타나지_않는다() {
+    let (dir, store) = open_store();
+    let key = store.snapshot().key_positions["4key"][1].id.clone();
+    for id in ["t1", "t2"] {
+        let inserted = commit(
+            &store,
+            serde_json::json!([{ "op": "insert", "scene": "4key", "parent": null,
+                                 "index": null, "node": tracker_json(id) }]),
+        );
+        assert!(matches!(
+            inserted,
+            ElementDocumentCommitResult::Committed { .. }
+        ));
+    }
+    // 옛 종류 요소가 섞이면 묶을 수 없다
+    assert!(matches!(
+        commit(
+            &store,
+            serde_json::json!([{ "op": "group", "scene": "4key", "id": "tg", "name": "T",
+                                 "ids": ["t1", key] }]),
+        ),
+        ElementDocumentCommitResult::Rejected {
+            code: "MANAGED_ELSEWHERE",
+            ..
+        }
+    ));
+    assert!(matches!(
+        commit(
+            &store,
+            serde_json::json!([
+                { "op": "group", "scene": "4key", "id": "tg", "name": "T", "ids": ["t1", "t2"] },
+                { "op": "setGroup", "scene": "4key", "id": "tg", "name": "트래커" }
+            ]),
+        ),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    let document = store.element_document_snapshot().1;
+    assert_eq!(
+        document.scenes["4key"].parent_of("t1"),
+        Some(Some("tg".to_string()))
+    );
+    let legacy = project_document(&document).unwrap();
+    assert!(
+        !legacy.layer_groups["4key"]
+            .iter()
+            .any(|group| group.id == "tg"),
+        "트리 전용 그룹은 옛 모양에 나타나지 않는다"
+    );
+    assert!(store.snapshot().layer_groups["4key"]
+        .iter()
+        .all(|group| group.id != "tg"));
+
+    // 옛 경로로 구조가 바뀌어도 트리 그룹은 안쪽까지 그대로 남는다
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        scratch.key_positions.get_mut("4key").unwrap().swap(0, 1);
+        scratch.keys.get_mut("4key").unwrap().swap(0, 1);
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let document = store.element_document_snapshot().1;
+    let scene = &document.scenes["4key"];
+    assert_eq!(scene.parent_of("t1"), Some(Some("tg".to_string())));
+    assert_eq!(scene.parent_of("t2"), Some(Some("tg".to_string())));
+
+    assert!(matches!(
+        commit(
+            &store,
+            serde_json::json!([{ "op": "ungroup", "scene": "4key", "id": "tg" }]),
+        ),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    let document = store.element_document_snapshot().1;
+    assert_eq!(document.scenes["4key"].parent_of("t1"), Some(None));
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 트리_그룹을_지운_것을_되돌리면_안쪽까지_되살아난다() {
+    use crate::state::history::HistoryDirection;
+    let (dir, store) = open_store();
+    assert!(matches!(
+        commit(
+            &store,
+            serde_json::json!([
+                { "op": "insert", "scene": "4key", "parent": null, "index": null, "node": tracker_json("t1") },
+                { "op": "insert", "scene": "4key", "parent": null, "index": null, "node": tracker_json("t2") },
+                { "op": "group", "scene": "4key", "id": "tg", "name": "T", "ids": ["t1", "t2"] }
+            ]),
+        ),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    assert!(matches!(
+        commit(
+            &store,
+            serde_json::json!([{ "op": "remove", "scene": "4key", "ids": ["tg"] }]),
+        ),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    assert!(store.element_document_snapshot().1.scenes["4key"]
+        .find_path("t1")
+        .is_none());
+    let counters = Default::default();
+    store
+        .apply_history_operation(
+            HistoryDirection::Undo,
+            &uuid::Uuid::new_v4().to_string(),
+            &counters,
+            || {},
+        )
+        .unwrap();
+    let document = store.element_document_snapshot().1;
+    let scene = &document.scenes["4key"];
+    assert_eq!(scene.parent_of("t1"), Some(Some("tg".to_string())));
+    assert_eq!(scene.parent_of("t2"), Some(Some("tg".to_string())));
+    let mut ids = Vec::new();
+    walk(&scene.nodes, &mut |node, _| ids.push(node.id().to_string()));
+    assert_eq!(ids.iter().filter(|id| *id == "tg").count(), 1);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
 }

@@ -634,7 +634,7 @@ fn 끼울_자리가_같으면_기준점이_달라도_트리_요소_순서를_지
         node_json("T2", "probe")
     ]));
     let mut next = graft_scene(json!([
-        { "type": "group", "id": "S", "name": "S", "children": [node_json("A", "key"), node_json("B", "key")] }
+        { "type": "group", "id": "S", "name": "S", "legacy": { "index": 0 }, "children": [node_json("A", "key"), node_json("B", "key")] }
     ]));
     graft_tree_only(&previous, &mut next);
     assert_eq!(shape_of(&next), vec!["S@1", "A@2", "B@2", "T1@1", "T2@1"]);
@@ -644,12 +644,12 @@ fn 끼울_자리가_같으면_기준점이_달라도_트리_요소_순서를_지
 fn 옛_종류_멤버_없는_그룹_위의_트리_요소는_그_그룹_위에_남는다() {
     let previous = graft_scene(json!([
         node_json("A", "key"),
-        { "type": "group", "id": "E", "name": "E", "children": [node_json("T3", "probe")] },
+        { "type": "group", "id": "E", "name": "E", "legacy": { "index": 0 }, "children": [node_json("T3", "probe")] },
         node_json("T1", "probe")
     ]));
     let mut next = graft_scene(json!([
         node_json("A", "key"),
-        { "type": "group", "id": "E", "name": "E", "children": [] }
+        { "type": "group", "id": "E", "name": "E", "legacy": { "index": 0 }, "children": [] }
     ]));
     graft_tree_only(&previous, &mut next);
     assert_eq!(shape_of(&next), vec!["A@1", "E@1", "T3@2", "T1@1"]);
@@ -661,14 +661,14 @@ fn 여러_구조_변경이_한번에_와도_트리_요소를_잃지_않고_남�
     // 없어진 그룹의 요소는 맨 위 단계로 나오고(Ta·Tm), 남은 그룹의 요소는 그 그룹에 남는다.
     // 한 커밋에 여러 구조 변경이 겹치면 트리 요소끼리 위아래가 바뀔 수 있다(받아들임)
     let previous = graft_scene(json!([
-        { "type": "group", "id": "P", "name": "P", "children": [
+        { "type": "group", "id": "P", "name": "P", "legacy": { "index": 0 }, "children": [
             node_json("X", "key"), node_json("Ta", "probe"), node_json("D", "key"), node_json("Tm", "probe")
         ] },
-        { "type": "group", "id": "G", "name": "G", "children": [node_json("Tb", "probe")] }
+        { "type": "group", "id": "G", "name": "G", "legacy": { "index": 0 }, "children": [node_json("Tb", "probe")] }
     ]));
     let mut next = graft_scene(json!([
         node_json("D", "key"),
-        { "type": "group", "id": "G", "name": "G", "children": [node_json("X", "key")] }
+        { "type": "group", "id": "G", "name": "G", "legacy": { "index": 0 }, "children": [node_json("X", "key")] }
     ]));
     graft_tree_only(&previous, &mut next);
     let shape = shape_of(&next);
@@ -680,7 +680,7 @@ fn 여러_구조_변경이_한번에_와도_트리_요소를_잃지_않고_남�
 
 #[test]
 fn 옛_멤버_없는_그룹을_풀면_안의_트리_요소는_그_그룹_자리에_남는다() {
-    let group = |id: &str, children: serde_json::Value| json!({ "type": "group", "id": id, "name": id, "children": children });
+    let group = |id: &str, children: serde_json::Value| json!({ "type": "group", "id": id, "name": id, "legacy": { "index": 0 }, "children": children });
     // A1 G2{T3} G6{T5} T7 → G6 해제
     let previous = graft_scene(json!([
         node_json("A1", "key"),
@@ -715,11 +715,11 @@ fn 옛_멤버가_생긴_그룹은_기준으로_삼지_않는다() {
     let previous = graft_scene(json!([
         node_json("A4", "key"),
         node_json("A5", "key"),
-        { "type": "group", "id": "G2", "name": "G2", "children": [node_json("T9", "probe")] },
+        { "type": "group", "id": "G2", "name": "G2", "legacy": { "index": 0 }, "children": [node_json("T9", "probe")] },
         node_json("T3", "probe")
     ]));
     let mut next = graft_scene(json!([
-        { "type": "group", "id": "G2", "name": "G2", "children": [node_json("A4", "key")] },
+        { "type": "group", "id": "G2", "name": "G2", "legacy": { "index": 0 }, "children": [node_json("A4", "key")] },
         node_json("A5", "key")
     ]));
     graft_tree_only(&previous, &mut next);

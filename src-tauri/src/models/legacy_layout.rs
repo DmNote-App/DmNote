@@ -62,6 +62,19 @@ fn kind_of(name: &str) -> Option<EditorElementTypeV1> {
 }
 
 /// 옛 모양으로 관리하는 종류인지 - 아니면 트리에만 있는 종류
+/// 트리에만 있는 그룹 - 옛 그룹 표시가 없고 안이 모두 트리 전용(옛 모양에는 나타나지 않는다)
+pub(crate) fn is_tree_only_group(group: &Group) -> bool {
+    if group.extra.contains_key(LEGACY) {
+        return false;
+    }
+    let mut tree_only = true;
+    walk(&group.children, &mut |node, _| match node {
+        Node::Element(element) => tree_only &= !is_legacy_kind(&element.kind),
+        Node::Group(inner) => tree_only &= !inner.extra.contains_key(LEGACY),
+    });
+    tree_only
+}
+
 pub(crate) fn is_legacy_kind(name: &str) -> bool {
     kind_of(name).is_some()
 }
@@ -669,7 +682,10 @@ fn collect_projection(scene: &Scene) -> (Vec<ProjectedElement<'_>>, Vec<&Group>)
         ancestors.retain(|(depth, _)| *depth < path.len());
         match node {
             Node::Group(group) => {
-                groups.push(group);
+                // 트리 전용 그룹은 옛 모양(layerGroups)에 나타나지 않는다
+                if !is_tree_only_group(group) {
+                    groups.push(group);
+                }
                 ancestors.push((path.len(), group.id.clone()));
             }
             Node::Element(element) => {
@@ -971,38 +987,64 @@ fn groups_with_legacy(nodes: &[Node]) -> HashSet<String> {
 }
 
 pub(crate) fn graft_tree_only(previous: &Scene, next: &mut Scene) {
-    // 트리 전용 요소마다 (조상 그룹 - 가까운 것부터, 아래 이웃 후보 - 장면 전체에서 가까운 것부터).
-    // 후보는 옛 종류 요소와 옛 종류 멤버가 없는 그룹이다. 옛 종류 멤버가 있는 그룹은
+    // 트리 전용 노드마다 (조상 그룹 - 가까운 것부터, 아래 이웃 후보 - 장면 전체에서 가까운 것부터).
+    // 트리 전용 그룹은 안쪽까지 한 덩어리로 끼운다.
+    // 후보는 옛 종류 요소와 옛 종류 멤버가 없는 옛 그룹이다. 옛 종류 멤버가 있는 그룹은
     // 그룹 해제·이동으로 노드만 옮겨질 수 있어 기준으로 삼지 않는다
     struct Graft {
         ancestors: Vec<String>,
         below: Vec<String>,
-        element: Element,
+        node: Node,
+    }
+    fn collect(
+        nodes: &[Node],
+        legacy_before: &HashSet<String>,
+        ancestors: &mut Vec<String>,
+        stable_seen: &mut Vec<String>,
+        grafts: &mut Vec<Graft>,
+    ) {
+        for node in nodes {
+            match node {
+                Node::Group(group) if is_tree_only_group(group) => grafts.push(Graft {
+                    ancestors: ancestors.iter().rev().cloned().collect(),
+                    below: stable_seen.iter().rev().cloned().collect(),
+                    node: node.clone(),
+                }),
+                Node::Group(group) => {
+                    if !legacy_before.contains(&group.id) {
+                        stable_seen.push(group.id.clone());
+                    }
+                    ancestors.push(group.id.clone());
+                    collect(
+                        &group.children,
+                        legacy_before,
+                        ancestors,
+                        stable_seen,
+                        grafts,
+                    );
+                    ancestors.pop();
+                }
+                Node::Element(element) if is_legacy_kind(&element.kind) => {
+                    stable_seen.push(element.id.clone());
+                }
+                Node::Element(_) => grafts.push(Graft {
+                    ancestors: ancestors.iter().rev().cloned().collect(),
+                    below: stable_seen.iter().rev().cloned().collect(),
+                    node: node.clone(),
+                }),
+            }
+        }
     }
     let legacy_before = groups_with_legacy(&previous.nodes);
     let legacy_after = groups_with_legacy(&next.nodes);
     let mut grafts: Vec<Graft> = Vec::new();
-    let mut ancestors: Vec<(usize, String)> = Vec::new();
-    let mut stable_seen: Vec<String> = Vec::new();
-    walk(&previous.nodes, &mut |node, path| {
-        ancestors.retain(|(depth, _)| *depth < path.len());
-        match node {
-            Node::Group(group) => {
-                if !legacy_before.contains(&group.id) {
-                    stable_seen.push(group.id.clone());
-                }
-                ancestors.push((path.len(), group.id.clone()));
-            }
-            Node::Element(element) if is_legacy_kind(&element.kind) => {
-                stable_seen.push(element.id.clone());
-            }
-            Node::Element(element) => grafts.push(Graft {
-                ancestors: ancestors.iter().rev().map(|(_, id)| id.clone()).collect(),
-                below: stable_seen.iter().rev().cloned().collect(),
-                element: element.clone(),
-            }),
-        }
-    });
+    collect(
+        &previous.nodes,
+        &legacy_before,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut grafts,
+    );
     // 같은 자리(부모 그룹, 바로 아래 노드)에 여럿이면 원래 순서대로 이어 붙인다
     let mut offsets: HashMap<(Option<String>, Option<String>), usize> = HashMap::new();
     for graft in grafts {
@@ -1046,7 +1088,7 @@ pub(crate) fn graft_tree_only(previous: &Scene, next: &mut Scene) {
             }
         };
         let at = (index + *offset).min(siblings.len());
-        siblings.insert(at, Node::Element(graft.element));
+        siblings.insert(at, graft.node);
         *offset += 1;
     }
     // 그룹 숨김은 트리에만 있다

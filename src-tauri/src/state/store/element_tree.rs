@@ -7,7 +7,6 @@ use std::sync::atomic::Ordering;
 
 use anyhow::{Context, Result};
 use element_document::bundles::BuiltinBundles;
-use element_document::document::walk;
 use element_document::{
     ChangeSet, Document, Engine, IdSource, Loader, Node, Op, Violation, ViolationCode,
 };
@@ -16,8 +15,8 @@ use serde_json::Value;
 
 use super::AppStore;
 use crate::models::legacy_layout::{
-    graft_tree_only, import_document, is_legacy_kind, persisted_document, project_document,
-    reconcile_document, LegacyRef,
+    graft_tree_only, import_document, is_legacy_kind, is_tree_only_group, persisted_document,
+    project_document, reconcile_document, LegacyRef,
 };
 use crate::models::{builtin_kind_registry, AppStoreData, EditorDocumentV1};
 use crate::state::history::ElementTreeHistorySnapshot;
@@ -142,36 +141,65 @@ fn element_kind<'a>(document: &'a Document, scene: &str, id: &str) -> Option<&'a
 }
 
 fn node_is_tree_only(node: &Node) -> bool {
-    let mut tree_only = true;
-    walk(std::slice::from_ref(node), &mut |node, _| {
-        if let Node::Element(element) = node {
-            tree_only &= !is_legacy_kind(&element.kind);
-        }
-    });
-    tree_only
+    match node {
+        Node::Element(element) => !is_legacy_kind(&element.kind),
+        Node::Group(group) => is_tree_only_group(group),
+    }
 }
 
-// 옛 종류 요소와 그룹 구성은 아직 옛 모양 경로가 고친다 - 트리 쓰기는 트리에만 있는 요소만
+// 트리에만 있는 요소 또는 그룹
+fn tree_only_target(document: &Document, scene: &str, id: &str) -> bool {
+    document
+        .scenes
+        .get(scene)
+        .and_then(|scene| scene.find_path(id).and_then(|path| scene.node_at(&path)))
+        .is_some_and(node_is_tree_only)
+}
+
+// 옛 종류 요소와 옛 그룹 구성은 아직 옛 모양 경로가 고친다 - 트리 쓰기는 트리에만 있는 요소·그룹만
 fn touches_legacy(document: &Document, op: &Op) -> bool {
-    let tree_only_target = |scene: &str, id: &str| {
+    let element_target = |scene: &str, id: &str| {
         element_kind(document, scene, id).is_some_and(|kind| !is_legacy_kind(kind))
     };
     match op {
-        Op::Insert { node, .. } => matches!(node, Node::Group(_)) || !node_is_tree_only(node),
-        Op::Remove { scene, ids } | Op::Move { scene, ids, .. } => {
-            !ids.iter().all(|id| tree_only_target(scene, id))
+        Op::Insert { node, .. } => !node_is_tree_only(node),
+        Op::Remove { scene, ids } | Op::Move { scene, ids, .. } | Op::Group { scene, ids, .. } => {
+            !ids.iter().all(|id| tree_only_target(document, scene, id))
         }
         Op::SetFrame { scene, id, .. }
         | Op::SetCommon { scene, id, .. }
         | Op::SetValues { scene, id, .. }
         | Op::SetBundle { scene, id, .. }
-        | Op::SetInput { scene, id, .. } => !tree_only_target(scene, id),
-        // 그룹 숨김은 트리에만 있는 정보
-        Op::SetGroup { name, .. } => name.is_some(),
-        Op::Group { .. } | Op::Ungroup { .. } | Op::AddScene { .. } | Op::RemoveScene { .. } => {
-            true
+        | Op::SetInput { scene, id, .. } => !element_target(scene, id),
+        // 그룹 숨김은 트리에만 있는 정보, 이름은 트리 전용 그룹만
+        Op::SetGroup {
+            scene, id, name, ..
+        } => name.is_some() && !tree_only_target(document, scene, id),
+        Op::Ungroup { scene, id } => !tree_only_target(document, scene, id),
+        Op::AddScene { .. } | Op::RemoveScene { .. } => true,
+    }
+}
+
+// 옛 경로가 고칠 대상을 건드리는 첫 연산. 같은 커밋 앞쪽에서 만든 요소·그룹을 뒤에서
+// 쓸 수 있도록, 처음 문서에서 걸리는 것이 있으면 앞 연산을 차례로 적용하며 다시 본다
+fn first_legacy_op(engine: &Engine<'_>, document: &Document, ops: &[Op]) -> Option<usize> {
+    if !ops.iter().any(|op| touches_legacy(document, op)) {
+        return None;
+    }
+    let mut working = document.clone();
+    for (index, op) in ops.iter().enumerate() {
+        if touches_legacy(&working, op) {
+            return Some(index);
+        }
+        // 적용 실패는 실제 적용에서 규칙 위반으로 돌려준다
+        if engine
+            .apply(&mut working, std::slice::from_ref(op))
+            .is_err()
+        {
+            return None;
         }
     }
+    None
 }
 
 // 옛 종류 요소는 id·종류만 남긴 장면 뼈대 - 되돌리기 기록용
@@ -234,7 +262,7 @@ pub(crate) fn element_tree_snapshot<'a>(
 fn strip_tree_only(nodes: &mut Vec<Node>) {
     nodes.retain(|node| match node {
         Node::Element(element) => is_legacy_kind(&element.kind),
-        Node::Group(_) => true,
+        Node::Group(group) => !is_tree_only_group(group),
     });
     for node in nodes {
         if let Node::Group(group) = node {
@@ -301,10 +329,11 @@ impl AppStore {
             code,
             violations,
         };
-        if let Some(index) = ops
-            .iter()
-            .position(|op| touches_legacy(&guard.data.element_document, op))
-        {
+        let engine = Engine {
+            kinds: builtin_kind_registry(),
+            bundles: &BuiltinBundles,
+        };
+        if let Some(index) = first_legacy_op(&engine, &guard.data.element_document, ops) {
             return Ok(rejected(
                 MANAGED_ELSEWHERE,
                 vec![Violation::new(
@@ -314,10 +343,6 @@ impl AppStore {
             ));
         }
         let mut scratch = guard.data.clone();
-        let engine = Engine {
-            kinds: builtin_kind_registry(),
-            bundles: &BuiltinBundles,
-        };
         let changes =
             match engine.apply(std::sync::Arc::make_mut(&mut scratch.element_document), ops) {
                 Ok(changes) => changes,
