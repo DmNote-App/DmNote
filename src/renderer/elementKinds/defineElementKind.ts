@@ -116,6 +116,11 @@ export interface ElementKindCode<Values> {
   readonly label?: string;
   // 그리기 코드 하나 - 편집 화면(미리보기)과 오버레이·OBS(실제 신호)가 같이 쓴다
   readonly render?: ComponentType<ElementRenderProps<Values>>;
+  // 트리로 옮긴 옛 종류 - 오버레이·OBS에서 스스로 자리를 잡는 옛 그리기(옛 위치 객체를 받는다).
+  // 있으면 감싸는 상자 없이 이것을 그린다 (사용자 CSS 클래스가 두 번 붙지 않게)
+  readonly legacyOverlay?: ComponentType<{
+    position: Record<string, unknown>;
+  }>;
   // 크기 조절 때 비율을 지킬지
   readonly lockAspect?: (values: Values) => boolean;
   // 값이 바뀔 때 함께 맞출 위치·크기 (예: 비율 고정으로 바꾸면 높이를 비율에 맞춘다)

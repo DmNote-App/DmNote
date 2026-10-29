@@ -1,4 +1,5 @@
 import React, { Fragment, Suspense, lazy } from 'react';
+import { isLegacyOverlayType } from '@src/types/elementKinds';
 import { Key } from '@components/shared/key/Key';
 import { isMac } from '@utils/core/platform';
 import KeyCounterLayer from '@components/overlay/counters/KeyCounterLayer';
@@ -174,7 +175,7 @@ const OverlayScene = ({
           />
         );
       })}
-      {ITEM_ELEMENT_TYPES.map((type) => (
+      {ITEM_ELEMENT_TYPES.filter(isLegacyOverlayType).map((type) => (
         <Fragment key={type}>
           {displayItemArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].map(
             (pos, index) =>

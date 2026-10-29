@@ -54,6 +54,27 @@ describe('트리 전용 요소 쌓임 순서', () => {
       ['t2', 3],
     ]);
   });
+  it('오버레이는 트리에서 그리는 옛 종류(노브)를 자기 zIndex로 넣고 편집 화면은 뺀다', () => {
+    const knob = (id: string, zIndex: number | null, index: number) =>
+      ({ ...legacyKey(id, zIndex, index), kind: 'knob' } as Node);
+    const scene: Scene = {
+      nodes: [
+        legacyKey('k1', 5, 0),
+        knob('n1', 7, 0),
+        tracker('t1'),
+        knob('n2', null, 1),
+        { ...(knob('n3', 2, 2) as object), hidden: true } as Node,
+      ],
+    };
+    const ids = (slots: ReturnType<typeof documentElementSlots>) =>
+      slots.map(({ element, zIndex }) => [element.id, zIndex]);
+    expect(ids(documentElementSlots(scene))).toEqual([['t1', 7]]);
+    expect(ids(documentElementSlots(scene, { overlay: true }))).toEqual([
+      ['n1', 7],
+      ['t1', 7],
+      ['n2', 1],
+    ]);
+  });
 });
 
 describe('오버레이 창 크기용 트리 요소 상자', () => {

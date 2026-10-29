@@ -1,5 +1,6 @@
 import type { Node, Scene } from '@src/types/generated/elementDocument';
 import { isEditorElementType } from '@src/types/editor';
+import { TREE_OVERLAY_KINDS } from '@src/types/elementKinds';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 
 export interface DocumentElementSlot {
@@ -20,10 +21,14 @@ const legacyZIndex = (element: ElementNode): number | null => {
   return legacy.zIndex ?? legacy.index ?? null;
 };
 
-/** 트리에만 있는 종류 요소를 겹치는 순서대로 - 숨긴 요소·숨긴 그룹 안은 뺀다 */
+/** 트리에만 있는 종류 요소를 겹치는 순서대로 - 숨긴 요소·숨긴 그룹 안은 뺀다.
+ * overlay면 오버레이가 트리에서 그리는 옛 종류도 자기 zIndex로 넣는다 */
 export const documentElementSlots = (
   scene: Scene | undefined,
-  { includeHidden = false }: { includeHidden?: boolean } = {},
+  {
+    includeHidden = false,
+    overlay = false,
+  }: { includeHidden?: boolean; overlay?: boolean } = {},
 ): DocumentElementSlot[] => {
   if (!scene) return [];
   const slots: DocumentElementSlot[] = [];
@@ -46,7 +51,20 @@ export const documentElementSlots = (
         continue;
       }
       if (isEditorElementType(node.kind)) {
-        below = legacyZIndex(node) ?? below;
+        const z = legacyZIndex(node);
+        below = z ?? below;
+        // 오버레이가 트리에서 그리는 옛 종류는 자기 zIndex로 옛 요소 사이에 선다
+        if (
+          overlay &&
+          TREE_OVERLAY_KINDS.has(node.kind) &&
+          (includeHidden || (!hidden && !node.hidden))
+        ) {
+          slots.push({
+            element: node,
+            zIndex: z ?? below ?? lowest ?? 0,
+            aboveLegacy: true,
+          });
+        }
         continue;
       }
       if (includeHidden || (!hidden && !node.hidden)) {

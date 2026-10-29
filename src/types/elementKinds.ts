@@ -74,3 +74,11 @@ export const defaultElementSize = (type: EditorElementTypeV1) =>
 
 export const fallbackElementSize = (type: EditorElementTypeV1) =>
   ELEMENT_KIND_MODELS[type].fallbackSize;
+
+// 오버레이·OBS가 트리에서 그리는 옛 종류 - 옛 오버레이 그리기에서 빠진다.
+// 편집 화면은 옛 선택·끌기·그룹과 섞여 쓰이므로 아직 옛 경로가 그린다
+export const TREE_OVERLAY_KINDS: ReadonlySet<string> = new Set(['knob']);
+
+/** 오버레이에서 옛 경로가 아직 그리는 옛 종류 */
+export const isLegacyOverlayType = (type: EditorElementTypeV1) =>
+  !TREE_OVERLAY_KINDS.has(type);
