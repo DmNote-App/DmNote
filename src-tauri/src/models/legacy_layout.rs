@@ -852,6 +852,108 @@ pub(crate) fn graft_preset_scene(
     graft_tree_only(&resolved, target);
 }
 
+// 저장된 zIndex로 트리 순서가 그대로 나오면 None. 아니면(흩어진 그룹을 모은 뒤 등) 트리 순서대로
+// 저장된 값을 되도록 지키며 다시 매긴다 - 바뀌지 않은 요소의 값이 남아 플러그인 요소와의
+// 상대 순서가 덜 흔들린다
+fn scene_z_adjustments(
+    elements: &[ProjectedElement<'_>],
+    positions: &HashMap<&str, usize>,
+) -> Option<HashMap<String, i64>> {
+    let mut ordered: Vec<&ProjectedElement<'_>> = elements.iter().collect();
+    ordered.sort_by_key(|entry| entry.order);
+    let keys: Vec<(i64, usize, usize)> = ordered
+        .iter()
+        .map(|entry| {
+            stacking_key(
+                stored_z_index(entry.element),
+                entry.kind,
+                positions[entry.element.id.as_str()],
+            )
+        })
+        .collect();
+    if keys.windows(2).all(|pair| pair[0] < pair[1]) {
+        return None;
+    }
+    let mut previous: Option<i64> = None;
+    Some(
+        ordered
+            .iter()
+            .zip(keys)
+            .map(|(entry, (stored, _, _))| {
+                let z = match previous {
+                    Some(previous) if stored <= previous => previous + 1,
+                    _ => stored,
+                };
+                previous = Some(z);
+                (entry.element.id.clone(), z)
+            })
+            .collect(),
+    )
+}
+
+// 장면의 옛 종류 요소 배열 순번 (종류별 원래 순번, 새 요소는 트리 순서대로 뒤에)
+fn scene_positions<'a>(elements: &'a [ProjectedElement<'a>]) -> HashMap<&'a str, usize> {
+    let mut by_kind: BTreeMap<EditorElementTypeV1, Vec<&ProjectedElement<'_>>> = BTreeMap::new();
+    for entry in elements {
+        by_kind.entry(entry.kind).or_default().push(entry);
+    }
+    let mut positions = HashMap::new();
+    for list in by_kind.values_mut() {
+        list.sort_by_key(|entry| {
+            (
+                stored_index(entry.element).unwrap_or(usize::MAX),
+                entry.order,
+            )
+        });
+        for (index, entry) in list.iter().enumerate() {
+            positions.insert(entry.element.id.as_str(), index);
+        }
+    }
+    positions
+}
+
+/// 트리 순서와 어긋나는 zIndex - (장면, 요소 id, 새 zIndex). 흩어진 그룹은 트리에서 모이므로
+/// 옛 모양 zIndex도 그 순서로 맞춰야 저장·다시 읽기 뒤 순서가 같다
+pub(crate) fn scattered_z_fixes<'a>(
+    document: &Document,
+    modes: impl IntoIterator<Item = &'a String>,
+) -> Vec<(String, String, i64)> {
+    let mut fixes = Vec::new();
+    for mode in modes {
+        let Some(scene) = document.scenes.get(mode) else {
+            continue;
+        };
+        let (elements, _) = collect_projection(scene);
+        let positions = scene_positions(&elements);
+        let Some(adjusted) = scene_z_adjustments(&elements, &positions) else {
+            continue;
+        };
+        for entry in &elements {
+            let z = adjusted[entry.element.id.as_str()];
+            if stored_z_index(entry.element) != Some(z) {
+                fixes.push((mode.clone(), entry.element.id.clone(), z));
+            }
+        }
+    }
+    fixes
+}
+
+// 트리 쓰기로 옛 종류 요소 순서가 바뀐 장면 - 저장된 zIndex를 트리 순서로 맞춰 옛 모양에 반영한다
+pub(crate) fn set_tree_z(document: &mut Document, fixes: &[(String, String, i64)]) {
+    for (mode, id, z) in fixes {
+        let Some(element) = document
+            .scenes
+            .get_mut(mode)
+            .and_then(|scene| scene.element_mut(id))
+        else {
+            continue;
+        };
+        if let Some(Value::Object(info)) = element.extra.get_mut(LEGACY) {
+            info.insert("zIndex".into(), json!(z));
+        }
+    }
+}
+
 /// 트리 문서를 옛 모양으로 내보낸다 - 옛 종류만 나타난다
 pub(crate) fn project_document(document: &Document) -> Result<EditorDocumentV1> {
     let mut legacy = EditorDocumentV1 {
@@ -900,36 +1002,10 @@ pub(crate) fn project_document(document: &Document) -> Result<EditorDocumentV1> 
             }
         }
 
-        // 저장된 zIndex로 트리 순서가 그대로 나오면 그대로, 아니면 순서대로 다시 매긴다
-        let consistent = {
-            let mut keys: Vec<((i64, usize, usize), usize)> = elements
-                .iter()
-                .map(|entry| {
-                    (
-                        stacking_key(
-                            stored_z_index(entry.element),
-                            entry.kind,
-                            positions[entry.element.id.as_str()],
-                        ),
-                        entry.order,
-                    )
-                })
-                .collect();
-            keys.sort();
-            keys.windows(2).all(|pair| pair[0].1 < pair[1].1)
-        };
-        let ranks: HashMap<&str, i64> = elements
-            .iter()
-            .enumerate()
-            .map(|(rank, entry)| (entry.element.id.as_str(), rank as i64))
-            .collect();
-        let z_of = |entry: &ProjectedElement<'_>| -> Option<i64> {
-            if consistent {
-                stored_z_index(entry.element)
-            } else {
-                ranks.get(entry.element.id.as_str()).copied()
-            }
-        };
+        // 저장된 zIndex를 그대로 - 흩어진 그룹은 트리에서 모이지만 옛 모양 순서는 zIndex가
+        // 정한다(옛 편집은 흩어진 그룹을 허용한다). 트리 쓰기로 순서가 바뀌면 쓰는 쪽이
+        // 저장된 zIndex를 먼저 맞춘다(scattered_z_fixes)
+        let z_of = |entry: &ProjectedElement<'_>| -> Option<i64> { stored_z_index(entry.element) };
 
         for kind in EditorElementTypeV1::ALL {
             let list = by_kind.remove(&kind).unwrap_or_default();
@@ -994,6 +1070,72 @@ pub(crate) fn project_document(document: &Document) -> Result<EditorDocumentV1> 
             .with_context(|| format!("{} 옛 모양 내보내기 실패", kind.store_key()))?;
     }
     Ok(legacy)
+}
+
+/// 읽을 때 쓰는 내보내기 - 옛 모양으로 못 바꾸는 요소는 그 자리에 기본 모양을 둔다
+/// (keys·positions 순번 결합을 지키는 제자리 대체). 두 번째 값은 대체가 있었는지
+pub(crate) fn project_document_lenient(document: &Document) -> Result<(EditorDocumentV1, bool)> {
+    if let Ok(legacy) = project_document(document) {
+        return Ok((legacy, false));
+    }
+    let mut repaired = document.clone();
+    for scene in repaired.scenes.values_mut() {
+        element_document::document::walk_mut(&mut scene.nodes, &mut |node| {
+            let Node::Element(element) = node else {
+                return;
+            };
+            let Some(kind) = kind_of(&element.kind) else {
+                return;
+            };
+            let mut probe = Document {
+                scenes: Default::default(),
+                ..Document::default()
+            };
+            probe.scenes.insert(
+                "probe".into(),
+                Scene {
+                    nodes: vec![Node::Element(element.clone())],
+                    extra: Map::new(),
+                },
+            );
+            if project_document(&probe).is_ok() {
+                return;
+            }
+            // 공통 정보와 자리만 남긴 기본 모양
+            let index = stored_index(element);
+            let mut info = Map::new();
+            if let Some(index) = index {
+                info.insert("index".into(), json!(index));
+            }
+            // 종류의 기본 값과 기능 묶음 기본값
+            if let Some(schema) = builtin_kind_registry().get(&element.kind) {
+                element.values = element_document::value::default_fields(&schema.fields);
+                element.bundles = schema
+                    .bundles
+                    .iter()
+                    .filter_map(|bundle| {
+                        BuiltinBundles::fields(bundle).map(|fields| {
+                            (
+                                bundle.clone(),
+                                Value::Object(element_document::value::default_fields(fields)),
+                            )
+                        })
+                    })
+                    .collect();
+            }
+            element.extra = Map::from_iter([(LEGACY.to_string(), Value::Object(info))]);
+            if kind == EditorElementTypeV1::Key
+                && !matches!(element.input, Some(InputBinding::Key { .. }))
+            {
+                element.input = Some(InputBinding::Key {
+                    slot: serde_json::to_value(KeySlot::default()).unwrap_or(Value::Null),
+                });
+            }
+        });
+    }
+    let legacy =
+        project_document(&repaired).context("요소 단위 대체 뒤에도 옛 모양 내보내기 실패")?;
+    Ok((legacy, true))
 }
 
 // 옛 종류 요소 순서·그룹 소속·그룹 목록 - 같으면 트리 구조를 그대로 둔다

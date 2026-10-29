@@ -369,7 +369,7 @@ fn 옛_쓰기로_탭이_지워지면_장면도_지운다() {
 }
 
 #[test]
-fn 트리에서_순서를_바꾸면_그_장면의_z_index를_다시_매긴다() {
+fn 트리에서_순서를_바꾸면_z_index를_새_순서로_맞춘_뒤_내보낸다() {
     let mut legacy = sample();
     for position in legacy.key_positions.get_mut("4key").unwrap() {
         position.group_id = None;
@@ -394,6 +394,9 @@ fn 트리에서_순서를_바꾸면_그_장면의_z_index를_다시_매긴다() 
             }],
         )
         .unwrap();
+    // 트리 쓰기가 순서를 바꾸면 쓰는 쪽이 저장된 zIndex를 새 순서로 맞춘 뒤 내보낸다
+    let fixes = scattered_z_fixes(&document, ["4key".to_string()].iter());
+    set_tree_z(&mut document, &fixes);
     let projected = project_document(&document).unwrap();
     let four = &projected.key_positions["4key"];
     let top = four

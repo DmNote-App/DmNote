@@ -93,7 +93,7 @@ pub(crate) struct LoadedStore {
 }
 
 // 옛 종류 칸이 하나도 없고 트리만 있으면 트리에서 옛 모양을 만든다 (옛 칸이 있는 파일은 그대로).
-// 만들지 못하면 true - 손상 복구처럼 원본을 백업하고 자산 정리를 건너뛴다
+// 만들지 못하거나 일부를 빼거나 대체했으면 true - 손상 복구처럼 원본을 백업하고 자산 정리를 건너뛴다
 fn fill_legacy_fields_from_tree(value: &mut Value, document: &Value) -> bool {
     let Some(object) = value.as_object_mut() else {
         return false;
@@ -104,14 +104,19 @@ fn fill_legacy_fields_from_tree(value: &mut Value, document: &Value) -> bool {
     {
         return false;
     }
-    let (document, _) = super::store::parse_document_lenient(document.clone());
-    let projected = match crate::models::legacy_layout::project_document(&document) {
-        Ok(projected) => projected,
-        Err(error) => {
-            log::warn!("[Store] 트리에서 옛 모양을 만들지 못했습니다: {error:#}");
-            return true;
-        }
-    };
+    let (document, dropped) = super::store::parse_document_lenient(document.clone());
+    let (projected, replaced) =
+        match crate::models::legacy_layout::project_document_lenient(&document) {
+            Ok(projected) => projected,
+            Err(error) => {
+                log::warn!("[Store] 트리에서 옛 모양을 만들지 못했습니다: {error:#}");
+                return true;
+            }
+        };
+    if replaced {
+        log::warn!("[Store] 옛 모양으로 못 바꾼 요소를 기본 모양으로 대체했습니다");
+    }
+    let repaired = dropped > 0 || replaced;
     let Ok(Value::Object(fields)) = serde_json::to_value(&projected) else {
         return true;
     };
@@ -120,7 +125,7 @@ fn fill_legacy_fields_from_tree(value: &mut Value, document: &Value) -> bool {
             object.insert(name, field);
         }
     }
-    false
+    repaired
 }
 
 /// 테스트 - 저장 파일을 옛 모양 칸까지 채운 값으로 읽는다 (트리에서 다시 만들고 정리는 하지 않는다)

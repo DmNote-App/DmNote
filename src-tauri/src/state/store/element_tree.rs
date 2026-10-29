@@ -16,7 +16,8 @@ use serde_json::Value;
 use super::AppStore;
 use crate::models::legacy_layout::{
     graft_preset_scene, graft_tree_only, import_document, is_legacy_kind, is_tree_only_group,
-    project_document, reconcile_document, strip_tree_only, LegacyRef,
+    project_document, reconcile_document, scattered_z_fixes, set_tree_z, strip_tree_only,
+    LegacyRef,
 };
 use crate::models::{builtin_kind_registry, AppStoreData, EditorCommitRequest, EditorDocumentV1};
 use crate::state::history::ElementTreeHistorySnapshot;
@@ -63,9 +64,49 @@ pub(crate) fn parse_document_lenient(value: Value) -> (Document, usize) {
                     }
                 }
                 *dropped += 1;
-                None
+                // 옛 종류 요소는 그 자리에 기본 모양을 둔다 (keys·positions 순번 결합 유지)
+                legacy_placeholder(value)
             })
             .collect()
+    }
+    fn legacy_placeholder(value: &Value) -> Option<Node> {
+        let object = value.as_object()?;
+        let kind = object.get("kind").and_then(Value::as_str)?;
+        let id = object.get("id").and_then(Value::as_str)?;
+        if !is_legacy_kind(kind) {
+            return None;
+        }
+        let frame = object
+            .get("frame")
+            .and_then(|frame| serde_json::from_value(frame.clone()).ok())
+            .unwrap_or(element_document::Frame {
+                x: 0.0,
+                y: 0.0,
+                width: 60.0,
+                height: 60.0,
+                rotation: 0.0,
+            });
+        let mut extra = serde_json::Map::new();
+        if let Some(index) = object
+            .get("legacy")
+            .and_then(|legacy| legacy.get("index"))
+            .cloned()
+        {
+            extra.insert("legacy".into(), serde_json::json!({ "index": index }));
+        }
+        Some(Node::Element(element_document::Element {
+            id: id.to_string(),
+            kind: kind.to_string(),
+            frame,
+            name: None,
+            hidden: false,
+            class_name: None,
+            use_inline_styles: None,
+            bundles: Default::default(),
+            values: Default::default(),
+            input: None,
+            extra,
+        }))
     }
     let mut dropped = 0;
     let mut document = Document::default();
@@ -168,6 +209,7 @@ pub(crate) fn attach_loaded_document(
     // 트리 문서가 없던 파일(옛 store.json)은 부르는 쪽이 새 파일로 저장한다
     let changed = unreadable || stored.as_ref().is_some_and(|stored| stored != &document);
     state.element_document = std::sync::Arc::new(document);
+
     Ok(AttachOutcome {
         changed,
         unreadable,
@@ -525,6 +567,15 @@ impl AppStore {
                 changes.merge(more);
             }
         }
+        // 구조가 바뀐 장면은 옛 종류 요소의 zIndex를 새 트리 순서로 맞춘다
+        let structural: Vec<String> = changes
+            .scenes
+            .iter()
+            .filter(|(_, change)| change.structure)
+            .map(|(scene, _)| scene.clone())
+            .collect();
+        let fixes = scattered_z_fixes(&after, structural.iter());
+        set_tree_z(&mut after, &fixes);
         let before = EditorDocumentV1::from_store(&guard.data);
         let projected = project_document(&after)?;
         let fields = before.changed_fields(&projected);

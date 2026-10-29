@@ -794,6 +794,90 @@ fn 트리의_망가진_노드만_빼고_읽고_손상_복구로_표시한다() {
     broken["frame"] = serde_json::json!("??");
     let (parsed, dropped) = parse_document_lenient(document);
     assert_eq!(dropped, 1);
+    // 트리 전용 노드는 빼고, 옛 종류 요소는 제자리 기본 모양으로 둔다
     assert_eq!(parsed.scenes["4key"].nodes.len(), total - 1);
     assert_eq!(parsed.scenes.len(), state.element_document.scenes.len());
+}
+
+#[test]
+fn 흩어진_그룹은_저장된_z를_그대로_지켜_다시_읽어도_순서가_같다() {
+    let (dir, store) = open_store();
+    // g1 = {key0, key2}, key1은 그룹 밖 - 사이에 끼어 흩어진 그룹
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        let positions = scratch.key_positions.get_mut("4key").unwrap();
+        for (index, position) in positions.iter_mut().enumerate() {
+            position.z_index = Some(index as i32);
+            position.group_id = None;
+        }
+        positions[0].group_id = Some("g1".into());
+        positions[2].group_id = Some("g1".into());
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let snapshot = store.snapshot();
+    let document = store.element_document_snapshot().1;
+    assert_eq!(
+        project_document(&document).unwrap(),
+        crate::models::EditorDocumentV1::from_store(&snapshot),
+        "옛 모양 z는 저장된 그대로 내보낸다"
+    );
+    store.flush_and_shutdown().unwrap();
+    drop(store);
+    let reloaded = crate::state::migration::load_store_from_path(
+        &dir.join(crate::state::store::STORE_FILE_NAME),
+    )
+    .unwrap();
+    assert_eq!(reloaded.data.key_positions, snapshot.key_positions);
+    assert!(!reloaded.needs_persist);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 트리_값_하나가_깨져도_그_요소만_기본_모양으로_바꾸고_나머지는_그대로_읽는다() {
+    let (dir, store) = open_store();
+    store.flush_and_shutdown().unwrap();
+    let before = store.snapshot();
+    drop(store);
+    let path = dir.join(crate::state::store::STORE_FILE_NAME);
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let nodes = value[ELEMENT_DOCUMENT_FIELD]["scenes"]["6key"]["nodes"]
+        .as_array_mut()
+        .unwrap();
+    let broken_id = nodes[0]["id"].as_str().unwrap().to_string();
+    nodes[0]["values"]["count"] = serde_json::json!("abc");
+    std::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+
+    let loaded = crate::state::migration::load_store_from_path(&path).unwrap();
+    assert!(loaded.repaired);
+    assert_eq!(loaded.data.layer_groups, before.layer_groups);
+    assert_eq!(loaded.data.keys, before.keys);
+    // 모든 종류의 요소가 같은 자리에 남는다 (망가진 요소는 기본 모양으로 제자리)
+    let ids = |document: &crate::models::EditorDocumentV1| {
+        let value = serde_json::to_value(document).unwrap();
+        let mut out = Vec::new();
+        for field in [
+            "keyPositions",
+            "statPositions",
+            "graphPositions",
+            "knobPositions",
+            "spritePositions",
+        ] {
+            for (mode, list) in value[field].as_object().into_iter().flatten() {
+                for item in list.as_array().into_iter().flatten() {
+                    out.push(format!("{field}/{mode}/{}", item["id"]));
+                }
+            }
+        }
+        out.sort();
+        out
+    };
+    let loaded_ids = ids(&crate::models::EditorDocumentV1::from_store(&loaded.data));
+    assert_eq!(
+        loaded_ids,
+        ids(&crate::models::EditorDocumentV1::from_store(&before))
+    );
+    assert!(loaded_ids.iter().any(|id| id.contains(&broken_id)));
+    let _ = std::fs::remove_dir_all(&dir);
 }
