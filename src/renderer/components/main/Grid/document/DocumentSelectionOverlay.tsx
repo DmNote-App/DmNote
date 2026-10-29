@@ -5,6 +5,7 @@ import {
   useDocumentElement,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
+import { getOtherElementBounds } from '@hooks/Grid/drag/useSmartGuidesElements';
 import ResizeHandles from '../handles/ResizeHandles';
 import { SELECTION_BORDER_WIDTH } from '../handles/selectionOutline';
 import { setDocumentFrame } from './documentEditActions';
@@ -89,6 +90,8 @@ const SelectionItem = ({
           panX={panX}
           panY={panY}
           elementId={element.id}
+          // 크기 조절도 옛 종류처럼 다른 요소 가장자리·크기에 맞춘다
+          getOtherElements={getOtherElementBounds}
           lockAspect={lockAspect}
           rotation={frame.rotation}
           onResize={(result) =>
