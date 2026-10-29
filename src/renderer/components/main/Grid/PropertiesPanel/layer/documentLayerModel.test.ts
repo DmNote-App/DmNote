@@ -1,0 +1,86 @@
+import { describe, expect, it } from 'vitest';
+
+import type { Scene } from '@src/types/generated/elementDocument';
+import { documentDropMove, documentLayerRows } from './documentLayerModel';
+
+const tracker = (id: string) => ({
+  type: 'element' as const,
+  id,
+  kind: 'cursorTracker',
+  frame: { x: 0, y: 0, width: 10, height: 10, rotation: 0 },
+});
+const key = (id: string) => ({ ...tracker(id), kind: 'key' });
+
+// 아래→위: k1, a, G{b, c}, L(옛 그룹){k2, d}
+const scene: Scene = {
+  nodes: [
+    key('k1'),
+    tracker('a'),
+    {
+      type: 'group',
+      id: 'G',
+      name: 'G',
+      children: [tracker('b'), tracker('c')],
+    },
+    {
+      type: 'group',
+      id: 'L',
+      name: 'L',
+      legacy: { index: 0 },
+      children: [key('k2'), tracker('d')],
+    },
+  ],
+};
+
+const view = (rows: ReturnType<typeof documentLayerRows>) =>
+  rows.map((row) => `${row.node.id}:${row.depth}`);
+
+describe('트리 요소 레이어 행', () => {
+  it('위→아래로 트리 전용 노드만 보이고 옛 그룹은 투명하게 지나간다', () => {
+    expect(view(documentLayerRows(scene, new Set()))).toEqual([
+      'd:0',
+      'G:0',
+      'c:1',
+      'b:1',
+      'a:0',
+    ]);
+    expect(view(documentLayerRows(scene, new Set(['G'])))).toEqual([
+      'd:0',
+      'G:0',
+      'a:0',
+    ]);
+  });
+
+  it('행 위·아래에 놓으면 그 행의 부모 안 겹치는 순서 자리로 옮긴다', () => {
+    const rows = documentLayerRows(scene, new Set());
+    // a를 c 위에 놓기 - G 안에서 c 다음(더 위)
+    expect(documentDropMove(scene, rows, ['a'], 2, 'above')).toEqual({
+      op: 'move',
+      scene: 's',
+      ids: ['a'],
+      parent: 'G',
+      index: 2,
+    });
+    // d를 a 아래에 놓기 - 장면 맨 위 단계에서 a 자리
+    expect(documentDropMove(scene, rows, ['d'], 4, 'below')).toEqual({
+      op: 'move',
+      scene: 's',
+      ids: ['d'],
+      parent: null,
+      index: 1,
+    });
+  });
+
+  it('그룹 행 가운데에 놓으면 그 그룹 맨 위로, 자기 안으로는 못 놓는다', () => {
+    const rows = documentLayerRows(scene, new Set());
+    expect(documentDropMove(scene, rows, ['a'], 1, 'into')).toEqual({
+      op: 'move',
+      scene: 's',
+      ids: ['a'],
+      parent: 'G',
+      index: null,
+    });
+    expect(documentDropMove(scene, rows, ['G'], 2, 'above')).toBeNull();
+    expect(documentDropMove(scene, rows, ['G'], 1, 'into')).toBeNull();
+  });
+});

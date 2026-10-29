@@ -10,15 +10,28 @@ import { useDocumentContextMenuStore } from '../../document/useDocumentContextMe
 import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
 import { PluginIcon } from './LayerIcons';
 import LayerRenameInput from './LayerRenameInput';
+import { layerRowIndent } from './documentLayerModel';
 
 interface DocumentLayerRowProps {
   sceneId: string;
   element: ElementNode;
+  depth: number;
+  rowIndex: number;
+  onRowClick: (event: React.MouseEvent) => void;
+  onRowPointerDown: (event: React.PointerEvent) => void;
   t: (key: string) => string | undefined;
 }
 
 /** 트리 문서에만 있는 요소의 레이어 행 - 옛 종류 행과 같은 모양 */
-const DocumentLayerRow = ({ sceneId, element, t }: DocumentLayerRowProps) => {
+const DocumentLayerRow = ({
+  sceneId,
+  element,
+  depth,
+  rowIndex,
+  onRowClick,
+  onRowPointerDown,
+  t,
+}: DocumentLayerRowProps) => {
   const selected = useDocumentSelectionStore(
     (state) =>
       state.sceneId === sceneId && state.selectedIds.includes(element.id),
@@ -36,9 +49,9 @@ const DocumentLayerRow = ({ sceneId, element, t }: DocumentLayerRowProps) => {
   return (
     <div
       data-document-layer-row={element.id}
-      onClick={() =>
-        useDocumentSelectionStore.getState().select(sceneId, element.id)
-      }
+      data-document-layer-index={rowIndex}
+      onClick={onRowClick}
+      onPointerDown={onRowPointerDown}
       onDoubleClick={(event) => {
         event.preventDefault();
         renameCancelledRef.current = false;
@@ -48,7 +61,14 @@ const DocumentLayerRow = ({ sceneId, element, t }: DocumentLayerRowProps) => {
       onContextMenu={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        useDocumentSelectionStore.getState().select(sceneId, element.id);
+        // 고른 것 위에서 우클릭하면 선택을 지킨다 (옛 종류 행과 같다)
+        const selection = useDocumentSelectionStore.getState();
+        if (
+          selection.sceneId !== sceneId ||
+          !selection.selectedIds.includes(element.id)
+        ) {
+          selection.select(sceneId, element.id);
+        }
         useDocumentContextMenuStore.getState().open({
           sceneId,
           id: element.id,
@@ -56,7 +76,7 @@ const DocumentLayerRow = ({ sceneId, element, t }: DocumentLayerRowProps) => {
           y: event.clientY,
         });
       }}
-      style={{ paddingLeft: 12 }}
+      style={{ paddingLeft: layerRowIndent(depth) }}
       className={`
         group relative flex items-center gap-[8px] pr-[4px] h-[34px] select-none
         ${hidden ? 'opacity-60' : ''}

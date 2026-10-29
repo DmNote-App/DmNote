@@ -24,8 +24,6 @@ import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import type { DisplayItem, LayerItem } from '../types';
 import { buildLayerItems, buildDisplayItems } from './layerPanelModel';
 import {
-  FolderIcon,
-  ChevronIcon,
   KeyIcon,
   KnobIcon,
   PluginIcon,
@@ -36,98 +34,20 @@ import {
 import { useLayerActions } from './useLayerActions';
 import { useLayerDnD } from './useLayerDnD';
 import LayerRenameInput from './LayerRenameInput';
-import DocumentLayerRow from './DocumentLayerRow';
+import DocumentLayerSection from './DocumentLayerSection';
+import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documentElementOrder';
-import { useOptimisticBooleanCommit } from '@hooks/useOptimisticBooleanCommit';
+import {
+  LayerGroupDisclosure,
+  LayerGroupVisibilityButton,
+} from './LayerGroupControls';
 import {
   layerItemToSelectedElement,
   resolveLayerGroupSelectionIntent,
   resolveLayerItemSelectionIntent,
   type LayerSelectionIntent,
 } from './layerSelectionIntent';
-
-interface LayerGroupDisclosureProps {
-  collapsed: boolean;
-  onToggle: () => void;
-}
-
-const LayerGroupDisclosure = ({
-  collapsed,
-  onToggle,
-}: LayerGroupDisclosureProps) => {
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const { value: visualCollapsed, toggle } = useOptimisticBooleanCommit({
-    canonicalValue: collapsed,
-    onCommit: onToggle,
-    frameHostRef: buttonRef,
-  });
-
-  return (
-    <>
-      <button
-        ref={buttonRef}
-        type="button"
-        aria-expanded={!visualCollapsed}
-        className="absolute left-0 top-0 bottom-0 w-[34px] flex items-center pl-[1px] cursor-pointer z-[1]"
-        onMouseDown={(event) => {
-          // 행 드래그 시작 억제 (press 동안 grabbing 커서 방지)
-          event.preventDefault();
-          event.stopPropagation();
-        }}
-        onClick={(event) => {
-          event.stopPropagation();
-          toggle();
-        }}
-      >
-        <span className="opacity-0 group-hover/panel:opacity-60 hover:!opacity-100">
-          <ChevronIcon collapsed={visualCollapsed} />
-        </span>
-      </button>
-      <div className="flex-shrink-0">
-        <FolderIcon open={!visualCollapsed} />
-      </div>
-    </>
-  );
-};
-
-interface LayerGroupVisibilityButtonProps {
-  groupId: string;
-  allHidden: boolean;
-  onToggle: (event: React.MouseEvent, groupId: string) => void;
-}
-
-export const LayerGroupVisibilityButton = ({
-  groupId,
-  allHidden,
-  onToggle,
-}: LayerGroupVisibilityButtonProps) => (
-  <button
-    type="button"
-    aria-label="toggle group visibility"
-    onMouseDown={(event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    }}
-    onDoubleClick={(event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    }}
-    onClick={(event) => {
-      event.stopPropagation();
-      onToggle(event, groupId);
-    }}
-    className={`flex-shrink-0 w-[28px] h-[28px] flex items-center justify-center rounded-md cursor-pointer ${
-      allHidden ? '' : 'opacity-0 group-hover:opacity-60 hover:!opacity-100'
-    }`}
-  >
-    <IconSwap
-      active={allHidden}
-      activeIcon={<CloseEyeIcon width={14} height={14} fill="currentColor" />}
-      inactiveIcon={<OpenEyeIcon width={14} height={14} fill="currentColor" />}
-    />
-  </button>
-);
 
 // ============================================================================
 // 레이어 탭 콘텐츠 Props
@@ -493,6 +413,7 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
     clearPendingDeselect();
     onSelectionFromPanel?.();
     clearSelection();
+    useDocumentSelectionStore.getState().clear();
     setLastClickedIndex(null);
     setLastClickedDisplayIndex(null);
   };
@@ -730,14 +651,7 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
         )}
         {/* 트리 문서에만 있는 요소(커서 트래커 등) - 옛 행의 끌기 계산(행 높이 × 순번)을
             흔들지 않게 옛 목록 아래에 위→아래 겹침 순서로 둔다 */}
-        {[...documentSlots].reverse().map(({ element }) => (
-          <DocumentLayerRow
-            key={`document:${element.id}`}
-            sceneId={selectedKeyType}
-            element={element}
-            t={t}
-          />
-        ))}
+        <DocumentLayerSection sceneId={selectedKeyType} t={t} />
       </div>
 
       {/* 컨텍스트 메뉴 */}

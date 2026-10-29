@@ -30,7 +30,8 @@ import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import LayerTabContent, { LayerGroupVisibilityButton } from './LayerTabContent';
+import LayerTabContent from './LayerTabContent';
+import { LayerGroupVisibilityButton } from './LayerGroupControls';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
