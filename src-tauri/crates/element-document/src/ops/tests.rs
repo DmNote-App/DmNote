@@ -435,3 +435,23 @@ fn 그룹과_그_자식을_함께_묶으면_그룹째_옮긴다() {
         vec!["h@0", "g@0.0", "a@0.0.0", "b@0.0.1", "c@0.1"]
     );
 }
+
+#[test]
+fn 공통_정보의_null은_지우기로_읽는다() {
+    let op: Op = serde_json::from_value(serde_json::json!({
+        "op": "setCommon", "scene": "s", "id": "a", "name": null, "className": null
+    }))
+    .unwrap();
+    let Op::SetCommon {
+        name,
+        class_name,
+        use_inline_styles,
+        ..
+    } = op
+    else {
+        unreachable!()
+    };
+    assert_eq!(name, Some(None));
+    assert_eq!(class_name, Some(None));
+    assert_eq!(use_inline_styles, None, "적지 않은 칸은 그대로 둔다");
+}

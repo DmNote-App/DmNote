@@ -11,6 +11,15 @@ use crate::document::{walk, Document, Element, Frame, Group, InputBinding, Node,
 use crate::schema::{KindRegistry, KindSchema};
 use crate::value::{rewrite_values, validate_fields, ValueKind, Violation, ViolationCode};
 
+// 칸이 있으면 Some - null은 Some(None)(지우기), 칸이 없으면 default로 None(그대로)
+fn present_or_null<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase")]
 #[cfg_attr(test, derive(ts_rs::TS))]
@@ -48,13 +57,25 @@ pub enum Op {
     SetCommon {
         scene: String,
         id: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "present_or_null",
+            skip_serializing_if = "Option::is_none"
+        )]
         name: Option<Option<String>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         hidden: Option<bool>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "present_or_null",
+            skip_serializing_if = "Option::is_none"
+        )]
         class_name: Option<Option<String>>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "present_or_null",
+            skip_serializing_if = "Option::is_none"
+        )]
         use_inline_styles: Option<Option<bool>>,
     },
     // 고유 값 일부 바꾸기 - 적은 칸만 바뀐다
