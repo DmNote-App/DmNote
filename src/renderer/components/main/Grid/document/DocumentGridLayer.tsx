@@ -10,7 +10,9 @@ import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documen
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import type { SurfaceBundle } from '@src/renderer/elementKinds/runtime/ElementSurface';
 import { useTranslation } from '@contexts/useTranslation';
-import { calculateZoomAdjustedGridSize, snapToGrid } from '@hooks/Grid/utils';
+import { getOtherElementBounds } from '@hooks/Grid/drag/useSmartGuidesElements';
+import { calculateZoomAdjustedGridSize } from '@hooks/Grid/utils';
+import { useSmartGuidesStore } from '@stores/grid/useSmartGuidesStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { isMac } from '@utils/core/platform';
 import { elementRotationTransform } from '@utils/element/rotation';
@@ -18,6 +20,7 @@ import {
   moveDocumentElements,
   removeDocumentElements,
 } from './documentEditActions';
+import { documentDragSnap } from './documentDragSnap';
 import { expandDocumentGroup } from './documentGroups';
 import { documentIdsInRange, toggleDocumentId } from './documentSelection';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
@@ -103,26 +106,45 @@ const DocumentGridElement = ({
       zoom,
       useSettingsStore.getState().gridSettings?.gridSnapSize ?? 5,
     );
-    // 누른 요소를 격자에 맞추고 나머지는 같은 만큼 옮긴다
-    const self = origins.find(({ id }) => id === element.id)?.frame;
+    // 옛 종류 다중 끌기와 같은 맞추기 - 다른 요소 가장자리, 안 붙는 축은 격자
+    const others = getOtherElementBounds(origins.map(({ id }) => id));
     const handleMove = (move: PointerEvent) => {
       const dx = move.clientX - start.x;
       const dy = move.clientY - start.y;
       if (!moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
       moved = true;
-      if (!self) return;
-      const offsetX = snapToGrid(self.x + dx / zoom, gridSize) - self.x;
-      const offsetY = snapToGrid(self.y + dy / zoom, gridSize) - self.y;
+      const settings = useSettingsStore.getState().gridSettings;
+      // 플랫폼 보조키로 스마트 맞추기 잠시 끄기 (격자 맞추기는 그대로)
+      const suppress = isMac() ? move.metaKey : move.ctrlKey;
+      const snap = documentDragSnap({
+        origins,
+        selfId: element.id,
+        dx: dx / zoom,
+        dy: dy / zoom,
+        others,
+        gridSize,
+        alignment: settings?.alignmentGuides !== false && !suppress,
+        spacing: settings?.spacingGuides !== false,
+      });
+      const guides = useSmartGuidesStore.getState();
+      if (snap.guides) {
+        guides.setDraggedBounds(snap.guides.dragged);
+        guides.setActiveGuides(snap.guides.active);
+        guides.setSpacingGuides(snap.guides.spacing);
+      } else {
+        guides.clearGuides();
+      }
       const preview = useDocumentFramePreviewStore.getState();
       for (const { id, frame } of origins) {
         preview.set(id, {
           ...frame,
-          x: frame.x + offsetX,
-          y: frame.y + offsetY,
+          x: frame.x + snap.offsetX,
+          y: frame.y + snap.offsetY,
         });
       }
     };
     const handleUp = () => {
+      useSmartGuidesStore.getState().clearGuides();
       target.removeEventListener('pointermove', handleMove);
       target.removeEventListener('pointerup', handleUp);
       target.removeEventListener('pointercancel', handleUp);

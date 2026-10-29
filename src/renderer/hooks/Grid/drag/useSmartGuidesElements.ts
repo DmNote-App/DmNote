@@ -12,6 +12,8 @@ import {
   modeArraysOf,
 } from '@src/types/editor';
 import { fallbackElementSize } from '@src/types/elementKinds';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documentElementOrder';
 
 /**
  * 특정 요소를 제외한 모든 요소의 bounds를 반환
@@ -85,8 +87,26 @@ const getOtherElementsSnapshot = (
     }
   });
 
+  // 트리 문서에만 있는 요소(커서 트래커 등) - 보이는 것만
+  const scene = getElementDocumentStore()?.getScene(selectedKeyType);
+  for (const { element } of documentElementSlots(scene)) {
+    if (excludeSet.has(element.id)) continue;
+    bounds.push(
+      calculateBounds(
+        element.frame.x,
+        element.frame.y,
+        element.frame.width,
+        element.frame.height,
+        element.id,
+      ),
+    );
+  }
+
   return bounds;
 };
+
+/** 드래그 시점의 다른 요소 bounds (트리 요소 끌기도 같이 쓴다) */
+export const getOtherElementBounds = getOtherElementsSnapshot;
 
 // 구독 없는 훅 — 함수 참조 안정
 export function useSmartGuidesElements() {
