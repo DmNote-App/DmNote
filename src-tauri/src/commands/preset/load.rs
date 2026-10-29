@@ -171,6 +171,7 @@ fn preset_load_from_path(
         .take()
         .unwrap_or_else(|| synthesize_custom_tabs(&keys));
     let requested_selected_key_type = preset.selected_key_type;
+    let preset_element_tree = preset.element_tree.take();
     let preset_layer_groups = resolve_full_preset_layer_groups(preset.layer_groups, &keys);
     let preset_tab_css_overrides = preset
         .tab_css_overrides
@@ -302,6 +303,13 @@ fn preset_load_from_path(
                 }
                 rekey_full_preset_elements(store);
                 crate::state::migration::clear_dangling_group_ids(store);
+                crate::state::store::apply_full_preset_tree(store, preset_element_tree.as_ref())
+                    .map_err(|error| {
+                        crate::errors::EditorCommitError::validation(
+                            "INVALID_PRESET_TREE",
+                            error.to_string(),
+                        )
+                    })?;
                 let diff = apply_patch_to_store(store, &settings_patch)
                     .map_err(crate::services::settings::settings_patch_validation_error)?;
                 Ok((
@@ -438,6 +446,7 @@ fn preset_load_tab_from_path(
         tab_note_overrides,
         layer_groups,
         tab_css_overrides,
+        element_tree,
         font_settings,
         embedded_local_fonts,
         embedded_local_images,
@@ -458,6 +467,7 @@ fn preset_load_tab_from_path(
     restore_preset_local_sounds(app, &mut src_elements, embedded_local_sounds.as_deref())?;
 
     let imported_key_positions = src_elements.key_positions.remove(&current_tab_id);
+    let imported_tree = element_tree.and_then(|mut scenes| scenes.remove(&source_tab_id));
     let imported_override = imported_tab_note_overrides.get(&source_tab_id).cloned();
     let imported_groups =
         layer_groups.map(|groups| groups.get(&source_tab_id).cloned().unwrap_or_default());
@@ -542,6 +552,17 @@ fn preset_load_tab_from_path(
                     .transpose()
                     .map_err(crate::services::settings::settings_patch_validation_error)?;
                 crate::state::migration::clear_dangling_group_ids(store);
+                crate::state::store::apply_tab_preset_tree(
+                    store,
+                    &current_tab_id,
+                    imported_tree.as_ref(),
+                )
+                .map_err(|error| {
+                    crate::errors::EditorCommitError::validation(
+                        "INVALID_PRESET_TREE",
+                        error.to_string(),
+                    )
+                })?;
                 Ok((
                     settings_diff,
                     previous_tab_css_overrides,

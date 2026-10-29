@@ -187,6 +187,8 @@ pub(crate) struct PresetFullHistorySnapshot {
     pub(crate) key_counters: KeyCounters,
     pub(crate) settings: PresetHistorySettingsSnapshot,
     pub(crate) tab_css_overrides: TabCssOverrides,
+    // 모든 탭의 트리에만 있는 요소(커서 트래커 등) - 되돌리면 이 뼈대로 장면을 되놓는다
+    pub(crate) element_tree: ElementTreeHistorySnapshot,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -218,6 +220,10 @@ impl PresetFullHistorySnapshot {
                 tab_note_overrides: store.tab_note_overrides.clone(),
             },
             tab_css_overrides: store.tab_css_overrides.clone(),
+            element_tree: crate::state::store::element_tree_snapshot(
+                &store.element_document,
+                store.element_document.scenes.keys(),
+            ),
         }
     }
 
@@ -230,6 +236,7 @@ impl PresetFullHistorySnapshot {
             && self.selected_key_type == current.selected_key_type
             && self.settings == current.settings
             && self.tab_css_overrides == current.tab_css_overrides
+            && self.element_tree == current.element_tree
     }
 }
 

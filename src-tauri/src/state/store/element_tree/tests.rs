@@ -1,7 +1,7 @@
 use super::*;
-use element_document::document::walk;
 use crate::defaults::{default_keys, default_positions, default_stat_positions};
 use crate::models::legacy_layout::project_document;
+use element_document::document::walk;
 
 fn default_state() -> AppStoreData {
     let mut state = AppStoreData {
@@ -507,4 +507,118 @@ fn 트리_그룹을_지운_것을_되돌리면_안쪽까지_되살아난다() {
     assert_eq!(ids.iter().filter(|id| *id == "tg").count(), 1);
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+fn tracker_after_second_key(store: &crate::state::AppStore) -> (String, Vec<String>) {
+    let document = store.element_document_snapshot().1;
+    let mut order = Vec::new();
+    walk(&document.scenes["4key"].nodes, &mut |node, _| {
+        order.push(node.id().to_string())
+    });
+    let second = store.snapshot().key_positions["4key"][1].id.clone();
+    (second, order)
+}
+
+#[test]
+fn 프리셋을_불러오면_트리_요소가_새_id로_같은_옛_요소_옆에_오고_되돌리면_원래대로다() {
+    let (dir, store) = open_store();
+    let second = store.snapshot().key_positions["4key"][1].id.clone();
+    // 두 번째 키 바로 위에 트래커
+    let scene = store.element_document_snapshot().1.scenes["4key"].clone();
+    let at = scene.find_path(&second).unwrap();
+    assert!(matches!(
+        commit(
+            &store,
+            serde_json::json!([{ "op": "insert", "scene": "4key",
+                "parent": if at.len() > 1 { serde_json::json!(scene.parent_of(&second).unwrap()) } else { serde_json::Value::Null },
+                "index": at[at.len() - 1] + 1, "node": tracker_json("t1") }]),
+        ),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    let before = store.snapshot();
+    let preset: std::collections::BTreeMap<String, element_document::Scene> = before
+        .element_document
+        .scenes
+        .iter()
+        .filter_map(|(mode, scene)| {
+            crate::models::legacy_layout::preset_scene(scene).map(|scene| (mode.clone(), scene))
+        })
+        .collect();
+    let history_target = crate::state::history::PresetFullHistorySnapshot::from_store(&before);
+
+    // 프리셋 불러오기 - 옛 요소 id가 새로 매겨지고 트리는 프리셋에서 다시 만든다
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        crate::state::native_element_id::rekey_store_element_ids(&mut scratch);
+        apply_full_preset_tree(&mut scratch, Some(&preset)).unwrap();
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let (new_second, order) = tracker_after_second_key(&store);
+    assert_ne!(new_second, second);
+    let at = order.iter().position(|id| *id == new_second).unwrap();
+    assert_ne!(order[at + 1], "t1", "트리 요소 id도 새로 매긴다");
+    let tracker = store.element_document_snapshot().1.scenes["4key"]
+        .element(&order[at + 1])
+        .map(|element| element.kind.clone());
+    assert_eq!(tracker.as_deref(), Some("cursorTracker"), "{order:?}");
+
+    // 옛 프리셋(트리 정보 없음)이면 트리 전용 노드 없이 프리셋 그대로
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        apply_full_preset_tree(&mut scratch, None).unwrap();
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let document = store.element_document_snapshot().1;
+    assert!(document.scenes["4key"]
+        .elements()
+        .iter()
+        .all(|element| is_legacy_kind(&element.kind)));
+
+    // 되돌리기 - 기록한 뼈대로 장면을 되놓으면 원래 트래커가 원래 자리에 온다
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        history_target.document.apply_to_store(&mut scratch);
+        scratch.element_document = std::sync::Arc::new(replace_with_skeletons(
+            &scratch.element_document,
+            &history_target.element_tree,
+        ));
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let (restored_second, order) = tracker_after_second_key(&store);
+    assert_eq!(restored_second, second);
+    let at = order.iter().position(|id| *id == second).unwrap();
+    assert_eq!(order[at + 1], "t1", "{order:?}");
+    assert_eq!(
+        project_document(&store.element_document_snapshot().1).unwrap(),
+        crate::models::EditorDocumentV1::from_store(&store.snapshot())
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 탭_프리셋은_트리_정보가_있을_때만_그_탭의_트리_요소를_바꾼다() {
+    let mut state = default_state();
+    attach_loaded_document(&mut state, None).unwrap();
+    with_tree_only_element(&mut state);
+    let before = state.element_document.clone();
+    apply_tab_preset_tree(&mut state, "4key", None).unwrap();
+    assert_eq!(state.element_document, before, "옛 프리셋이면 그대로");
+
+    let empty = element_document::Scene {
+        nodes: Vec::new(),
+        extra: Default::default(),
+    };
+    apply_tab_preset_tree(&mut state, "4key", Some(&empty)).unwrap();
+    assert!(state.element_document.scenes["4key"]
+        .elements()
+        .iter()
+        .all(|element| is_legacy_kind(&element.kind)));
+    assert_eq!(
+        state.element_document.scenes["5key"], before.scenes["5key"],
+        "다른 탭은 그대로"
+    );
 }

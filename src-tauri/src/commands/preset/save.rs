@@ -60,6 +60,7 @@ fn preset_save_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetOpera
     let embedded_local_images = embed_preset_images(&mut elements)?;
     let embedded_local_sounds = embed_preset_sounds(&mut elements)?;
 
+    let element_tree = preset_element_tree(&snapshot, None);
     let preset = PresetFile {
         keys: Some(snapshot.keys),
         key_positions: Some(elements.key_positions),
@@ -87,6 +88,7 @@ fn preset_save_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetOpera
         embedded_local_fonts: (!embedded_local_fonts.is_empty()).then_some(embedded_local_fonts),
         embedded_local_images: (!embedded_local_images.is_empty()).then_some(embedded_local_images),
         embedded_local_sounds: (!embedded_local_sounds.is_empty()).then_some(embedded_local_sounds),
+        element_tree,
     };
 
     let json = serde_json::to_string_pretty(&preset)?;
@@ -177,6 +179,7 @@ fn preset_save_tab_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetO
         tab_css_overrides.insert(tab_id.clone(), css.clone());
     }
 
+    let element_tree = preset_element_tree(&snapshot, Some(&tab_id));
     let preset = PresetFile {
         keys: Some(tab_keys),
         key_positions: Some(tab_elements.key_positions),
@@ -204,6 +207,7 @@ fn preset_save_tab_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetO
         embedded_local_fonts: (!embedded_local_fonts.is_empty()).then_some(embedded_local_fonts),
         embedded_local_images: (!embedded_local_images.is_empty()).then_some(embedded_local_images),
         embedded_local_sounds: (!embedded_local_sounds.is_empty()).then_some(embedded_local_sounds),
+        element_tree,
     };
 
     let json = serde_json::to_string_pretty(&preset)?;
@@ -551,6 +555,23 @@ fn rewrite_position_sound_reference(
     path_to_sound_id.insert(source_key, sound_id.clone());
     *sound_ref = Some(format!("{PRESET_LOCAL_SOUND_PREFIX}{sound_id}"));
     Ok(())
+}
+
+// 트리에만 있는 노드가 있는 탭 - 없으면 필드를 쓰지 않는다
+fn preset_element_tree(
+    snapshot: &crate::models::AppStoreData,
+    only_tab: Option<&str>,
+) -> Option<std::collections::BTreeMap<String, element_document::Scene>> {
+    let scenes: std::collections::BTreeMap<_, _> = snapshot
+        .element_document
+        .scenes
+        .iter()
+        .filter(|(mode, _)| only_tab.is_none_or(|tab| tab == mode.as_str()))
+        .filter_map(|(mode, scene)| {
+            crate::models::legacy_layout::preset_scene(scene).map(|scene| (mode.clone(), scene))
+        })
+        .collect();
+    (!scenes.is_empty()).then_some(scenes)
 }
 
 #[cfg(test)]

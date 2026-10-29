@@ -717,6 +717,141 @@ fn stored_z_index(element: &Element) -> Option<i64> {
         .and_then(Value::as_i64)
 }
 
+/// 트리 전용 노드를 뺀다 - 옛 종류 요소와 옛 그룹만 남는다
+pub(crate) fn strip_tree_only(nodes: &mut Vec<Node>) {
+    nodes.retain(|node| match node {
+        Node::Element(element) => is_legacy_kind(&element.kind),
+        Node::Group(group) => !is_tree_only_group(group),
+    });
+    for node in nodes {
+        if let Node::Group(group) = node {
+            strip_tree_only(&mut group.children);
+        }
+    }
+}
+
+// 프리셋 안 옛 종류 요소 자리 표 - 불러올 때 id가 새로 매겨지므로 종류와 배열 순번으로 적는다
+fn preset_slot(kind: &str, index: usize) -> String {
+    format!("{kind}#{index}")
+}
+
+fn stub_element(id: String, kind: &str) -> Element {
+    Element {
+        id,
+        kind: kind.to_string(),
+        frame: Frame {
+            x: 0.0,
+            y: 0.0,
+            width: 1.0,
+            height: 1.0,
+            rotation: 0.0,
+        },
+        name: None,
+        hidden: false,
+        class_name: None,
+        use_inline_styles: None,
+        bundles: Default::default(),
+        values: Default::default(),
+        input: None,
+        extra: Map::new(),
+    }
+}
+
+/// 프리셋에 싣는 장면 - 트리 전용 노드 + 옛 종류 요소 자리 표. 트리 전용 노드가 없으면 None
+pub(crate) fn preset_scene(scene: &Scene) -> Option<Scene> {
+    fn map(nodes: &[Node], has_tree_only: &mut bool) -> Vec<Node> {
+        nodes
+            .iter()
+            .filter_map(|node| match node {
+                Node::Group(group) if is_tree_only_group(group) => {
+                    *has_tree_only = true;
+                    Some(node.clone())
+                }
+                Node::Group(group) => Some(Node::Group(Group {
+                    id: group.id.clone(),
+                    name: group.name.clone(),
+                    hidden: group.hidden,
+                    children: map(&group.children, has_tree_only),
+                    extra: group.extra.clone(),
+                })),
+                Node::Element(element) if is_legacy_kind(&element.kind) => stored_index(element)
+                    .map(|index| {
+                        Node::Element(stub_element(
+                            preset_slot(&element.kind, index),
+                            &element.kind,
+                        ))
+                    }),
+                Node::Element(_) => {
+                    *has_tree_only = true;
+                    Some(node.clone())
+                }
+            })
+            .collect()
+    }
+    let mut has_tree_only = false;
+    let nodes = map(&scene.nodes, &mut has_tree_only);
+    has_tree_only.then(|| Scene {
+        nodes,
+        extra: Map::new(),
+    })
+}
+
+/// 프리셋 장면의 트리 전용 노드를 지금 장면에 끼운다 - 지금 장면의 트리 전용 노드는 바뀐다.
+/// 자리 표는 지금 옛 종류 요소 id로, 트리 전용 노드는 새 id로 바꾼다(요소 참조도 함께)
+pub(crate) fn graft_preset_scene(
+    preset: &Scene,
+    target: &mut Scene,
+    next_id: &mut dyn FnMut() -> String,
+) {
+    let mut current: HashMap<String, String> = HashMap::new();
+    walk(&target.nodes, &mut |node, _| {
+        if let Node::Element(element) = node {
+            if let (true, Some(index)) = (is_legacy_kind(&element.kind), stored_index(element)) {
+                current.insert(preset_slot(&element.kind, index), element.id.clone());
+            }
+        }
+    });
+    let mut mapping: BTreeMap<String, String> = BTreeMap::new();
+    fn rewrite(
+        nodes: &mut Vec<Node>,
+        current: &HashMap<String, String>,
+        mapping: &mut BTreeMap<String, String>,
+        next_id: &mut dyn FnMut() -> String,
+        inside_tree_only: bool,
+    ) {
+        nodes.retain_mut(|node| match node {
+            Node::Element(element) if !inside_tree_only && is_legacy_kind(&element.kind) => {
+                match current.get(&element.id) {
+                    Some(id) => {
+                        element.id = id.clone();
+                        true
+                    }
+                    None => false,
+                }
+            }
+            Node::Element(element) => {
+                let id = next_id();
+                mapping.insert(std::mem::replace(&mut element.id, id.clone()), id);
+                true
+            }
+            Node::Group(group) => {
+                let tree_only = inside_tree_only || is_tree_only_group(group);
+                if tree_only {
+                    let id = next_id();
+                    mapping.insert(std::mem::replace(&mut group.id, id.clone()), id);
+                }
+                rewrite(&mut group.children, current, mapping, next_id, tree_only);
+                true
+            }
+        });
+    }
+    let mut resolved = preset.clone();
+    rewrite(&mut resolved.nodes, &current, &mut mapping, next_id, false);
+    element_document::ops::remap_references(builtin_kind_registry(), &mut resolved.nodes, &mapping);
+    strip_tree_only(&mut target.nodes);
+    graft_tree_only(&resolved, target);
+}
+
 /// 저장 파일에 싣는 트리 문서 - 옛 종류 요소는 id·종류·위치·자리 정보만 남긴다.
 /// 칸 값은 옛 모양 배열에 있고 읽을 때 `reconcile_document`가 옛 모양에서 다시 채우므로
 /// 같은 내용을 두 번 저장하지 않는다

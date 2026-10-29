@@ -87,7 +87,8 @@ use editor_transactions::{
 };
 pub use element_tree::ElementDocumentCommitResult;
 pub(crate) use element_tree::{
-    attach_loaded_document, element_tree_snapshot, ELEMENT_DOCUMENT_FIELD,
+    apply_full_preset_tree, apply_tab_preset_tree, attach_loaded_document, element_tree_snapshot,
+    ELEMENT_DOCUMENT_FIELD,
 };
 use persistence::StoreWriter;
 pub(crate) use sound_assets::{

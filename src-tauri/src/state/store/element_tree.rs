@@ -15,8 +15,8 @@ use serde_json::Value;
 
 use super::AppStore;
 use crate::models::legacy_layout::{
-    graft_tree_only, import_document, is_legacy_kind, is_tree_only_group, persisted_document,
-    project_document, reconcile_document, LegacyRef,
+    graft_preset_scene, graft_tree_only, import_document, is_legacy_kind, is_tree_only_group,
+    persisted_document, project_document, reconcile_document, strip_tree_only, LegacyRef,
 };
 use crate::models::{builtin_kind_registry, AppStoreData, EditorDocumentV1};
 use crate::state::history::ElementTreeHistorySnapshot;
@@ -259,18 +259,6 @@ pub(crate) fn element_tree_snapshot<'a>(
     }
 }
 
-fn strip_tree_only(nodes: &mut Vec<Node>) {
-    nodes.retain(|node| match node {
-        Node::Element(element) => is_legacy_kind(&element.kind),
-        Node::Group(group) => !is_tree_only_group(group),
-    });
-    for node in nodes {
-        if let Node::Group(group) = node {
-            strip_tree_only(&mut group.children);
-        }
-    }
-}
-
 /// 되돌리기 - 옛 종류 요소는 그대로 두고 트리에만 있는 요소를 기록 시점 자리로 되돌린다
 /// `revive_missing`: 지금 없는 장면을 뼈대로 되살린다 (지운 탭 되돌리기). 아니면 건너뛴다
 pub(crate) fn restore_element_tree(
@@ -291,6 +279,69 @@ pub(crate) fn restore_element_tree(
         graft_tree_only(skeleton, scene);
     }
     next
+}
+
+/// 되돌리기 - 기록한 뼈대로 장면을 통째로 되놓는다 (옛 요소 id가 기록 때와 같아지는 되돌리기용)
+pub(crate) fn replace_with_skeletons(
+    document: &Document,
+    snapshot: &ElementTreeHistorySnapshot,
+) -> Document {
+    let mut next = document.clone();
+    for (scene_id, skeleton) in &snapshot.scenes {
+        next.scenes.insert(scene_id.clone(), skeleton.clone());
+    }
+    next
+}
+
+/// 전체 프리셋 불러오기 - 트리를 새 옛 모양에서 다시 만들고 프리셋의 트리 전용 노드를 끼운다.
+/// 프리셋에 트리 정보가 없으면(옛 프리셋) 트리 전용 노드 없이 프리셋 그대로다
+pub(crate) fn apply_full_preset_tree(
+    store: &mut AppStoreData,
+    preset: Option<&std::collections::BTreeMap<String, element_document::Scene>>,
+) -> Result<()> {
+    let mut document = import_document(&EditorDocumentV1::from_store(store))
+        .context("프리셋 트리 가져오기 실패")?;
+    if let Some(preset) = preset {
+        for (mode, scene) in preset {
+            if let Some(target) = document.scenes.get_mut(mode) {
+                graft_preset_scene(scene, target, &mut || uuid::Uuid::new_v4().to_string());
+            }
+        }
+    }
+    load_document(&mut document);
+    store.element_document = std::sync::Arc::new(document);
+    Ok(())
+}
+
+/// 탭 프리셋 불러오기 - 프리셋에 그 탭의 트리 정보가 있으면 지금 탭의 트리 전용 노드를 바꾼다
+pub(crate) fn apply_tab_preset_tree(
+    store: &mut AppStoreData,
+    tab_id: &str,
+    preset: Option<&element_document::Scene>,
+) -> Result<()> {
+    let Some(preset) = preset else {
+        return Ok(());
+    };
+    let legacy = EditorDocumentV1::from_store(store);
+    let mut fresh = import_document(&legacy).context("프리셋 트리 가져오기 실패")?;
+    let Some(mut scene) = fresh.scenes.remove(tab_id) else {
+        return Ok(());
+    };
+    graft_preset_scene(preset, &mut scene, &mut || uuid::Uuid::new_v4().to_string());
+    let document = std::sync::Arc::make_mut(&mut store.element_document);
+    document.scenes.insert(tab_id.to_string(), scene);
+    load_document(document);
+    Ok(())
+}
+
+// 읽기 정리 - 기본값 채우기·버전 옮기기 (옛 종류는 옛 경로가 맡는다)
+fn load_document(document: &mut Document) {
+    Loader {
+        kinds: builtin_kind_registry(),
+        bundles: &BuiltinBundles,
+        managed_elsewhere: &is_legacy_kind,
+    }
+    .load(document, &mut UuidSource);
 }
 
 impl AppStore {

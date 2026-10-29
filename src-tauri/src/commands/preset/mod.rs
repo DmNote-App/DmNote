@@ -77,6 +77,9 @@ pub(crate) struct PresetFile {
     pub embedded_local_fonts: Option<Vec<EmbeddedLocalFont>>,
     pub embedded_local_images: Option<Vec<EmbeddedLocalImage>>,
     pub embedded_local_sounds: Option<Vec<EmbeddedLocalSound>>,
+    // 탭별 트리에만 있는 노드(커서 트래커 등)와 옛 종류 요소 자리 표 - 없으면 옛 프리셋
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub element_tree: Option<std::collections::BTreeMap<String, element_document::Scene>>,
 }
 
 impl OptionalElementPositionsHost for PresetFile {

@@ -726,3 +726,78 @@ fn 옛_멤버가_생긴_그룹은_기준으로_삼지_않는다() {
     let shape = shape_of(&next);
     assert_eq!(shape.last().map(String::as_str), Some("T3@1"), "{shape:?}");
 }
+
+#[test]
+fn 프리셋은_트리_전용_노드를_옛_요소_자리_표와_함께_싣고_새_id에_맞춰_다시_끼운다() {
+    let legacy = sample();
+    let mut document = import_document(&legacy).unwrap();
+    let scene = document.scenes.get_mut("4key").unwrap();
+    // 두 번째 키 바로 위에 트래커, 맨 위에 트리 그룹
+    let second_key = legacy.key_positions["4key"][1].id.clone();
+    let at = scene.find_path(&second_key).unwrap();
+    let tracker: Element = serde_json::from_value(json!({
+        "id": "t1", "kind": "cursorTracker",
+        "frame": { "x": 1, "y": 2, "width": 120, "height": 120 }
+    }))
+    .unwrap();
+    let siblings = if at.len() == 1 {
+        &mut scene.nodes
+    } else {
+        match scene.node_at_mut(&at[..at.len() - 1]) {
+            Some(Node::Group(group)) => &mut group.children,
+            _ => unreachable!(),
+        }
+    };
+    siblings.insert(at[at.len() - 1] + 1, Node::Element(tracker.clone()));
+    scene.nodes.push(Node::Group(Group {
+        id: "tg".into(),
+        name: "T".into(),
+        hidden: false,
+        children: vec![Node::Element(Element {
+            id: "t2".into(),
+            ..tracker.clone()
+        })],
+        extra: Map::new(),
+    }));
+
+    let preset = preset_scene(&document.scenes["4key"]).unwrap();
+    // 자리 표에는 옛 요소 id가 없다
+    let mut ids = Vec::new();
+    walk(&preset.nodes, &mut |node, _| {
+        ids.push(node.id().to_string())
+    });
+    assert!(ids.contains(&"key#1".to_string()));
+    assert!(!ids.contains(&second_key));
+    assert!(preset_scene(&document.scenes["5key"]).is_none());
+
+    // 불러오면 옛 요소 id가 새로 매겨진다
+    let mut reloaded = legacy.clone();
+    for positions in reloaded.key_positions.values_mut() {
+        for position in positions.iter_mut() {
+            position.id = element_id();
+        }
+    }
+    let new_second = reloaded.key_positions["4key"][1].id.clone();
+    let mut target = import_document(&reloaded).unwrap();
+    let scene = target.scenes.get_mut("4key").unwrap();
+    let mut next = 0;
+    graft_preset_scene(&preset, scene, &mut || {
+        next += 1;
+        format!("new-{next}")
+    });
+    let order: Vec<String> = {
+        let mut out = Vec::new();
+        walk(&scene.nodes, &mut |node, _| out.push(node.id().to_string()));
+        out
+    };
+    let key_at = order.iter().position(|id| *id == new_second).unwrap();
+    assert_eq!(order[key_at + 1], "new-1", "{order:?}");
+    assert_eq!(scene.parent_of("new-3"), Some(Some("new-2".to_string())));
+    assert!(!order.contains(&"t1".to_string()));
+    // 옛 모양은 그대로
+    assert_eq!(project_document(&target).unwrap().key_positions, {
+        project_document(&import_document(&reloaded).unwrap())
+            .unwrap()
+            .key_positions
+    });
+}
