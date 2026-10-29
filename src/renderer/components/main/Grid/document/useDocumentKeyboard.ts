@@ -1,12 +1,16 @@
 import { useEffect } from 'react';
 
+import { useTranslation } from '@contexts/useTranslation';
+
 import { isModalLayerActive } from '@components/main/Modal/popupLayer';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { isMac } from '@utils/core/platform';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import {
+  groupDocumentElements,
   moveDocumentElements,
   removeDocumentElements,
+  ungroupDocumentElements,
 } from './documentEditActions';
 import {
   copyDocumentSelection,
@@ -20,6 +24,7 @@ const ARROW_STEP_LARGE = 10;
 
 /** 트리 요소 키보드 - 복사·붙여넣기·삭제·화살표 이동·선택 해제 (옛 종류 선택과 같은 키) */
 export const useDocumentKeyboard = () => {
+  const { t } = useTranslation();
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
@@ -47,6 +52,18 @@ export const useDocumentKeyboard = () => {
       if (primaryModifier && event.key.toLowerCase() === 'c') {
         event.preventDefault();
         copyDocumentSelection();
+        return;
+      }
+      // Cmd+G 묶기, Shift+Cmd+G 풀기 (옛 종류와 같은 키)
+      if (primaryModifier && event.code === 'KeyG') {
+        event.preventDefault();
+        void (event.shiftKey
+          ? ungroupDocumentElements(sceneId, selectedIds)
+          : groupDocumentElements(
+              sceneId,
+              selectedIds,
+              t('layerGroup.newGroup') || 'New Group',
+            ));
         return;
       }
       if (event.key === 'Escape') {
@@ -89,5 +106,5 @@ export const useDocumentKeyboard = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [t]);
 };

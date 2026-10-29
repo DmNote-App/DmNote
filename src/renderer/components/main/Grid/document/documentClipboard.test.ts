@@ -44,7 +44,7 @@ describe('트리 요소 붙여넣기', () => {
       [{ type: 'group', id: 'g', name: 'G', children: [tracker('a', 0)] }],
       () => `n${(next += 1)}`,
     );
-    expect(ids).toEqual(['n1']);
+    expect(ids).toEqual(['n2']);
     expect(ops[0]).toMatchObject({
       node: {
         type: 'group',

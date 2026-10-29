@@ -7,6 +7,7 @@ import { getElementDocumentStore } from '@src/renderer/editor/document/elementDo
 import type { Node, Op } from '@src/types/generated/elementDocument';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { editDocument } from './documentEditActions';
+import { documentGroupRoots } from './documentGroups';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 interface DocumentClipboardState {
@@ -65,7 +66,10 @@ export const buildDocumentPaste = (
     index: null,
     node,
   }));
-  return { ops, ids: pasted.map((node) => node.id) };
+  // 선택은 요소 id로 - 그룹은 안쪽 요소
+  const elementIds = (node: Node): string[] =>
+    node.type === 'group' ? node.children.flatMap(elementIds) : [node.id];
+  return { ops, ids: pasted.flatMap(elementIds) };
 };
 
 /** 고른 트리 요소를 겹치는 순서대로 복사 - 옛 종류 클립보드는 비운다 */
@@ -75,10 +79,12 @@ export const copyDocumentSelection = () => {
     ? getElementDocumentStore()?.getScene(sceneId)
     : undefined;
   if (!scene || selectedIds.length === 0) return false;
+  // 요소가 다 골라진 트리 그룹은 그룹째 복사한다
+  const roots = documentGroupRoots(scene, selectedIds);
   const picked: Node[] = [];
   const visit = (nodes: readonly Node[]) => {
     for (const node of nodes) {
-      if (selectedIds.includes(node.id)) picked.push(structuredClone(node));
+      if (roots.includes(node.id)) picked.push(structuredClone(node));
       else if (node.type === 'group') visit(node.children);
     }
   };

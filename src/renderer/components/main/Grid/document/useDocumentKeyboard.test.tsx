@@ -12,6 +12,8 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const mocks = vi.hoisted(() => ({
   remove: vi.fn(() => Promise.resolve(null)),
   move: vi.fn(() => Promise.resolve(null)),
+  group: vi.fn(() => Promise.resolve(null)),
+  ungroup: vi.fn(() => Promise.resolve(null)),
   copy: vi.fn(() => true),
   paste: vi.fn(() => Promise.resolve()),
   clipboard: [] as unknown[],
@@ -27,9 +29,15 @@ vi.mock('./documentClipboard', () => ({
 
 vi.mock('@utils/core/platform', () => ({ isMac: () => true }));
 
+vi.mock('@contexts/useTranslation', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
 vi.mock('./documentEditActions', () => ({
   removeDocumentElements: mocks.remove,
   moveDocumentElements: mocks.move,
+  groupDocumentElements: mocks.group,
+  ungroupDocumentElements: mocks.ungroup,
 }));
 
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
@@ -99,6 +107,18 @@ describe('트리 요소 키보드', () => {
     useKeyStore.setState({ selectedKeyType: '5key' });
     press('v', { metaKey: true });
     expect(mocks.paste).toHaveBeenCalledWith('5key');
+  });
+
+  it('Cmd+G는 고른 트리 요소를 묶고 Shift+Cmd+G는 푼다', () => {
+    useDocumentSelectionStore.getState().setSelection('4key', ['t1', 't2']);
+    press('g', { metaKey: true, code: 'KeyG' });
+    expect(mocks.group).toHaveBeenCalledWith(
+      '4key',
+      ['t1', 't2'],
+      'layerGroup.newGroup',
+    );
+    press('G', { metaKey: true, shiftKey: true, code: 'KeyG' });
+    expect(mocks.ungroup).toHaveBeenCalledWith('4key', ['t1', 't2']);
   });
 
   it('Delete는 지우고 선택을 푼다', () => {

@@ -3,11 +3,17 @@ import type { ElementDocumentCommitResult } from '@api/modules/editor/elementDoc
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import { elementKindData } from '@src/renderer/elementKinds/defineElementKind';
+import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
 import type {
   FramePatch,
   JsonValue,
   Op,
 } from '@src/types/generated/elementDocument';
+import {
+  documentGroupNames,
+  documentGroupRoots,
+  documentGroupsOf,
+} from './documentGroups';
 
 const report = (result: ElementDocumentCommitResult) => {
   if (result.status === 'committed') return;
@@ -135,3 +141,38 @@ export const moveDocumentElementTo = (
       index: place === 'front' ? null : 0,
     },
   ]);
+
+/** 고른 트리 요소를 새 그룹으로 묶는다 - 다 고른 트리 그룹은 그룹째 넣는다 */
+export const groupDocumentElements = (
+  sceneId: string,
+  ids: readonly string[],
+  baseLabel: string,
+) => {
+  const scene = getElementDocumentStore()?.getScene(sceneId);
+  const roots = documentGroupRoots(scene, ids);
+  if (roots.length === 0) return Promise.resolve(null);
+  return editDocument([
+    {
+      op: 'group',
+      scene: sceneId,
+      id: crypto.randomUUID(),
+      name: buildNextLayerGroupName(baseLabel, documentGroupNames(scene)),
+      ids: roots,
+    },
+  ]);
+};
+
+/** 고른 요소가 들어 있는 가장 바깥 트리 그룹을 푼다 */
+export const ungroupDocumentElements = (
+  sceneId: string,
+  ids: readonly string[],
+) => {
+  const groups = documentGroupsOf(
+    getElementDocumentStore()?.getScene(sceneId),
+    ids,
+  );
+  if (groups.length === 0) return Promise.resolve(null);
+  return editDocument(
+    groups.map((id) => ({ op: 'ungroup' as const, scene: sceneId, id })),
+  );
+};

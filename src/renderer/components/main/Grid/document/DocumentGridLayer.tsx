@@ -18,6 +18,7 @@ import {
   moveDocumentElements,
   removeDocumentElements,
 } from './documentEditActions';
+import { expandDocumentGroup } from './documentGroups';
 import { documentIdsInRange, toggleDocumentId } from './documentSelection';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
@@ -85,9 +86,11 @@ const DocumentGridElement = ({
       );
       return;
     }
-    // 고른 요소를 누르면 선택을 지킨 채 함께 옮긴다
-    const ids = current.includes(element.id) ? current : [element.id];
-    if (ids !== current) selection.select(sceneId, element.id);
+    // 고른 요소를 누르면 선택을 지킨 채 함께 옮긴다. 트리 그룹 안 요소는 그룹째 고른다
+    const ids = current.includes(element.id)
+      ? current
+      : expandDocumentGroup(store?.getScene(sceneId), element.id);
+    if (ids !== current) selection.setSelection(sceneId, ids);
     const origins = ids.flatMap((id) => {
       const frame = store?.getElement(sceneId, id)?.frame;
       return frame ? [{ id, frame }] : [];

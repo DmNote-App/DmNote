@@ -1,0 +1,95 @@
+// 트리 전용 그룹 계산 - 옛 그룹(layerGroups에서 온 그룹)은 아직 옛 경로가 다룬다
+import type { Group, Node, Scene } from '@src/types/generated/elementDocument';
+import { isEditorElementType } from '@src/types/editor';
+
+/** 옛 그룹 표시가 없고 안이 모두 트리 전용인 그룹 (백엔드 is_tree_only_group과 같다) */
+export const isTreeOnlyGroup = (group: Group): boolean => {
+  if ('legacy' in group && group.legacy !== undefined) return false;
+  return group.children.every((child) =>
+    child.type === 'group'
+      ? isTreeOnlyGroup(child)
+      : !isEditorElementType(child.kind),
+  );
+};
+
+const elementIds = (node: Node): string[] =>
+  node.type === 'group' ? node.children.flatMap(elementIds) : [node.id];
+
+// 노드까지의 조상 그룹 - 바깥부터
+const ancestorsOf = (nodes: readonly Node[], id: string): Group[] | null => {
+  for (const node of nodes) {
+    if (node.id === id) return [];
+    if (node.type === 'group') {
+      const inner = ancestorsOf(node.children, id);
+      if (inner) return [node, ...inner];
+    }
+  }
+  return null;
+};
+
+const outermostTreeGroup = (scene: Scene, id: string) =>
+  ancestorsOf(scene.nodes, id)?.find(isTreeOnlyGroup) ?? null;
+
+/** 누른 요소가 트리 그룹 안이면 가장 바깥 트리 그룹의 요소 전체 (옛 종류 그룹 선택과 같다) */
+export const expandDocumentGroup = (scene: Scene | undefined, id: string) => {
+  const group = scene ? outermostTreeGroup(scene, id) : null;
+  return group ? group.children.flatMap(elementIds) : [id];
+};
+
+/** 묶을 대상 - 요소가 다 골라진 트리 그룹은 그룹째(가장 바깥부터), 나머지는 요소. 겹치는 순서대로 */
+export const documentGroupRoots = (
+  scene: Scene | undefined,
+  ids: readonly string[],
+) => {
+  if (!scene) return [];
+  const picked = new Set(ids);
+  const roots: string[] = [];
+  const visit = (nodes: readonly Node[]) => {
+    for (const node of nodes) {
+      if (node.type === 'element') {
+        if (picked.has(node.id)) roots.push(node.id);
+        continue;
+      }
+      const members = elementIds(node);
+      if (
+        isTreeOnlyGroup(node) &&
+        members.length > 0 &&
+        members.every((member) => picked.has(member))
+      ) {
+        roots.push(node.id);
+      } else {
+        visit(node.children);
+      }
+    }
+  };
+  visit(scene.nodes);
+  return roots;
+};
+
+/** 풀 대상 - 고른 요소가 들어 있는 가장 바깥 트리 그룹 */
+export const documentGroupsOf = (
+  scene: Scene | undefined,
+  ids: readonly string[],
+) => {
+  if (!scene) return [];
+  const groups: string[] = [];
+  for (const id of ids) {
+    const group = outermostTreeGroup(scene, id);
+    if (group && !groups.includes(group.id)) groups.push(group.id);
+  }
+  return groups;
+};
+
+/** 장면 안 모든 그룹 이름 - 새 그룹 이름 번호 매기기용 */
+export const documentGroupNames = (scene: Scene | undefined) => {
+  const names: { id: string; name: string }[] = [];
+  const visit = (nodes: readonly Node[]) => {
+    for (const node of nodes) {
+      if (node.type !== 'group') continue;
+      names.push({ id: node.id, name: node.name });
+      visit(node.children);
+    }
+  };
+  if (scene) visit(scene.nodes);
+  return names;
+};
