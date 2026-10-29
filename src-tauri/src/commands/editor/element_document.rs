@@ -103,10 +103,12 @@ pub async fn element_document_commit(
                     .map_err(|error| CommandError::msg(format!("{error:#}")))?;
                 match plan {
                     ElementDocumentCommitPlan::Rejected(result) => return Ok(result),
-                    ElementDocumentCommitPlan::TreeOnly => {
+                    plan @ (ElementDocumentCommitPlan::TreeOnly
+                    | ElementDocumentCommitPlan::TreeOrderOnly) => {
+                        let check_legacy = matches!(plan, ElementDocumentCommitPlan::TreeOnly);
                         let result = state
                             .store
-                            .commit_element_document(&request.ops)
+                            .commit_element_document_checked(&request.ops, check_legacy)
                             .map_err(|error| CommandError::msg(format!("{error:#}")))?;
                         if matches!(result, ElementDocumentCommitResult::Committed { .. }) {
                             publish_element_document_changes(app);

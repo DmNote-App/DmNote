@@ -669,9 +669,12 @@ fn commit_planned(store: &crate::state::AppStore, ops: serde_json::Value) {
         ElementDocumentCommitPlan::Legacy { request, .. } => {
             store.commit_editor_document(*request).unwrap();
         }
-        ElementDocumentCommitPlan::TreeOnly => {
+        plan @ (ElementDocumentCommitPlan::TreeOnly | ElementDocumentCommitPlan::TreeOrderOnly) => {
+            let check_legacy = matches!(plan, ElementDocumentCommitPlan::TreeOnly);
             assert!(matches!(
-                store.commit_element_document(&ops).unwrap(),
+                store
+                    .commit_element_document_checked(&ops, check_legacy)
+                    .unwrap(),
                 ElementDocumentCommitResult::Committed { .. }
             ));
         }
@@ -880,4 +883,120 @@ fn 트리_값_하나가_깨져도_그_요소만_기본_모양으로_바꾸고_�
     );
     assert!(loaded_ids.iter().any(|id| id.contains(&broken_id)));
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+fn key_z(store: &crate::state::AppStore, mode: &str) -> Vec<(String, Option<i32>)> {
+    store.snapshot().key_positions[mode]
+        .iter()
+        .map(|position| (position.id.clone(), position.z_index))
+        .collect()
+}
+
+#[test]
+fn 트리_쓰기로_옛_요소를_지워도_흩어진_그룹의_z는_그대로다() {
+    let (dir, store) = open_store();
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        let positions = scratch.key_positions.get_mut("4key").unwrap();
+        for (index, position) in positions.iter_mut().enumerate() {
+            position.z_index = Some(index as i32);
+            position.group_id = None;
+        }
+        positions[0].group_id = Some("g1".into());
+        positions[2].group_id = Some("g1".into());
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let before = key_z(&store, "4key");
+    let removed = before[3].0.clone();
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "remove", "scene": "4key", "ids": [removed] }]),
+    );
+    let after = key_z(&store, "4key");
+    let expected: Vec<_> = before
+        .into_iter()
+        .filter(|(id, _)| *id != removed)
+        .collect();
+    assert_eq!(after, expected);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 트리_쓰기로_넣은_옛_요소는_트리_자리에_맞는_z를_받고_id를_지킨다() {
+    let (dir, store) = open_store();
+    let template = store.element_document_snapshot().1.scenes["4key"]
+        .elements()
+        .into_iter()
+        .find(|element| element.kind == "key")
+        .unwrap()
+        .clone();
+    let mut node = serde_json::to_value(&template).unwrap();
+    node["type"] = serde_json::json!("element");
+    node["id"] = serde_json::json!("0b1c2d3e-0000-4000-8000-000000000001");
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "insert", "scene": "4key", "parent": null, "index": null, "node": node }]),
+    );
+    let z = key_z(&store, "4key");
+    let inserted = z
+        .iter()
+        .find(|(id, _)| id == "0b1c2d3e-0000-4000-8000-000000000001")
+        .expect("id를 지킨다");
+    let top = z.iter().filter_map(|(_, z)| *z).max().unwrap();
+    assert_eq!(inserted.1, Some(top), "맨 위에 넣었으니 가장 높은 z");
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 트리_전용_노드와의_순서만_바꾸는_옛_요소_옮기기도_커밋된다() {
+    let (dir, store) = open_store();
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "insert", "scene": "4key", "parent": null, "index": null, "node": tracker_json("t1") }]),
+    );
+    let scene = store.element_document_snapshot().1.scenes["4key"].clone();
+    let top_key = scene
+        .nodes
+        .iter()
+        .rev()
+        .find(|node| matches!(node, Node::Element(element) if is_legacy_kind(&element.kind)))
+        .unwrap()
+        .id()
+        .to_string();
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "move", "scene": "4key", "ids": [top_key], "parent": null, "index": null }]),
+    );
+    let scene = store.element_document_snapshot().1.scenes["4key"].clone();
+    assert_eq!(scene.nodes.last().unwrap().id(), top_key);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 그룹_머리가_망가져도_멤버는_제자리에_남는다() {
+    let mut state = default_state();
+    state.layer_groups.insert(
+        "4key".into(),
+        vec![crate::models::LayerGroupDef {
+            id: "g1".into(),
+            name: "G".into(),
+        }],
+    );
+    state.key_positions.get_mut("4key").unwrap()[0].group_id = Some("g1".into());
+    attach_loaded_document(&mut state, None).unwrap();
+    let mut value = serde_json::to_value(&*state.element_document).unwrap();
+    let nodes = value["scenes"]["4key"]["nodes"].as_array_mut().unwrap();
+    let group = nodes.iter_mut().find(|node| node["id"] == "g1").unwrap();
+    group["name"] = serde_json::json!(123);
+    let (parsed, dropped) = parse_document_lenient(value);
+    assert_eq!(dropped, 1);
+    assert_eq!(
+        parsed.scenes["4key"].elements().len(),
+        state.element_document.scenes["4key"].elements().len()
+    );
+    assert!(parsed.scenes["4key"].find_path("g1").is_some());
 }

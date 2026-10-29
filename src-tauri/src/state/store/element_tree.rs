@@ -7,6 +7,7 @@ use std::sync::atomic::Ordering;
 
 use anyhow::{Context, Result};
 use element_document::bundles::BuiltinBundles;
+use element_document::document::walk;
 use element_document::{
     ChangeSet, Document, Engine, IdSource, Loader, Node, Op, Violation, ViolationCode,
 };
@@ -16,8 +17,7 @@ use serde_json::Value;
 use super::AppStore;
 use crate::models::legacy_layout::{
     graft_preset_scene, graft_tree_only, import_document, is_legacy_kind, is_tree_only_group,
-    project_document, reconcile_document, scattered_z_fixes, set_tree_z, strip_tree_only,
-    LegacyRef,
+    moved_z_fixes, project_document, reconcile_document, set_tree_z, strip_tree_only, LegacyRef,
 };
 use crate::models::{builtin_kind_registry, AppStoreData, EditorCommitRequest, EditorDocumentV1};
 use crate::state::history::ElementTreeHistorySnapshot;
@@ -45,27 +45,53 @@ pub(crate) fn parse_document_lenient(value: Value) -> (Document, usize) {
     fn parse_nodes(values: &[Value], dropped: &mut usize) -> Vec<Node> {
         values
             .iter()
-            .filter_map(|value| {
+            .flat_map(|value| {
                 if let Ok(node) = serde_json::from_value::<Node>(value.clone()) {
-                    return Some(node);
+                    return vec![node];
                 }
-                // 그룹이면 안쪽을 따로 읽어 살린다
-                let mut object = value.as_object()?.clone();
+                let Some(object) = value.as_object() else {
+                    *dropped += 1;
+                    return Vec::new();
+                };
+                // 그룹이면 안쪽을 따로 읽어 살린다 - 머리가 망가져도 멤버는 제자리에 둔다
                 if object.get("type").and_then(Value::as_str) == Some("group") {
                     let children = object
-                        .insert("children".into(), Value::Array(Vec::new()))
-                        .and_then(|children| children.as_array().cloned())
+                        .get("children")
+                        .and_then(Value::as_array)
+                        .map(|children| parse_nodes(children, dropped))
                         .unwrap_or_default();
+                    let mut header = object.clone();
+                    header.insert("children".into(), Value::Array(Vec::new()));
                     if let Ok(Node::Group(mut group)) =
-                        serde_json::from_value::<Node>(Value::Object(object))
+                        serde_json::from_value::<Node>(Value::Object(header))
                     {
-                        group.children = parse_nodes(&children, dropped);
-                        return Some(Node::Group(group));
+                        group.children = children;
+                        return vec![Node::Group(group)];
                     }
+                    *dropped += 1;
+                    let Some(id) = object.get("id").and_then(Value::as_str) else {
+                        // id도 없으면 멤버를 부모 자리로 꺼낸다
+                        return children;
+                    };
+                    let mut extra = serde_json::Map::new();
+                    if let Some(legacy) = object.get("legacy").filter(|legacy| legacy.is_object()) {
+                        extra.insert("legacy".into(), legacy.clone());
+                    }
+                    return vec![Node::Group(element_document::Group {
+                        id: id.to_string(),
+                        name: object
+                            .get("name")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string(),
+                        hidden: object.get("hidden").and_then(Value::as_bool) == Some(true),
+                        children,
+                        extra,
+                    })];
                 }
                 *dropped += 1;
                 // 옛 종류 요소는 그 자리에 기본 모양을 둔다 (keys·positions 순번 결합 유지)
-                legacy_placeholder(value)
+                legacy_placeholder(value).into_iter().collect()
             })
             .collect()
     }
@@ -86,13 +112,12 @@ pub(crate) fn parse_document_lenient(value: Value) -> (Document, usize) {
                 height: 60.0,
                 rotation: 0.0,
             });
+        // 자리 정보(순번·zIndex·끊긴 그룹)는 지키고 칸 값만 버린다
         let mut extra = serde_json::Map::new();
-        if let Some(index) = object
-            .get("legacy")
-            .and_then(|legacy| legacy.get("index"))
-            .cloned()
-        {
-            extra.insert("legacy".into(), serde_json::json!({ "index": index }));
+        if let Some(Value::Object(legacy)) = object.get("legacy") {
+            let mut info = legacy.clone();
+            info.remove("fields");
+            extra.insert("legacy".into(), Value::Object(info));
         }
         Some(Node::Element(element_document::Element {
             id: id.to_string(),
@@ -336,6 +361,45 @@ fn empty_tree_groups<'a>(
         .collect()
 }
 
+// 연산이 옮기거나 넣은 옛 종류 요소 - 장면별
+fn moved_legacy_ids(
+    document: &Document,
+    ops: &[Op],
+) -> std::collections::BTreeMap<String, std::collections::HashSet<String>> {
+    let mut moved: std::collections::BTreeMap<String, std::collections::HashSet<String>> =
+        Default::default();
+    let mut collect = |scene: &str, nodes: &[Node]| {
+        walk(nodes, &mut |node, _| {
+            if let Node::Element(element) = node {
+                if is_legacy_kind(&element.kind) {
+                    moved
+                        .entry(scene.to_string())
+                        .or_default()
+                        .insert(element.id.clone());
+                }
+            }
+        });
+    };
+    for op in ops {
+        match op {
+            Op::Insert { scene, node, .. } => collect(scene, std::slice::from_ref(node)),
+            Op::Move { scene, ids, .. } | Op::Group { scene, ids, .. } => {
+                let Some(target) = document.scenes.get(scene) else {
+                    continue;
+                };
+                for id in ids {
+                    if let Some(node) = target.find_path(id).and_then(|path| target.node_at(&path))
+                    {
+                        collect(scene, std::slice::from_ref(node));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    moved
+}
+
 // 옛 경로가 고칠 대상을 건드리는 첫 연산. 같은 커밋 앞쪽에서 만든 요소·그룹을 뒤에서
 // 쓸 수 있도록, 처음 문서에서 걸리는 것이 있으면 앞 연산을 차례로 적용하며 다시 본다
 fn first_legacy_op(engine: &Engine<'_>, document: &Document, ops: &[Op]) -> Option<usize> {
@@ -511,6 +575,8 @@ fn load_document(document: &mut Document) {
 pub(crate) enum ElementDocumentCommitPlan {
     // 트리에만 있는 노드만 - 트리 커밋
     TreeOnly,
+    // 옛 종류 요소를 건드리지만 옛 모양은 그대로(트리 전용 노드와의 순서만) - 트리 커밋
+    TreeOrderOnly,
     // 옛 종류 요소를 고친다 - 편집한 트리의 옛 모양을 옛 편집 커밋(검증·되돌리기·옛 알림)으로 보낸다
     Legacy {
         request: Box<EditorCommitRequest>,
@@ -567,25 +633,28 @@ impl AppStore {
                 changes.merge(more);
             }
         }
-        // 구조가 바뀐 장면은 옛 종류 요소의 zIndex를 새 트리 순서로 맞춘다
-        let structural: Vec<String> = changes
-            .scenes
-            .iter()
-            .filter(|(_, change)| change.structure)
-            .map(|(scene, _)| scene.clone())
-            .collect();
-        let fixes = scattered_z_fixes(&after, structural.iter());
-        set_tree_z(&mut after, &fixes);
+        // 옮기거나 넣은 옛 종류 요소만 새 트리 자리에 맞는 zIndex를 받는다
+        for (scene, moved) in moved_legacy_ids(&after, ops) {
+            let fixes = moved_z_fixes(&after, &scene, &moved);
+            set_tree_z(&mut after, &fixes);
+        }
         let before = EditorDocumentV1::from_store(&guard.data);
         let projected = project_document(&after)?;
         let fields = before.changed_fields(&projected);
+        // 옛 모양이 그대로면(트리 전용 노드와의 순서만 바뀜) 트리 커밋으로
+        if fields.is_empty() {
+            return Ok(ElementDocumentCommitPlan::TreeOrderOnly);
+        }
+        let mut patch = projected.patch_for_fields(&fields);
+        // 트리 쓰기는 id를 정해 보내므로 v2 - 옛 v1 어댑터가 id를 새로 매기지 않게 한다
+        patch.schema_version = crate::models::EDITOR_COMMIT_SCHEMA_VERSION_V2;
         let request = EditorCommitRequest {
             base_revision: guard.data.editor_revision,
             mutation_id: uuid::Uuid::new_v4().to_string(),
             multi_key: true,
             gesture_id,
             gesture_ids: Vec::new(),
-            changes: Some(projected.patch_for_fields(&fields)),
+            changes: Some(patch),
             ops_version: None,
             ops: None,
             element_tree: Some(std::sync::Arc::new(after)),
@@ -597,9 +666,20 @@ impl AppStore {
     }
 
     /// 트리 편집 연산 커밋 - 전부 적용하거나 아무것도 바꾸지 않는다
+    #[cfg(test)]
     pub(crate) fn commit_element_document(
         &self,
         ops: &[Op],
+    ) -> Result<ElementDocumentCommitResult> {
+        self.commit_element_document_checked(ops, true)
+    }
+
+    /// `check_legacy`가 false면 옛 종류 요소를 건드리는 연산도 받는다 - 옛 모양이 그대로인지는
+    /// 아래에서 같은 방식으로 확인한다(트리 전용 노드와의 순서만 바뀌는 편집)
+    pub(crate) fn commit_element_document_checked(
+        &self,
+        ops: &[Op],
+        check_legacy: bool,
     ) -> Result<ElementDocumentCommitResult> {
         let revision = self.element_document_revision();
         let in_progress = ElementDocumentCommitResult::Rejected {
@@ -623,7 +703,10 @@ impl AppStore {
             kinds: builtin_kind_registry(),
             bundles: &BuiltinBundles,
         };
-        if let Some(index) = first_legacy_op(&engine, &guard.data.element_document, ops) {
+        if let Some(index) = check_legacy
+            .then(|| first_legacy_op(&engine, &guard.data.element_document, ops))
+            .flatten()
+        {
             return Ok(rejected(
                 MANAGED_ELSEWHERE,
                 vec![Violation::new(

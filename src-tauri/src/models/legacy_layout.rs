@@ -852,45 +852,6 @@ pub(crate) fn graft_preset_scene(
     graft_tree_only(&resolved, target);
 }
 
-// 저장된 zIndex로 트리 순서가 그대로 나오면 None. 아니면(흩어진 그룹을 모은 뒤 등) 트리 순서대로
-// 저장된 값을 되도록 지키며 다시 매긴다 - 바뀌지 않은 요소의 값이 남아 플러그인 요소와의
-// 상대 순서가 덜 흔들린다
-fn scene_z_adjustments(
-    elements: &[ProjectedElement<'_>],
-    positions: &HashMap<&str, usize>,
-) -> Option<HashMap<String, i64>> {
-    let mut ordered: Vec<&ProjectedElement<'_>> = elements.iter().collect();
-    ordered.sort_by_key(|entry| entry.order);
-    let keys: Vec<(i64, usize, usize)> = ordered
-        .iter()
-        .map(|entry| {
-            stacking_key(
-                stored_z_index(entry.element),
-                entry.kind,
-                positions[entry.element.id.as_str()],
-            )
-        })
-        .collect();
-    if keys.windows(2).all(|pair| pair[0] < pair[1]) {
-        return None;
-    }
-    let mut previous: Option<i64> = None;
-    Some(
-        ordered
-            .iter()
-            .zip(keys)
-            .map(|(entry, (stored, _, _))| {
-                let z = match previous {
-                    Some(previous) if stored <= previous => previous + 1,
-                    _ => stored,
-                };
-                previous = Some(z);
-                (entry.element.id.clone(), z)
-            })
-            .collect(),
-    )
-}
-
 // 장면의 옛 종류 요소 배열 순번 (종류별 원래 순번, 새 요소는 트리 순서대로 뒤에)
 fn scene_positions<'a>(elements: &'a [ProjectedElement<'a>]) -> HashMap<&'a str, usize> {
     let mut by_kind: BTreeMap<EditorElementTypeV1, Vec<&ProjectedElement<'_>>> = BTreeMap::new();
@@ -912,30 +873,70 @@ fn scene_positions<'a>(elements: &'a [ProjectedElement<'a>]) -> HashMap<&'a str,
     positions
 }
 
-/// 트리 순서와 어긋나는 zIndex - (장면, 요소 id, 새 zIndex). 흩어진 그룹은 트리에서 모이므로
-/// 옛 모양 zIndex도 그 순서로 맞춰야 저장·다시 읽기 뒤 순서가 같다
-pub(crate) fn scattered_z_fixes<'a>(
+/// 트리 쓰기로 옮기거나 넣은 옛 종류 요소의 zIndex - (장면, 요소 id, 새 zIndex).
+/// 옮긴 요소만 트리에서 바로 아래 요소와 바로 위 (옮기지 않은) 요소 사이에 놓는다.
+/// 자리가 없으면 위쪽 요소들을 같은 만큼 밀어 서로의 순서를 지킨다. 옮기지 않은 요소끼리의
+/// 순서(흩어진 그룹 포함)는 건드리지 않는다
+pub(crate) fn moved_z_fixes(
     document: &Document,
-    modes: impl IntoIterator<Item = &'a String>,
+    scene_id: &str,
+    moved: &HashSet<String>,
 ) -> Vec<(String, String, i64)> {
-    let mut fixes = Vec::new();
-    for mode in modes {
-        let Some(scene) = document.scenes.get(mode) else {
+    let Some(scene) = document.scenes.get(scene_id) else {
+        return Vec::new();
+    };
+    let (mut elements, _) = collect_projection(scene);
+    elements.sort_by_key(|entry| entry.order);
+    let positions = scene_positions(&elements);
+    let original: Vec<i64> = elements
+        .iter()
+        .map(|entry| {
+            stored_z_index(entry.element).unwrap_or(positions[entry.element.id.as_str()] as i64)
+        })
+        .collect();
+    let is_moved: Vec<bool> = elements
+        .iter()
+        .map(|entry| moved.contains(&entry.element.id))
+        .collect();
+    let mut z = original.clone();
+    for index in 0..elements.len() {
+        if !is_moved[index] {
             continue;
-        };
-        let (elements, _) = collect_projection(scene);
-        let positions = scene_positions(&elements);
-        let Some(adjusted) = scene_z_adjustments(&elements, &positions) else {
+        }
+        let below = index.checked_sub(1).map(|previous| z[previous]);
+        let above = (index + 1..elements.len())
+            .find(|&next| !is_moved[next])
+            .map(|next| z[next]);
+        let fits = stored_z_index(elements[index].element).is_some()
+            && below.is_none_or(|below| z[index] > below)
+            && above.is_none_or(|above| z[index] < above);
+        if fits {
             continue;
+        }
+        let target = match (below, above) {
+            (Some(below), _) => below + 1,
+            (None, Some(above)) => above - 1,
+            (None, None) => 0,
         };
-        for entry in &elements {
-            let z = adjusted[entry.element.id.as_str()];
-            if stored_z_index(entry.element) != Some(z) {
-                fixes.push((mode.clone(), entry.element.id.clone(), z));
+        z[index] = target;
+        if let Some(above) = above.filter(|above| target >= *above) {
+            let shift = target - above + 1;
+            for value in z.iter_mut().skip(index + 1) {
+                if *value >= above {
+                    *value += shift;
+                }
             }
         }
     }
-    fixes
+    elements
+        .iter()
+        .enumerate()
+        .filter(|(index, entry)| {
+            z[*index] != original[*index]
+                || stored_z_index(entry.element).is_none() && is_moved[*index]
+        })
+        .map(|(index, entry)| (scene_id.to_string(), entry.element.id.clone(), z[index]))
+        .collect()
 }
 
 // 트리 쓰기로 옛 종류 요소 순서가 바뀐 장면 - 저장된 zIndex를 트리 순서로 맞춰 옛 모양에 반영한다
@@ -948,7 +949,11 @@ pub(crate) fn set_tree_z(document: &mut Document, fixes: &[(String, String, i64)
         else {
             continue;
         };
-        if let Some(Value::Object(info)) = element.extra.get_mut(LEGACY) {
+        let info = element
+            .extra
+            .entry(LEGACY.to_string())
+            .or_insert_with(|| Value::Object(Map::new()));
+        if let Value::Object(info) = info {
             info.insert("zIndex".into(), json!(z));
         }
     }
@@ -1101,12 +1106,9 @@ pub(crate) fn project_document_lenient(document: &Document) -> Result<(EditorDoc
             if project_document(&probe).is_ok() {
                 return;
             }
-            // 공통 정보와 자리만 남긴 기본 모양
-            let index = stored_index(element);
-            let mut info = Map::new();
-            if let Some(index) = index {
-                info.insert("index".into(), json!(index));
-            }
+            // 공통 정보와 자리(순번·zIndex·끊긴 그룹)만 남긴 기본 모양
+            let mut info = legacy_info(element).cloned().unwrap_or_default();
+            info.remove("fields");
             // 종류의 기본 값과 기능 묶음 기본값
             if let Some(schema) = builtin_kind_registry().get(&element.kind) {
                 element.values = element_document::value::default_fields(&schema.fields);
