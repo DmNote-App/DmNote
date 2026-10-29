@@ -185,8 +185,7 @@
       }
     ],
     "bundles": [
-      "surface",
-      "image"
+      "surface"
     ],
     "inputs": [
       "axis"

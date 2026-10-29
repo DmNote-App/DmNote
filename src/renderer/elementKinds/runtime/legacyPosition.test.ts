@@ -11,12 +11,9 @@ const knob: ElementNode = {
   name: '노브',
   className: 'my',
   values: { sensitivity: 2, reverse: true },
-  bundles: {
-    surface: { borderWidth: 3 },
-    image: { activeImage: 'a.png' },
-  },
+  bundles: { surface: { borderWidth: 3 } },
   input: { type: 'axis', axisId: 'HIDA:1' },
-  legacy: { index: 0, zIndex: 4, fields: { zz: 1 } },
+  legacy: { index: 0, zIndex: 4, fields: { activeImage: 'a.png' } },
 };
 
 describe('트리 요소 ↔ 옛 위치 모양', () => {
@@ -36,7 +33,6 @@ describe('트리 요소 ↔ 옛 위치 모양', () => {
       activeImage: 'a.png',
       axisId: 'HIDA:1',
       zIndex: 4,
-      zz: 1,
     });
   });
 
@@ -47,7 +43,6 @@ describe('트리 요소 ↔ 옛 위치 모양', () => {
         width: 80,
         sensitivity: 3,
         borderColor: '#fff',
-        inactiveImage: 'b.png',
         layerName: '새 이름',
         hidden: true,
         axisId: 'HIDA:2',
@@ -68,13 +63,6 @@ describe('트리 요소 ↔ 옛 위치 모양', () => {
         id: 'k1',
         bundle: 'surface',
         fields: { borderColor: '#fff' },
-      },
-      {
-        op: 'setBundle',
-        scene: '4key',
-        id: 'k1',
-        bundle: 'image',
-        fields: { inactiveImage: 'b.png' },
       },
       {
         op: 'setInput',

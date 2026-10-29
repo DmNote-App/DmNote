@@ -804,3 +804,54 @@ fn 프리셋은_트리_전용_노드를_옛_요소_자리_표와_함께_싣고_�
             .key_positions
     });
 }
+
+// 저장된 트리는 종류 정의가 바뀌어도 옛 모양으로 엄격하게 내보낼 수 있어야 한다.
+// 못 내보내면 읽을 때 그 요소가 기본 모양으로 대체된다
+#[test]
+fn 묶음이_비고_옛_칸이_없는_저장_요소도_옛_모양으로_내보낸다() {
+    let kinds = ["key", "stat", "graph", "knob", "sprite"];
+    let nodes: Vec<serde_json::Value> = kinds
+        .iter()
+        .enumerate()
+        .map(|(index, kind)| {
+            json!({
+                "type": "element",
+                "id": format!("00000000-0000-4000-8000-00000000000{index}"),
+                "kind": kind,
+                "frame": { "x": 0.0, "y": 0.0, "width": 60.0, "height": 60.0, "rotation": 0.0 },
+                "legacy": { "index": 0, "zIndex": index },
+            })
+        })
+        .collect();
+    let document: Document = serde_json::from_value(json!({
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": { "4key": { "nodes": nodes } },
+    }))
+    .unwrap();
+    let projected = project_document(&document).unwrap();
+    assert_eq!(projected.knob_positions["4key"].len(), 1);
+}
+
+#[test]
+fn 이미지_칸을_옛_칸에_둔_노브를_옛_모양으로_내보낸다() {
+    // 노브 이미지 칸은 묶음이 아니라 옛 칸에 저장돼 있다 (투명 칸은 기본값이라 빠져 있다)
+    let document: Document = serde_json::from_value(json!({
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": { "4key": { "nodes": [{
+            "type": "element",
+            "id": "00000000-0000-4000-8000-000000000001",
+            "kind": "knob",
+            "frame": { "x": 0.0, "y": 0.0, "width": 60.0, "height": 60.0, "rotation": 0.0 },
+            "bundles": { "surface": { "backgroundColor": "#3355FF" } },
+            "values": { "reverse": false, "sensitivity": 1.0 },
+            "legacy": { "index": 0, "zIndex": 1, "fields": { "activeImage": "a.png", "fontBold": null } },
+        }] } },
+    }))
+    .unwrap();
+    let projected = project_document(&document).unwrap();
+    let knob = &projected.knob_positions["4key"][0];
+    assert_eq!(knob.position.background_color.as_deref(), Some("#3355FF"));
+    assert_eq!(knob.position.active_image.as_deref(), Some("a.png"));
+}

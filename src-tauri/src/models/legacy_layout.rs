@@ -10,6 +10,7 @@
 //! 옛 데이터 API(플러그인 getPositions·editor.get 등)는 이 내보내기 결과를 그대로 쓴다.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::sync::OnceLock;
 
 use anyhow::{Context, Result};
 use element_document::bundles::BuiltinBundles;
@@ -18,8 +19,8 @@ use element_document::{Document, Element, Frame, Group, InputBinding, Node, Scen
 use serde_json::{json, Map, Value};
 
 use super::{
-    builtin_kind_registry, EditorDocumentV1, EditorElementTypeV1, KeyPosition, KeySlot,
-    LayerGroupDef, ReactiveSpritePosition,
+    builtin_kind_registry, EditorDocumentV1, EditorElementTypeV1, GraphPosition, KeyPosition,
+    KeySlot, KnobPosition, LayerGroupDef, ReactiveSpritePosition, StatPosition,
 };
 
 // 요소에 남겨 두는 옛 모양 정보
@@ -284,6 +285,71 @@ fn default_legacy_object(kind: EditorElementTypeV1) -> Map<String, Value> {
         Value::Object(object) => object,
         _ => unreachable!("위치는 객체"),
     }
+}
+
+// 옛 위치 객체 하나를 그 종류의 옛 모양으로 읽을 수 있는지
+fn accepts_legacy_object(kind: EditorElementTypeV1, object: Map<String, Value>) -> bool {
+    let value = Value::Object(object);
+    match kind {
+        EditorElementTypeV1::Key => serde_json::from_value::<KeyPosition>(value).is_ok(),
+        EditorElementTypeV1::Stat => serde_json::from_value::<StatPosition>(value).is_ok(),
+        EditorElementTypeV1::Graph => serde_json::from_value::<GraphPosition>(value).is_ok(),
+        EditorElementTypeV1::Knob => serde_json::from_value::<KnobPosition>(value).is_ok(),
+        EditorElementTypeV1::Sprite => {
+            serde_json::from_value::<ReactiveSpritePosition>(value).is_ok()
+        }
+    }
+}
+
+// 옛 모양이 null을 받지 않는 칸 (값 타입 칸) - 실제로 null을 넣어 읽어 보고 정한다.
+// 저장 트리에 빠져 있으면(종류 정의 변경 등) 요소 전체를 못 읽지 않게 기본값을 쓴다
+fn non_nullable_fields(kind: EditorElementTypeV1) -> &'static HashSet<String> {
+    static FIELDS: OnceLock<HashMap<EditorElementTypeV1, HashSet<String>>> = OnceLock::new();
+    &FIELDS.get_or_init(|| {
+        EditorElementTypeV1::ALL
+            .iter()
+            .map(|&kind| {
+                // 기본 객체 + 종류 고유 값 기본값 (통계 종류처럼 기본값 없는 필수 칸이 있다)
+                let mut base = default_legacy_object(kind);
+                let schema = serde_json::to_value(kind)
+                    .ok()
+                    .and_then(|name| builtin_kind_registry().get(name.as_str()?));
+                for rule in schema
+                    .map(|schema| schema.fields.as_slice())
+                    .unwrap_or_default()
+                {
+                    if !rule.default.is_null() {
+                        base.insert(rule.name.clone(), rule.default.clone());
+                    }
+                }
+                let mut names: BTreeSet<String> = base.keys().cloned().collect();
+                if let Some(schema) = schema {
+                    names.extend(schema.fields.iter().map(|rule| rule.name.clone()));
+                    for bundle in &schema.bundles {
+                        names.extend(
+                            BuiltinBundles::fields(bundle)
+                                .unwrap_or_default()
+                                .iter()
+                                .map(|rule| rule.name.clone()),
+                        );
+                    }
+                }
+                let fields = if accepts_legacy_object(kind, base.clone()) {
+                    names
+                        .into_iter()
+                        .filter(|name| {
+                            let mut object = base.clone();
+                            object.insert(name.clone(), Value::Null);
+                            !accepts_legacy_object(kind, object)
+                        })
+                        .collect()
+                } else {
+                    HashSet::new()
+                };
+                (kind, fields)
+            })
+            .collect()
+    })[&kind]
 }
 
 fn number(object: &Map<String, Value>, name: &str) -> f64 {
@@ -624,31 +690,42 @@ fn projected_object(entry: &ProjectedElement<'_>, z_index: Option<i64>) -> Map<S
             object.insert(name.clone(), value.clone());
         }
     }
-    // 묶음·고유 값 칸이 비어 있으면 없음(None)이다 - 기본값으로 되살리지 않는다
+    // 묶음·고유 값 칸이 비어 있으면 없음(None)이다 - 기본값으로 되살리지 않는다.
+    // 다만 옛 모양이 null을 못 받는 칸은 옛 칸·기본값(종류 고유 값은 정의 기본값)을 쓴다
     let schema = builtin_kind_registry().get(&element.kind);
+    let required = non_nullable_fields(entry.kind);
+    let mut put = |name: &str, value: Option<&Value>, fallback: Option<&Value>| match value {
+        Some(value) if !value.is_null() => {
+            object.insert(name.to_string(), value.clone());
+        }
+        _ if required.contains(name) => {
+            let kept = object.get(name).is_some_and(|value| !value.is_null());
+            if let Some(fallback) = fallback.filter(|value| !kept && !value.is_null()) {
+                object.insert(name.to_string(), fallback.clone());
+            }
+        }
+        _ => {
+            object.insert(name.to_string(), Value::Null);
+        }
+    };
     for bundle in schema
         .map(|schema| schema.bundles.as_slice())
         .unwrap_or_default()
     {
         let part = element.bundles.get(bundle).and_then(Value::as_object);
         for rule in BuiltinBundles::fields(bundle).unwrap_or_default() {
-            let value = part
-                .and_then(|part| part.get(&rule.name))
-                .cloned()
-                .unwrap_or(Value::Null);
-            object.insert(rule.name.clone(), value);
+            put(&rule.name, part.and_then(|part| part.get(&rule.name)), None);
         }
     }
     for rule in schema
         .map(|schema| schema.fields.as_slice())
         .unwrap_or_default()
     {
-        let value = element
-            .values
-            .get(&rule.name)
-            .cloned()
-            .unwrap_or(Value::Null);
-        object.insert(rule.name.clone(), value);
+        put(
+            &rule.name,
+            element.values.get(&rule.name),
+            Some(&rule.default),
+        );
     }
     if let Some(InputBinding::Axis { axis_id }) = &element.input {
         object.insert("axisId".into(), json!(axis_id));
