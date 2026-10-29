@@ -1000,3 +1000,87 @@ fn 그룹_머리가_망가져도_멤버는_제자리에_남는다() {
     );
     assert!(parsed.scenes["4key"].find_path("g1").is_some());
 }
+
+#[test]
+fn 범위를_벗어난_자리_값은_버리고_그_요소만_대체한다() {
+    let (dir, store) = open_store();
+    store.flush_and_shutdown().unwrap();
+    let before = store.snapshot();
+    drop(store);
+    let path = dir.join(crate::state::store::STORE_FILE_NAME);
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let nodes = value[ELEMENT_DOCUMENT_FIELD]["scenes"]["6key"]["nodes"]
+        .as_array_mut()
+        .unwrap();
+    let key = nodes.iter_mut().find(|node| node["kind"] == "key").unwrap();
+    key["legacy"]["zIndex"] = serde_json::json!(10_000_000_000_i64);
+    std::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+    let loaded = crate::state::migration::load_store_from_path(&path).unwrap();
+    assert!(loaded.repaired);
+    assert_eq!(loaded.data.layer_groups, before.layer_groups);
+    assert_eq!(loaded.data.keys, before.keys);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 흩어진_그룹_옆으로_옮겨도_옮기지_않은_요소끼리의_순서는_그대로다() {
+    let (dir, store) = open_store();
+    // X=z1, A=z0(g1), B=z2(g1), Y=z3 - 나머지는 위로
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        let positions = scratch.key_positions.get_mut("4key").unwrap();
+        for (index, position) in positions.iter_mut().enumerate() {
+            position.group_id = None;
+            position.z_index = Some(10 + index as i32);
+        }
+        positions[0].z_index = Some(1);
+        positions[1].z_index = Some(0);
+        positions[1].group_id = Some("g1".into());
+        positions[2].z_index = Some(2);
+        positions[2].group_id = Some("g1".into());
+        positions[3].z_index = Some(3);
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let order_without = |moved: &str| {
+        let mut z: Vec<(i32, String)> = store.snapshot().key_positions["4key"]
+            .iter()
+            .filter(|position| position.id != moved)
+            .map(|position| (position.z_index.unwrap_or(0), position.id.clone()))
+            .collect();
+        z.sort();
+        z.into_iter().map(|(_, id)| id).collect::<Vec<_>>()
+    };
+    let y = store.snapshot().key_positions["4key"][3].id.clone();
+    let before = order_without(&y);
+    let scene = store.element_document_snapshot().1.scenes["4key"].clone();
+    let x = store.snapshot().key_positions["4key"][0].id.clone();
+    let x_at = scene.find_path(&x).unwrap()[0];
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "move", "scene": "4key", "ids": [y], "parent": null, "index": x_at + 1 }]),
+    );
+    assert_eq!(order_without(&y), before);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 트리_쓰기로_장면을_만들거나_지울_수_없다() {
+    let (dir, store) = open_store();
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "addScene", "scene": "ghost" },
+        { "op": "insert", "scene": "ghost", "parent": null, "index": null, "node": tracker_json("t1") }
+    ]))
+    .unwrap();
+    assert!(matches!(
+        store.plan_element_document_commit(&ops, None).unwrap(),
+        ElementDocumentCommitPlan::Rejected(ElementDocumentCommitResult::Rejected {
+            code: "MANAGED_ELSEWHERE",
+            ..
+        })
+    ));
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

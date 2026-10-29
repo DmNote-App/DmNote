@@ -909,24 +909,26 @@ pub(crate) fn moved_z_fixes(
             .map(|next| z[next]);
         let fits = stored_z_index(elements[index].element).is_some()
             && below.is_none_or(|below| z[index] > below)
-            && above.is_none_or(|above| z[index] < above);
+            && above.is_none_or(|above| z[index] < above)
+            && z.iter()
+                .enumerate()
+                .all(|(other, value)| other == index || *value != z[index]);
         if fits {
             continue;
         }
+        // 트리에서 바로 아래 요소의 바로 위(없으면 바로 위 요소의 자리)에 끼우고, 그 값 이상인
+        // 다른 요소를 모두 한 칸 올린다 - 옮기지 않은 요소끼리의 순서는 그대로다
         let target = match (below, above) {
             (Some(below), _) => below + 1,
-            (None, Some(above)) => above - 1,
+            (None, Some(above)) => above,
             (None, None) => 0,
         };
-        z[index] = target;
-        if let Some(above) = above.filter(|above| target >= *above) {
-            let shift = target - above + 1;
-            for value in z.iter_mut().skip(index + 1) {
-                if *value >= above {
-                    *value += shift;
-                }
+        for (other, value) in z.iter_mut().enumerate() {
+            if other != index && *value >= target {
+                *value += 1;
             }
         }
+        z[index] = target;
     }
     elements
         .iter()
@@ -1077,6 +1079,30 @@ pub(crate) fn project_document(document: &Document) -> Result<EditorDocumentV1> 
     Ok(legacy)
 }
 
+/// 옛 자리 정보 중 읽을 수 있는 것만 - 순번, i32 범위 zIndex, 끊긴 그룹 id
+pub(crate) fn valid_placement(info: Option<&Map<String, Value>>) -> Map<String, Value> {
+    let mut kept = Map::new();
+    let Some(info) = info else {
+        return kept;
+    };
+    if let Some(index) = info.get("index").filter(|index| index.as_u64().is_some()) {
+        kept.insert("index".into(), index.clone());
+    }
+    if let Some(z) = info
+        .get("zIndex")
+        .filter(|z| z.as_i64().is_some_and(|z| i32::try_from(z).is_ok()))
+    {
+        kept.insert("zIndex".into(), z.clone());
+    }
+    if let Some(group) = info
+        .get("danglingGroupId")
+        .filter(|group| group.is_string())
+    {
+        kept.insert("danglingGroupId".into(), group.clone());
+    }
+    kept
+}
+
 /// 읽을 때 쓰는 내보내기 - 옛 모양으로 못 바꾸는 요소는 그 자리에 기본 모양을 둔다
 /// (keys·positions 순번 결합을 지키는 제자리 대체). 두 번째 값은 대체가 있었는지
 pub(crate) fn project_document_lenient(document: &Document) -> Result<(EditorDocumentV1, bool)> {
@@ -1106,9 +1132,8 @@ pub(crate) fn project_document_lenient(document: &Document) -> Result<(EditorDoc
             if project_document(&probe).is_ok() {
                 return;
             }
-            // 공통 정보와 자리(순번·zIndex·끊긴 그룹)만 남긴 기본 모양
-            let mut info = legacy_info(element).cloned().unwrap_or_default();
-            info.remove("fields");
+            // 공통 정보와 자리(순번·zIndex·끊긴 그룹)만 남긴 기본 모양 - 자리 값도 범위를 벗어나면 버린다
+            let info = valid_placement(legacy_info(element));
             // 종류의 기본 값과 기능 묶음 기본값
             if let Some(schema) = builtin_kind_registry().get(&element.kind) {
                 element.values = element_document::value::default_fields(&schema.fields);

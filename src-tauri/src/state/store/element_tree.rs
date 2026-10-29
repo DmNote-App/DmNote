@@ -112,12 +112,13 @@ pub(crate) fn parse_document_lenient(value: Value) -> (Document, usize) {
                 height: 60.0,
                 rotation: 0.0,
             });
-        // 자리 정보(순번·zIndex·끊긴 그룹)는 지키고 칸 값만 버린다
+        // 자리 정보(순번·zIndex·끊긴 그룹) 중 읽을 수 있는 것은 지키고 칸 값은 버린다
         let mut extra = serde_json::Map::new();
         if let Some(Value::Object(legacy)) = object.get("legacy") {
-            let mut info = legacy.clone();
-            info.remove("fields");
-            extra.insert("legacy".into(), Value::Object(info));
+            extra.insert(
+                "legacy".into(),
+                Value::Object(crate::models::legacy_layout::valid_placement(Some(legacy))),
+            );
         }
         Some(Node::Element(element_document::Element {
             id: id.to_string(),
@@ -359,6 +360,37 @@ fn empty_tree_groups<'a>(
             })
         })
         .collect()
+}
+
+// 스프라이트 포즈의 빈 id에 새 id - 옛 편집 패치(v2)는 포즈 id를 꼭 받는다
+fn fill_empty_pose_ids(document: &mut Document) {
+    for scene in document.scenes.values_mut() {
+        element_document::document::walk_mut(&mut scene.nodes, &mut |node| {
+            let Node::Element(element) = node else {
+                return;
+            };
+            if element.kind != "sprite" {
+                return;
+            }
+            let Some(Value::Array(poses)) = element.values.get_mut("poses") else {
+                return;
+            };
+            for pose in poses {
+                if let Some(object) = pose.as_object_mut() {
+                    let empty = object
+                        .get("poseId")
+                        .and_then(Value::as_str)
+                        .is_none_or(str::is_empty);
+                    if empty {
+                        object.insert(
+                            "poseId".into(),
+                            Value::String(uuid::Uuid::new_v4().to_string()),
+                        );
+                    }
+                }
+            }
+        });
+    }
 }
 
 // 연산이 옮기거나 넣은 옛 종류 요소 - 장면별
@@ -614,6 +646,19 @@ impl AppStore {
         if first_legacy_op(&engine, document, ops).is_none() {
             return Ok(ElementDocumentCommitPlan::TreeOnly);
         }
+        // 장면은 옛 탭이라 탭 관리 경로만 만들고 지운다
+        if ops
+            .iter()
+            .any(|op| matches!(op, Op::AddScene { .. } | Op::RemoveScene { .. }))
+        {
+            return Ok(ElementDocumentCommitPlan::Rejected(
+                ElementDocumentCommitResult::Rejected {
+                    revision: self.element_document_revision(),
+                    code: MANAGED_ELSEWHERE,
+                    violations: Vec::new(),
+                },
+            ));
+        }
         let mut after = (**document).clone();
         let mut changes = match engine.apply(&mut after, ops) {
             Ok(changes) => changes,
@@ -638,6 +683,7 @@ impl AppStore {
             let fixes = moved_z_fixes(&after, &scene, &moved);
             set_tree_z(&mut after, &fixes);
         }
+        fill_empty_pose_ids(&mut after);
         let before = EditorDocumentV1::from_store(&guard.data);
         let projected = project_document(&after)?;
         let fields = before.changed_fields(&projected);
