@@ -72,9 +72,15 @@ const waitFor = async (
   const startedAt = performance.now();
   while (!predicate()) {
     if (performance.now() - startedAt > timeoutMs) {
-      throw new Error('측정 대기 시간 초과');
+      throw new Error(
+        `측정 대기 시간 초과 (visibility=${document.visibilityState})`,
+      );
     }
-    await nextFrame();
+    // 창이 가려져 그리기가 멈춰도 시간 초과를 볼 수 있게 타이머와 겨룬다
+    await Promise.race([
+      nextFrame(),
+      new Promise((resolve) => setTimeout(resolve, 500)),
+    ]);
   }
 };
 
@@ -251,6 +257,7 @@ const measure = async (config: BenchmarkConfig) => {
   ).map((position) => position.id);
 
   // 방향키 이동 - 선택한 키 하나가 화면에서 움직일 때까지
+  await progress(config, 'arrow-nudge');
   useGridSelectionStore
     .getState()
     .setSelectedElements([{ type: 'key', id: keyIds[0], index: 0 }]);
@@ -270,6 +277,7 @@ const measure = async (config: BenchmarkConfig) => {
   await new Promise((resolve) => setTimeout(resolve, 1500));
 
   // 공개 API 커밋 왕복 - 키 하나의 위치를 바꾸는 커밋
+  await progress(config, 'api-commit');
   for (let iteration = 0; iteration < config.iterations; iteration += 1) {
     const { revision, document } = await api().editor.get();
     const positions = cloneJson(document.keyPositions) as Record<
@@ -287,6 +295,7 @@ const measure = async (config: BenchmarkConfig) => {
   }
 
   // 탭 전환 - 다른 탭의 키가 모두 그려질 때까지
+  await progress(config, 'tab-switch');
   for (let iteration = 0; iteration < config.iterations; iteration += 1) {
     const target = iteration % 2 === 0 ? '5key' : '4key';
     const before = firstKeyNode();
@@ -305,6 +314,7 @@ const measure = async (config: BenchmarkConfig) => {
   await waitFor(() => keyElementCount() >= BENCHMARK_KEYS_PER_TAB);
 
   // 복사·붙여넣기 50개 - 붙여넣은 키가 화면에 나올 때까지, 매번 되돌린다
+  await progress(config, 'paste');
   const pasteRounds = Math.min(config.iterations, 10);
   for (let iteration = 0; iteration < pasteRounds; iteration += 1) {
     const { revision, document } = await api().editor.get();
@@ -350,6 +360,7 @@ const measure = async (config: BenchmarkConfig) => {
   }
 
   // 문서 통째 교체(프리셋 불러오기 대용) - 모든 컬렉션을 바꾸는 커밋이 화면에 나올 때까지
+  await progress(config, 'document-replace');
   const replaceRounds = Math.min(config.iterations, 10);
   for (let iteration = 0; iteration < replaceRounds; iteration += 1) {
     const { revision, document } = await api().editor.get();

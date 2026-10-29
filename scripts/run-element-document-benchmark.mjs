@@ -138,11 +138,33 @@ process.on('exit', killCurrent);
 const launch = async (phase) => {
   const before = webContentPids();
   const reportPromise = new Promise((resolvePromise, rejectPromise) => {
-    pending = resolvePromise;
-    setTimeout(() => {
+    // 끝난 실행의 타이머가 남아 다음 실행을 죽이지 않게 보고가 오면 끈다
+    const timer = setTimeout(() => {
+      // 멈춘 원인을 보려고 죽이기 전에 프로세스 스택을 떠 둔다
+      if (currentChild?.pid) {
+        try {
+          const samplePath = resolve(
+            dirname(outputPath),
+            `hang-${label}-${Date.now()}.txt`,
+          );
+          execFileSync('/usr/bin/sample', [
+            String(currentChild.pid),
+            '3',
+            '-file',
+            samplePath,
+          ]);
+          console.info(`스택: ${samplePath}`);
+        } catch (error) {
+          console.info(`스택 실패: ${error}`);
+        }
+      }
       killCurrent();
       rejectPromise(new Error(`${phase} 240초 timeout`));
     }, 240_000);
+    pending = (value) => {
+      clearTimeout(timer);
+      resolvePromise(value);
+    };
   });
   const spawnedAt = Date.now();
   const child = spawn(binary, [], {
@@ -201,6 +223,7 @@ const launch = async (phase) => {
 
 await rm(dataDir, { recursive: true, force: true });
 await mkdir(dataDir, { recursive: true });
+await mkdir(dirname(outputPath), { recursive: true });
 
 const measured = [];
 try {
