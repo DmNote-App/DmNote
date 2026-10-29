@@ -7,7 +7,8 @@ import { getElementDocumentStore } from '@src/renderer/editor/document/elementDo
 import type { Node, Op } from '@src/types/generated/elementDocument';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { editDocument } from './documentEditActions';
-import { documentGroupRoots } from './documentGroups';
+import { documentGroupNames, documentGroupRoots } from './documentGroups';
+import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 interface DocumentClipboardState {
@@ -35,12 +36,19 @@ useGridSelectionStore.subscribe((state, previous) => {
   }
 });
 
-const reissue = (node: Node, nextId: () => string): Node =>
+const reissue = (
+  node: Node,
+  nextId: () => string,
+  nameGroup: (name: string) => string,
+): Node =>
   node.type === 'group'
     ? {
         ...node,
         id: nextId(),
-        children: node.children.map((child) => reissue(child, nextId)),
+        name: nameGroup(node.name),
+        children: node.children.map((child) =>
+          reissue(child, nextId, nameGroup),
+        ),
       }
     : {
         ...node,
@@ -57,8 +65,16 @@ export const buildDocumentPaste = (
   sceneId: string,
   nodes: readonly Node[],
   nextId: () => string = () => crypto.randomUUID(),
+  // 붙일 장면의 그룹 이름 - 그룹은 옛 종류처럼 번호를 이어 새 이름을 붙인다
+  existingGroups: { id: string; name: string }[] = [],
 ) => {
-  const pasted = nodes.map((node) => reissue(node, nextId));
+  const groups = [...existingGroups];
+  const nameGroup = (name: string) => {
+    const next = buildNextLayerGroupName(name, groups);
+    groups.push({ id: next, name: next });
+    return next;
+  };
+  const pasted = nodes.map((node) => reissue(node, nextId, nameGroup));
   const ops: Op[] = pasted.map((node) => ({
     op: 'insert',
     scene: sceneId,
@@ -99,7 +115,12 @@ export const copyDocumentSelection = () => {
 export const pasteDocumentClipboard = async (sceneId: string) => {
   const { nodes } = useDocumentClipboardStore.getState();
   if (nodes.length === 0) return;
-  const { ops, ids } = buildDocumentPaste(sceneId, nodes);
+  const { ops, ids } = buildDocumentPaste(
+    sceneId,
+    nodes,
+    undefined,
+    documentGroupNames(getElementDocumentStore()?.getScene(sceneId)),
+  );
   const result = await editDocument(ops);
   if (result?.status === 'committed') {
     useDocumentSelectionStore.getState().setSelection(sceneId, ids);

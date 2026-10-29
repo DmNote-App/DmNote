@@ -6,6 +6,9 @@ import {
 } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import { getOtherElementBounds } from '@hooks/Grid/drag/useSmartGuidesElements';
+import { calculateResizePreviewPlan } from '@hooks/Grid/resize/resizePreviewPlan';
+import { useSmartGuidesStore } from '@stores/grid/useSmartGuidesStore';
+import { useSettingsStore } from '@stores/useSettingsStore';
 import ResizeHandles from '../handles/ResizeHandles';
 import { SELECTION_BORDER_WIDTH } from '../handles/selectionOutline';
 import { setDocumentFrame } from './documentEditActions';
@@ -90,20 +93,43 @@ const SelectionItem = ({
           panX={panX}
           panY={panY}
           elementId={element.id}
-          // 크기 조절도 옛 종류처럼 다른 요소 가장자리·크기에 맞춘다
-          getOtherElements={getOtherElementBounds}
           lockAspect={lockAspect}
           rotation={frame.rotation}
-          onResize={(result) =>
+          onResize={(result) => {
+            // 옛 종류 크기 조절(useGridResize)과 같은 맞추기 - 가장자리·간격·크기 일치
+            const settings = useSettingsStore.getState().gridSettings;
+            const alignment = settings?.alignmentGuides !== false;
+            const plan = calculateResizePreviewPlan({
+              elementId: element.id,
+              newBounds: result,
+              otherElements:
+                !result.suppressSmartSnap && alignment
+                  ? getOtherElementBounds(element.id)
+                  : undefined,
+              settings: {
+                alignmentGuidesEnabled: alignment,
+                spacingGuidesEnabled: settings?.spacingGuides !== false,
+                sizeMatchGuidesEnabled: settings?.sizeMatchGuides !== false,
+                gridSnapSize: settings?.gridSnapSize ?? 5,
+              },
+              policy: 'native',
+            });
+            const guides = useSmartGuidesStore.getState();
+            if (plan.guideUpdate.kind === 'clear') {
+              guides.clearGuides();
+            } else if (plan.guideUpdate.kind === 'set') {
+              guides.setDraggedBounds(plan.guideUpdate.draggedBounds);
+              guides.setActiveGuides(plan.guideUpdate.activeGuides);
+              guides.setSpacingGuides(plan.guideUpdate.spacingGuides);
+              guides.setSizeMatchGuides(plan.guideUpdate.sizeMatchGuides);
+            }
             useDocumentFramePreviewStore.getState().set(element.id, {
               ...element.frame,
-              x: result.x,
-              y: result.y,
-              width: result.width,
-              height: result.height,
-            })
-          }
+              ...plan.bounds,
+            });
+          }}
           onResizeEnd={() => {
+            useSmartGuidesStore.getState().clearGuides();
             const last =
               useDocumentFramePreviewStore.getState().frames[element.id];
             if (!last) return;

@@ -1,9 +1,11 @@
 import type {
   Document,
   DocumentPatch,
+  Group,
   Node,
   Scene,
 } from '@src/types/generated/elementDocument';
+import { isEditorElementType } from '@src/types/editor';
 
 export type ElementNode = Extract<Node, { type: 'element' }>;
 
@@ -72,4 +74,14 @@ export const applyDocumentPatch = (
     scenes[sceneId] = { ...current, nodes };
   }
   return { ...document, kindVersions: patch.kindVersions, scenes };
+};
+
+/** 옛 그룹 표시가 없고 안이 모두 트리 전용인 그룹 (백엔드 is_tree_only_group과 같다) */
+export const isTreeOnlyGroup = (group: Group): boolean => {
+  if ('legacy' in group && group.legacy !== undefined) return false;
+  return group.children.every((child) =>
+    child.type === 'group'
+      ? isTreeOnlyGroup(child)
+      : !isEditorElementType(child.kind),
+  );
 };

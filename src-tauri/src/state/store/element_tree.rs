@@ -180,6 +180,42 @@ fn touches_legacy(document: &Document, op: &Op) -> bool {
     }
 }
 
+// 요소가 하나도 없는 트리 전용 그룹 - 가장 바깥 것만 (안쪽은 함께 지워진다)
+fn empty_tree_groups<'a>(
+    document: &Document,
+    scenes: impl IntoIterator<Item = &'a String>,
+) -> Vec<Op> {
+    fn has_element(nodes: &[Node]) -> bool {
+        nodes.iter().any(|node| match node {
+            Node::Element(_) => true,
+            Node::Group(group) => has_element(&group.children),
+        })
+    }
+    fn collect(nodes: &[Node], out: &mut Vec<String>) {
+        for node in nodes {
+            if let Node::Group(group) = node {
+                if is_tree_only_group(group) && !has_element(&group.children) {
+                    out.push(group.id.clone());
+                } else {
+                    collect(&group.children, out);
+                }
+            }
+        }
+    }
+    scenes
+        .into_iter()
+        .filter_map(|scene_id| {
+            let scene = document.scenes.get(scene_id)?;
+            let mut ids = Vec::new();
+            collect(&scene.nodes, &mut ids);
+            (!ids.is_empty()).then(|| Op::Remove {
+                scene: scene_id.clone(),
+                ids,
+            })
+        })
+        .collect()
+}
+
 // 옛 경로가 고칠 대상을 건드리는 첫 연산. 같은 커밋 앞쪽에서 만든 요소·그룹을 뒤에서
 // 쓸 수 있도록, 처음 문서에서 걸리는 것이 있으면 앞 연산을 차례로 적용하며 다시 본다
 fn first_legacy_op(engine: &Engine<'_>, document: &Document, ops: &[Op]) -> Option<usize> {
@@ -401,11 +437,22 @@ impl AppStore {
             ));
         }
         let mut scratch = guard.data.clone();
-        let changes =
+        let mut changes =
             match engine.apply(std::sync::Arc::make_mut(&mut scratch.element_document), ops) {
                 Ok(changes) => changes,
                 Err(violations) => return Ok(rejected(VIOLATION, violations)),
             };
+        // 빼기·옮기기로 비게 된 트리 전용 그룹은 함께 지운다 (옛 그룹의 빈 그룹 정리와 같다)
+        let prune = empty_tree_groups(&scratch.element_document, changes.scenes.keys());
+        if !prune.is_empty() {
+            match engine.apply(
+                std::sync::Arc::make_mut(&mut scratch.element_document),
+                &prune,
+            ) {
+                Ok(more) => changes.merge(more),
+                Err(violations) => return Ok(rejected(VIOLATION, violations)),
+            }
+        }
         // 옛 모양이 그대로인지 확인 - 트리에만 있는 요소만 바뀌었어야 한다
         let before = project_document(&guard.data.element_document)?;
         let after = project_document(&scratch.element_document)?;

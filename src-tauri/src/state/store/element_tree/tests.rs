@@ -667,3 +667,41 @@ fn 탭_프리셋을_되돌려도_다른_탭은_뼈대로_남지_않는다() {
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 트리_그룹이_빠지기나_옮기기로_비면_함께_지운다() {
+    let (dir, store) = open_store();
+    assert!(matches!(
+        commit(
+            &store,
+            serde_json::json!([
+                { "op": "insert", "scene": "4key", "parent": null, "index": null, "node": tracker_json("t1") },
+                { "op": "insert", "scene": "4key", "parent": null, "index": null, "node": tracker_json("t2") },
+                { "op": "group", "scene": "4key", "id": "tg", "name": "T", "ids": ["t1", "t2"] }
+            ]),
+        ),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    assert!(matches!(
+        commit(
+            &store,
+            serde_json::json!([{ "op": "move", "scene": "4key", "ids": ["t1"], "parent": null, "index": null }]),
+        ),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    assert!(store.element_document_snapshot().1.scenes["4key"]
+        .find_path("tg")
+        .is_some());
+    let ElementDocumentCommitResult::Committed { changes, .. } = commit(
+        &store,
+        serde_json::json!([{ "op": "remove", "scene": "4key", "ids": ["t2"] }]),
+    ) else {
+        panic!()
+    };
+    assert!(store.element_document_snapshot().1.scenes["4key"]
+        .find_path("tg")
+        .is_none());
+    assert!(changes.scenes["4key"].removed.contains("tg"));
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

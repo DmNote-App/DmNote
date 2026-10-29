@@ -4,10 +4,7 @@ import { useElementDocumentScene } from '@src/renderer/editor/document/elementDo
 import type { Group, Node } from '@src/types/generated/elementDocument';
 import { isMac } from '@utils/core/platform';
 import { editDocument } from '../../document/documentEditActions';
-import {
-  documentGroupRoots,
-  expandDocumentGroup,
-} from '../../document/documentGroups';
+import { documentGroupRoots } from '../../document/documentGroups';
 import { toggleDocumentId } from '../../document/documentSelection';
 import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
 import DocumentLayerRow from './DocumentLayerRow';
@@ -140,6 +137,8 @@ const DocumentLayerSection = ({ sceneId, t }: DocumentLayerSectionProps) => {
   const draggedRef = useRef(false);
 
   const select = (event: React.MouseEvent, row: DocumentLayerRowModel) => {
+    // macOS Ctrl 클릭은 contextmenu 뒤에 따라오는 click - 무시한다 (옛 행과 같다)
+    if (isMac() && event.ctrlKey) return;
     if (draggedRef.current) {
       draggedRef.current = false;
       return;
@@ -149,8 +148,14 @@ const DocumentLayerSection = ({ sceneId, t }: DocumentLayerSectionProps) => {
       row.node.type === 'group' ? elementIdsOf(row.node) : [row.node.id];
     const primaryModifier = isMac() ? event.metaKey : event.ctrlKey;
     if (primaryModifier) {
-      let next = [...selectedIds];
-      for (const id of ids) next = toggleDocumentId(next, id);
+      // 그룹 행은 그룹 전체를 넣거나 뺀다
+      const allSelected = ids.every((id) => selectedIds.includes(id));
+      const next =
+        row.node.type === 'group'
+          ? allSelected
+            ? selectedIds.filter((id) => !ids.includes(id))
+            : [...selectedIds, ...ids.filter((id) => !selectedIds.includes(id))]
+          : toggleDocumentId(selectedIds, row.node.id);
       selection.setSelection(sceneId, next);
       return;
     }
@@ -173,10 +178,8 @@ const DocumentLayerSection = ({ sceneId, t }: DocumentLayerSectionProps) => {
         return;
       }
     }
-    selection.setSelection(
-      sceneId,
-      row.node.type === 'group' ? ids : expandDocumentGroup(scene, row.node.id),
-    );
+    // 레이어 행은 그룹 안 요소도 그 요소 하나만 고른다 (그룹째 고르기는 캔버스 규칙)
+    selection.setSelection(sceneId, ids);
   };
 
   const startDrag = (event: React.PointerEvent, row: DocumentLayerRowModel) => {
@@ -232,12 +235,20 @@ const DocumentLayerSection = ({ sceneId, t }: DocumentLayerSectionProps) => {
       if (!dragging) return;
       draggedRef.current = true;
       if (!current) return;
+      // 펼친 그룹 행 아래 가장자리는 그 그룹 안 첫 자리 (옛 끌기와 같다)
+      const target = rows[current.index];
+      const position =
+        current.position === 'below' &&
+        target?.node.type === 'group' &&
+        !collapsed.has(target.node.id)
+          ? 'into'
+          : current.position;
       const op = documentDropMove(
         scene,
         rows,
         moving,
         current.index,
-        current.position,
+        position,
         sceneId,
       );
       if (op) void editDocument([op]);

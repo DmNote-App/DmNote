@@ -6,7 +6,7 @@ import type {
   Op,
   Scene,
 } from '@src/types/generated/elementDocument';
-import { isTreeOnlyGroup } from '../../document/documentGroups';
+import { isTreeOnlyGroup } from '@src/renderer/editor/document/documentPatch';
 import { isEditorElementType } from '@src/types/editor';
 
 export interface DocumentLayerRowModel {

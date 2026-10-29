@@ -5,8 +5,8 @@ import {
   documentGroupRoots,
   documentGroupsOf,
   expandDocumentGroup,
-  isTreeOnlyGroup,
 } from './documentGroups';
+import { isTreeOnlyGroup } from '@src/renderer/editor/document/documentPatch';
 
 const tracker = (id: string) => ({
   type: 'element' as const,

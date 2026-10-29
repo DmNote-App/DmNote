@@ -28,8 +28,8 @@
             stored === 'light' || stored === 'dark'
               ? stored
               : window.matchMedia('(prefers-color-scheme: light)').matches
-                ? 'light'
-                : 'dark';
+              ? 'light'
+              : 'dark';
           if (resolved !== 'light') return;
           document.documentElement.setAttribute('data-theme', 'light');
           document.documentElement.style.backgroundColor = LIGHT_ROOT_BG;

@@ -114,6 +114,7 @@ import { documentKindForAddMenuItem } from '../document/documentAddMenu';
 import { insertDocumentElement } from '../document/documentEditActions';
 import { useDocumentKeyboard } from '../document/useDocumentKeyboard';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { expandDocumentGroup } from '../document/documentGroups';
 import { documentIdsInRect } from '../document/documentSelection';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
 import { executeNativeContextMenuAction } from './nativeContextMenuActions';
@@ -763,7 +764,20 @@ const Grid = ({
   ) => {
     event.preventDefault();
     event.stopPropagation();
-    useDocumentSelectionStore.getState().select(selectedKeyType, element.id);
+    // 고른 것 위에서 우클릭하면 선택을 지킨다 (옛 종류와 같다)
+    const selection = useDocumentSelectionStore.getState();
+    if (
+      selection.sceneId !== selectedKeyType ||
+      !selection.selectedIds.includes(element.id)
+    ) {
+      selection.setSelection(
+        selectedKeyType,
+        expandDocumentGroup(
+          getElementDocumentStore()?.getScene(selectedKeyType),
+          element.id,
+        ),
+      );
+    }
     useDocumentContextMenuStore.getState().open({
       sceneId: selectedKeyType,
       id: element.id,

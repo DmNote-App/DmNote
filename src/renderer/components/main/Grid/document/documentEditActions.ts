@@ -13,6 +13,7 @@ import {
   documentGroupNames,
   documentGroupRoots,
   documentGroupsOf,
+  documentParentOf,
 } from './documentGroups';
 
 const report = (result: ElementDocumentCommitResult) => {
@@ -77,8 +78,16 @@ export const insertDocumentElement = (
   ]).then((result) => (result?.status === 'committed' ? id : null));
 };
 
-export const removeDocumentElements = (sceneId: string, ids: string[]) =>
-  editDocument([{ op: 'remove', scene: sceneId, ids }]);
+/** 지우기 - 다 고른 트리 그룹은 그룹째 지운다 */
+export const removeDocumentElements = (sceneId: string, ids: string[]) => {
+  const roots = documentGroupRoots(
+    getElementDocumentStore()?.getScene(sceneId),
+    ids,
+  );
+  return editDocument([
+    { op: 'remove', scene: sceneId, ids: roots.length > 0 ? roots : ids },
+  ]);
+};
 
 export const setDocumentFrame = (
   sceneId: string,
@@ -126,21 +135,31 @@ export const setDocumentCommon = (
   common: { name?: string | null; hidden?: boolean },
 ) => editDocument([{ op: 'setCommon', scene: sceneId, id, ...common }]);
 
-/** 겹치는 순서 - 맨 위(목록 끝) 또는 맨 아래(목록 앞) */
+/** 겹치는 순서 - 부모 안 맨 위(목록 끝) 또는 맨 아래(목록 앞). 그룹 소속은 지킨다(옛 종류와 같다) */
 export const moveDocumentElementTo = (
   sceneId: string,
   ids: string[],
   place: 'front' | 'back',
-) =>
-  editDocument([
-    {
-      op: 'move',
+) => {
+  const scene = getElementDocumentStore()?.getScene(sceneId);
+  const roots = documentGroupRoots(scene, ids);
+  const byParent = new Map<string | null, string[]>();
+  for (const id of roots.length > 0 ? roots : ids) {
+    const parent = documentParentOf(scene, id);
+    if (parent === undefined) continue;
+    byParent.set(parent, [...(byParent.get(parent) ?? []), id]);
+  }
+  if (byParent.size === 0) return Promise.resolve(null);
+  return editDocument(
+    [...byParent].map(([parent, members]) => ({
+      op: 'move' as const,
       scene: sceneId,
-      ids,
-      parent: null,
+      ids: members,
+      parent,
       index: place === 'front' ? null : 0,
-    },
-  ]);
+    })),
+  );
+};
 
 /** 고른 트리 요소를 새 그룹으로 묶는다 - 다 고른 트리 그룹은 그룹째 넣는다 */
 export const groupDocumentElements = (
@@ -150,7 +169,8 @@ export const groupDocumentElements = (
 ) => {
   const scene = getElementDocumentStore()?.getScene(sceneId);
   const roots = documentGroupRoots(scene, ids);
-  if (roots.length === 0) return Promise.resolve(null);
+  // 둘 이상이어야 하고, 이미 한 그룹 전체면 그대로 둔다 (옛 종류와 같다)
+  if (ids.length < 2 || roots.length < 2) return Promise.resolve(null);
   return editDocument([
     {
       op: 'group',

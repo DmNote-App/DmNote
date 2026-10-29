@@ -7,7 +7,7 @@ import type {
   Op,
   Scene,
 } from '@src/types/generated/elementDocument';
-import { walkNodes, type ElementNode } from './documentPatch';
+import { isTreeOnlyGroup, walkNodes, type ElementNode } from './documentPatch';
 
 const mapElement = (
   nodes: Node[],
@@ -184,12 +184,40 @@ const applyToNodes = (nodes: Node[], op: Op): Node[] => {
   }
 };
 
+// 빼기·옮기기로 비게 된 트리 전용 그룹은 함께 지운다 (백엔드 커밋과 같다)
+const pruneEmptyTreeGroups = (nodes: Node[]): Node[] => {
+  let changed = false;
+  const next: Node[] = [];
+  for (const node of nodes) {
+    if (node.type !== 'group') {
+      next.push(node);
+      continue;
+    }
+    const children = pruneEmptyTreeGroups(node.children);
+    if (children.length === 0 && isTreeOnlyGroup(node)) {
+      changed = true;
+      continue;
+    }
+    if (children !== node.children) {
+      changed = true;
+      next.push({ ...node, children });
+    } else {
+      next.push(node);
+    }
+  }
+  return changed ? next : nodes;
+};
+
 export const applyLocalOps = (document: Document, ops: readonly Op[]) => {
   let scenes = document.scenes;
   for (const op of ops) {
     const scene: Scene | undefined = scenes[op.scene];
     if (!scene) continue;
-    const nodes = applyToNodes(scene.nodes, op);
+    const applied = applyToNodes(scene.nodes, op);
+    const nodes =
+      op.op === 'remove' || op.op === 'move'
+        ? pruneEmptyTreeGroups(applied)
+        : applied;
     if (nodes === scene.nodes) continue;
     scenes = { ...scenes, [op.scene]: { ...scene, nodes } };
   }

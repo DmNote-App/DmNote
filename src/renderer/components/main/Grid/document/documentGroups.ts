@@ -1,16 +1,6 @@
 // 트리 전용 그룹 계산 - 옛 그룹(layerGroups에서 온 그룹)은 아직 옛 경로가 다룬다
 import type { Group, Node, Scene } from '@src/types/generated/elementDocument';
-import { isEditorElementType } from '@src/types/editor';
-
-/** 옛 그룹 표시가 없고 안이 모두 트리 전용인 그룹 (백엔드 is_tree_only_group과 같다) */
-export const isTreeOnlyGroup = (group: Group): boolean => {
-  if ('legacy' in group && group.legacy !== undefined) return false;
-  return group.children.every((child) =>
-    child.type === 'group'
-      ? isTreeOnlyGroup(child)
-      : !isEditorElementType(child.kind),
-  );
-};
+import { isTreeOnlyGroup } from '@src/renderer/editor/document/documentPatch';
 
 const elementIds = (node: Node): string[] =>
   node.type === 'group' ? node.children.flatMap(elementIds) : [node.id];
@@ -92,4 +82,12 @@ export const documentGroupNames = (scene: Scene | undefined) => {
   };
   if (scene) visit(scene.nodes);
   return names;
+};
+
+/** 노드의 부모 그룹 id - 장면 맨 위 단계면 null, 없으면 undefined */
+export const documentParentOf = (scene: Scene | undefined, id: string) => {
+  if (!scene) return undefined;
+  const ancestors = ancestorsOf(scene.nodes, id);
+  if (!ancestors) return undefined;
+  return ancestors.length > 0 ? ancestors[ancestors.length - 1].id : null;
 };

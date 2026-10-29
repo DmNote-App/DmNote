@@ -111,4 +111,15 @@ describe('편집 창 낙관 적용', () => {
     ]);
     expect(after.scenes.s).toBe(before.scenes.s);
   });
+
+  it('빼기·옮기기로 비게 된 트리 그룹은 함께 지운다', () => {
+    const removed = applyLocalOps(document(), [
+      { op: 'remove', scene: 's', ids: ['b'] },
+    ]);
+    expect(ids(removed)).toEqual(['a', 'c']);
+    const moved = applyLocalOps(document(), [
+      { op: 'move', scene: 's', ids: ['b'], parent: null, index: null },
+    ]);
+    expect(ids(moved)).toEqual(['a', 'c', 'b']);
+  });
 });
