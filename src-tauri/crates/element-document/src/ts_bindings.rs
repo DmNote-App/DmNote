@@ -13,7 +13,6 @@ use crate::load::LoadReport;
 use crate::ops::{ChangeSet, FramePatch, Op, SceneChange};
 use crate::patch::{DocumentPatch, ScenePatch};
 use crate::schema::{DefinitionError, KindMigration, KindSchema, MigrationStep, Size};
-use crate::session::PendingEdit;
 use crate::value::{AssetKind, FieldRule, ValueKind, Violation, ViolationCode};
 
 fn output_path() -> PathBuf {
@@ -35,7 +34,6 @@ fn generate() -> String {
         FramePatch::decl(),
         ChangeSet::decl(),
         SceneChange::decl(),
-        PendingEdit::decl(),
         DocumentPatch::decl(),
         ScenePatch::decl(),
         Violation::decl(),

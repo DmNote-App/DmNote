@@ -1,7 +1,6 @@
 dist
 node_modules
 src-tauri/target
-src/renderer/wasm
 *.wasm
 package-lock.json
 src/types/generated

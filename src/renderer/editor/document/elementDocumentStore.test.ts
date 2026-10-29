@@ -1,13 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import {
-  EditorDocumentSession,
-  initSync,
-} from '@src/renderer/wasm/elementDocument/elementDocument.js';
-import { BUILTIN_ELEMENT_KINDS } from '@src/renderer/elementKinds/builtinKinds';
-import { elementKindData } from '@src/renderer/elementKinds/defineElementKind';
 import type { Document, Op } from '@src/types/generated/elementDocument';
 import type {
   ElementDocumentChangedEvent,
@@ -18,16 +10,6 @@ import {
   createMirrorDocumentStore,
   type ElementDocumentTransport,
 } from './elementDocumentStore';
-
-beforeAll(() => {
-  initSync({
-    module: readFileSync(
-      join(__dirname, '../../wasm/elementDocument/elementDocument_bg.wasm'),
-    ),
-  });
-});
-
-const kinds = JSON.stringify(BUILTIN_ELEMENT_KINDS.map(elementKindData));
 
 const document = (): Document => ({
   formatVersion: 1,
@@ -73,79 +55,171 @@ const harness = (
   const store = createEditorDocumentStore(
     { revision: 1, document: document() },
     transport,
-    (json, revision) => new EditorDocumentSession(kinds, json, revision),
   );
   return { store, emit: (event: ElementDocumentChangedEvent) => emit(event) };
 };
 
-describe('편집 창 요소 문서 스토어 (WASM)', () => {
-  it('편집은 화면에 먼저 반영하고 거부되면 되돌린다', async () => {
+const nudgedPatch = (revision: number, x: number) => {
+  const after = document();
+  const k1 = after.scenes['4key']!.nodes[0];
+  if (k1.type === 'element') k1.frame.x = x;
+  return {
+    revision,
+    patch: {
+      kindVersions: after.kindVersions,
+      scenes: { '4key': { type: 'nodes' as const, nodes: [k1] } },
+      changes: {
+        scenes: {
+          '4key': { changed: ['k1'], removed: [], structure: false },
+        },
+      },
+    },
+  };
+};
+
+describe('편집 창 요소 문서 스토어', () => {
+  it('편집은 응답 전에 화면에 먼저 반영하고 바뀌지 않은 요소는 같은 객체로 둔다', async () => {
     let resolve: (result: ElementDocumentCommitResult) => void = () =>
       undefined;
-    const { store } = harness(
+    const { store, emit } = harness(
       () =>
         new Promise((next) => {
           resolve = next;
         }),
     );
-    const before = store.getScene('4key');
     const untouched = store.getElement('4key', 'k2');
     const listener = vi.fn();
     store.subscribe(listener);
-    const pending = store.edit!(nudge('k1', 25));
-    expect(store.getElement('4key', 'k1')?.frame.x).toBe(25);
-    expect(store.getScene('4key')).not.toBe(before);
-    // 바뀌지 않은 요소는 같은 객체
+    const pending = store.edit!(nudge('k1', 40));
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(40);
     expect(store.getElement('4key', 'k2')).toBe(untouched);
-    resolve({
+    expect(listener).toHaveBeenCalledTimes(1);
+    resolve({ status: 'committed', revision: 2, changes: { scenes: {} } });
+    await pending;
+    // 패치가 오기 전까지 화면을 지킨다
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(40);
+    emit(nudgedPatch(2, 40));
+    expect(store.getRevision()).toBe(2);
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(40);
+    expect(store.getElement('4key', 'k2')).toBe(untouched);
+  });
+
+  it('거부된 편집은 화면에서 뺀다', async () => {
+    const { store } = harness(async () => ({
       status: 'rejected',
       revision: 1,
       code: 'VIOLATION',
-      violations: [],
-    });
-    await pending;
+      violations: [{ code: 'INVALID_FRAME', path: 'ops[0].frame' }],
+    }));
+    const listener = vi.fn();
+    store.subscribe(listener);
+    const result = await store.edit!(nudge('k1', -5));
+    expect(result.status).toBe('rejected');
     expect(store.getElement('4key', 'k1')?.frame.x).toBe(0);
     expect(listener).toHaveBeenCalledTimes(2);
   });
 
-  it('규칙에 어긋난 편집은 보내지 않고 위반을 돌려준다', async () => {
-    const commit = vi.fn();
-    const { store } = harness(commit);
-    const result = await store.edit!([
-      { op: 'setFrame', scene: '4key', id: 'k1', frame: { width: -1 } },
-    ]);
-    expect(result).toEqual({
-      status: 'invalid',
-      violations: [{ code: 'INVALID_FRAME', path: 'ops[0].frame' }],
+  it('보내지 못한 편집도 화면에서 빼고 오류를 넘긴다', async () => {
+    const { store } = harness(async () => {
+      throw new Error('ipc');
     });
-    expect(commit).not.toHaveBeenCalled();
+    await expect(store.edit!(nudge('k1', 9))).rejects.toThrow('ipc');
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(0);
   });
 
-  it('응답 뒤 패치가 오기 전까지 화면을 지키고 패치로 확정한다', async () => {
+  it('패치가 응답보다 먼저 와도 넣은 요소가 두 번 생기지 않는다', async () => {
+    let emitFirst: () => void = () => undefined;
+    const { store, emit } = harness(async () => {
+      emitFirst();
+      return { status: 'committed', revision: 2, changes: { scenes: {} } };
+    });
+    const inserted: Op = {
+      op: 'insert',
+      scene: '4key',
+      parent: null,
+      index: null,
+      node: {
+        type: 'element',
+        id: 'n1',
+        kind: 'cursorTracker',
+        frame: { x: 0, y: 0, width: 10, height: 10, rotation: 0 },
+      },
+    };
+    const after = document();
+    after.scenes['4key']!.nodes.push(
+      (inserted as Extract<Op, { op: 'insert' }>).node,
+    );
+    emitFirst = () =>
+      emit({
+        revision: 2,
+        patch: {
+          kindVersions: after.kindVersions,
+          scenes: { '4key': { type: 'replace', scene: after.scenes['4key']! } },
+          changes: {
+            scenes: {
+              '4key': { changed: ['n1'], removed: [], structure: true },
+            },
+          },
+        },
+      });
+    await store.edit!([inserted]);
+    const ids = store.getScene('4key')!.nodes.map((node) => node.id);
+    expect(ids).toEqual(['k1', 'k2', 'n1']);
+  });
+
+  it('다른 창의 패치 위에 미확정 편집을 다시 얹는다', async () => {
+    let resolve: (result: ElementDocumentCommitResult) => void = () =>
+      undefined;
+    const { store, emit } = harness(
+      () =>
+        new Promise((next) => {
+          resolve = next;
+        }),
+    );
+    const pending = store.edit!([
+      { op: 'setFrame', scene: '4key', id: 'k1', frame: { y: 30 } },
+    ]);
+    // 다른 창이 먼저 x를 바꿨다
+    emit(nudgedPatch(2, 15));
+    expect(store.getElement('4key', 'k1')?.frame).toMatchObject({
+      x: 15,
+      y: 30,
+    });
+    resolve({
+      status: 'rejected',
+      revision: 2,
+      code: 'VIOLATION',
+      violations: [],
+    });
+    await pending;
+    expect(store.getElement('4key', 'k1')?.frame).toMatchObject({
+      x: 15,
+      y: 0,
+    });
+  });
+
+  it('장면을 통째로 바꾼 패치도 바뀌지 않은 요소는 같은 객체로 둔다', () => {
     const { store, emit } = harness(async () => ({
       status: 'committed',
       revision: 2,
       changes: { scenes: {} },
     }));
-    await store.edit!(nudge('k1', 40));
-    expect(store.getElement('4key', 'k1')?.frame.x).toBe(40);
+    const untouched = store.getElement('4key', 'k2');
     const after = document();
     const k1 = after.scenes['4key']!.nodes[0];
-    if (k1.type === 'element') k1.frame.x = 40;
+    if (k1.type === 'element') k1.frame.x = 90;
     emit({
       revision: 2,
       patch: {
         kindVersions: after.kindVersions,
-        scenes: { '4key': { type: 'nodes', nodes: [k1] } },
+        scenes: { '4key': { type: 'replace', scene: after.scenes['4key']! } },
         changes: {
-          scenes: {
-            '4key': { changed: ['k1'], removed: [], structure: false },
-          },
+          scenes: { '4key': { changed: ['k1'], removed: [], structure: true } },
         },
       },
     });
-    expect(store.getRevision()).toBe(2);
-    expect(store.getElement('4key', 'k1')?.frame.x).toBe(40);
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(90);
+    expect(store.getElement('4key', 'k2')).toBe(untouched);
   });
 });
 

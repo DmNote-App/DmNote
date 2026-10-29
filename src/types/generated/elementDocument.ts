@@ -25,8 +25,6 @@ export type ChangeSet = { scenes: { [key in string]?: SceneChange }, };
 
 export type SceneChange = { changed: Array<string>, removed: Array<string>, structure: boolean, created?: boolean, deleted?: boolean, };
 
-export type PendingEdit = { id: string, ops: Array<Op>, acknowledged?: bigint | null, };
-
 export type DocumentPatch = { kindVersions: { [key in string]?: number }, scenes: { [key in string]?: ScenePatch }, changes: ChangeSet, };
 
 export type ScenePatch = { "type": "replace", scene: Scene, } | { "type": "nodes", nodes: Array<Node>, } | { "type": "delete", };

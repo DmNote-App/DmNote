@@ -12,7 +12,6 @@ export default tseslint.config(
       "dist/**",
       "node_modules/**",
       "src-tauri/**",
-      "src/renderer/wasm/**",
       "src/types/generated/**",
       "*.config.js",
       "*.config.mjs",

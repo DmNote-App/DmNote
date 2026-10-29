@@ -1,9 +1,7 @@
-// 창마다 요소 트리 문서 스토어 하나 - 편집 창은 WASM 엔진, 오버레이·OBS는 패치만
+// 창마다 요소 트리 문서 스토어 하나 - 편집 창만 커밋을 보낸다
 import { useSyncExternalStore } from 'react';
 
 import { elementDocumentApi } from '@api/modules/editor/elementDocumentApi';
-import { BUILTIN_ELEMENT_KINDS } from '@src/renderer/elementKinds/builtinKinds';
-import { elementKindData } from '@src/renderer/elementKinds/defineElementKind';
 import type { Scene } from '@src/types/generated/elementDocument';
 import type { ElementNode } from './documentPatch';
 import {
@@ -19,9 +17,6 @@ const listeners = new Map<() => void, (() => void) | null>();
 
 const isEditingWindow = () =>
   window.__dmn_window_type === 'main' || window.__dmn_window_type === 'panel';
-
-const kindsJson = () =>
-  JSON.stringify(BUILTIN_ELEMENT_KINDS.map(elementKindData));
 
 const create = async (): Promise<ElementDocumentStore> => {
   // 이벤트를 먼저 구독해 조회와 첫 패치 사이 변경을 놓치지 않는다
@@ -44,18 +39,9 @@ const create = async (): Promise<ElementDocumentStore> => {
       return unsubscribe;
     },
   };
-  if (!isEditingWindow()) return createMirrorDocumentStore(initial, transport);
-  const wasm = await import(
-    '@src/renderer/wasm/elementDocument/elementDocument.js'
-  );
-  await wasm.default();
-  const kinds = kindsJson();
-  return createEditorDocumentStore(
-    initial,
-    transport,
-    (document, revision) =>
-      new wasm.EditorDocumentSession(kinds, document, revision),
-  );
+  return isEditingWindow()
+    ? createEditorDocumentStore(initial, transport)
+    : createMirrorDocumentStore(initial, transport);
 };
 
 export const loadElementDocumentStore = (): Promise<ElementDocumentStore> => {

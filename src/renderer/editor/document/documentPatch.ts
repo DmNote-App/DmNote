@@ -49,7 +49,7 @@ const replaceNode = (nodes: Node[], next: Node): boolean => {
 };
 
 // 백엔드 패치 적용 - Rust element_document::patch::apply_patch와 같은 규칙
-// (오버레이·OBS는 엔진을 싣지 않으므로 패치만 JS로 적용한다)
+// (창에는 엔진을 싣지 않으므로 패치만 JS로 적용한다)
 export const applyDocumentPatch = (
   document: Document,
   patch: DocumentPatch,

@@ -1,6 +1,6 @@
-// 트리 문서 편집 동작 - 화면에 먼저 반영하고 백엔드가 거부하면 되돌린다
+// 트리 문서 편집 동작 - 백엔드에 커밋하고 반영된 결과를 돌려준다
+import type { ElementDocumentCommitResult } from '@api/modules/editor/elementDocumentApi';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
-import type { ElementDocumentEditResult } from '@src/renderer/editor/document/elementDocumentStore';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import { elementKindData } from '@src/renderer/elementKinds/defineElementKind';
 import type {
@@ -9,14 +9,14 @@ import type {
   Op,
 } from '@src/types/generated/elementDocument';
 
-const report = (result: ElementDocumentEditResult) => {
+const report = (result: ElementDocumentCommitResult) => {
   if (result.status === 'committed') return;
   console.error('[ElementDocument] edit was not applied', result);
 };
 
 export const editDocument = async (
   ops: Op[],
-): Promise<ElementDocumentEditResult | null> => {
+): Promise<ElementDocumentCommitResult | null> => {
   const store = getElementDocumentStore();
   if (!store?.edit) return null;
   try {
