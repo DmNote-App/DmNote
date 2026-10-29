@@ -137,12 +137,12 @@ const DocumentLayerSection = ({ sceneId, t }: DocumentLayerSectionProps) => {
   const draggedRef = useRef(false);
 
   const select = (event: React.MouseEvent, row: DocumentLayerRowModel) => {
-    // macOS Ctrl 클릭은 contextmenu 뒤에 따라오는 click - 무시한다 (옛 행과 같다)
-    if (isMac() && event.ctrlKey) return;
     if (draggedRef.current) {
       draggedRef.current = false;
       return;
     }
+    // macOS Ctrl 클릭은 contextmenu 뒤에 따라오는 click - 무시한다 (옛 행과 같다)
+    if (isMac() && event.ctrlKey) return;
     const selection = useDocumentSelectionStore.getState();
     const ids =
       row.node.type === 'group' ? elementIdsOf(row.node) : [row.node.id];
