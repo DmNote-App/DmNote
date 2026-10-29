@@ -581,10 +581,14 @@ fn 프리셋을_불러오면_트리_요소가_새_id로_같은_옛_요소_옆에
         let mut guard = store.state.write();
         let mut scratch = guard.data.clone();
         history_target.document.apply_to_store(&mut scratch);
-        scratch.element_document = std::sync::Arc::new(replace_with_skeletons(
-            &scratch.element_document,
-            &history_target.element_tree,
-        ));
+        scratch.element_document = std::sync::Arc::new(
+            restore_scenes_from_legacy(
+                &scratch.element_document,
+                &history_target.element_tree,
+                &history_target.document,
+            )
+            .unwrap(),
+        );
         store.commit_locked(&mut guard, scratch, ()).unwrap();
     }
     let (restored_second, order) = tracker_after_second_key(&store);
@@ -621,4 +625,45 @@ fn 탭_프리셋은_트리_정보가_있을_때만_그_탭의_트리_요소를_�
         state.element_document.scenes["5key"], before.scenes["5key"],
         "다른 탭은 그대로"
     );
+}
+
+#[test]
+fn 탭_프리셋을_되돌려도_다른_탭은_뼈대로_남지_않는다() {
+    let (dir, store) = open_store();
+    let history_target =
+        crate::state::history::PresetFullHistorySnapshot::from_store(&store.snapshot());
+    // 4key만 다시 매긴다 (탭 프리셋 불러오기)
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        crate::state::native_element_id::rekey_mode_element_ids_for_collections(
+            &mut scratch,
+            "4key",
+            crate::models::ElementKindSet::ALL,
+        );
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let five_before = store.element_document_snapshot().1.scenes["5key"].clone();
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        history_target.document.apply_to_store(&mut scratch);
+        scratch.element_document = std::sync::Arc::new(
+            restore_scenes_from_legacy(
+                &scratch.element_document,
+                &history_target.element_tree,
+                &history_target.document,
+            )
+            .unwrap(),
+        );
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let document = store.element_document_snapshot().1;
+    assert_eq!(document.scenes["5key"], five_before);
+    assert_eq!(
+        project_document(&document).unwrap(),
+        crate::models::EditorDocumentV1::from_store(&store.snapshot())
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
 }

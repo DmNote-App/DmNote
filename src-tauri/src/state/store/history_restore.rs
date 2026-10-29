@@ -613,12 +613,18 @@ impl AppStore {
             &preset_history_settings_patch(&target.settings),
         )
         .map_err(crate::services::settings::settings_patch_validation_error)?;
-        // 옛 요소 id 세대가 달라 지금 장면에 끼울 수 없으므로 기록한 뼈대로 장면을 되놓는다
-        // (커밋 때 옛 모양에서 옛 종류 요소가 제자리에 채워진다)
-        scratch.element_document = Arc::new(super::element_tree::replace_with_skeletons(
-            &scratch.element_document,
-            &target.element_tree,
-        ));
+        // 옛 요소 id 세대가 달라 지금 장면에 끼울 수 없으므로 되돌릴 옛 모양에서 장면을 새로
+        // 만들고 기록한 트리 전용 노드를 끼운다
+        scratch.element_document = Arc::new(
+            super::element_tree::restore_scenes_from_legacy(
+                &scratch.element_document,
+                &target.element_tree,
+                &target.document,
+            )
+            .map_err(|error| {
+                EditorCommitError::validation("INVALID_HISTORY_TREE", error.to_string())
+            })?,
+        );
         crate::state::migration::canonicalize_gradient_pairs(&mut scratch);
         crate::state::migration::canonicalize_image_modes(&mut scratch);
         crate::state::migration::normalize_sprite_triggers(&mut scratch);

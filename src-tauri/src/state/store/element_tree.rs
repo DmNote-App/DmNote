@@ -281,16 +281,23 @@ pub(crate) fn restore_element_tree(
     next
 }
 
-/// 되돌리기 - 기록한 뼈대로 장면을 통째로 되놓는다 (옛 요소 id가 기록 때와 같아지는 되돌리기용)
-pub(crate) fn replace_with_skeletons(
+/// 되돌리기 - 되돌릴 옛 모양에서 장면을 새로 만들고 기록한 뼈대의 트리 전용 노드를 끼운다.
+/// 옛 요소 id 세대가 지금과 달라도(프리셋 불러오기) 뼈대의 자리 표가 되돌릴 옛 모양과 같아 제자리에 온다
+pub(crate) fn restore_scenes_from_legacy(
     document: &Document,
     snapshot: &ElementTreeHistorySnapshot,
-) -> Document {
+    legacy: &EditorDocumentV1,
+) -> Result<Document> {
+    let mut fresh = import_document(legacy).context("되돌릴 트리 가져오기 실패")?;
     let mut next = document.clone();
     for (scene_id, skeleton) in &snapshot.scenes {
-        next.scenes.insert(scene_id.clone(), skeleton.clone());
+        let Some(mut scene) = fresh.scenes.remove(scene_id) else {
+            continue;
+        };
+        graft_tree_only(skeleton, &mut scene);
+        next.scenes.insert(scene_id.clone(), scene);
     }
-    next
+    Ok(next)
 }
 
 /// 전체 프리셋 불러오기 - 트리를 새 옛 모양에서 다시 만들고 프리셋의 트리 전용 노드를 끼운다.
