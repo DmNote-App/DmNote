@@ -3,8 +3,8 @@ import { useEffect } from 'react';
 import { isModalLayerActive } from '@components/main/Modal/popupLayer';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import {
+  moveDocumentElements,
   removeDocumentElements,
-  setDocumentFrame,
 } from './documentEditActions';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
@@ -53,14 +53,19 @@ export const useDocumentKeyboard = () => {
       if (!delta) return;
       event.preventDefault();
       const store = getElementDocumentStore();
-      for (const id of selectedIds) {
+      const moves = selectedIds.flatMap((id) => {
         const element = store?.getElement(sceneId, id);
-        if (!element) continue;
-        void setDocumentFrame(sceneId, id, {
-          x: element.frame.x + delta.x,
-          y: element.frame.y + delta.y,
-        });
-      }
+        return element
+          ? [
+              {
+                id,
+                x: element.frame.x + delta.x,
+                y: element.frame.y + delta.y,
+              },
+            ]
+          : [];
+      });
+      void moveDocumentElements(sceneId, moves);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);

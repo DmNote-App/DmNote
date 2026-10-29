@@ -8,6 +8,8 @@ interface DocumentSelectionState {
   sceneId: string | null;
   selectedIds: string[];
   select: (sceneId: string, id: string) => void;
+  // 여러 개를 한 번에 - 비어 있으면 선택을 푼다
+  setSelection: (sceneId: string, ids: string[]) => void;
   clear: () => void;
 }
 
@@ -18,6 +20,14 @@ export const useDocumentSelectionStore = create<DocumentSelectionState>(
     select: (sceneId, id) => {
       useGridSelectionStore.getState().clearSelection();
       set({ sceneId, selectedIds: [id] });
+    },
+    setSelection: (sceneId, ids) => {
+      if (ids.length === 0) {
+        set({ sceneId: null, selectedIds: [] });
+        return;
+      }
+      useGridSelectionStore.getState().clearSelection();
+      set({ sceneId, selectedIds: ids });
     },
     clear: () => set({ sceneId: null, selectedIds: [] }),
   }),

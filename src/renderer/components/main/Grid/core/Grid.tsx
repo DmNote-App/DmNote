@@ -113,6 +113,8 @@ import DocumentSelectionOverlay from '../document/DocumentSelectionOverlay';
 import { documentKindForAddMenuItem } from '../document/documentAddMenu';
 import { insertDocumentElement } from '../document/documentEditActions';
 import { useDocumentKeyboard } from '../document/useDocumentKeyboard';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { documentIdsInRect } from '../document/documentSelection';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
 import { executeNativeContextMenuAction } from './nativeContextMenuActions';
 import { useSelectedElementDragLifecycle } from '@hooks/Grid/drag/useSelectedElementDragLifecycle';
@@ -311,6 +313,16 @@ const Grid = ({
       selectedKeyType,
       pluginElements,
       clientToGridCoords,
+      // 옛 종류 요소가 없으면 트리 요소(커서 트래커 등)를 고른다 - 두 선택은 함께 서지 않는다
+      selectOthersInRect: (rect) => {
+        const ids = documentIdsInRect(
+          getElementDocumentStore()?.getScene(selectedKeyType),
+          rect,
+        );
+        if (ids.length === 0) return false;
+        useDocumentSelectionStore.getState().setSelection(selectedKeyType, ids);
+        return true;
+      },
     });
 
   // 스마트 가이드를 위한 다른 요소들의 bounds 가져오기

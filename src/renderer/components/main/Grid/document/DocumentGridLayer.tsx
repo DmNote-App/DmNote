@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 
 import {
+  getElementDocumentStore,
   loadElementDocumentStore,
   useElementDocumentScene,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
@@ -11,15 +12,18 @@ import type { SurfaceBundle } from '@src/renderer/elementKinds/runtime/ElementSu
 import { useTranslation } from '@contexts/useTranslation';
 import { calculateZoomAdjustedGridSize, snapToGrid } from '@hooks/Grid/utils';
 import { useSettingsStore } from '@stores/useSettingsStore';
+import { isMac } from '@utils/core/platform';
 import { elementRotationTransform } from '@utils/element/rotation';
 import {
+  moveDocumentElements,
   removeDocumentElements,
-  setDocumentFrame,
 } from './documentEditActions';
+import { documentIdsInRange, toggleDocumentId } from './documentSelection';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 const EDITOR_INPUTS = {};
+const EMPTY_IDS: string[] = [];
 // 드래그로 보지 않는 움직임 (화면 px)
 const DRAG_THRESHOLD = 3;
 
@@ -54,6 +58,8 @@ const DocumentGridElement = ({
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
+    // macOS Ctrl 클릭은 보조 클릭 - 컨텍스트 메뉴에 맡긴다
+    if (isMac() && event.ctrlKey) return;
     event.stopPropagation();
     // 지우개 도구 - 옛 종류 요소처럼 눌러서 지운다
     if (eraser) {
@@ -61,9 +67,32 @@ const DocumentGridElement = ({
       void removeDocumentElements(sceneId, [element.id]);
       return;
     }
-    useDocumentSelectionStore.getState().select(sceneId, element.id);
+    const selection = useDocumentSelectionStore.getState();
+    const current =
+      selection.sceneId === sceneId ? selection.selectedIds : EMPTY_IDS;
+    const store = getElementDocumentStore();
+    // 보조키 클릭 - 넣고 빼기 (옛 종류 선택과 같은 키)
+    const primaryModifier = isMac() ? event.metaKey : event.ctrlKey;
+    if (primaryModifier) {
+      selection.setSelection(sceneId, toggleDocumentId(current, element.id));
+      return;
+    }
+    // Shift 클릭 - 기준 요소와 누른 요소 사이 범위
+    if (event.shiftKey && current.length > 0) {
+      selection.setSelection(
+        sceneId,
+        documentIdsInRange(store?.getScene(sceneId), current[0], element.id),
+      );
+      return;
+    }
+    // 고른 요소를 누르면 선택을 지킨 채 함께 옮긴다
+    const ids = current.includes(element.id) ? current : [element.id];
+    if (ids !== current) selection.select(sceneId, element.id);
+    const origins = ids.flatMap((id) => {
+      const frame = store?.getElement(sceneId, id)?.frame;
+      return frame ? [{ id, frame }] : [];
+    });
     const start = { x: event.clientX, y: event.clientY };
-    const origin = element.frame;
     let moved = false;
     const target = event.currentTarget;
     target.setPointerCapture(event.pointerId);
@@ -71,32 +100,44 @@ const DocumentGridElement = ({
       zoom,
       useSettingsStore.getState().gridSettings?.gridSnapSize ?? 5,
     );
+    // 누른 요소를 격자에 맞추고 나머지는 같은 만큼 옮긴다
+    const self = origins.find(({ id }) => id === element.id)?.frame;
     const handleMove = (move: PointerEvent) => {
       const dx = move.clientX - start.x;
       const dy = move.clientY - start.y;
       if (!moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
       moved = true;
-      useDocumentFramePreviewStore.getState().set(element.id, {
-        ...origin,
-        x: snapToGrid(origin.x + dx / zoom, gridSize),
-        y: snapToGrid(origin.y + dy / zoom, gridSize),
-      });
+      if (!self) return;
+      const offsetX = snapToGrid(self.x + dx / zoom, gridSize) - self.x;
+      const offsetY = snapToGrid(self.y + dy / zoom, gridSize) - self.y;
+      const preview = useDocumentFramePreviewStore.getState();
+      for (const { id, frame } of origins) {
+        preview.set(id, {
+          ...frame,
+          x: frame.x + offsetX,
+          y: frame.y + offsetY,
+        });
+      }
     };
     const handleUp = () => {
       target.removeEventListener('pointermove', handleMove);
       target.removeEventListener('pointerup', handleUp);
       target.removeEventListener('pointercancel', handleUp);
-      const last = useDocumentFramePreviewStore.getState().frames[element.id];
-      if (!moved || !last) {
-        useDocumentFramePreviewStore.getState().clear(element.id);
+      const frames = useDocumentFramePreviewStore.getState().frames;
+      const moves = moved
+        ? origins.flatMap(({ id }) =>
+            frames[id] ? [{ id, x: frames[id].x, y: frames[id].y }] : [],
+          )
+        : [];
+      const clear = () => {
+        const preview = useDocumentFramePreviewStore.getState();
+        for (const { id } of origins) preview.clear(id);
+      };
+      if (moves.length === 0) {
+        clear();
         return;
       }
-      void setDocumentFrame(sceneId, element.id, {
-        x: last.x,
-        y: last.y,
-      }).finally(() =>
-        useDocumentFramePreviewStore.getState().clear(element.id),
-      );
+      void moveDocumentElements(sceneId, moves).finally(clear);
     };
     target.addEventListener('pointermove', handleMove);
     target.addEventListener('pointerup', handleUp);

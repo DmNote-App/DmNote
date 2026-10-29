@@ -38,6 +38,13 @@ interface UseGridMarqueeParams {
   ) => { x: number; y: number } | null;
   /** benchmark에서 제거 전 이벤트 처리 경로를 재현 */
   continuousInputStrategy?: 'legacy' | 'frame';
+  /** 옛 종류·플러그인 요소가 하나도 없을 때 다른 선택(트리 요소)을 고른다 - 골랐으면 true */
+  selectOthersInRect?: (rect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }) => boolean;
 }
 
 interface UseGridMarqueeReturn {
@@ -58,6 +65,7 @@ export function useGridMarquee({
   pluginElements,
   clientToGridCoords,
   continuousInputStrategy = 'frame',
+  selectOthersInRect,
 }: UseGridMarqueeParams): UseGridMarqueeReturn {
   const isMarqueeSelecting = useGridSelectionStore(
     (state) => state.isMarqueeSelecting,
@@ -188,6 +196,10 @@ export function useGridMarquee({
         }
       });
 
+      if (newSelectedElements.length === 0 && selectOthersInRect?.(rect)) {
+        endMarqueeSelection();
+        return;
+      }
       setSelectedElements(newSelectedElements);
     } else {
       // 마퀴 영역이 작으면 (클릭) 선택 해제

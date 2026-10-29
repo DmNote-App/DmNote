@@ -1,16 +1,7 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
-import Checkbox from '@components/main/common/checkbox/Checkbox';
-import Dropdown from '@components/main/common/dropdown/Dropdown';
 import { useDocumentElement } from '@src/renderer/editor/document/elementDocumentRuntime';
-import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import type {
-  ElementKindDefinition,
-  PanelRowDecl,
-  PanelSectionDecl,
-} from '@src/renderer/elementKinds/defineElementKind';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
-import type { JsonValue } from '@src/types/generated/elementDocument';
 import type { KeyPosition } from '@src/types/key/keys';
 import {
   setDocumentBundle,
@@ -19,147 +10,17 @@ import {
   setDocumentValues,
 } from '../../document/documentEditActions';
 import { useDocumentFramePreviewStore } from '../../document/useDocumentFramePreviewStore';
-import {
-  ColorInput,
-  NumberInput,
-  PropertyRow,
-  PropertySection,
-} from '../index';
+import { PropertySection } from '../index';
 import { PANEL_ROOT_CLASS } from '../navigation/panelChrome';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
 import SingleGeometrySection from '../single/SingleGeometrySection';
 import SinglePanelRenameHeader from '../single/SinglePanelRenameHeader';
-
-type Translate = (key: string) => string | undefined;
-type Values = Record<string, JsonValue>;
-
-interface FieldRowProps {
-  row: PanelRowDecl<Values>;
-  value: JsonValue | undefined;
-  onCommit: (value: JsonValue) => void;
-  panelElement: HTMLElement | null;
-  t: Translate;
-}
-
-const FieldRow = ({ row, value, onCommit, panelElement, t }: FieldRowProps) => {
-  const label = t(row.label) || row.label;
-  const control = row.control;
-  if (control.type === 'toggle') {
-    return (
-      <div className="flex justify-between items-center w-full min-h-[32px]">
-        <p className="text-fg-muted text-label">{label}</p>
-        <Checkbox
-          commitStrategy="after-paint"
-          checked={value === true}
-          onChange={() => onCommit(!(value === true))}
-        />
-      </div>
-    );
-  }
-  return (
-    <PropertyRow label={label}>
-      {control.type === 'number' ? (
-        <NumberInput
-          value={typeof value === 'number' ? value : 0}
-          onChange={(next) => onCommit(next)}
-          min={control.min}
-          max={control.max}
-          suffix={control.suffix}
-          allowDecimal={(control.decimalScale ?? 0) > 0}
-          decimalScale={control.decimalScale}
-        />
-      ) : control.type === 'select' ? (
-        <Dropdown
-          commitStrategy="after-paint"
-          options={control.options.map((option) => ({
-            value: option.value,
-            label: t(option.label) || option.label,
-          }))}
-          value={typeof value === 'string' ? value : undefined}
-          onChange={(next) => onCommit(next)}
-        />
-      ) : control.type === 'color' ? (
-        <ColorInput
-          value={typeof value === 'string' ? value : '#FFFFFF'}
-          onChange={(next) => onCommit(next)}
-          solidOnly
-          panelElement={panelElement}
-        />
-      ) : (
-        // 직접 만든 입력은 편집 화면 전용이라 지연 로딩일 수 있다
-        <Suspense fallback={null}>
-          <control.component value={value} onCommit={onCommit} />
-        </Suspense>
-      )}
-    </PropertyRow>
-  );
-};
-
-interface SurfaceSectionProps {
-  element: ElementNode;
-  onCommit: (fields: Values) => void;
-  panelElement: HTMLElement | null;
-  t: Translate;
-}
-
-// 표면 묶음 섹션 - 그래프·노브 패널과 같은 칸 이름·부품
-const SurfaceSection = ({
-  element,
-  onCommit,
-  panelElement,
-  t,
-}: SurfaceSectionProps) => {
-  const surface = (element.bundles?.surface ?? {}) as Values;
-  const color = (name: string) =>
-    typeof surface[name] === 'string' ? (surface[name] as string) : '';
-  const number = (name: string, fallback: number) =>
-    typeof surface[name] === 'number' ? (surface[name] as number) : fallback;
-  return (
-    <PropertySection>
-      <PropertyRow label={t('propertiesPanel.backgroundColor') || 'Background'}>
-        <ColorInput
-          value={color('backgroundColor')}
-          onChange={(next) => onCommit({ backgroundColor: next })}
-          solidOnly
-          panelElement={panelElement}
-        />
-      </PropertyRow>
-      <PropertyRow label={t('propertiesPanel.borderColor') || 'Border'}>
-        <ColorInput
-          value={color('borderColor')}
-          onChange={(next) => onCommit({ borderColor: next })}
-          solidOnly
-          panelElement={panelElement}
-        />
-      </PropertyRow>
-      <PropertyRow label={t('propertiesPanel.borderWidth') || 'Border Width'}>
-        <NumberInput
-          value={number('borderWidth', 1)}
-          onChange={(next) => onCommit({ borderWidth: Math.max(0, next) })}
-          min={0}
-          max={20}
-          suffix="px"
-        />
-      </PropertyRow>
-      <PropertyRow label={t('propertiesPanel.borderRadius') || 'Radius'}>
-        <NumberInput
-          value={number('borderRadius', 4)}
-          onChange={(next) => onCommit({ borderRadius: Math.max(0, next) })}
-          min={0}
-          max={500}
-          suffix="px"
-        />
-      </PropertyRow>
-    </PropertySection>
-  );
-};
-
-const defaultPanel = (
-  definition: ElementKindDefinition,
-): PanelSectionDecl<Values>[] => [
-  { common: 'geometry' },
-  ...(definition.bundles ?? []).map((bundle) => ({ bundle })),
-];
+import {
+  defaultPanel,
+  type Translate,
+  type Values,
+} from './documentPanelModel';
+import { FieldRow, SurfaceSection } from './documentPanelRows';
 
 interface DocumentElementPanelProps {
   sceneId: string;
@@ -314,7 +175,7 @@ const DocumentElementPanel = ({
                 return section.bundle === 'surface' ? (
                   <SurfaceSection
                     key={`bundle-${section.bundle}`}
-                    element={element}
+                    surfaces={[(element.bundles?.surface ?? {}) as Values]}
                     panelElement={panelElement}
                     t={t}
                     onCommit={(fields) =>
@@ -338,7 +199,7 @@ const DocumentElementPanel = ({
                     <FieldRow
                       key={row.field}
                       row={row}
-                      value={values[row.field]}
+                      state={{ value: values[row.field], isMixed: false }}
                       onCommit={(value) => commitValues({ [row.field]: value })}
                       panelElement={panelElement}
                       t={t}

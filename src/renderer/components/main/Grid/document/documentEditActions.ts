@@ -80,6 +80,22 @@ export const setDocumentFrame = (
   frame: FramePatch,
 ) => editDocument([{ op: 'setFrame', scene: sceneId, id, frame }]);
 
+/** 여러 요소 위치를 한 커밋으로 - 되돌리기도 한 번 */
+export const moveDocumentElements = (
+  sceneId: string,
+  moves: ReadonlyArray<{ id: string; x: number; y: number }>,
+) =>
+  moves.length === 0
+    ? Promise.resolve(null)
+    : editDocument(
+        moves.map(({ id, x, y }) => ({
+          op: 'setFrame' as const,
+          scene: sceneId,
+          id,
+          frame: { x, y },
+        })),
+      );
+
 export const setDocumentValues = (
   sceneId: string,
   id: string,

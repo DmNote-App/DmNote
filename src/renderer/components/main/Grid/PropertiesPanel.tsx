@@ -41,6 +41,7 @@ import PanelHeaderActions from './PropertiesPanel/navigation/PanelHeaderActions'
 import PanelToggleButton from './PropertiesPanel/navigation/PanelToggleButton';
 import { EditSessionScope } from '@src/renderer/contexts/EditSessionScope';
 import DocumentElementPanel from './PropertiesPanel/document/DocumentElementPanel';
+import DocumentBatchPanel from './PropertiesPanel/document/DocumentBatchPanel';
 import { useDocumentSelectionStore } from './document/useDocumentSelectionStore';
 import { previewSingleGraphColor } from './PropertiesPanel/selection/previewPatchForwarders';
 import PluginSettingsForm from './PropertiesPanel/plugin/PluginSettingsForm';
@@ -205,6 +206,9 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const documentSceneId = useDocumentSelectionStore((state) => state.sceneId);
   const documentElementId = useDocumentSelectionStore(
     (state) => state.selectedIds[0] ?? null,
+  );
+  const documentSelectedIds = useDocumentSelectionStore(
+    (state) => state.selectedIds,
   );
 
   // 패널 모드 (layer: 레이어 패널, property: 속성 패널)
@@ -1151,6 +1155,20 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             selectionFromLayerPanelRef.current = true;
           }}
         />
+      );
+    }
+
+    if (documentSceneId && documentSelectedIds.length > 1) {
+      return (
+        <EditSessionScope>
+          <DocumentBatchPanel
+            sceneId={documentSceneId}
+            elementIds={documentSelectedIds}
+            panelElement={panelElement}
+            setPanelElement={setPanelElement}
+            t={t}
+          />
+        </EditSessionScope>
       );
     }
 
