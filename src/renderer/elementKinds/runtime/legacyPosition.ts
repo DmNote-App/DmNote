@@ -27,13 +27,14 @@ interface LegacyInfo {
 /** 트리 요소 → 옛 위치 객체 (칸 이름은 옛 위치와 같다) */
 export const legacyPositionOf = (element: ElementNode): LegacyObject => {
   const info = (element.legacy ?? {}) as LegacyInfo;
-  const bundles = Object.values(element.bundles ?? {}).reduce<LegacyObject>(
-    (all, bundle) =>
-      bundle && typeof bundle === 'object' && !Array.isArray(bundle)
-        ? { ...all, ...(bundle as LegacyObject) }
-        : all,
-    {},
-  );
+  // 정의에 있는 묶음만 - 백엔드 옛 모양 보기와 같게 (정의 밖 묶음은 보존만 된다)
+  const owned = elementKindDefinition(element.kind)?.bundles ?? [];
+  const bundles = owned.reduce<LegacyObject>((all, name) => {
+    const bundle = element.bundles?.[name];
+    return bundle && typeof bundle === 'object' && !Array.isArray(bundle)
+      ? { ...all, ...(bundle as LegacyObject) }
+      : all;
+  }, {});
   const input = element.input;
   return {
     ...(info.fields ?? {}),

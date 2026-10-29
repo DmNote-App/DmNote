@@ -11,7 +11,8 @@ const knob: ElementNode = {
   name: '노브',
   className: 'my',
   values: { sensitivity: 2, reverse: true },
-  bundles: { surface: { borderWidth: 3 } },
+  // image는 노브 정의 밖 묶음 - 옛 모양에 펼치지 않는다
+  bundles: { surface: { borderWidth: 3 }, image: { activeImage: 'stale.png' } },
   input: { type: 'axis', axisId: 'HIDA:1' },
   legacy: { index: 0, zIndex: 4, fields: { activeImage: 'a.png' } },
 };
