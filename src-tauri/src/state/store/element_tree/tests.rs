@@ -104,7 +104,7 @@ fn 옛_store_json은_가져오기만_하고_새_파일에_저장한다() {
     .unwrap();
     assert_eq!(
         current[ELEMENT_DOCUMENT_FIELD],
-        serde_json::to_value(&*snapshot.element_document).unwrap()
+        serde_json::to_value(compact_document(&snapshot.element_document)).unwrap()
     );
     // 저장 원본은 트리 하나 - 옛 종류 배열은 싣지 않는다
     for field in LEGACY_ELEMENT_FIELDS {

@@ -94,7 +94,11 @@ pub(crate) struct LoadedStore {
 
 // 옛 종류 칸이 하나도 없고 트리만 있으면 트리에서 옛 모양을 만든다 (옛 칸이 있는 파일은 그대로).
 // 만들지 못하거나 일부를 빼거나 대체했으면 true - 손상 복구처럼 원본을 백업하고 자산 정리를 건너뛴다
-fn fill_legacy_fields_from_tree(value: &mut Value, document: &Value) -> bool {
+fn fill_legacy_fields_from_tree(
+    value: &mut Value,
+    document: &element_document::Document,
+    dropped: usize,
+) -> bool {
     let Some(object) = value.as_object_mut() else {
         return false;
     };
@@ -104,9 +108,8 @@ fn fill_legacy_fields_from_tree(value: &mut Value, document: &Value) -> bool {
     {
         return false;
     }
-    let (document, dropped) = super::store::parse_document_lenient(document.clone());
     let (projected, replaced) =
-        match crate::models::legacy_layout::project_document_lenient(&document) {
+        match crate::models::legacy_layout::project_document_lenient(document) {
             Ok(projected) => projected,
             Err(error) => {
                 log::warn!("[Store] 트리에서 옛 모양을 만들지 못했습니다: {error:#}");
@@ -133,7 +136,10 @@ fn fill_legacy_fields_from_tree(value: &mut Value, document: &Value) -> bool {
 pub(crate) fn read_store_value_with_legacy(path: &Path) -> Value {
     let mut value: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
     if let Some(document) = value.get(super::store::ELEMENT_DOCUMENT_FIELD).cloned() {
-        assert!(!fill_legacy_fields_from_tree(&mut value, &document));
+        let (document, dropped) = super::store::parse_document_lenient(document);
+        assert!(!fill_legacy_fields_from_tree(
+            &mut value, &document, dropped
+        ));
     }
     value
 }
@@ -144,17 +150,21 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     let content = fs::read(path)
         .with_context(|| format!("failed to read store file at {}", path.display()))?;
     // 요소 트리 문서는 옛 모양 정리가 끝난 뒤 붙인다 (플러그인 데이터 칸으로 새지 않게 먼저 뺀다)
-    let mut stored_element_document = None;
+    let mut parsed_element_document: Option<(element_document::Document, usize)> = None;
     let mut projection_failed = false;
     let (state, needs_persist, repaired, seed_active_css_history, explicit_invalid_element_id) =
         match serde_json::from_slice::<Value>(&content) {
             Ok(mut value) => {
-                stored_element_document = value
+                let stored_element_document = value
                     .as_object_mut()
                     .and_then(|object| object.remove(super::store::ELEMENT_DOCUMENT_FIELD));
                 // 트리가 저장 원본인 파일 - 옛 종류 칸을 트리에서 다시 만들어 옛 정리 경로에 넣는다
-                if let Some(document) = stored_element_document.as_ref() {
-                    projection_failed = fill_legacy_fields_from_tree(&mut value, document);
+                // 트리는 한 번만 읽는다 - 옛 칸 채우기와 붙이기가 같이 쓴다
+                parsed_element_document =
+                    stored_element_document.map(super::store::parse_document_lenient);
+                if let Some((document, dropped)) = parsed_element_document.as_ref() {
+                    projection_failed =
+                        fill_legacy_fields_from_tree(&mut value, document, *dropped);
                 }
                 let seed_active_css_history = value.get("customCssHistory").is_none();
                 let explicit_invalid_element_id = has_explicit_invalid_element_id(&value);
@@ -296,8 +306,8 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     let plugin_id_backfill = super::plugin::backfill_plugin_instance_ids(&mut state);
     needs_persist |= plugin_id_backfill.changed;
     repaired |= plugin_id_backfill.repaired;
-    let element_document_missing = stored_element_document.is_none();
-    let attached = super::store::attach_loaded_document(&mut state, stored_element_document)?;
+    let element_document_missing = parsed_element_document.is_none();
+    let attached = super::store::attach_parsed_document(&mut state, parsed_element_document)?;
     needs_persist |= attached.changed;
     // 읽지 못한 트리 문서는 손상 복구와 같이 원본을 백업하고 자산 정리를 건너뛴다
     repaired |= attached.unreadable || projection_failed;

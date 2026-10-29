@@ -36,6 +36,26 @@ pub(crate) const LEGACY_ELEMENT_FIELDS: [&str; 7] = [
     "layerGroups",
 ];
 
+/// 저장용 압축 - 기능 묶음·고유 값의 빈(null) 칸을 뺀다. 읽을 때 빈 칸은 null과 같이 읽힌다
+/// (옛 종류는 Option 칸, 트리 전용 종류는 읽기 정리가 기본값으로 채운다)
+pub(crate) fn compact_document(document: &Document) -> Document {
+    let mut compact = document.clone();
+    for scene in compact.scenes.values_mut() {
+        element_document::document::walk_mut(&mut scene.nodes, &mut |node| {
+            let Node::Element(element) = node else {
+                return;
+            };
+            element.values.retain(|_, value| !value.is_null());
+            for bundle in element.bundles.values_mut() {
+                if let Value::Object(fields) = bundle {
+                    fields.retain(|_, value| !value.is_null());
+                }
+            }
+        });
+    }
+    compact
+}
+
 /// 저장된 트리 문서 읽기 - 통째로 읽지 못하면 장면·노드 단위로 읽고 망가진 노드만 뺀다.
 /// 두 번째 값은 뺀 노드 수 (장면째 못 읽은 것도 하나로 센다)
 pub(crate) fn parse_document_lenient(value: Value) -> (Document, usize) {
@@ -203,10 +223,17 @@ pub(crate) fn attach_loaded_document(
     state: &mut AppStoreData,
     stored: Option<Value>,
 ) -> Result<AttachOutcome> {
+    attach_parsed_document(state, stored.map(parse_document_lenient))
+}
+
+/// 이미 읽은 트리 문서를 붙인다 - (문서, 읽지 못해 뺀 노드 수)
+pub(crate) fn attach_parsed_document(
+    state: &mut AppStoreData,
+    stored: Option<(Document, usize)>,
+) -> Result<AttachOutcome> {
     let legacy = EditorDocumentV1::from_store(state);
     let mut unreadable = false;
-    let stored = stored.map(|value| {
-        let (document, dropped) = parse_document_lenient(value);
+    let stored = stored.map(|(document, dropped)| {
         if dropped > 0 {
             log::warn!("[Store] 요소 트리 문서에서 읽지 못한 노드 {dropped}개를 빼고 읽습니다");
             unreadable = true;
@@ -233,7 +260,11 @@ pub(crate) fn attach_loaded_document(
         );
     }
     // 트리 문서가 없던 파일(옛 store.json)은 부르는 쪽이 새 파일로 저장한다
-    let changed = unreadable || stored.as_ref().is_some_and(|stored| stored != &document);
+    // 저장은 압축 모양이므로 같은 모양끼리 비교한다 (시작마다 저장하지 않게)
+    let changed = unreadable
+        || stored
+            .as_ref()
+            .is_some_and(|stored| compact_document(stored) != compact_document(&document));
     state.element_document = std::sync::Arc::new(document);
 
     Ok(AttachOutcome {

@@ -88,8 +88,8 @@ use editor_transactions::{
 pub(crate) use element_tree::ElementDocumentCommitPlan;
 pub use element_tree::ElementDocumentCommitResult;
 pub(crate) use element_tree::{
-    apply_full_preset_tree, apply_tab_preset_tree, attach_loaded_document, element_tree_snapshot,
-    parse_document_lenient, ELEMENT_DOCUMENT_FIELD, LEGACY_ELEMENT_FIELDS,
+    apply_full_preset_tree, apply_tab_preset_tree, attach_loaded_document, attach_parsed_document,
+    element_tree_snapshot, parse_document_lenient, ELEMENT_DOCUMENT_FIELD, LEGACY_ELEMENT_FIELDS,
 };
 use persistence::StoreWriter;
 pub(crate) use sound_assets::{
