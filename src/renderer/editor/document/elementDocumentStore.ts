@@ -30,6 +30,8 @@ export interface ElementDocumentStore {
   subscribe(listener: ElementDocumentListener): () => void;
   // 편집 창만 - 오버레이·OBS는 undefined
   edit?: (ops: Op[]) => Promise<ElementDocumentCommitResult>;
+  // 오버레이·OBS만 - 문서를 통째로 다시 받아 온다 (OBS 재연결·놓친 패치)
+  resync?: () => Promise<void>;
   dispose(): void;
 }
 
@@ -105,25 +107,64 @@ const readElement = (document: Document, sceneId: string, id: string) => {
     : undefined;
 };
 
-/** 오버레이·OBS - 패치만 적용 */
+// 문서를 통째로 바꿨을 때 알림 - 앞뒤 문서의 모든 장면
+const replacedChanges = (before: Document, after: Document): ChangeSet => ({
+  scenes: Object.fromEntries(
+    [...new Set([...Object.keys(before.scenes), ...Object.keys(after.scenes)])]
+      .sort()
+      .map((sceneId) => [
+        sceneId,
+        { changed: [], removed: [], structure: true },
+      ]),
+  ),
+});
+
+/** 오버레이·OBS - 패치만 적용, 놓쳤으면 통째로 다시 받아 온다 */
 export const createMirrorDocumentStore = (
   initial: ElementDocumentGetResult,
-  transport: Pick<ElementDocumentTransport, 'onChanged'>,
+  transport: Pick<ElementDocumentTransport, 'get' | 'onChanged'>,
 ): ElementDocumentStore => {
   let document: Document = initial.document;
   let revision = initial.revision;
   const listeners = new Listeners();
-  const unsubscribe = transport.onChanged((event) => {
+  const apply = (event: ElementDocumentChangedEvent) => {
     if (event.revision <= revision) return;
     document = applyIncoming(document, event);
     revision = event.revision;
     listeners.emit(event.patch.changes);
+  };
+  // 다시 받아 오는 동안 온 패치 - 받아 온 문서보다 새 것만 뒤에 적용한다
+  let held: ElementDocumentChangedEvent[] | null = null;
+  const unsubscribe = transport.onChanged((event) => {
+    if (held) held.push(event);
+    else apply(event);
   });
+  let resyncing: Promise<void> | null = null;
+  const resync = () => {
+    resyncing ??= (async () => {
+      held = [];
+      try {
+        const latest = await transport.get();
+        const before = document;
+        // 앱을 다시 켜면 리비전이 처음부터 시작한다 - 받아 온 리비전을 그대로 쓴다
+        document = latest.document;
+        revision = latest.revision;
+        listeners.emit(replacedChanges(before, document));
+      } finally {
+        const pending = held;
+        held = null;
+        resyncing = null;
+        for (const event of pending) apply(event);
+      }
+    })();
+    return resyncing;
+  };
   return {
     getRevision: () => revision,
     getScene: (sceneId) => readScene(document, sceneId),
     getElement: (sceneId, id) => readElement(document, sceneId, id),
     subscribe: (listener) => listeners.add(listener),
+    resync,
     dispose: unsubscribe,
   };
 };

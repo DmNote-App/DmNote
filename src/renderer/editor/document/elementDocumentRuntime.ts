@@ -2,6 +2,7 @@
 import { useSyncExternalStore } from 'react';
 
 import { elementDocumentApi } from '@api/modules/editor/elementDocumentApi';
+import { obsApi } from '@api/modules/window/obsApi';
 import type { Scene } from '@src/types/generated/elementDocument';
 import type { ElementNode } from './documentPatch';
 import {
@@ -39,9 +40,17 @@ const create = async (): Promise<ElementDocumentStore> => {
       return unsubscribe;
     },
   };
-  return isEditingWindow()
-    ? createEditorDocumentStore(initial, transport)
-    : createMirrorDocumentStore(initial, transport);
+  if (isEditingWindow()) return createEditorDocumentStore(initial, transport);
+  const store = createMirrorDocumentStore(initial, transport);
+  // OBS 재연결·놓친 패치 - 옛 상태 재동기화와 같은 신호로 트리도 다시 받아 온다
+  obsApi.onResync(() => {
+    void store
+      .resync?.()
+      .catch((error) =>
+        console.error('[ElementDocument] failed to resync', error),
+      );
+  });
+  return store;
 };
 
 export const loadElementDocumentStore = (): Promise<ElementDocumentStore> => {
@@ -65,6 +74,14 @@ const subscribeStore = (listener: () => void) => {
     listeners.delete(listener);
   };
 };
+
+/** 스토어를 읽어 왔는지 - 오버레이 첫 공개가 트리 요소까지 기다린다 */
+export const useElementDocumentReady = (): boolean =>
+  useSyncExternalStore(
+    subscribeStore,
+    () => current !== null,
+    () => false,
+  );
 
 /** 장면 하나 - 스토어가 준비되기 전이나 장면이 없으면 undefined */
 export const useElementDocumentScene = (sceneId: string): Scene | undefined =>

@@ -24,7 +24,10 @@ import {
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useStoreWithEqualityFn } from 'zustand/traditional';
-import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
+import {
+  useElementDocumentReady,
+  useElementDocumentScene,
+} from '@src/renderer/editor/document/elementDocumentRuntime';
 import { documentLayoutElements } from '@src/renderer/elementKinds/runtime/documentElementOrder';
 import {
   selectPluginLayoutElements,
@@ -349,7 +352,12 @@ export default function App() {
   ]);
 
   // 모든 요소가 자리 잡은 뒤 한 번에 공개 - 플러그인 요소가 늦게 뜨며 생기던 덜컥거림 제거
-  const revealed = useOverlayReveal(isBootstrapped, resizeInFlight > 0);
+  // 트리에서 그리는 요소도 함께 보이게 트리 문서를 읽어 온 뒤 공개한다
+  const documentReady = useElementDocumentReady();
+  const revealed = useOverlayReveal(
+    isBootstrapped && documentReady,
+    resizeInFlight > 0,
+  );
 
   return (
     <OverlayScene

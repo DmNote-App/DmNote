@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Document, Op } from '@src/types/generated/elementDocument';
+import type { Document, Node, Op } from '@src/types/generated/elementDocument';
 import type {
   ElementDocumentChangedEvent,
   ElementDocumentCommitResult,
@@ -270,6 +270,7 @@ describe('오버레이 요소 문서 스토어', () => {
     const store = createMirrorDocumentStore(
       { revision: 3, document: document() },
       {
+        get: async () => ({ revision: 3, document: document() }),
         onChanged: (listener) => {
           emit = listener;
           return () => undefined;
@@ -289,5 +290,99 @@ describe('오버레이 요소 문서 스토어', () => {
     expect(store.getScene('4key')).toBeDefined();
     emit({ revision: 4, patch });
     expect(store.getScene('4key')).toBeUndefined();
+  });
+
+  it('다시 맞추면 문서를 통째로 받아 온다 - 앱을 다시 켜 리비전이 처음부터 시작해도 따라간다', async () => {
+    let emit: (event: ElementDocumentChangedEvent) => void = () => undefined;
+    const restarted = document();
+    restarted.scenes['5key'] = { nodes: [] };
+    const store = createMirrorDocumentStore(
+      { revision: 40, document: document() },
+      {
+        get: async () => ({ revision: 2, document: restarted }),
+        onChanged: (listener) => {
+          emit = listener;
+          return () => undefined;
+        },
+      },
+    );
+    const notified = vi.fn();
+    store.subscribe(notified);
+    await store.resync?.();
+    expect(store.getRevision()).toBe(2);
+    expect(store.getScene('5key')).toEqual({ nodes: [] });
+    expect(notified).toHaveBeenCalledWith({
+      scenes: {
+        '4key': { changed: [], removed: [], structure: true },
+        '5key': { changed: [], removed: [], structure: true },
+      },
+    });
+    // 다시 켠 앱의 다음 패치를 받는다
+    emit({
+      revision: 3,
+      patch: {
+        kindVersions: {},
+        scenes: { '5key': { type: 'delete' } },
+        changes: {
+          scenes: {
+            '5key': {
+              changed: [],
+              removed: [],
+              structure: false,
+              deleted: true,
+            },
+          },
+        },
+      },
+    });
+    expect(store.getScene('5key')).toBeUndefined();
+  });
+
+  it('다시 맞추는 동안 온 패치는 받아 온 문서보다 새 것만 뒤에 적용한다', async () => {
+    let emit: (event: ElementDocumentChangedEvent) => void = () => undefined;
+    let respond: (value: {
+      revision: number;
+      document: Document;
+    }) => void = () => undefined;
+    const store = createMirrorDocumentStore(
+      { revision: 1, document: document() },
+      {
+        get: () => new Promise((resolve) => (respond = resolve)),
+        onChanged: (listener) => {
+          emit = listener;
+          return () => undefined;
+        },
+      },
+    );
+    expect(store.resync).toBeDefined();
+    const resynced = store.resync?.();
+    const moved = (revision: number, x: number) => ({
+      revision,
+      patch: {
+        kindVersions: {},
+        scenes: {
+          '4key': {
+            type: 'nodes' as const,
+            nodes: [
+              {
+                ...document().scenes['4key'].nodes[0],
+                frame: { x, y: 0, width: 60, height: 60, rotation: 0 },
+              } as Node,
+            ],
+          },
+        },
+        changes: {
+          scenes: {
+            '4key': { changed: ['k1'], removed: [], structure: false },
+          },
+        },
+      },
+    });
+    emit(moved(5, 10));
+    emit(moved(7, 30));
+    respond({ revision: 6, document: document() });
+    await resynced;
+    expect(store.getRevision()).toBe(7);
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(30);
   });
 });
