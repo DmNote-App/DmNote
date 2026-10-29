@@ -231,11 +231,13 @@ fn serialize_store(state: &AppStoreData) -> Result<String> {
                 reorder(value);
             }
         }
+        // 저장 원본은 트리 하나 - 옛 종류 칸은 읽을 때 트리에서 다시 만든다
+        for field in super::element_tree::LEGACY_ELEMENT_FIELDS {
+            obj.remove(field);
+        }
         obj.insert(
             super::element_tree::ELEMENT_DOCUMENT_FIELD.to_string(),
-            to_value(crate::models::legacy_layout::persisted_document(
-                &state.element_document,
-            ))?,
+            to_value(&*state.element_document)?,
         );
     }
 

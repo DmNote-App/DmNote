@@ -89,7 +89,7 @@ pub(crate) use element_tree::ElementDocumentCommitPlan;
 pub use element_tree::ElementDocumentCommitResult;
 pub(crate) use element_tree::{
     apply_full_preset_tree, apply_tab_preset_tree, attach_loaded_document, element_tree_snapshot,
-    ELEMENT_DOCUMENT_FIELD,
+    parse_document_lenient, ELEMENT_DOCUMENT_FIELD, LEGACY_ELEMENT_FIELDS,
 };
 use persistence::StoreWriter;
 pub(crate) use sound_assets::{

@@ -29,7 +29,7 @@ fn 옛_store를_불러오면_트리_문서를_만들고_옛_모양과_같은_내
 fn 저장된_트리_문서가_옛_모양과_같으면_저장할_것이_없다() {
     let mut state = default_state();
     attach_loaded_document(&mut state, None).unwrap();
-    let stored = serde_json::to_value(persisted_document(&state.element_document)).unwrap();
+    let stored = serde_json::to_value(&*state.element_document).unwrap();
     let mut reloaded = state.clone();
     assert!(
         !attach_loaded_document(&mut reloaded, Some(stored))
@@ -104,8 +104,12 @@ fn 옛_store_json은_가져오기만_하고_새_파일에_저장한다() {
     .unwrap();
     assert_eq!(
         current[ELEMENT_DOCUMENT_FIELD],
-        serde_json::to_value(persisted_document(&snapshot.element_document)).unwrap()
+        serde_json::to_value(&*snapshot.element_document).unwrap()
     );
+    // 저장 원본은 트리 하나 - 옛 종류 배열은 싣지 않는다
+    for field in LEGACY_ELEMENT_FIELDS {
+        assert!(current.get(field).is_none(), "{field}");
+    }
     assert_eq!(snapshot.element_document.scenes.len(), snapshot.keys.len());
 
     // 다시 열면 새 파일을 읽고 저장할 것이 없다
@@ -326,53 +330,6 @@ fn with_tree_only_element(state: &mut AppStoreData) -> String {
     let stored = serde_json::to_value(&*state.element_document).unwrap();
     attach_loaded_document(state, Some(stored)).unwrap();
     "tracker-1".into()
-}
-
-#[test]
-fn 저장할_때_옛_종류_요소는_뼈대만_남기고_읽으면_같은_문서가_된다() {
-    let mut state = default_state();
-    attach_loaded_document(&mut state, None).unwrap();
-    let tracker = with_tree_only_element(&mut state);
-    let persisted = persisted_document(&state.element_document);
-    let mut legacy_seen = 0;
-    walk(&persisted.scenes["4key"].nodes, &mut |node, _| {
-        let Node::Element(element) = node else { return };
-        if element.id == tracker {
-            assert!(!element.bundles.is_empty() && !element.values.is_empty());
-            return;
-        }
-        legacy_seen += 1;
-        assert!(element.bundles.is_empty() && element.values.is_empty());
-        let legacy = element.extra["legacy"].as_object().unwrap();
-        assert!(!legacy.contains_key("fields"), "칸 값은 옛 모양에 있다");
-        assert!(legacy.contains_key("index"));
-    });
-    assert!(legacy_seen > 0);
-    let full = serde_json::to_vec(&*state.element_document).unwrap().len();
-    let skeleton = serde_json::to_vec(&persisted).unwrap().len();
-    assert!(skeleton * 3 < full, "뼈대 {skeleton}B, 전체 {full}B");
-
-    let mut reloaded = state.clone();
-    reloaded.element_document = Default::default();
-    let outcome = attach_loaded_document(
-        &mut reloaded,
-        Some(serde_json::to_value(&persisted).unwrap()),
-    )
-    .unwrap();
-    assert!(!outcome.changed);
-    assert_eq!(reloaded.element_document, state.element_document);
-}
-
-#[test]
-fn 전체를_담은_예전_저장_모양도_읽고_뼈대로_다시_저장한다() {
-    let mut state = default_state();
-    attach_loaded_document(&mut state, None).unwrap();
-    with_tree_only_element(&mut state);
-    let full = serde_json::to_value(&*state.element_document).unwrap();
-    let mut reloaded = state.clone();
-    let outcome = attach_loaded_document(&mut reloaded, Some(full)).unwrap();
-    assert!(outcome.changed && !outcome.unreadable);
-    assert_eq!(reloaded.element_document, state.element_document);
 }
 
 fn commit(store: &crate::state::AppStore, ops: serde_json::Value) -> ElementDocumentCommitResult {
@@ -790,4 +747,53 @@ fn 옛_종류_요소와_트리_요소를_한_그룹으로_묶으면_옛_그룹�
     );
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 트리만_담은_저장_파일을_읽으면_옛_모양을_트리에서_다시_만든다() {
+    let mut state = default_state();
+    attach_loaded_document(&mut state, None).unwrap();
+    with_tree_only_element(&mut state);
+    let dir = std::env::temp_dir().join(format!("dmn-tree-only-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(crate::state::store::STORE_FILE_NAME);
+    let mut value = serde_json::to_value(&state).unwrap();
+    let object = value.as_object_mut().unwrap();
+    for field in LEGACY_ELEMENT_FIELDS {
+        object.remove(field);
+    }
+    object.insert(
+        ELEMENT_DOCUMENT_FIELD.into(),
+        serde_json::to_value(&*state.element_document).unwrap(),
+    );
+    std::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+
+    let loaded = crate::state::migration::load_store_from_path(&path).unwrap();
+    assert!(!loaded.repaired);
+    assert_eq!(loaded.data.keys, state.keys);
+    assert_eq!(loaded.data.key_positions, state.key_positions);
+    assert_eq!(loaded.data.stat_positions, state.stat_positions);
+    assert_eq!(loaded.data.layer_groups, state.layer_groups);
+    assert_eq!(loaded.data.element_document, state.element_document);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 트리의_망가진_노드만_빼고_읽고_손상_복구로_표시한다() {
+    let mut state = default_state();
+    attach_loaded_document(&mut state, None).unwrap();
+    with_tree_only_element(&mut state);
+    let mut document = serde_json::to_value(&*state.element_document).unwrap();
+    let nodes = document["scenes"]["4key"]["nodes"].as_array_mut().unwrap();
+    let total = nodes.len();
+    // 트래커의 frame을 망가뜨린다
+    let broken = nodes
+        .iter_mut()
+        .find(|node| node["id"] == "tracker-1")
+        .unwrap();
+    broken["frame"] = serde_json::json!("??");
+    let (parsed, dropped) = parse_document_lenient(document);
+    assert_eq!(dropped, 1);
+    assert_eq!(parsed.scenes["4key"].nodes.len(), total - 1);
+    assert_eq!(parsed.scenes.len(), state.element_document.scenes.len());
 }

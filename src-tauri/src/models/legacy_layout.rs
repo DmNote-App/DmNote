@@ -852,69 +852,6 @@ pub(crate) fn graft_preset_scene(
     graft_tree_only(&resolved, target);
 }
 
-/// 저장 파일에 싣는 트리 문서 - 옛 종류 요소는 id·종류·위치·자리 정보만 남긴다.
-/// 칸 값은 옛 모양 배열에 있고 읽을 때 `reconcile_document`가 옛 모양에서 다시 채우므로
-/// 같은 내용을 두 번 저장하지 않는다
-pub(crate) fn persisted_document(document: &Document) -> Document {
-    fn skeleton(nodes: &[Node]) -> Vec<Node> {
-        nodes
-            .iter()
-            .map(|node| match node {
-                Node::Group(group) => Node::Group(Group {
-                    id: group.id.clone(),
-                    name: group.name.clone(),
-                    hidden: group.hidden,
-                    children: skeleton(&group.children),
-                    extra: group.extra.clone(),
-                }),
-                Node::Element(element) if is_legacy_kind(&element.kind) => {
-                    let mut extra = Map::new();
-                    if let Some(legacy) = legacy_info(element) {
-                        let kept: Map<String, Value> = legacy
-                            .iter()
-                            .filter(|(name, _)| name.as_str() != "fields")
-                            .map(|(name, value)| (name.clone(), value.clone()))
-                            .collect();
-                        extra.insert(LEGACY.into(), Value::Object(kept));
-                    }
-                    Node::Element(Element {
-                        id: element.id.clone(),
-                        kind: element.kind.clone(),
-                        frame: element.frame,
-                        name: None,
-                        hidden: false,
-                        class_name: None,
-                        use_inline_styles: None,
-                        bundles: Default::default(),
-                        values: Default::default(),
-                        input: None,
-                        extra,
-                    })
-                }
-                Node::Element(_) => node.clone(),
-            })
-            .collect()
-    }
-    Document {
-        format_version: document.format_version,
-        kind_versions: document.kind_versions.clone(),
-        scenes: document
-            .scenes
-            .iter()
-            .map(|(id, scene)| {
-                (
-                    id.clone(),
-                    Scene {
-                        nodes: skeleton(&scene.nodes),
-                        extra: scene.extra.clone(),
-                    },
-                )
-            })
-            .collect(),
-        extra: document.extra.clone(),
-    }
-}
-
 /// 트리 문서를 옛 모양으로 내보낸다 - 옛 종류만 나타난다
 pub(crate) fn project_document(document: &Document) -> Result<EditorDocumentV1> {
     let mut legacy = EditorDocumentV1 {

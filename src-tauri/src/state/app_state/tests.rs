@@ -2470,8 +2470,10 @@ fn sigterm_preserves_pending_state_and_allows_retry_after_canceled_flush() {
             );
         }
         let persisted: AppStoreData =
-            serde_json::from_slice(&std::fs::read(directory.path().join("store-v2.json")).unwrap())
-                .unwrap();
+            serde_json::from_value(crate::state::migration::read_store_value_with_legacy(
+                &directory.path().join("store-v2.json"),
+            ))
+            .unwrap();
         let key = persisted.keys[&persisted.selected_key_type][0].canonical();
         let counter = persisted.key_counters[&persisted.selected_key_type][&key];
         let x = persisted.overlay_bounds.as_ref().map(|bounds| bounds.x);

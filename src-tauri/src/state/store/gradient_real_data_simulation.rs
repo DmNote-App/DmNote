@@ -994,7 +994,7 @@ fn simulation_6_removed_outline_fields_are_scrubbed_and_persisted_in_place() {
     store.flush_and_shutdown().unwrap();
     drop(store);
 
-    let persisted_value: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    let persisted_value = crate::state::migration::read_store_value_with_legacy(&path);
     assert_eq!(removed_outline_field_count(&persisted_value), 0);
     assert_eq!(
         collection_counts(&persisted_value, "keyPositions"),
@@ -1116,7 +1116,7 @@ fn simulation_7_removed_stroke_evidence_blocks_default_promotion_after_persisten
     store.flush_and_shutdown().unwrap();
     drop(store);
 
-    let persisted_value: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    let persisted_value = crate::state::migration::read_store_value_with_legacy(&path);
     assert_eq!(removed_outline_field_count(&persisted_value), 0);
     let persisted_counter = persisted_value["keyPositions"][&location.mode][location.index]
         ["counter"]

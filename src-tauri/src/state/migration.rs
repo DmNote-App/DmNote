@@ -92,6 +92,47 @@ pub(crate) struct LoadedStore {
     pub(crate) element_document_missing: bool,
 }
 
+// 옛 종류 칸이 하나도 없고 트리만 있으면 트리에서 옛 모양을 만든다 (옛 칸이 있는 파일은 그대로).
+// 만들지 못하면 true - 손상 복구처럼 원본을 백업하고 자산 정리를 건너뛴다
+fn fill_legacy_fields_from_tree(value: &mut Value, document: &Value) -> bool {
+    let Some(object) = value.as_object_mut() else {
+        return false;
+    };
+    if super::store::LEGACY_ELEMENT_FIELDS
+        .iter()
+        .any(|field| object.contains_key(*field))
+    {
+        return false;
+    }
+    let (document, _) = super::store::parse_document_lenient(document.clone());
+    let projected = match crate::models::legacy_layout::project_document(&document) {
+        Ok(projected) => projected,
+        Err(error) => {
+            log::warn!("[Store] 트리에서 옛 모양을 만들지 못했습니다: {error:#}");
+            return true;
+        }
+    };
+    let Ok(Value::Object(fields)) = serde_json::to_value(&projected) else {
+        return true;
+    };
+    for (name, field) in fields {
+        if super::store::LEGACY_ELEMENT_FIELDS.contains(&name.as_str()) {
+            object.insert(name, field);
+        }
+    }
+    false
+}
+
+/// 테스트 - 저장 파일을 옛 모양 칸까지 채운 값으로 읽는다 (트리에서 다시 만들고 정리는 하지 않는다)
+#[cfg(test)]
+pub(crate) fn read_store_value_with_legacy(path: &Path) -> Value {
+    let mut value: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    if let Some(document) = value.get(super::store::ELEMENT_DOCUMENT_FIELD).cloned() {
+        assert!(!fill_legacy_fields_from_tree(&mut value, &document));
+    }
+    value
+}
+
 /// store 파일 로드 및 마이그레이션 적용
 pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     // 바이트로 읽어 잘못된 UTF-8도 IO 에러 대신 JSON 파싱 실패로 흘려 복구 분기에 합류
@@ -99,12 +140,17 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
         .with_context(|| format!("failed to read store file at {}", path.display()))?;
     // 요소 트리 문서는 옛 모양 정리가 끝난 뒤 붙인다 (플러그인 데이터 칸으로 새지 않게 먼저 뺀다)
     let mut stored_element_document = None;
+    let mut projection_failed = false;
     let (state, needs_persist, repaired, seed_active_css_history, explicit_invalid_element_id) =
         match serde_json::from_slice::<Value>(&content) {
             Ok(mut value) => {
                 stored_element_document = value
                     .as_object_mut()
                     .and_then(|object| object.remove(super::store::ELEMENT_DOCUMENT_FIELD));
+                // 트리가 저장 원본인 파일 - 옛 종류 칸을 트리에서 다시 만들어 옛 정리 경로에 넣는다
+                if let Some(document) = stored_element_document.as_ref() {
+                    projection_failed = fill_legacy_fields_from_tree(&mut value, document);
+                }
                 let seed_active_css_history = value.get("customCssHistory").is_none();
                 let explicit_invalid_element_id = has_explicit_invalid_element_id(&value);
                 let sprite_wire_migrated = migrate_legacy_sprite_wire(&mut value);
@@ -249,7 +295,7 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     let attached = super::store::attach_loaded_document(&mut state, stored_element_document)?;
     needs_persist |= attached.changed;
     // 읽지 못한 트리 문서는 손상 복구와 같이 원본을 백업하고 자산 정리를 건너뛴다
-    repaired |= attached.unreadable;
+    repaired |= attached.unreadable || projection_failed;
     if needs_persist {
         log::info!(
             "[Store] Persisting migrated store file at {}",

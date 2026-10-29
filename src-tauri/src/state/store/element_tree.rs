@@ -16,13 +16,94 @@ use serde_json::Value;
 use super::AppStore;
 use crate::models::legacy_layout::{
     graft_preset_scene, graft_tree_only, import_document, is_legacy_kind, is_tree_only_group,
-    persisted_document, project_document, reconcile_document, strip_tree_only, LegacyRef,
+    project_document, reconcile_document, strip_tree_only, LegacyRef,
 };
 use crate::models::{builtin_kind_registry, AppStoreData, EditorCommitRequest, EditorDocumentV1};
 use crate::state::history::ElementTreeHistorySnapshot;
 
 // 저장 파일에서 트리 문서가 실리는 칸
 pub(crate) const ELEMENT_DOCUMENT_FIELD: &str = "elementDocument";
+
+// 트리가 저장 원본이 된 뒤 저장 파일에 싣지 않는 옛 종류 칸 - 읽을 때 트리에서 다시 만든다
+pub(crate) const LEGACY_ELEMENT_FIELDS: [&str; 7] = [
+    "keys",
+    "keyPositions",
+    "statPositions",
+    "graphPositions",
+    "knobPositions",
+    "spritePositions",
+    "layerGroups",
+];
+
+/// 저장된 트리 문서 읽기 - 통째로 읽지 못하면 장면·노드 단위로 읽고 망가진 노드만 뺀다.
+/// 두 번째 값은 뺀 노드 수 (장면째 못 읽은 것도 하나로 센다)
+pub(crate) fn parse_document_lenient(value: Value) -> (Document, usize) {
+    if let Ok(document) = serde_json::from_value::<Document>(value.clone()) {
+        return (document, 0);
+    }
+    fn parse_nodes(values: &[Value], dropped: &mut usize) -> Vec<Node> {
+        values
+            .iter()
+            .filter_map(|value| {
+                if let Ok(node) = serde_json::from_value::<Node>(value.clone()) {
+                    return Some(node);
+                }
+                // 그룹이면 안쪽을 따로 읽어 살린다
+                let mut object = value.as_object()?.clone();
+                if object.get("type").and_then(Value::as_str) == Some("group") {
+                    let children = object
+                        .insert("children".into(), Value::Array(Vec::new()))
+                        .and_then(|children| children.as_array().cloned())
+                        .unwrap_or_default();
+                    if let Ok(Node::Group(mut group)) =
+                        serde_json::from_value::<Node>(Value::Object(object))
+                    {
+                        group.children = parse_nodes(&children, dropped);
+                        return Some(Node::Group(group));
+                    }
+                }
+                *dropped += 1;
+                None
+            })
+            .collect()
+    }
+    let mut dropped = 0;
+    let mut document = Document::default();
+    let Some(object) = value.as_object() else {
+        return (document, 1);
+    };
+    if let Some(version) = object.get("formatVersion").and_then(Value::as_u64) {
+        document.format_version = version as u32;
+    }
+    if let Some(versions) = object
+        .get("kindVersions")
+        .and_then(|versions| serde_json::from_value(versions.clone()).ok())
+    {
+        document.kind_versions = versions;
+    }
+    if let Some(scenes) = object.get("scenes").and_then(Value::as_object) {
+        for (scene_id, scene) in scenes {
+            let Some(scene_object) = scene.as_object() else {
+                dropped += 1;
+                continue;
+            };
+            let nodes = scene_object
+                .get("nodes")
+                .and_then(Value::as_array)
+                .map(|nodes| parse_nodes(nodes, &mut dropped))
+                .unwrap_or_default();
+            let extra = scene_object
+                .iter()
+                .filter(|(name, _)| name.as_str() != "nodes")
+                .map(|(name, value)| (name.clone(), value.clone()))
+                .collect();
+            document
+                .scenes
+                .insert(scene_id.clone(), element_document::Scene { nodes, extra });
+        }
+    }
+    (document, dropped.max(1))
+}
 
 struct UuidSource;
 
@@ -57,13 +138,13 @@ pub(crate) fn attach_loaded_document(
 ) -> Result<AttachOutcome> {
     let legacy = EditorDocumentV1::from_store(state);
     let mut unreadable = false;
-    let stored = stored.and_then(|value| match serde_json::from_value::<Document>(value) {
-        Ok(document) => Some(document),
-        Err(error) => {
-            log::warn!("[Store] 요소 트리 문서를 읽지 못해 옛 모양에서 다시 만듭니다: {error}");
+    let stored = stored.map(|value| {
+        let (document, dropped) = parse_document_lenient(value);
+        if dropped > 0 {
+            log::warn!("[Store] 요소 트리 문서에서 읽지 못한 노드 {dropped}개를 빼고 읽습니다");
             unreadable = true;
-            None
         }
+        document
     });
     let mut document = match &stored {
         Some(stored) => {
@@ -85,10 +166,7 @@ pub(crate) fn attach_loaded_document(
         );
     }
     // 트리 문서가 없던 파일(옛 store.json)은 부르는 쪽이 새 파일로 저장한다
-    let changed = unreadable
-        || stored
-            .as_ref()
-            .is_some_and(|stored| stored != &persisted_document(&document));
+    let changed = unreadable || stored.as_ref().is_some_and(|stored| stored != &document);
     state.element_document = std::sync::Arc::new(document);
     Ok(AttachOutcome {
         changed,

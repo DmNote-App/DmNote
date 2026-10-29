@@ -5600,8 +5600,10 @@ fn element_rotation_survives_legacy_updates_gesture_history_and_restart() {
 
     store.flush_and_shutdown().unwrap();
     let disk: AppStoreData =
-        serde_json::from_slice(&std::fs::read(directory.path().join("store-v2.json")).unwrap())
-            .unwrap();
+        serde_json::from_value(crate::state::migration::read_store_value_with_legacy(
+            &directory.path().join("store-v2.json"),
+        ))
+        .unwrap();
     assert_eq!(EditorDocumentV1::from_store(&disk), ungrouped);
     drop(store);
     let reopened = AppStore::initialize_for_test(directory.path()).unwrap();
@@ -16765,7 +16767,9 @@ fn dangling_group_ids_are_cleaned_and_persisted_on_boot() {
     store.flush_and_shutdown().unwrap();
     drop(store);
 
-    let on_disk: AppStoreData = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let on_disk: AppStoreData =
+        serde_json::from_value(crate::state::migration::read_store_value_with_legacy(&path))
+            .unwrap();
     assert_eq!(on_disk.key_positions["4key"][0].group_id, None);
 
     let reloaded = super::load_store_from_path(&path).unwrap();
