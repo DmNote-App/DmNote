@@ -94,6 +94,8 @@ describe('편집 창 요소 문서 스토어', () => {
     expect(store.getElement('4key', 'k1')?.frame.x).toBe(40);
     expect(store.getElement('4key', 'k2')).toBe(untouched);
     expect(listener).toHaveBeenCalledTimes(1);
+    // 커밋은 차례를 기다렸다 보낸다
+    await Promise.resolve();
     resolve({ status: 'committed', revision: 2, changes: { scenes: {} } });
     await pending;
     // 패치가 오기 전까지 화면을 지킨다
@@ -185,6 +187,7 @@ describe('편집 창 요소 문서 스토어', () => {
       x: 15,
       y: 30,
     });
+    await Promise.resolve();
     resolve({
       status: 'rejected',
       revision: 2,
@@ -196,6 +199,44 @@ describe('편집 창 요소 문서 스토어', () => {
       x: 15,
       y: 0,
     });
+  });
+
+  it('앞 커밋의 응답이 오기 전에는 다음 커밋을 보내지 않는다', async () => {
+    const sent: number[] = [];
+    const resolvers: Array<(result: ElementDocumentCommitResult) => void> = [];
+    const { store } = harness(
+      (ops) =>
+        new Promise((resolve) => {
+          const op = ops[0];
+          if (op.op === 'setFrame') sent.push(op.frame.x as number);
+          resolvers.push(resolve);
+        }),
+    );
+    const first = store.edit!(nudge('k1', 1));
+    const second = store.edit!(nudge('k1', 2));
+    await Promise.resolve();
+    expect(sent).toEqual([1]);
+    // 화면에는 둘 다 먼저 반영된다
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(2);
+    resolvers[0]({ status: 'committed', revision: 2, changes: { scenes: {} } });
+    await first;
+    await Promise.resolve();
+    expect(sent).toEqual([1, 2]);
+    resolvers[1]({ status: 'committed', revision: 3, changes: { scenes: {} } });
+    await second;
+  });
+
+  it('앞 커밋이 실패해도 다음 커밋은 보낸다', async () => {
+    let calls = 0;
+    const { store } = harness(async () => {
+      calls += 1;
+      if (calls === 1) throw new Error('ipc');
+      return { status: 'committed', revision: 2, changes: { scenes: {} } };
+    });
+    const first = store.edit!(nudge('k1', 1));
+    const second = store.edit!(nudge('k1', 2));
+    await expect(first).rejects.toThrow('ipc');
+    expect((await second).status).toBe('committed');
   });
 
   it('장면을 통째로 바꾼 패치도 바뀌지 않은 요소는 같은 객체로 둔다', () => {

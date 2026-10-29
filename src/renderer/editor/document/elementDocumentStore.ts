@@ -178,6 +178,8 @@ export const createEditorDocumentStore = (
   let pending: PendingEdit[] = [];
   let view = confirmed;
   const listeners = new Listeners();
+  // 커밋은 하나씩 보낸다 - 백엔드는 동시에 온 커밋의 순서를 지키지 않는다
+  let queue: Promise<unknown> = Promise.resolve();
 
   const rebuild = () => {
     view = pending.reduce(
@@ -220,9 +222,11 @@ export const createEditorDocumentStore = (
       pending = [...pending, edit];
       rebuild();
       listeners.emit(localChanges([edit]));
+      const sent = queue.then(() => transport.commit(ops));
+      queue = sent.catch(() => undefined);
       let result: ElementDocumentCommitResult;
       try {
-        result = await transport.commit(ops);
+        result = await sent;
       } catch (error) {
         drop(edit);
         throw error;

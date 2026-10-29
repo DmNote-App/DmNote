@@ -39,8 +39,15 @@ export const insertDocumentElement = (
 ) => {
   const definition = elementKindDefinition(kind);
   if (!definition) return Promise.resolve(null);
-  const { defaultSize } = elementKindData(definition);
+  const { defaultSize, fields } = elementKindData(definition);
   const id = newId();
+  // 백엔드도 기본값을 채우지만, 응답 전 화면(낙관 적용)에서도 제대로 그리도록 함께 보낸다
+  const values = Object.fromEntries(
+    (fields ?? []).map((field) => [
+      field.name,
+      (field.default ?? null) as JsonValue,
+    ]),
+  );
   return editDocument([
     {
       op: 'insert',
@@ -58,6 +65,7 @@ export const insertDocumentElement = (
           height: defaultSize.height,
           rotation: 0,
         },
+        values,
       },
     },
   ]).then((result) => (result?.status === 'committed' ? id : null));
