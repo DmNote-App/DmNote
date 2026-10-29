@@ -2,6 +2,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useKeyStore } from '@stores/data/useKeyStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useDocumentKeyboard } from './useDocumentKeyboard';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
@@ -11,7 +12,20 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const mocks = vi.hoisted(() => ({
   remove: vi.fn(() => Promise.resolve(null)),
   move: vi.fn(() => Promise.resolve(null)),
+  copy: vi.fn(() => true),
+  paste: vi.fn(() => Promise.resolve()),
+  clipboard: [] as unknown[],
 }));
+
+vi.mock('./documentClipboard', () => ({
+  copyDocumentSelection: mocks.copy,
+  pasteDocumentClipboard: mocks.paste,
+  useDocumentClipboardStore: {
+    getState: () => ({ nodes: mocks.clipboard }),
+  },
+}));
+
+vi.mock('@utils/core/platform', () => ({ isMac: () => true }));
 
 vi.mock('./documentEditActions', () => ({
   removeDocumentElements: mocks.remove,
@@ -46,6 +60,9 @@ describe('트리 요소 키보드', () => {
     act(() => root.render(<Harness />));
     mocks.remove.mockClear();
     mocks.move.mockClear();
+    mocks.copy.mockClear();
+    mocks.paste.mockClear();
+    mocks.clipboard = [];
   });
 
   afterEach(() => {
@@ -69,6 +86,19 @@ describe('트리 요소 키보드', () => {
       { id: 't1', x: 9, y: 20 },
       { id: 't2', x: 9, y: 20 },
     ]);
+  });
+
+  it('Cmd+C는 고른 트리 요소를 복사하고 Cmd+V는 트리 클립보드가 있을 때만 지금 탭에 붙인다', () => {
+    press('v', { metaKey: true });
+    expect(mocks.paste).not.toHaveBeenCalled();
+    useDocumentSelectionStore.getState().select('4key', 't1');
+    press('c', { metaKey: true });
+    expect(mocks.copy).toHaveBeenCalledTimes(1);
+    useDocumentSelectionStore.getState().clear();
+    mocks.clipboard = [{ id: 't1' }];
+    useKeyStore.setState({ selectedKeyType: '5key' });
+    press('v', { metaKey: true });
+    expect(mocks.paste).toHaveBeenCalledWith('5key');
   });
 
   it('Delete는 지우고 선택을 푼다', () => {

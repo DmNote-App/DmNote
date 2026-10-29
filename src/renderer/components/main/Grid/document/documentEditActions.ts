@@ -120,41 +120,17 @@ export const setDocumentCommon = (
   common: { name?: string | null; hidden?: boolean },
 ) => editDocument([{ op: 'setCommon', scene: sceneId, id, ...common }]);
 
-/** 같은 장면에 복제 - 오른쪽 아래로 조금 비켜 놓는다 */
-export const duplicateDocumentElement = (sceneId: string, id: string) => {
-  const element = getElementDocumentStore()?.getElement(sceneId, id);
-  if (!element) return Promise.resolve(null);
-  const copyId = newId();
-  return editDocument([
-    {
-      op: 'insert',
-      scene: sceneId,
-      parent: null,
-      index: null,
-      node: {
-        ...element,
-        id: copyId,
-        frame: {
-          ...element.frame,
-          x: element.frame.x + 20,
-          y: element.frame.y + 20,
-        },
-      },
-    },
-  ]).then((result) => (result?.status === 'committed' ? copyId : null));
-};
-
 /** 겹치는 순서 - 맨 위(목록 끝) 또는 맨 아래(목록 앞) */
 export const moveDocumentElementTo = (
   sceneId: string,
-  id: string,
+  ids: string[],
   place: 'front' | 'back',
 ) =>
   editDocument([
     {
       op: 'move',
       scene: sceneId,
-      ids: [id],
+      ids,
       parent: null,
       index: place === 'front' ? null : 0,
     },

@@ -4,8 +4,8 @@ import ListPopup from '@components/main/Modal/listPopup/ListPopup';
 import { useTranslation } from '@contexts/useTranslation';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
+import { duplicateDocumentSelection } from './documentClipboard';
 import {
-  duplicateDocumentElement,
   moveDocumentElementTo,
   removeDocumentElements,
 } from './documentEditActions';
@@ -44,18 +44,23 @@ const DocumentContextMenu = () => {
         onSelect={(id: string) => {
           if (!target) return;
           const { sceneId } = target;
+          // 고른 요소를 우클릭하면 고른 것 전체에, 아니면 그 요소만 (옛 종류 메뉴와 같다)
+          const selection = useDocumentSelectionStore.getState();
+          const ids =
+            selection.sceneId === sceneId &&
+            selection.selectedIds.includes(target.id)
+              ? selection.selectedIds
+              : [target.id];
           if (id === 'delete') {
-            useDocumentSelectionStore.getState().clear();
-            void removeDocumentElements(sceneId, [target.id]);
+            selection.clear();
+            void removeDocumentElements(sceneId, ids);
           } else if (id === 'duplicate') {
-            void duplicateDocumentElement(sceneId, target.id).then((copy) => {
-              if (copy)
-                useDocumentSelectionStore.getState().select(sceneId, copy);
-            });
+            if (ids.length === 1) selection.select(sceneId, target.id);
+            void duplicateDocumentSelection(sceneId);
           } else if (id === 'bringToFront' || id === 'sendToBack') {
             void moveDocumentElementTo(
               sceneId,
-              target.id,
+              ids,
               id === 'bringToFront' ? 'front' : 'back',
             );
           }

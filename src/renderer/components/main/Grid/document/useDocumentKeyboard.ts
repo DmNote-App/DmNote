@@ -1,24 +1,28 @@
 import { useEffect } from 'react';
 
 import { isModalLayerActive } from '@components/main/Modal/popupLayer';
+import { useKeyStore } from '@stores/data/useKeyStore';
+import { isMac } from '@utils/core/platform';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import {
   moveDocumentElements,
   removeDocumentElements,
 } from './documentEditActions';
+import {
+  copyDocumentSelection,
+  pasteDocumentClipboard,
+  useDocumentClipboardStore,
+} from './documentClipboard';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 const ARROW_STEP = 1;
 const ARROW_STEP_LARGE = 10;
 
-/** 트리 요소 선택 중 키보드 - 삭제·화살표 이동·선택 해제 (옛 종류 선택과 같은 키) */
+/** 트리 요소 키보드 - 복사·붙여넣기·삭제·화살표 이동·선택 해제 (옛 종류 선택과 같은 키) */
 export const useDocumentKeyboard = () => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const { sceneId, selectedIds, clear } =
-        useDocumentSelectionStore.getState();
-      if (!sceneId || selectedIds.length === 0 || event.defaultPrevented)
-        return;
+      if (event.defaultPrevented) return;
       if (isModalLayerActive() || window.__dmn_isKeyListening) return;
       const target = event.target as HTMLElement | null;
       if (
@@ -27,6 +31,22 @@ export const useDocumentKeyboard = () => {
           target.tagName === 'TEXTAREA' ||
           target.isContentEditable)
       ) {
+        return;
+      }
+      const primaryModifier = isMac() ? event.metaKey : event.ctrlKey;
+      // 붙여넣기는 고른 것이 없어도 된다 - 트리 클립보드가 있을 때만 (옛 종류 클립보드와 함께 서지 않는다)
+      if (primaryModifier && event.key.toLowerCase() === 'v') {
+        if (useDocumentClipboardStore.getState().nodes.length === 0) return;
+        event.preventDefault();
+        void pasteDocumentClipboard(useKeyStore.getState().selectedKeyType);
+        return;
+      }
+      const { sceneId, selectedIds, clear } =
+        useDocumentSelectionStore.getState();
+      if (!sceneId || selectedIds.length === 0) return;
+      if (primaryModifier && event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        copyDocumentSelection();
         return;
       }
       if (event.key === 'Escape') {
