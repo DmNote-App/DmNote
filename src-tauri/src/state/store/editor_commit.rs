@@ -192,6 +192,7 @@ impl AppStore {
             record_history: true,
             apply_key_side_effects: true,
             enforce_touched_fields: false,
+            element_tree: request.element_tree.take(),
         };
         let change = if let Some(changes) = request.changes.as_mut() {
             changes.merge_omitted_sprite_fields(&guard.data.sprite_positions);
@@ -336,6 +337,10 @@ impl AppStore {
         scratch.editor_revision = revision;
         let selected_key_type = scratch.selected_key_type.clone();
         let key_counters = scratch.key_counters.clone();
+        // 트리 쓰기에서 온 커밋 - 편집한 트리를 맞추기 기준으로 (트리 전용 노드 자리 유지)
+        if let Some(tree) = options.element_tree.clone() {
+            scratch.element_document = tree;
+        }
 
         self.commit_locked(guard, scratch, ())
             .map_err(|error| EditorCommitError::io(error.to_string()))?;

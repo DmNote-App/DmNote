@@ -17,6 +17,7 @@ pub(crate) mod window;
 pub(crate) use app_state::PANEL_LABEL;
 pub use app_state::{AppState, PanelDragContext};
 pub use store::AppStore;
+pub(crate) use store::ElementDocumentCommitPlan;
 pub use store::ElementDocumentCommitResult;
 #[cfg_attr(not(target_os = "windows"), allow(unused_imports))]
 pub(crate) use store::{PREVIOUS_STORE_FILE_NAME, STORE_FILE_NAME};

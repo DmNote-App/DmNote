@@ -961,6 +961,7 @@ fn editor_request_detects_every_direct_key_mapping_mutation() {
             changes,
             ops_version: ops.as_ref().map(|_| EDITOR_OPS_VERSION),
             ops,
+            element_tree: None,
         };
 
     let key_patch = EditorPatchV1 {

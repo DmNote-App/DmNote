@@ -325,6 +325,7 @@ fn key_mapping_commit_preserves_unflushed_runtime_counters() {
             id: replaced_id,
             slot: EditorFrozenKeySlotV1::Single("QA NEW KEY".to_string()),
         }]),
+        element_tree: None,
     };
     let admission = state.store.admit_editor_mutation().unwrap();
     let (change, runtime_applied) = state
@@ -378,6 +379,7 @@ fn history_mapping_change_restores_historical_counter_domain() {
             id: replaced_id,
             slot: EditorFrozenKeySlotV1::Single(replacement_key.to_string()),
         }]),
+        element_tree: None,
     };
     let admission = state.store.admit_editor_mutation().unwrap();
     let (committed, runtime_applied) = state

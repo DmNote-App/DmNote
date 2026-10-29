@@ -1045,6 +1045,10 @@ pub struct EditorCommitRequest {
     pub ops_version: Option<u16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ops: Option<Vec<EditorOpV1>>,
+    // 트리 쓰기가 옛 종류 요소를 고칠 때 - 그 편집을 적용한 트리를 맞추기 기준으로 쓴다
+    // (트리 전용 노드 자리를 편집한 그대로 지킨다). IPC로는 받지 않는다
+    #[serde(skip)]
+    pub(crate) element_tree: Option<std::sync::Arc<element_document::Document>>,
 }
 
 impl EditorCommitRequest {

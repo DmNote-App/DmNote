@@ -98,6 +98,7 @@ fn request(keys: KeyMappings) -> EditorCommitRequest {
         }),
         ops_version: None,
         ops: None,
+        element_tree: None,
     }
 }
 
@@ -111,6 +112,7 @@ fn ops_request(ops: Vec<EditorOpV1>) -> EditorCommitRequest {
         changes: None,
         ops_version: Some(EDITOR_OPS_VERSION),
         ops: Some(ops),
+        element_tree: None,
     }
 }
 
@@ -3533,6 +3535,7 @@ fn revision_and_request_id_wire_limits_are_enforced() {
         changes: Some(EditorPatchV1::default()),
         ops_version: None,
         ops: None,
+        element_tree: None,
     };
     assert!(validate_request_envelope(&invalid).is_err());
 

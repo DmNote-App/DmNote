@@ -280,33 +280,54 @@ pub async fn editor_commit(
                     log::warn!("failed to finish committed preview session: {error}");
                 }
             }
-            if change.event.is_some() {
-                if key_runtime_applied {
-                    publish_editor_change_after_key_runtime(state, app, &change);
-                } else {
-                    publish_editor_change(state, app, &change, false);
-                }
-            }
-            if !change.replayed {
-                let legacy_fields =
-                    commit_legacy_fields(is_ops, &requested_fields, &change.result.changed_fields);
-                publish_legacy_editor_fields(state, app, &change, legacy_fields);
-                if previous_mode.is_some_and(|mode| mode != change.selected_key_type) {
-                    emit_best_effort(
-                        app,
-                        "keys:mode-changed",
-                        &serde_json::json!({ "mode": &change.selected_key_type }),
-                    );
-                }
-            }
-            if let Some(history_status) = change.history_status.as_ref() {
-                emit_best_effort(app, "history:status", history_status);
-            }
+            publish_editor_commit(
+                app,
+                state,
+                &change,
+                key_runtime_applied,
+                is_ops,
+                &requested_fields,
+                previous_mode,
+            );
             drop(admission);
             Ok(change.result)
         },
     )
     .await
+}
+
+// 편집 커밋 뒤 알림 - editor_commit과 트리 쓰기(옛 종류 요소 편집)가 같이 쓴다
+pub(crate) fn publish_editor_commit(
+    app: &AppHandle,
+    state: &AppState,
+    change: &CommittedEditorChange,
+    key_runtime_applied: bool,
+    is_ops: bool,
+    requested_fields: &[EditorField],
+    previous_mode: Option<String>,
+) {
+    if change.event.is_some() {
+        if key_runtime_applied {
+            publish_editor_change_after_key_runtime(state, app, change);
+        } else {
+            publish_editor_change(state, app, change, false);
+        }
+    }
+    if !change.replayed {
+        let legacy_fields =
+            commit_legacy_fields(is_ops, requested_fields, &change.result.changed_fields);
+        publish_legacy_editor_fields(state, app, change, legacy_fields);
+        if previous_mode.is_some_and(|mode| mode != change.selected_key_type) {
+            emit_best_effort(
+                app,
+                "keys:mode-changed",
+                &serde_json::json!({ "mode": &change.selected_key_type }),
+            );
+        }
+    }
+    if let Some(history_status) = change.history_status.as_ref() {
+        emit_best_effort(app, "history:status", history_status);
+    }
 }
 
 #[cfg(test)]

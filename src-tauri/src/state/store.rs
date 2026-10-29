@@ -85,6 +85,7 @@ use editor_transactions::{
     project_editor_history_key_counters, project_history_key_counters, require_history_entry,
     validate_observed_history_epoch,
 };
+pub(crate) use element_tree::ElementDocumentCommitPlan;
 pub use element_tree::ElementDocumentCommitResult;
 pub(crate) use element_tree::{
     apply_full_preset_tree, apply_tab_preset_tree, attach_loaded_document, element_tree_snapshot,
@@ -256,6 +257,7 @@ struct EditorPatchCommitOptions {
     record_history: bool,
     apply_key_side_effects: bool,
     enforce_touched_fields: bool,
+    element_tree: Option<std::sync::Arc<element_document::Document>>,
 }
 
 #[derive(Default)]

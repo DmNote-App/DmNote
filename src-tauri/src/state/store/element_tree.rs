@@ -18,7 +18,7 @@ use crate::models::legacy_layout::{
     graft_preset_scene, graft_tree_only, import_document, is_legacy_kind, is_tree_only_group,
     persisted_document, project_document, reconcile_document, strip_tree_only, LegacyRef,
 };
-use crate::models::{builtin_kind_registry, AppStoreData, EditorDocumentV1};
+use crate::models::{builtin_kind_registry, AppStoreData, EditorCommitRequest, EditorDocumentV1};
 use crate::state::history::ElementTreeHistorySnapshot;
 
 // 저장 파일에서 트리 문서가 실리는 칸
@@ -387,6 +387,18 @@ fn load_document(document: &mut Document) {
     .load(document, &mut UuidSource);
 }
 
+/// 트리 쓰기를 어느 경로로 커밋할지
+pub(crate) enum ElementDocumentCommitPlan {
+    // 트리에만 있는 노드만 - 트리 커밋
+    TreeOnly,
+    // 옛 종류 요소를 고친다 - 편집한 트리의 옛 모양을 옛 편집 커밋(검증·되돌리기·옛 알림)으로 보낸다
+    Legacy {
+        request: Box<EditorCommitRequest>,
+        changes: ChangeSet,
+    },
+    Rejected(ElementDocumentCommitResult),
+}
+
 impl AppStore {
     pub(crate) fn element_document_revision(&self) -> u64 {
         self.element_document_revision.load(Ordering::Acquire)
@@ -398,6 +410,61 @@ impl AppStore {
             self.element_document_revision(),
             guard.data.element_document.clone(),
         )
+    }
+
+    /// 트리 쓰기 경로 고르기 - 옛 종류 요소를 건드리면 편집을 적용한 트리를 옛 모양으로 내보내
+    /// 바뀐 필드만 옛 편집 패치로 만든다. 같은 트리를 맞추기 기준으로 넘겨 트리 전용 노드 자리를 지킨다
+    pub(crate) fn plan_element_document_commit(
+        &self,
+        ops: &[Op],
+        gesture_id: Option<String>,
+    ) -> Result<ElementDocumentCommitPlan> {
+        let guard = self.state.read();
+        let document = &guard.data.element_document;
+        let engine = Engine {
+            kinds: builtin_kind_registry(),
+            bundles: &BuiltinBundles,
+        };
+        if first_legacy_op(&engine, document, ops).is_none() {
+            return Ok(ElementDocumentCommitPlan::TreeOnly);
+        }
+        let mut after = (**document).clone();
+        let mut changes = match engine.apply(&mut after, ops) {
+            Ok(changes) => changes,
+            Err(violations) => {
+                return Ok(ElementDocumentCommitPlan::Rejected(
+                    ElementDocumentCommitResult::Rejected {
+                        revision: self.element_document_revision(),
+                        code: VIOLATION,
+                        violations,
+                    },
+                ))
+            }
+        };
+        let prune = empty_tree_groups(&after, changes.scenes.keys());
+        if !prune.is_empty() {
+            if let Ok(more) = engine.apply(&mut after, &prune) {
+                changes.merge(more);
+            }
+        }
+        let before = EditorDocumentV1::from_store(&guard.data);
+        let projected = project_document(&after)?;
+        let fields = before.changed_fields(&projected);
+        let request = EditorCommitRequest {
+            base_revision: guard.data.editor_revision,
+            mutation_id: uuid::Uuid::new_v4().to_string(),
+            multi_key: true,
+            gesture_id,
+            gesture_ids: Vec::new(),
+            changes: Some(projected.patch_for_fields(&fields)),
+            ops_version: None,
+            ops: None,
+            element_tree: Some(std::sync::Arc::new(after)),
+        };
+        Ok(ElementDocumentCommitPlan::Legacy {
+            request: Box::new(request),
+            changes,
+        })
     }
 
     /// 트리 편집 연산 커밋 - 전부 적용하거나 아무것도 바꾸지 않는다

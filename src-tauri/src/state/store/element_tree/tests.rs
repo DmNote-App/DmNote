@@ -705,3 +705,89 @@ fn 트리_그룹이_빠지기나_옮기기로_비면_함께_지운다() {
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+fn commit_planned(store: &crate::state::AppStore, ops: serde_json::Value) {
+    let ops: Vec<Op> = serde_json::from_value(ops).unwrap();
+    match store.plan_element_document_commit(&ops, None).unwrap() {
+        ElementDocumentCommitPlan::Legacy { request, .. } => {
+            store.commit_editor_document(*request).unwrap();
+        }
+        ElementDocumentCommitPlan::TreeOnly => {
+            assert!(matches!(
+                store.commit_element_document(&ops).unwrap(),
+                ElementDocumentCommitResult::Committed { .. }
+            ));
+        }
+        ElementDocumentCommitPlan::Rejected(result) => panic!("{result:?}"),
+    }
+}
+
+#[test]
+fn 트리_쓰기로_옛_종류_요소를_고치면_옛_편집_커밋으로_옛_모양이_바뀌고_되돌릴_수_있다() {
+    use crate::state::history::HistoryDirection;
+    let (dir, store) = open_store();
+    let key = store.snapshot().key_positions["4key"][2].id.clone();
+    let before_dx = store.snapshot().key_positions["4key"][2].dx;
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "setFrame", "scene": "4key", "id": key, "frame": { "x": 321 } }]),
+    );
+    assert_eq!(store.snapshot().key_positions["4key"][2].dx, 321.0);
+    assert_eq!(
+        store.element_document_snapshot().1.scenes["4key"]
+            .element(&key)
+            .unwrap()
+            .frame
+            .x,
+        321.0
+    );
+    let counters = Default::default();
+    store
+        .apply_history_operation(
+            HistoryDirection::Undo,
+            &uuid::Uuid::new_v4().to_string(),
+            &counters,
+            || {},
+        )
+        .unwrap();
+    assert_eq!(store.snapshot().key_positions["4key"][2].dx, before_dx);
+    assert_eq!(
+        project_document(&store.element_document_snapshot().1).unwrap(),
+        crate::models::EditorDocumentV1::from_store(&store.snapshot())
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 옛_종류_요소와_트리_요소를_한_그룹으로_묶으면_옛_그룹이_되고_트리_요소도_그_안에_있다() {
+    let (dir, store) = open_store();
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "insert", "scene": "4key", "parent": null, "index": null, "node": tracker_json("t1") }]),
+    );
+    let key = store.snapshot().key_positions["4key"][3].id.clone();
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "group", "scene": "4key", "id": "mixed", "name": "섞임", "ids": [key, "t1"] }]),
+    );
+    let snapshot = store.snapshot();
+    assert!(snapshot.layer_groups["4key"]
+        .iter()
+        .any(|group| group.id == "mixed"));
+    assert_eq!(
+        snapshot.key_positions["4key"][3].group_id.as_deref(),
+        Some("mixed")
+    );
+    let document = store.element_document_snapshot().1;
+    assert_eq!(
+        document.scenes["4key"].parent_of("t1"),
+        Some(Some("mixed".to_string()))
+    );
+    assert_eq!(
+        project_document(&document).unwrap(),
+        crate::models::EditorDocumentV1::from_store(&snapshot)
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

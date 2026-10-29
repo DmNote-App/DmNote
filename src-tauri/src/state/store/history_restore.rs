@@ -82,6 +82,7 @@ impl AppStore {
                                 record_history: false,
                                 apply_key_side_effects: restores_keys,
                                 enforce_touched_fields: true,
+                                element_tree: None,
                             },
                         )
                         .map_err(editor_history_error)?;

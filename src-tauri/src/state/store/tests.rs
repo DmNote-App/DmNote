@@ -313,6 +313,7 @@ fn editor_request(
         changes: Some(changes),
         ops_version: None,
         ops: None,
+        element_tree: None,
     }
 }
 
@@ -330,6 +331,7 @@ fn editor_ops_request(
         changes: None,
         ops_version: Some(EDITOR_OPS_VERSION),
         ops: Some(ops),
+        element_tree: None,
     }
 }
 

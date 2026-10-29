@@ -19,8 +19,13 @@ export type ElementDocumentCommitResult =
   | {
       status: 'rejected';
       revision: number;
-      // VIOLATION: 규칙에 어긋남, MANAGED_ELSEWHERE: 옛 저장 모양 경로로만 고칠 수 있는 대상
-      code: 'VIOLATION' | 'MANAGED_ELSEWHERE' | 'HISTORY_IN_PROGRESS';
+      // VIOLATION: 규칙에 어긋남, MANAGED_ELSEWHERE: 옛 저장 모양 경로로만 고칠 수 있는 대상,
+      // LEGACY_REJECTED: 옛 종류 요소 편집을 옛 편집 커밋이 받지 않음(검증·리비전 충돌)
+      code:
+        | 'VIOLATION'
+        | 'MANAGED_ELSEWHERE'
+        | 'HISTORY_IN_PROGRESS'
+        | 'LEGACY_REJECTED';
       violations: Violation[];
     };
 

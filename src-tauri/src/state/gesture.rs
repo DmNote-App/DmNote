@@ -63,6 +63,7 @@ pub(crate) fn validate_gesture_commit_request(
             changes: Some(changes.clone()),
             ops_version: None,
             ops: None,
+            element_tree: None,
         },
         (None, Some(version), Some(ops)) => EditorCommitRequest {
             base_revision: request.editor_base_revision,
@@ -73,6 +74,7 @@ pub(crate) fn validate_gesture_commit_request(
             changes: None,
             ops_version: Some(version),
             ops: Some(ops.clone()),
+            element_tree: None,
         },
         // plugin-only도 기존과 같은 공통 mutation/gesture ID 검증을 통과
         (None, None, None) => EditorCommitRequest {
@@ -84,6 +86,7 @@ pub(crate) fn validate_gesture_commit_request(
             changes: Some(Default::default()),
             ops_version: None,
             ops: None,
+            element_tree: None,
         },
         _ => {
             return Err(EditorCommitError::validation(
