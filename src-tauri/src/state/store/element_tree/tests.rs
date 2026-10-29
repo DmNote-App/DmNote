@@ -1173,3 +1173,236 @@ fn 흩어진_그룹_맨_앞에_넣으면_그_그룹_맨_아래에_남는다() {
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+struct Rng(u64);
+
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+    fn below(&mut self, n: usize) -> usize {
+        (self.next() % n.max(1) as u64) as usize
+    }
+    fn chance(&mut self, percent: u64) -> bool {
+        self.next() % 100 < percent
+    }
+}
+
+// 장면의 옛 종류 요소 - (id, 부모 그룹) 트리 순서
+fn legacy_layout_of(scene: &element_document::Scene) -> Vec<(String, Option<String>)> {
+    let (mut out, mut ancestors) = (Vec::new(), Vec::<(usize, String)>::new());
+    walk(&scene.nodes, &mut |node, path| {
+        ancestors.retain(|(depth, _)| *depth < path.len());
+        match node {
+            Node::Group(group) => ancestors.push((path.len(), group.id.clone())),
+            Node::Element(element) if is_legacy_kind(&element.kind) => out.push((
+                element.id.clone(),
+                ancestors.last().map(|(_, id)| id.clone()),
+            )),
+            Node::Element(_) => {}
+        }
+    });
+    out
+}
+
+fn stacking_order(store: &crate::state::AppStore) -> Vec<String> {
+    let snapshot = store.snapshot();
+    let mut entries: Vec<((i64, usize, usize), String)> = Vec::new();
+    for (index, position) in snapshot.key_positions["4key"].iter().enumerate() {
+        entries.push((
+            (position.z_index.map_or(index as i64, i64::from), 0, index),
+            position.id.clone(),
+        ));
+    }
+    for (index, position) in snapshot.stat_positions["4key"].iter().enumerate() {
+        entries.push((
+            (
+                position.position.z_index.map_or(index as i64, i64::from),
+                1,
+                index,
+            ),
+            position.position.id.clone(),
+        ));
+    }
+    entries.sort();
+    entries.into_iter().map(|(_, id)| id).collect()
+}
+
+#[test]
+fn 무작위_트리_쓰기로_옛_요소를_옮겨도_놓은_자리와_나머지_순서를_지킨다() {
+    let rounds: usize = std::env::var("DMN_Z_FUZZ_ROUNDS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(120);
+    let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+    let (dir, store) = open_store();
+    let template = store.element_document_snapshot().1.scenes["4key"]
+        .elements()
+        .into_iter()
+        .find(|element| element.kind == "key")
+        .unwrap()
+        .clone();
+    let engine = Engine {
+        kinds: builtin_kind_registry(),
+        bundles: &BuiltinBundles,
+    };
+    let mut checked = 0;
+    for round in 0..rounds {
+        // 무작위 배치 - zIndex 일부 없음, 그룹 0~2개(흩어질 수 있음)
+        {
+            let mut guard = store.state.write();
+            let mut scratch = guard.data.clone();
+            let group_count = rng.below(3);
+            let groups: Vec<crate::models::LayerGroupDef> = (0..group_count)
+                .map(|index| crate::models::LayerGroupDef {
+                    id: format!("g{index}"),
+                    name: format!("G{index}"),
+                })
+                .collect();
+            let mut zs = Vec::new();
+            for _ in 0..scratch.key_positions["4key"].len() {
+                zs.push((!rng.chance(30)).then(|| rng.below(12) as i32));
+            }
+            let group_of: Vec<Option<String>> = (0..zs.len())
+                .map(|_| {
+                    (group_count > 0 && rng.chance(40))
+                        .then(|| format!("g{}", rng.below(group_count)))
+                })
+                .collect();
+            for (index, position) in scratch
+                .key_positions
+                .get_mut("4key")
+                .unwrap()
+                .iter_mut()
+                .enumerate()
+            {
+                position.z_index = zs[index];
+                position.group_id = group_of[index].clone();
+            }
+            for position in scratch.stat_positions.get_mut("4key").unwrap() {
+                position.position.z_index = (!rng.chance(30)).then(|| rng.below(12) as i32);
+                position.position.group_id = None;
+            }
+            scratch.layer_groups.insert("4key".into(), groups);
+            crate::state::migration::clear_dangling_group_ids(&mut scratch);
+            store.commit_locked(&mut guard, scratch, ()).unwrap();
+        }
+        let document = store.element_document_snapshot().1;
+        let scene = &document.scenes["4key"];
+        let legacy = legacy_layout_of(scene);
+        let pick = |rng: &mut Rng| legacy[rng.below(legacy.len())].0.clone();
+        let parents: Vec<Option<String>> = std::iter::once(None)
+            .chain(scene.nodes.iter().filter_map(|node| match node {
+                Node::Group(group) => Some(Some(group.id.clone())),
+                _ => None,
+            }))
+            .collect();
+        let parent = parents[rng.below(parents.len())].clone();
+        let siblings = match &parent {
+            None => scene.nodes.len(),
+            Some(id) => match scene.node_at(&scene.find_path(id).unwrap()) {
+                Some(Node::Group(group)) => group.children.len(),
+                _ => 0,
+            },
+        };
+        let index = (!rng.chance(20)).then(|| rng.below(siblings + 1));
+        let new_id = format!("00000000-0000-4000-8000-{round:012}");
+        let (op, moved): (serde_json::Value, Vec<String>) = match rng.below(3) {
+            0 => {
+                let id = pick(&mut rng);
+                (
+                    serde_json::json!({ "op": "move", "scene": "4key", "ids": [id], "parent": parent, "index": index }),
+                    vec![id],
+                )
+            }
+            1 => {
+                let mut node = serde_json::to_value(&template).unwrap();
+                node["type"] = serde_json::json!("element");
+                node["id"] = serde_json::json!(new_id);
+                node.as_object_mut().unwrap().remove("legacy");
+                (
+                    serde_json::json!({ "op": "insert", "scene": "4key", "parent": parent, "index": index, "node": node }),
+                    vec![new_id.clone()],
+                )
+            }
+            _ => {
+                let a = pick(&mut rng);
+                let b = pick(&mut rng);
+                if a == b {
+                    continue;
+                }
+                (
+                    serde_json::json!({ "op": "group", "scene": "4key", "id": format!("n{round}"), "name": "N", "ids": [a, b] }),
+                    vec![a, b],
+                )
+            }
+        };
+        let ops: Vec<Op> = vec![serde_json::from_value(op.clone()).unwrap()];
+        let mut expected = (*document).clone();
+        if engine.apply(&mut expected, &ops).is_err() {
+            continue;
+        }
+        let before_order = stacking_order(&store);
+        match store.plan_element_document_commit(&ops, None).unwrap() {
+            ElementDocumentCommitPlan::Legacy { request, .. } => {
+                if store.commit_editor_document(*request).is_err() {
+                    continue;
+                }
+            }
+            ElementDocumentCommitPlan::TreeOrderOnly => {
+                store.commit_element_document_checked(&ops, false).unwrap();
+            }
+            ElementDocumentCommitPlan::TreeOnly | ElementDocumentCommitPlan::Rejected(_) => {
+                continue;
+            }
+        }
+        // 놓은 자리 - 옮긴 요소의 부모가 같고 그 부모 안 옛 요소 순서가 같다.
+        // (그룹의 맨 위 멤버를 빼면 그룹은 남은 맨 위 멤버 자리로 옮겨 서므로 그룹 자리 자체는 보지 않는다)
+        let result = store.element_document_snapshot().1;
+        let result_layout = legacy_layout_of(&result.scenes["4key"]);
+        let expected_layout = legacy_layout_of(&expected.scenes["4key"]);
+        let siblings = |layout: &[(String, Option<String>)], parent: &Option<String>| {
+            layout
+                .iter()
+                .filter(|(_, other)| other == parent)
+                .map(|(id, _)| id.clone())
+                .collect::<Vec<_>>()
+        };
+        for id in moved.iter().chain(std::iter::once(&new_id)) {
+            let Some((_, parent)) = expected_layout.iter().find(|(other, _)| other == id) else {
+                continue;
+            };
+            assert_eq!(
+                result_layout
+                    .iter()
+                    .find(|(other, _)| other == id)
+                    .map(|(_, parent)| parent),
+                Some(parent),
+                "round {round} op {op}"
+            );
+            assert_eq!(
+                siblings(&result_layout, parent),
+                siblings(&expected_layout, parent),
+                "round {round} op {op}"
+            );
+        }
+        let unmoved = |order: Vec<String>| -> Vec<String> {
+            order
+                .into_iter()
+                .filter(|id| !moved.contains(id) && *id != new_id)
+                .collect()
+        };
+        assert_eq!(
+            unmoved(stacking_order(&store)),
+            unmoved(before_order),
+            "round {round} op {op}"
+        );
+        checked += 1;
+    }
+    assert!(checked > rounds / 3, "checked {checked}");
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

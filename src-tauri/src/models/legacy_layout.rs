@@ -905,10 +905,18 @@ pub(crate) fn moved_z_fixes(
     for (index, _) in is_moved.iter().enumerate().filter(|(_, moved)| **moved) {
         let placed = |other: &usize| sequence.contains(other);
         let at = if let Some(successor) = (index + 1..elements.len()).find(|other| placed(other)) {
-            sequence
-                .iter()
-                .position(|&other| other == successor)
-                .unwrap_or(0)
+            // 바로 위 요소가 다른 그룹 멤버면 그 그룹 전체 아래 - 그룹은 가장 위 멤버 자리에
+            // 서므로 그 그룹의 겹침 순서상 가장 위 멤버 바로 아래에 끼운다
+            match &elements[successor].group_id {
+                Some(group) if elements[index].group_id.as_ref() != Some(group) => sequence
+                    .iter()
+                    .rposition(|&other| elements[other].group_id.as_ref() == Some(group))
+                    .unwrap_or(0),
+                _ => sequence
+                    .iter()
+                    .position(|&other| other == successor)
+                    .unwrap_or(0),
+            }
         } else if let Some(predecessor) = (0..index).rev().find(|other| placed(other)) {
             sequence
                 .iter()
@@ -925,6 +933,8 @@ pub(crate) fn moved_z_fixes(
     for &index in &sequence {
         let stored = stored_z_index(elements[index].element);
         let key = key_of(index, stored);
+        // 저장된 zIndex가 없으면 순번이 z 역할을 한다
+        let fallback_z = key.0;
         let keep = !is_moved[index] || stored.is_some();
         let (key, z) = match previous {
             Some((previous_key, _)) if keep && key > previous_key => (key, key.0),
@@ -935,7 +945,7 @@ pub(crate) fn moved_z_fixes(
             }
             None => (key, key.0),
         };
-        if stored != Some(z) && (is_moved[index] || stored.is_some() || z != key.0) {
+        if stored != Some(z) && (is_moved[index] || stored.is_some() || z != fallback_z) {
             fixes.push((scene_id.to_string(), elements[index].element.id.clone(), z));
         }
         previous = Some((key, z));

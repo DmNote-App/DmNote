@@ -362,6 +362,22 @@ fn empty_tree_groups<'a>(
         .collect()
 }
 
+// 옛 종류 요소를 품은 그룹이 다른 그룹 안에 있다
+fn has_nested_legacy_group(document: &Document) -> bool {
+    fn visit(nodes: &[Node], inside_group: bool) -> bool {
+        nodes.iter().any(|node| match node {
+            Node::Group(group) => {
+                (inside_group && !is_tree_only_group(group)) || visit(&group.children, true)
+            }
+            Node::Element(_) => false,
+        })
+    }
+    document
+        .scenes
+        .values()
+        .any(|scene| visit(&scene.nodes, false))
+}
+
 // 스프라이트 포즈의 빈 id에 새 id - 옛 편집 패치(v2)는 포즈 id를 꼭 받는다
 fn fill_empty_pose_ids(document: &mut Document) {
     for scene in document.scenes.values_mut() {
@@ -682,6 +698,16 @@ impl AppStore {
         for (scene, moved) in moved_legacy_ids(&after, ops) {
             let fixes = moved_z_fixes(&after, &scene, &moved);
             set_tree_z(&mut after, &fixes);
+        }
+        // 옛 모양은 그룹 안 그룹을 나타내지 못한다 - 옛 종류 요소를 품은 그룹이 겹치면 거부
+        if has_nested_legacy_group(&after) {
+            return Ok(ElementDocumentCommitPlan::Rejected(
+                ElementDocumentCommitResult::Rejected {
+                    revision: self.element_document_revision(),
+                    code: VIOLATION,
+                    violations: vec![Violation::new(ViolationCode::InvalidMove, "ops")],
+                },
+            ));
         }
         fill_empty_pose_ids(&mut after);
         let before = EditorDocumentV1::from_store(&guard.data);
