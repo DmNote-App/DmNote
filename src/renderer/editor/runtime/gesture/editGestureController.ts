@@ -52,7 +52,7 @@ interface ActiveGesture {
   seq: number;
   // 도메인 → 요소 id → 게스처 동안 누적된 전체 patch
   appliedPatches: Map<PreviewDomain, Map<string, Record<string, unknown>>>;
-  // 도메인 → 요소 id → 다음 flush에 실릴 patch (프리뷰 wire는 index 표현 유지).
+  // 도메인 → 요소 id → 다음 flush에 실릴 patch (프리뷰 wire도 요소 id).
   // 대상별로 모아야 같은 대상의 옛 값이 덮어써진다. patch 내용으로 묶으면
   // 값이 연속으로 바뀌는 편집(드래그, 방향키 꾹 누르기)에서 중간값마다 그룹이 하나씩 생기고,
   // in-flight 하나가 도는 동안 쌓인 그룹이 전부 순차 발행돼 이미 무의미해진 값까지 IPC를 탄다

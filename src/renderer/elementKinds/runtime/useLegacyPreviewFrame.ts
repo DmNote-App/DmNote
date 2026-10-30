@@ -3,10 +3,9 @@
 import { useSyncExternalStore } from 'react';
 
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import { readAuthorityPositions } from '@src/renderer/editor/model/elementStores';
 import {
-  composePreviewPositions,
   getPreviewOverlayVersion,
+  previewPatchOf,
   subscribePreviewOverlay,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { isEditorElementType } from '@src/types/editor';
@@ -28,25 +27,18 @@ export const legacyPreviewFrameOf = (
   ) {
     return null;
   }
-  const positions = readAuthorityPositions(element.kind) as unknown as Record<
-    string,
-    Array<Record<string, unknown> & { id: string }>
-  >;
-  const base = positions[sceneId]?.find(({ id }) => id === element.id);
-  const composed = composePreviewPositions(
+  const patch = previewPatchOf(
     PREVIEW_DOMAIN_BY_ELEMENT_TYPE[element.kind],
-    positions,
-  )[sceneId]?.find(({ id }) => id === element.id);
-  if (!base || !composed || composed === base) return null;
-  const changed = (field: string) =>
-    typeof composed[field] === 'number' && composed[field] !== base[field]
-      ? (composed[field] as number)
-      : undefined;
-  const x = changed('dx');
-  const y = changed('dy');
-  const width = changed('width');
-  const height = changed('height');
-  const rotation = changed('rotation');
+    sceneId,
+    element.id,
+  );
+  const numberOf = (field: string) =>
+    typeof patch?.[field] === 'number' ? (patch[field] as number) : undefined;
+  const x = numberOf('dx');
+  const y = numberOf('dy');
+  const width = numberOf('width');
+  const height = numberOf('height');
+  const rotation = numberOf('rotation');
   if ([x, y, width, height, rotation].every((value) => value === undefined)) {
     return null;
   }

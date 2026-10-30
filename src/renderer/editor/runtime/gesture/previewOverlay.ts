@@ -93,6 +93,21 @@ export const composePreviewPositions = <T extends { id: string }>(
   return rendered;
 };
 
+/** 요소 하나의 활성 미리보기 패치(세션 순서대로 합침) - 없으면 null */
+export const previewPatchOf = (
+  domain: PreviewDomain,
+  mode: string,
+  id: string,
+): Record<string, unknown> | null => {
+  let merged: Record<string, unknown> | null = null;
+  for (const session of sessions.values()) {
+    if (session.mode !== mode) continue;
+    const patch = session.idPatches.get(domain)?.get(id);
+    if (patch) merged = { ...(merged ?? {}), ...patch };
+  }
+  return merged;
+};
+
 // 키 외 종류 컬렉션에 활성 프리뷰 합성 - 키는 키 스토어가 렌더 positions로 합성한다
 export const composeItemPreviewCollections = (
   collections: ItemElementCollections,
