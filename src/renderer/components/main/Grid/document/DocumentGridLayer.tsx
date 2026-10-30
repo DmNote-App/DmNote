@@ -1,5 +1,10 @@
 import React, { useEffect } from 'react';
 
+import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
+import {
+  isHistoryEditorFlushLocked,
+  subscribeHistoryEditorFlushStart,
+} from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import {
@@ -170,27 +175,35 @@ const DocumentGridElement = ({
         });
       }
     };
-    const handleUp = () => {
+    let ended = false;
+    // commit=false - 되돌리기·히스토리 정산이 끼어들면 옮긴 것을 버린다 (옛 종류 끌기와 같다)
+    const finish = (commit: boolean) => {
+      if (ended) return;
+      ended = true;
+      unsubscribeHistory();
+      unsubscribeFlush();
       useSmartGuidesStore.getState().clearGuides();
       target.removeEventListener('pointermove', handleMove);
       target.removeEventListener('pointerup', handleUp);
       target.removeEventListener('pointercancel', handleUp);
+      commit = commit && !isHistoryEditorFlushLocked();
       if (mixed) {
         if (!moved) return;
         useGridSelectionStore.getState().setDraggingOrResizing(false);
         try {
-          mixed.commit();
+          if (commit) mixed.commit();
         } finally {
-          endMixed?.(true);
+          endMixed?.(commit);
         }
         return;
       }
       const frames = useDocumentFramePreviewStore.getState().frames;
-      const moves = moved
-        ? origins.flatMap(({ id }) =>
-            frames[id] ? [{ id, x: frames[id].x, y: frames[id].y }] : [],
-          )
-        : [];
+      const moves =
+        moved && commit
+          ? origins.flatMap(({ id }) =>
+              frames[id] ? [{ id, x: frames[id].x, y: frames[id].y }] : [],
+            )
+          : [];
       const clear = () => {
         const preview = useDocumentFramePreviewStore.getState();
         for (const { id } of origins) preview.clear(id);
@@ -201,6 +214,15 @@ const DocumentGridElement = ({
       }
       void moveDocumentElements(sceneId, moves).finally(clear);
     };
+    const handleUp = () => finish(true);
+    const unsubscribeHistory = useCommittedApplyStore.subscribe(
+      (state, previous) => {
+        if (state.historyTick !== previous.historyTick) finish(false);
+      },
+    );
+    const unsubscribeFlush = subscribeHistoryEditorFlushStart(() =>
+      finish(false),
+    );
     target.addEventListener('pointermove', handleMove);
     target.addEventListener('pointerup', handleUp);
     target.addEventListener('pointercancel', handleUp);

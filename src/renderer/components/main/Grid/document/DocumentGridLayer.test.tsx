@@ -41,7 +41,9 @@ vi.mock('./documentEditActions', () => ({
 
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import DocumentGridLayer from './DocumentGridLayer';
+import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 const pointer = (type: string, x: number, y: number) =>
@@ -133,6 +135,49 @@ describe('트리 요소에서 시작한 끌기', () => {
     expect(mocks.move).toHaveBeenCalledWith('4key', [
       { id: 't1', x: 10, y: 0 },
     ]);
+    unmount();
+  });
+
+  it('끄는 중 되돌리기가 끼어들면 옮긴 것을 버린다', () => {
+    useDocumentSelectionStore.getState().setSelection('4key', ['t1']);
+    keepOtherSelection(() =>
+      useGridSelectionStore.setState({
+        selectedElements: [{ type: 'key', id: 'k1', index: 0 }],
+      }),
+    );
+    const end = vi.fn();
+    const mixedDrag = {
+      begin: vi.fn(() => end),
+      move: vi.fn(),
+      commit: vi.fn(),
+    };
+    const { box, unmount } = render(mixedDrag);
+    act(() => {
+      box.dispatchEvent(pointer('pointerdown', 0, 0));
+      box.dispatchEvent(pointer('pointermove', 10, 0));
+      useCommittedApplyStore.setState((state) => ({
+        historyTick: state.historyTick + 1,
+      }));
+      box.dispatchEvent(pointer('pointerup', 10, 0));
+    });
+    expect(mixedDrag.commit).not.toHaveBeenCalled();
+    expect(end).toHaveBeenCalledWith(false);
+    expect(useGridSelectionStore.getState().isDraggingOrResizing).toBe(false);
+    unmount();
+  });
+
+  it('트리 요소만 끄는 중 되돌리기가 끼어들면 미리보기만 지운다', () => {
+    const { box, unmount } = render();
+    act(() => {
+      box.dispatchEvent(pointer('pointerdown', 0, 0));
+      box.dispatchEvent(pointer('pointermove', 10, 0));
+      useCommittedApplyStore.setState((state) => ({
+        historyTick: state.historyTick + 1,
+      }));
+      box.dispatchEvent(pointer('pointerup', 10, 0));
+    });
+    expect(mocks.move).not.toHaveBeenCalled();
+    expect(useDocumentFramePreviewStore.getState().frames).toEqual({});
     unmount();
   });
 });
