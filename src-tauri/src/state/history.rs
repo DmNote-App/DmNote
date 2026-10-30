@@ -522,11 +522,13 @@ impl HistoryService {
         mut plan: HistoryRecordPlan,
         canonical: &EditorDocumentV1,
         tree: &element_document::Document,
+        plugins: &[PluginElementsHistorySnapshot],
     ) {
         let remove_entry = match &mut plan {
             HistoryRecordPlan::Merge { entry, .. } => {
                 remove_net_zero_editor_snapshot(entry, canonical)
                     || remove_net_zero_element_tree_snapshot(entry, tree)
+                    || remove_net_zero_plugin_snapshots(entry, plugins)
             }
             _ => false,
         };
@@ -545,10 +547,12 @@ impl HistoryService {
         &mut self,
         mut plan: HistoryRecordPlan,
         current: &element_document::Document,
+        plugins: &[PluginElementsHistorySnapshot],
     ) {
         let remove_entry = match &mut plan {
             HistoryRecordPlan::Merge { entry, .. } => {
                 remove_net_zero_element_tree_snapshot(entry, current)
+                    || remove_net_zero_plugin_snapshots(entry, plugins)
             }
             _ => false,
         };
@@ -795,6 +799,16 @@ impl HistoryService {
         self.max_entries = max_entries;
         self.enforce_budget();
     }
+}
+
+// 트리 커밋이 함께 바꾼 플러그인 목록 - 같은 동작으로 제자리로 돌아왔으면 그 몫을 뺀다(비면 기록째)
+fn remove_net_zero_plugin_snapshots(
+    entry: &mut HistoryEntry,
+    plugins: &[PluginElementsHistorySnapshot],
+) -> bool {
+    plugins
+        .iter()
+        .any(|canonical| remove_net_zero_plugin_snapshot(entry, canonical))
 }
 
 #[cfg(test)]

@@ -412,11 +412,16 @@ impl AppStore {
             .map_err(|error| EditorCommitError::io(error.to_string()))?;
         guard.plugin_model_revision = plugin_model_revision;
 
+        let plugins = changed_plugins
+            .iter()
+            // 커밋 뒤라 실패로 돌려보내지 않는다 - id는 버킷에서 온 검증된 값
+            .filter_map(|plugin_id| plugin_elements_snapshot(&guard.data, plugin_id).ok())
+            .collect::<Vec<_>>();
         let history_status = history_plan.map(|plan| {
             let tree = guard.data.element_document.clone();
             guard
                 .history
-                .apply_editor_record_plan(plan, &candidate, &tree);
+                .apply_editor_record_plan(plan, &candidate, &tree, &plugins);
             guard.history.issue_status(self.history_gate.is_closed())
         });
         let event = options.origin.event_name().map(|origin| EditorCommittedV1 {

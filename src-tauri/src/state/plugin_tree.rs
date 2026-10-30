@@ -12,7 +12,7 @@ use element_document::{Document, Element, Frame, Node};
 use serde_json::{json, Map, Value};
 
 use super::plugin::normalize_plugin_instance_tab_id;
-use crate::models::legacy_layout::{is_legacy_kind, is_tree_only_group};
+use crate::models::legacy_layout::is_legacy_kind;
 
 const LEGACY: &str = "legacy";
 const ENTRY: &str = "pluginEntry";
@@ -244,132 +244,78 @@ fn place(scene: &mut element_document::Scene, element: Element) {
     siblings.insert(at, Node::Element(element));
 }
 
-// 겹침 대상 - 플러그인 노드 또는 옛 종류 요소
-#[derive(Clone)]
-struct StackingItem {
-    path: Vec<usize>,
-    plugin: bool,
-    z: Option<f64>,
-    // 가장 가까운 옛 그룹
-    group: Option<String>,
-}
-
-// 장면을 트리 순서(아래 → 위)로 편 겹침 대상
-fn stacking_items(
-    nodes: &[Node],
-    group: Option<&str>,
-    prefix: &mut Vec<usize>,
-    out: &mut Vec<StackingItem>,
-) {
-    for (index, node) in nodes.iter().enumerate() {
-        prefix.push(index);
-        match node {
-            Node::Group(inner) => {
-                let legacy_group = (!is_tree_only_group(inner)).then_some(inner.id.as_str());
-                stacking_items(&inner.children, legacy_group.or(group), prefix, out);
-            }
-            Node::Element(element) => {
-                let plugin = plugin_id_of_kind(&element.kind).is_some();
-                if plugin || is_legacy_kind(&element.kind) {
-                    out.push(StackingItem {
-                        path: prefix.clone(),
-                        plugin,
-                        z: z_of(node),
-                        group: group.map(str::to_string),
-                    });
+// 한 형제 목록 - 플러그인 노드마다 놓기(`place`)가 같은 자리를 다시 고르는 zIndex·groupId를 항목에 적는다.
+// 앞 형제의 가장 큰 값 이상이고 바로 다음 값 있는 형제보다 작으면 그대로, 아니면 앞 형제의 가장 큰 값
+// (정수 - 저장 검증이 정수만 받는다). zIndex 없는 항목은 다음 값 있는 형제가 없으면(맨 위) 그대로
+fn sync_siblings(nodes: &mut [Node], parent: Option<&str>, changed: &mut BTreeSet<String>) {
+    let mut lower: Option<f64> = None;
+    for index in 0..nodes.len() {
+        if let Node::Group(group) = &mut nodes[index] {
+            let id = group.id.clone();
+            sync_siblings(&mut group.children, Some(&id), changed);
+        }
+        let z = z_of(&nodes[index]);
+        let upper = nodes[index + 1..].iter().find_map(z_of);
+        if let Node::Element(element) = &mut nodes[index] {
+            if let Some(plugin_id) = plugin_id_of_kind(&element.kind).map(str::to_string) {
+                let fits = match z {
+                    Some(z) => {
+                        lower.is_none_or(|lower| z >= lower) && upper.is_none_or(|upper| z < upper)
+                    }
+                    None => upper.is_none(),
+                };
+                let next_z = if fits {
+                    z
+                } else {
+                    Some(match (lower, upper) {
+                        (Some(lower), Some(upper)) if upper > lower => lower,
+                        (Some(lower), _) => lower + 1.0,
+                        (None, Some(upper)) => upper - 1.0,
+                        (None, None) => 0.0,
+                    })
+                };
+                if let Some(entry) = element
+                    .extra
+                    .get_mut(LEGACY)
+                    .and_then(|legacy| legacy.get_mut(ENTRY))
+                    .and_then(Value::as_object_mut)
+                {
+                    let mut touched = false;
+                    if let Some(next_z) = next_z.filter(|_| z != next_z) {
+                        entry.insert("zIndex".into(), json!(next_z as i64));
+                        touched = true;
+                    }
+                    let current_group = entry.get("groupId").and_then(Value::as_str);
+                    if current_group != parent {
+                        match parent {
+                            Some(group) => entry.insert("groupId".into(), json!(group)),
+                            None => entry.remove("groupId"),
+                        };
+                        touched = true;
+                    }
+                    if touched {
+                        changed.insert(plugin_id);
+                    }
                 }
             }
         }
-        prefix.pop();
+        if let Some(z) = z_of(&nodes[index]) {
+            lower = Some(lower.map_or(z, |lower| lower.max(z)));
+        }
     }
 }
 
 /// 트리 연산 뒤 - 장면의 플러그인 노드 자리에 맞게 항목의 zIndex·groupId를 다시 적는다.
-/// 아래쪽(옛 종류 최댓값·앞 플러그인)과 바로 위 옛 종류 사이에 들면 그대로, 아니면 사이 값(플러그인 zIndex는 실수).
-/// zIndex 없는 항목은 위에 옛 종류가 없으면 그대로 둔다.
-/// 옛 종류 번호는 다시 매기지 않는다. 바뀐 플러그인 id를 돌려준다(정렬)
+/// 플러그인 노드를 품은 그룹은 옛 그룹이므로 groupId는 부모 그룹이다. 옛 종류 번호는 다시 매기지 않는다.
+/// 바뀐 플러그인 id를 돌려준다(정렬)
 pub(crate) fn sync_plugin_entries_from_tree(
     document: &mut Document,
     scenes: &[String],
 ) -> Vec<String> {
     let mut changed = BTreeSet::new();
     for scene_id in scenes {
-        let Some(scene) = document.scenes.get_mut(scene_id) else {
-            continue;
-        };
-        let mut items = Vec::new();
-        stacking_items(&scene.nodes, None, &mut Vec::new(), &mut items);
-        let mut lower: Option<f64> = None;
-        for index in 0..items.len() {
-            let StackingItem {
-                path,
-                plugin,
-                z,
-                group,
-            } = items[index].clone();
-            if !plugin {
-                if let Some(z) = z {
-                    lower = Some(lower.map_or(z, |lower| lower.max(z)));
-                }
-                continue;
-            }
-            let upper = items[index + 1..]
-                .iter()
-                .find(|item| !item.plugin && item.z.is_some())
-                .and_then(|item| item.z);
-            // 놓기와 같은 기준 - 같은 값의 옛 종류 위에 놓이므로 아래쪽은 같아도 된다.
-            // zIndex 없는 항목은 맨 위 - 위에 옛 종류가 없으면 그대로 둔다
-            let fits = match z {
-                Some(z) => {
-                    lower.is_none_or(|lower| z >= lower) && upper.is_none_or(|upper| z < upper)
-                }
-                None => upper.is_none(),
-            };
-            let next_z = if fits {
-                z
-            } else {
-                Some(match (lower, upper) {
-                    (Some(lower), Some(upper)) if upper > lower => (lower + upper) / 2.0,
-                    (Some(lower), _) => lower + 1.0,
-                    (None, Some(upper)) => upper - 1.0,
-                    (None, None) => 0.0,
-                })
-            };
-            if next_z.is_some() {
-                lower = next_z;
-            }
-            let Some(Node::Element(element)) = scene.node_at_mut(&path) else {
-                continue;
-            };
-            let Some(entry) = element
-                .extra
-                .get_mut(LEGACY)
-                .and_then(|legacy| legacy.get_mut(ENTRY))
-                .and_then(Value::as_object_mut)
-            else {
-                continue;
-            };
-            let mut touched = false;
-            if let Some(next_z) = next_z.filter(|_| z != next_z) {
-                entry.insert("zIndex".into(), json!(next_z));
-                touched = true;
-            }
-            let current_group = entry
-                .get("groupId")
-                .and_then(Value::as_str)
-                .map(str::to_string);
-            if current_group != group {
-                match &group {
-                    Some(group) => entry.insert("groupId".into(), json!(group)),
-                    None => entry.remove("groupId"),
-                };
-                touched = true;
-            }
-            if touched {
-                if let Some(plugin_id) = plugin_id_of_kind(&element.kind) {
-                    changed.insert(plugin_id.to_string());
-                }
-            }
+        if let Some(scene) = document.scenes.get_mut(scene_id) {
+            sync_siblings(&mut scene.nodes, None, &mut changed);
         }
     }
     changed.into_iter().collect()

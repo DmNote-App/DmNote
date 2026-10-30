@@ -68,9 +68,12 @@ pub(crate) fn is_tree_only_group(group: &Group) -> bool {
     if group.extra.contains_key(LEGACY) {
         return false;
     }
+    // 플러그인 인스턴스를 품은 그룹도 옛 그룹 - 인스턴스의 groupId가 옛 그룹 목록을 가리킨다
     let mut tree_only = true;
     walk(&group.children, &mut |node, _| match node {
-        Node::Element(element) => tree_only &= !is_legacy_kind(&element.kind),
+        Node::Element(element) => {
+            tree_only &= !is_legacy_kind(&element.kind) && !is_plugin_kind(&element.kind)
+        }
         Node::Group(inner) => tree_only &= !inner.extra.contains_key(LEGACY),
     });
     tree_only

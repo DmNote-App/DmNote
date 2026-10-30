@@ -1889,8 +1889,9 @@ fn plugin_commit(
     ops: serde_json::Value,
 ) -> ElementDocumentCommitResult {
     let ops: Vec<Op> = serde_json::from_value(ops).unwrap();
+    // 플러그인 노드는 옛 그룹 구성에 들어 옛 모양 경로가 계획한다 - 옛 모양이 그대로면 트리 커밋
     store
-        .commit_element_document_checked(&ops, true, None)
+        .commit_element_document_checked(&ops, false, None)
         .unwrap()
 }
 
@@ -2121,8 +2122,12 @@ fn 트리에서_플러그인_노드를_옮기면_항목_겹침값을_다시_적�
         { "op": "move", "scene": "4key", "ids": [id], "parent": null, "index": 0 }
     ]))
     .unwrap();
+    assert!(matches!(
+        store.plan_element_document_commit(&ops, None).unwrap(),
+        ElementDocumentCommitPlan::TreeOrderOnly
+    ));
     let (result, plugin_changes) = store
-        .commit_element_document_tree(&ops, true, None)
+        .commit_element_document_tree(&ops, false, None)
         .unwrap();
     assert!(matches!(
         result,
@@ -2244,6 +2249,154 @@ fn 트리를_만든_뒤_플러그인_목록이_바뀌면_옛_편집_커밋은_�
         crate::errors::EditorCommitErrorCode::RevisionConflict
     );
     assert!(crate::state::plugin::read_plugin_instance_bucket(&store.snapshot(), "demo").is_none());
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+fn write_demo_bucket(store: &crate::state::AppStore, bucket: serde_json::Value) {
+    let mut guard = store.state.write();
+    let mut scratch = guard.data.clone();
+    crate::state::plugin::write_plugin_instance_bucket(&mut scratch, "demo", Some(bucket));
+    store.commit_locked(&mut guard, scratch, ()).unwrap();
+}
+
+fn root_index_of(store: &crate::state::AppStore, id: &str) -> usize {
+    store.element_document_snapshot().1.scenes["4key"]
+        .nodes
+        .iter()
+        .position(|node| node.id() == id)
+        .unwrap()
+}
+
+fn move_demo(
+    store: &crate::state::AppStore,
+    id: &str,
+    index: Option<usize>,
+    gesture: Option<String>,
+) {
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "move", "scene": "4key", "ids": [id], "parent": null, "index": index }
+    ]))
+    .unwrap();
+    let (result, _) = store
+        .commit_element_document_tree(&ops, false, gesture)
+        .unwrap();
+    assert!(matches!(
+        result,
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+}
+
+#[test]
+fn 붙은_정수_사이로_옮긴_플러그인_노드도_정수_겹침값을_받아_인스턴스를_잃지_않는다() {
+    let (dir, store) = open_store();
+    set_key_layout(&store, &[]);
+    let id = with_demo_instance(&store);
+    let key0 = store.snapshot().key_positions["4key"][0].id.clone();
+    move_demo(&store, &id, Some(root_index_of(&store, &key0) + 1), None);
+    assert_eq!(demo_entry(&store)["zIndex"], serde_json::json!(100));
+    let (instances, _) = store.plugin_instances_get("demo").unwrap();
+    assert_eq!(instances.len(), 1);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 같은_동작으로_플러그인_노드가_제자리로_돌아오면_기록에서_빠진다() {
+    let (dir, store) = open_store();
+    set_key_layout(&store, &[]);
+    write_demo_bucket(
+        &store,
+        serde_json::json!([{ "instanceId": PLUGIN_INSTANCE, "position": { "x": 0, "y": 0 },
+            "tabId": "4key", "zIndex": 100 }]),
+    );
+    let id = format!("demo::{PLUGIN_INSTANCE}");
+    let key0 = store.snapshot().key_positions["4key"][0].id.clone();
+    assert_eq!(root_index_of(&store, &id), root_index_of(&store, &key0) + 1);
+    let can_undo = store.history_status().can_undo;
+    let gesture = Some(uuid::Uuid::new_v4().to_string());
+    move_demo(&store, &id, Some(0), gesture.clone());
+    assert!(store.history_status().can_undo);
+    move_demo(&store, &id, Some(root_index_of(&store, &key0) + 1), gesture);
+    assert_eq!(demo_entry(&store)["zIndex"], serde_json::json!(100));
+    assert_eq!(store.history_status().can_undo, can_undo);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 흩어진_옛_그룹_안의_플러그인은_상관없는_트리_편집에_겹침값이_바뀌지_않는다() {
+    let (dir, store) = open_store();
+    // kA=z1(g1), kB=z5, kC=z9(g1) - 트리는 [kB, g1[kA, kC]]
+    set_key_layout(
+        &store,
+        &[
+            (Some(1), Some("g1")),
+            (Some(5), None),
+            (Some(9), Some("g1")),
+        ],
+    );
+    write_demo_bucket(
+        &store,
+        serde_json::json!([{ "instanceId": PLUGIN_INSTANCE, "position": { "x": 0, "y": 0 },
+            "tabId": "4key", "zIndex": 3, "groupId": "g1" }]),
+    );
+    let id = format!("demo::{PLUGIN_INSTANCE}");
+    assert_eq!(
+        store.element_document_snapshot().1.scenes["4key"].parent_of(&id),
+        Some(Some("g1".to_string()))
+    );
+    let entry = demo_entry(&store);
+    let revision = store.plugin_model_revision();
+    insert_tracker(&store);
+    assert_eq!(demo_entry(&store), entry);
+    assert_eq!(store.plugin_model_revision(), revision);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 플러그인만_묶은_그룹은_옛_그룹이_되고_되돌려도_인스턴스를_잃지_않는다() {
+    let (dir, store) = open_store();
+    let second = "00000000-0000-4000-8000-0000000000a4";
+    write_demo_bucket(
+        &store,
+        serde_json::json!([
+            { "instanceId": PLUGIN_INSTANCE, "position": { "x": 0, "y": 0 }, "tabId": "4key" },
+            { "instanceId": second, "position": { "x": 5, "y": 5 }, "tabId": "4key" }
+        ]),
+    );
+    let ids = [
+        format!("demo::{PLUGIN_INSTANCE}"),
+        format!("demo::{second}"),
+    ];
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "group", "scene": "4key", "id": "plugins", "name": "묶음", "ids": ids }]),
+    );
+    assert!(store.snapshot().layer_groups["4key"]
+        .iter()
+        .any(|group| group.id == "plugins"));
+    let bucket =
+        crate::state::plugin::read_plugin_instance_bucket(&store.snapshot(), "demo").unwrap();
+    assert!(bucket
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|entry| entry["groupId"] == serde_json::json!("plugins")));
+
+    undo(&store).unwrap();
+    let bucket =
+        crate::state::plugin::read_plugin_instance_bucket(&store.snapshot(), "demo").unwrap();
+    assert_eq!(bucket.as_array().unwrap().len(), 2);
+    assert!(bucket
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|entry| entry.get("groupId").is_none()));
+    assert!(!store.snapshot().layer_groups["4key"]
+        .iter()
+        .any(|group| group.id == "plugins"));
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }

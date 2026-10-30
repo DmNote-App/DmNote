@@ -26,7 +26,9 @@ use crate::models::{
     PluginInstancesChangedPayload,
 };
 use crate::state::history::ElementTreeHistorySnapshot;
-use crate::state::plugin_tree::{carry_plugin_buckets, sync_plugin_entries_from_tree};
+use crate::state::plugin_tree::{
+    carry_plugin_buckets, changed_plugin_buckets, sync_plugin_entries_from_tree,
+};
 
 // 저장 파일에서 트리 문서가 실리는 칸
 pub(crate) const ELEMENT_DOCUMENT_FIELD: &str = "elementDocument";
@@ -336,9 +338,10 @@ fn element_kind<'a>(document: &'a Document, scene: &str, id: &str) -> Option<&'a
         .map(|element| element.kind.as_str())
 }
 
+// 플러그인 노드는 옛 그룹 구성(groupId)에 드므로 묶기·옮기기는 옛 모양 경로가 계획한다
 fn node_is_tree_only(node: &Node) -> bool {
     match node {
-        Node::Element(element) => !is_legacy_kind(&element.kind),
+        Node::Element(element) => !is_legacy_kind(&element.kind) && !is_plugin_kind(&element.kind),
         Node::Group(group) => is_tree_only_group(group),
     }
 }
@@ -935,12 +938,15 @@ impl AppStore {
                 Vec::new(),
             ));
         }
-        // 옮긴 플러그인 노드는 새 자리에 맞는 zIndex·groupId를 항목에 받는다
+        // 옮긴 플러그인 노드는 새 자리에 맞는 zIndex·groupId를 항목에 받는다. 지우기 등도 목록이 바뀌므로
+        // 목록 비교로 바뀐 플러그인을 고른다
         let scene_ids: Vec<String> = changes.scenes.keys().cloned().collect();
-        let changed_plugins = sync_plugin_entries_from_tree(
+        sync_plugin_entries_from_tree(
             std::sync::Arc::make_mut(&mut scratch.element_document),
             &scene_ids,
         );
+        let changed_plugins =
+            changed_plugin_buckets(&guard.data.element_document, &scratch.element_document);
         let tree_before =
             element_tree_snapshot(&guard.data.element_document, changes.scenes.keys());
         // 기록 뼈대가 그대로면(플러그인 노드 옆으로만 자리를 바꿈 등) 트리 몫은 되돌릴 것이 없다 - 빈 기록은
@@ -989,7 +995,14 @@ impl AppStore {
         guard.plugin_model_revision = plugin_model_revision;
         if let Some(plan) = plan {
             let current = guard.data.element_document.clone();
-            guard.history.apply_element_tree_record_plan(plan, &current);
+            let plugins = changed_plugins
+                .iter()
+                // 커밋 뒤라 실패로 돌려보내지 않는다 - id는 버킷에서 온 검증된 값
+                .filter_map(|plugin_id| plugin_elements_snapshot(&guard.data, plugin_id).ok())
+                .collect::<Vec<_>>();
+            guard
+                .history
+                .apply_element_tree_record_plan(plan, &current, &plugins);
         }
         let plugin_changes = changed_plugins
             .into_iter()
