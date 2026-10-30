@@ -94,4 +94,35 @@ describe('트리로 옮긴 옛 종류의 옛 편집 연산 → 트리 연산', (
     ]);
     expect([...legacyIndexes]).toEqual([]);
   });
+
+  it('겉모습 칸 패치는 styleOps가 트리 연산을 주면 트리로, null이면 옛 경로로', () => {
+    const style = {
+      kind: 'patchElement' as const,
+      elementType: 'knob' as const,
+      id: 'n1',
+      patch: { property: 'sensitivity', value: 2 },
+    };
+    const setValues = {
+      op: 'setValues' as const,
+      scene: '4key',
+      id: 'n1',
+      values: { sensitivity: 2 },
+    };
+    expect(
+      treeRoutedOps([style as never], {
+        scene: '4key',
+        isTreeEdited: () => true,
+        inScene,
+        styleOps: () => [setValues],
+      }),
+    ).toEqual({ treeOps: [setValues], legacyIndexes: new Set() });
+    expect(
+      treeRoutedOps([style as never], {
+        scene: '4key',
+        isTreeEdited: () => true,
+        inScene,
+        styleOps: () => null,
+      }).legacyIndexes,
+    ).toEqual(new Set([0]));
+  });
 });

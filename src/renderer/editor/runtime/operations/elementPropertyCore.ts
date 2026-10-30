@@ -2,10 +2,12 @@ import { isNativeElementId } from '../../model/elementId';
 import type { NativeElementType } from '../../model/elementIdMap';
 import {
   applyPropertyIntentsEagerly,
-  type ElementIntentReceipt,
   type PropertyIntents,
 } from '../intent/elementIntent';
-import { commitSemanticOps } from './editorSemanticOps';
+import {
+  commitSemanticOps,
+  withoutTreeRoutedIntents,
+} from './editorSemanticOps';
 import { captureEditorDocument } from '../coordinator/editorStateCoordinator';
 import { EDITOR_ELEMENT_POSITION_FIELDS } from '@src/types/editor';
 import type { EditorElementPropertyPatchV1 } from '@src/types/editor';
@@ -83,15 +85,6 @@ const hasCommittableTargets = (targets: readonly { id: string }[]): boolean =>
   targets.every(({ id }) => isNativeElementId(id)) &&
   new Set(targets.map(({ id }) => id)).size === targets.length;
 
-const applyElementPropertyEagerly = (
-  type: NativeElementType,
-  id: string,
-  patch: EditorElementPropertyPatchV1,
-): ElementIntentReceipt | null =>
-  applyPropertyIntentsEagerly(
-    elementPropertyIntents([{ elementType: type, id }], patch),
-  );
-
 export const patchElementPropertyById = (
   type: NativeElementType,
   id: string,
@@ -99,18 +92,22 @@ export const patchElementPropertyById = (
   options: { gestureId?: string; preflight?: () => void } = {},
 ): Promise<boolean> => {
   if (!isNativeElementId(id)) return Promise.resolve(false);
-  const receipt = applyElementPropertyEagerly(type, id, patch);
+  const ops = [{ kind: 'patchElement' as const, elementType: type, id, patch }];
+  // 트리로 갈 겉모습 칸은 대기 중인 트리 편집이 얹는다
+  const receipt = applyPropertyIntentsEagerly(
+    withoutTreeRoutedIntents(
+      elementPropertyIntents([{ elementType: type, id }], patch),
+      ops,
+    ),
+  );
   let enrolled = false;
-  return commitSemanticOps(
-    [{ kind: 'patchElement', elementType: type, id, patch }],
-    {
-      ...(options.gestureId ? { gestureId: options.gestureId } : {}),
-      preflight: options.preflight,
-      onEnrolled: () => {
-        enrolled = true;
-      },
+  return commitSemanticOps(ops, {
+    ...(options.gestureId ? { gestureId: options.gestureId } : {}),
+    preflight: options.preflight,
+    onEnrolled: () => {
+      enrolled = true;
     },
-  )
+  })
     .then((outcome) => outcome.opResults[0]?.status !== 'targetMissing')
     .catch((error) => {
       if (!enrolled) receipt?.rollback();
@@ -137,25 +134,23 @@ export const patchElementPropertyByTargets = (
   options: PropertyCommitOptions = {},
 ): Promise<boolean> => {
   if (!hasCommittableTargets(targets)) return Promise.resolve(false);
+  const ops = targets.map(({ elementType, id }) => ({
+    kind: 'patchElement' as const,
+    elementType,
+    id,
+    patch,
+  }));
   const receipt = applyPropertyIntentsEagerly(
-    elementPropertyIntents(targets, patch),
+    withoutTreeRoutedIntents(elementPropertyIntents(targets, patch), ops),
   );
   let enrolled = false;
-  return commitSemanticOps(
-    targets.map(({ elementType, id }) => ({
-      kind: 'patchElement' as const,
-      elementType,
-      id,
-      patch,
-    })),
-    {
-      ...(options.gestureId ? { gestureId: options.gestureId } : {}),
-      preflight: options.preflight,
-      onEnrolled: () => {
-        enrolled = true;
-      },
+  return commitSemanticOps(ops, {
+    ...(options.gestureId ? { gestureId: options.gestureId } : {}),
+    preflight: options.preflight,
+    onEnrolled: () => {
+      enrolled = true;
     },
-  )
+  })
     .then((outcome) =>
       outcome.opResults.some((result) => result.status !== 'targetMissing'),
     )

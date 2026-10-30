@@ -4,7 +4,10 @@ import {
   applyPropertyIntentsEagerly,
   type PropertyIntents,
 } from '../intent/elementIntent';
-import { commitSemanticOps } from './editorSemanticOps';
+import {
+  commitSemanticOps,
+  withoutTreeRoutedIntents,
+} from './editorSemanticOps';
 import { captureEditorDocument } from '../coordinator/editorStateCoordinator';
 import type {
   EditorCounterFillPropertyPatchV1,
@@ -102,25 +105,23 @@ export const patchPaintByTargets = (
   ) {
     return Promise.resolve(false);
   }
+  const ops = targets.map(({ elementType, id }) => ({
+    kind: 'patchElement' as const,
+    elementType,
+    id,
+    patch: structuredClone(patch),
+  }));
   const receipt = applyPropertyIntentsEagerly(
-    paintPropertyIntents(targets, patch),
+    withoutTreeRoutedIntents(paintPropertyIntents(targets, patch), ops),
   );
   let enrolled = false;
-  return commitSemanticOps(
-    targets.map(({ elementType, id }) => ({
-      kind: 'patchElement' as const,
-      elementType,
-      id,
-      patch: structuredClone(patch),
-    })),
-    {
-      ...(options.gestureId ? { gestureId: options.gestureId } : {}),
-      preflight: options.preflight,
-      onEnrolled: () => {
-        enrolled = true;
-      },
+  return commitSemanticOps(ops, {
+    ...(options.gestureId ? { gestureId: options.gestureId } : {}),
+    preflight: options.preflight,
+    onEnrolled: () => {
+      enrolled = true;
     },
-  )
+  })
     .then((outcome) =>
       outcome.opResults.some((result) => result.status !== 'targetMissing'),
     )
@@ -184,24 +185,22 @@ export const patchCounterFillByTargets = (
   ) {
     return Promise.resolve(false);
   }
+  const ops = targets.map(({ elementType, id }) => ({
+    kind: 'patchElement' as const,
+    elementType,
+    id,
+    patch: structuredClone(patch),
+  }));
   const receipt = applyPropertyIntentsEagerly(
-    counterFillPropertyIntents(targets, patch),
+    withoutTreeRoutedIntents(counterFillPropertyIntents(targets, patch), ops),
   );
   let enrolled = false;
-  return commitSemanticOps(
-    targets.map(({ elementType, id }) => ({
-      kind: 'patchElement' as const,
-      elementType,
-      id,
-      patch: structuredClone(patch),
-    })),
-    {
-      preflight: options.preflight,
-      onEnrolled: () => {
-        enrolled = true;
-      },
+  return commitSemanticOps(ops, {
+    preflight: options.preflight,
+    onEnrolled: () => {
+      enrolled = true;
     },
-  )
+  })
     .then((outcome) =>
       outcome.opResults.some((result) => result.status !== 'targetMissing'),
     )
@@ -275,25 +274,23 @@ export const patchShadowByTargets = (
   ) {
     return Promise.resolve(false);
   }
+  const ops = targets.map(({ elementType, id }) => ({
+    kind: 'patchElement' as const,
+    elementType,
+    id,
+    patch: structuredClone(patch),
+  }));
   const receipt = applyPropertyIntentsEagerly(
-    shadowPropertyIntents(targets, patch),
+    withoutTreeRoutedIntents(shadowPropertyIntents(targets, patch), ops),
   );
   let enrolled = false;
-  return commitSemanticOps(
-    targets.map(({ elementType, id }) => ({
-      kind: 'patchElement' as const,
-      elementType,
-      id,
-      patch: structuredClone(patch),
-    })),
-    {
-      ...(options.gestureId ? { gestureId: options.gestureId } : {}),
-      preflight: options.preflight,
-      onEnrolled: () => {
-        enrolled = true;
-      },
+  return commitSemanticOps(ops, {
+    ...(options.gestureId ? { gestureId: options.gestureId } : {}),
+    preflight: options.preflight,
+    onEnrolled: () => {
+      enrolled = true;
     },
-  )
+  })
     .then((outcome) =>
       outcome.opResults.some((result) => result.status !== 'targetMissing'),
     )
@@ -347,25 +344,23 @@ export const patchNotePaintByIds = (
   ) {
     return Promise.resolve(false);
   }
+  const ops = ids.map((id) => ({
+    kind: 'patchElement' as const,
+    elementType: 'key' as const,
+    id,
+    patch: structuredClone(patch),
+  }));
   const receipt = applyPropertyIntentsEagerly(
-    notePaintPropertyIntents(ids, patch),
+    withoutTreeRoutedIntents(notePaintPropertyIntents(ids, patch), ops),
   );
   let enrolled = false;
-  return commitSemanticOps(
-    ids.map((id) => ({
-      kind: 'patchElement' as const,
-      elementType: 'key' as const,
-      id,
-      patch: structuredClone(patch),
-    })),
-    {
-      ...(options.gestureId ? { gestureId: options.gestureId } : {}),
-      preflight: options.preflight,
-      onEnrolled: () => {
-        enrolled = true;
-      },
+  return commitSemanticOps(ops, {
+    ...(options.gestureId ? { gestureId: options.gestureId } : {}),
+    preflight: options.preflight,
+    onEnrolled: () => {
+      enrolled = true;
     },
-  )
+  })
     .then((outcome) =>
       outcome.opResults.some((result) => result.status !== 'targetMissing'),
     )

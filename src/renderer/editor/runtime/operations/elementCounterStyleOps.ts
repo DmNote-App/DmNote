@@ -4,7 +4,10 @@ import {
   applyPropertyIntentsEagerly,
   type PropertyIntents,
 } from '../intent/elementIntent';
-import { commitSemanticOps } from './editorSemanticOps';
+import {
+  commitSemanticOps,
+  withoutTreeRoutedIntents,
+} from './editorSemanticOps';
 import { captureEditorDocument } from '../coordinator/editorStateCoordinator';
 import type {
   EditorCounterAnimationPresetIntentV1,
@@ -86,24 +89,25 @@ const patchCounterBooleanByTargets = (
   ) {
     return Promise.resolve(false);
   }
+  const ops = targets.map(({ elementType, id }) => ({
+    kind: 'patchElement' as const,
+    elementType,
+    id,
+    patch,
+  }));
   const receipt = applyPropertyIntentsEagerly(
-    counterBooleanPropertyIntents(targets, patch),
+    withoutTreeRoutedIntents(
+      counterBooleanPropertyIntents(targets, patch),
+      ops,
+    ),
   );
   let enrolled = false;
-  return commitSemanticOps(
-    targets.map(({ elementType, id }) => ({
-      kind: 'patchElement' as const,
-      elementType,
-      id,
-      patch,
-    })),
-    {
-      preflight: options.preflight,
-      onEnrolled: () => {
-        enrolled = true;
-      },
+  return commitSemanticOps(ops, {
+    preflight: options.preflight,
+    onEnrolled: () => {
+      enrolled = true;
     },
-  )
+  })
     .then((outcome) =>
       outcome.opResults.some((result) => result.status !== 'targetMissing'),
     )
@@ -167,24 +171,22 @@ export const patchCounterLayoutByTargets = (
   ) {
     return Promise.resolve(false);
   }
+  const ops = targets.map(({ elementType, id }) => ({
+    kind: 'patchElement' as const,
+    elementType,
+    id,
+    patch,
+  }));
   const receipt = applyPropertyIntentsEagerly(
-    counterLayoutPropertyIntents(targets, patch),
+    withoutTreeRoutedIntents(counterLayoutPropertyIntents(targets, patch), ops),
   );
   let enrolled = false;
-  return commitSemanticOps(
-    targets.map(({ elementType, id }) => ({
-      kind: 'patchElement' as const,
-      elementType,
-      id,
-      patch,
-    })),
-    {
-      preflight: options.preflight,
-      onEnrolled: () => {
-        enrolled = true;
-      },
+  return commitSemanticOps(ops, {
+    preflight: options.preflight,
+    onEnrolled: () => {
+      enrolled = true;
     },
-  )
+  })
     .then((outcome) =>
       outcome.opResults.some((result) => result.status !== 'targetMissing'),
     )
@@ -301,25 +303,26 @@ export const patchCounterTypographyByTargets = (
   ) {
     return Promise.resolve(false);
   }
+  const ops = targets.map(({ elementType, id }) => ({
+    kind: 'patchElement' as const,
+    elementType,
+    id,
+    patch,
+  }));
   const receipt = applyPropertyIntentsEagerly(
-    counterTypographyPropertyIntents(targets, patch),
+    withoutTreeRoutedIntents(
+      counterTypographyPropertyIntents(targets, patch),
+      ops,
+    ),
   );
   let enrolled = false;
-  return commitSemanticOps(
-    targets.map(({ elementType, id }) => ({
-      kind: 'patchElement' as const,
-      elementType,
-      id,
-      patch,
-    })),
-    {
-      ...(options.gestureId ? { gestureId: options.gestureId } : {}),
-      preflight: options.preflight,
-      onEnrolled: () => {
-        enrolled = true;
-      },
+  return commitSemanticOps(ops, {
+    ...(options.gestureId ? { gestureId: options.gestureId } : {}),
+    preflight: options.preflight,
+    onEnrolled: () => {
+      enrolled = true;
     },
-  )
+  })
     .then((outcome) =>
       outcome.opResults.some((result) => result.status !== 'targetMissing'),
     )
@@ -444,27 +447,28 @@ export const patchCounterAnimationPresetByTargets = (
   ) {
     return Promise.resolve(false);
   }
+  const ops = targets.map(({ elementType, id }) => ({
+    kind: 'patchElement' as const,
+    elementType,
+    id,
+    patch: {
+      property: 'counterAnimationPreset' as const,
+      value: structuredClone(intent),
+    },
+  }));
   const receipt = applyPropertyIntentsEagerly(
-    counterAnimationPropertyIntents(targets, intent),
+    withoutTreeRoutedIntents(
+      counterAnimationPropertyIntents(targets, intent),
+      ops,
+    ),
   );
   let enrolled = false;
-  return commitSemanticOps(
-    targets.map(({ elementType, id }) => ({
-      kind: 'patchElement' as const,
-      elementType,
-      id,
-      patch: {
-        property: 'counterAnimationPreset',
-        value: structuredClone(intent),
-      },
-    })),
-    {
-      preflight: options.preflight,
-      onEnrolled: () => {
-        enrolled = true;
-      },
+  return commitSemanticOps(ops, {
+    preflight: options.preflight,
+    onEnrolled: () => {
+      enrolled = true;
     },
-  )
+  })
     .then((outcome) =>
       outcome.opResults.some((result) => result.status !== 'targetMissing'),
     )

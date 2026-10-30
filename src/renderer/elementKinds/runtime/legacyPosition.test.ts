@@ -52,7 +52,7 @@ describe('트리 요소 ↔ 옛 위치 모양', () => {
         layerName: '새 이름',
         hidden: true,
         axisId: 'HIDA:2',
-      }),
+      }).ops,
     ).toEqual([
       { op: 'setFrame', scene: '4key', id: 'k1', frame: { x: 15, width: 80 } },
       {
@@ -77,5 +77,16 @@ describe('트리 요소 ↔ 옛 위치 모양', () => {
         input: { type: 'axis', axisId: 'HIDA:2' },
       },
     ]);
+  });
+
+  it('트리에 자리가 없는 옛 칸은 uncovered로 알린다', () => {
+    expect(
+      legacyPatchOps('4key', knob, {
+        sensitivity: 3,
+        zIndex: 4,
+        groupId: 'g',
+        fontColor: '#fff',
+      }).uncovered,
+    ).toEqual(['zIndex', 'groupId', 'fontColor']);
   });
 });

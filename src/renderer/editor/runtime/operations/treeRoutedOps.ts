@@ -1,5 +1,5 @@
 // 트리로 옮긴 옛 종류(TREE_EDITED_KINDS)의 옛 편집 연산 중 위치·회전·숨김·이름·지우기는 트리 연산으로 바꾼다.
-// 편집 화면이 그 종류를 트리에서 그리므로 트리에 낙관 반영돼야 바로 보인다. 겉모습 칸은 옛 경로에 남는다
+// 편집 화면이 그 종류를 트리에서 그리므로 트리에 낙관 반영돼야 바로 보인다. 겉모습 칸은 styleOps가 정한다
 import type { EditorOpV1 } from '@src/types/editor';
 import type { Op } from '@src/types/generated/elementDocument';
 
@@ -8,6 +8,8 @@ interface TreeRouteContext {
   isTreeEdited: (type: string) => boolean;
   // 지금 장면 트리에 있는 요소인지
   inScene: (id: string) => boolean;
+  // 겉모습 칸 패치의 트리 연산 - 트리에 자리가 없는 옛 칸이 섞이면 null (옛 경로)
+  styleOps?: (op: EditorOpV1) => Op[] | null;
 }
 
 const treeOpOf = (op: EditorOpV1, scene: string): Op | null => {
@@ -67,7 +69,7 @@ const treeOpOf = (op: EditorOpV1, scene: string): Op | null => {
 
 export const treeRoutedOps = (
   ops: readonly EditorOpV1[],
-  { scene, isTreeEdited, inScene }: TreeRouteContext,
+  { scene, isTreeEdited, inScene, styleOps }: TreeRouteContext,
 ) => {
   const treeOps: Op[] = [];
   const legacyIndexes = new Set<number>();
@@ -78,11 +80,10 @@ export const treeRoutedOps = (
         : 'elementType' in op && 'id' in op
         ? { type: op.elementType, id: op.id }
         : null;
-    const treeOp =
-      target && isTreeEdited(target.type) && inScene(target.id)
-        ? treeOpOf(op, scene)
-        : null;
-    if (treeOp) treeOps.push(treeOp);
+    const routed = target && isTreeEdited(target.type) && inScene(target.id);
+    const treeOp = routed ? treeOpOf(op, scene) : null;
+    const ops = treeOp ? [treeOp] : routed ? styleOps?.(op) ?? null : null;
+    if (ops) treeOps.push(...ops);
     else legacyIndexes.add(index);
   });
   return { treeOps, legacyIndexes };

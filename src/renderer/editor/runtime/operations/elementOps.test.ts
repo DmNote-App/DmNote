@@ -24,6 +24,8 @@ vi.mock('../coordinator/editorStateCoordinator', () => ({
 vi.mock('./editorSemanticOps', () => ({
   commitGeneratedSemanticOps: api.commitGeneratedSemanticOps,
   commitSemanticOps: api.commitSemanticOps,
+  // 트리 문서 없이 옛 경로만 시험한다
+  withoutTreeRoutedIntents: (intents: unknown) => intents,
 }));
 
 import { useGraphItemStore } from '@stores/data/useGraphItemStore';

@@ -57,12 +57,13 @@ export const legacyPositionOf = (element: ElementNode): LegacyObject => {
   };
 };
 
-/** 옛 칸 패치 → 트리 연산 - 위치·공통 정보·고유 값·기능 묶음·입력으로 나눈다 */
+/** 옛 칸 패치 → 트리 연산 - 위치·공통 정보·고유 값·기능 묶음·입력으로 나눈다.
+ * 트리에 자리가 없는 옛 칸(겹침 순서·그룹·종류가 쓰지 않는 옛 칸)은 uncovered로 돌려준다 */
 export const legacyPatchOps = (
   sceneId: string,
   element: ElementNode,
   patch: LegacyObject,
-): Op[] => {
+): { ops: Op[]; uncovered: string[] } => {
   const definition = elementKindDefinition(element.kind);
   const valueNames = new Set(
     (definition?.fields ?? []).map((field) => field.name),
@@ -79,6 +80,7 @@ export const legacyPatchOps = (
   const values: Record<string, JsonValue> = {};
   const bundles = new Map<string, Record<string, JsonValue>>();
   let input: Op | null = null;
+  const uncovered: string[] = [];
   for (const [name, value] of Object.entries(patch)) {
     if (name in FRAME_FIELDS && typeof value === 'number') {
       frame[FRAME_FIELDS[name as keyof typeof FRAME_FIELDS]] = value;
@@ -108,6 +110,8 @@ export const legacyPatchOps = (
         ...(bundles.get(bundle) ?? {}),
         [name]: (value ?? null) as JsonValue,
       });
+    } else {
+      uncovered.push(name);
     }
   }
   const ops: Op[] = [];
@@ -125,5 +129,5 @@ export const legacyPatchOps = (
     ops.push({ op: 'setBundle', ...target, bundle, fields });
   }
   if (input) ops.push(input);
-  return ops;
+  return { ops, uncovered };
 };
