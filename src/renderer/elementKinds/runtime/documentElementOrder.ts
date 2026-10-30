@@ -24,18 +24,22 @@ const legacyZIndex = (element: ElementNode): number | null => {
 /** 트리 편집기가 그리는 요소를 겹치는 순서대로 - 숨긴 요소·숨긴 그룹 안은 뺀다.
  * 트리에만 있는 종류에 더해 legacyKinds의 옛 종류도 옛 요소 사이에 넣는다
  * (편집 화면은 트리로 옮긴 옛 종류, 오버레이는 트리에서 그리는 옛 종류, 창 크기 계산은 없음).
- * 편집 화면은 트리 요소처럼 바로 아래 옛 요소의 zIndex를 따른다 - 순서 바꾸기가 백엔드 왕복 없이 보인다.
- * 오버레이는(ownZIndex) 저장된 자기 zIndex로 옛 오버레이와 같은 순서를 그린다 */
+ * 둘 다 자기 zIndex로 플러그인 요소와 같은 축에 쌓는다. 오버레이는(ownZIndex) 저장된 값,
+ * 편집 화면은 옛 층처럼 낙관 반영된 옛 컬렉션 값(legacyZIndexes) - 순서 바꾸기가 백엔드 왕복 없이 보인다.
+ * 트리에만 있는 종류는 바로 아래 옛 종류 요소의 zIndex를 따른다 */
 export const documentElementSlots = (
   scene: Scene | undefined,
   {
     includeHidden = false,
     legacyKinds = TREE_EDITED_KINDS,
     ownZIndex = false,
+    legacyZIndexes,
   }: {
     includeHidden?: boolean;
     legacyKinds?: ReadonlySet<string>;
     ownZIndex?: boolean;
+    // 편집 화면 - 옛 컬렉션의 id별 zIndex (없으면 트리에 실린 값)
+    legacyZIndexes?: ReadonlyMap<string, number>;
   } = {},
 ): DocumentElementSlot[] => {
   if (!scene) return [];
@@ -62,7 +66,7 @@ export const documentElementSlots = (
         below = legacyZIndex(node) ?? below;
         continue;
       }
-      // 트리가 그리는 옛 종류 - 오버레이는 자기 zIndex, 편집 화면은 트리 요소처럼
+      // 트리가 그리는 옛 종류 - 오버레이는 자기 zIndex
       if (isEditorElementType(node.kind) && ownZIndex) {
         const z = legacyZIndex(node);
         below = z ?? below;
@@ -72,6 +76,20 @@ export const documentElementSlots = (
             zIndex: z ?? below ?? lowest ?? 0,
             aboveLegacy: true,
           });
+        }
+        continue;
+      }
+      // 편집 화면 - 자기 zIndex. 옛 층처럼 플러그인 요소보다 먼저 그린다(같은 zIndex면 플러그인이 위)
+      if (isEditorElementType(node.kind)) {
+        const z =
+          legacyZIndexes?.get(node.id) ??
+          legacyZIndex(node) ??
+          below ??
+          lowest ??
+          0;
+        below = z;
+        if (includeHidden || (!hidden && !node.hidden)) {
+          slots.push({ element: node, zIndex: z, aboveLegacy: false });
         }
         continue;
       }

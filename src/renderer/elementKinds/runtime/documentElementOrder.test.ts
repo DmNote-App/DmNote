@@ -91,13 +91,50 @@ describe('트리 전용 요소 쌓임 순서', () => {
       ['t1', 7],
       ['n2', 1],
     ]);
-    // 편집 화면 - 트리 요소처럼 바로 아래 옛 요소(k1)의 zIndex
+    // 편집 화면 - 자기 zIndex
     expect(
       ids(documentElementSlots(scene, { legacyKinds: new Set(['knob']) })),
     ).toEqual([
-      ['n1', 5],
-      ['t1', 5],
-      ['n2', 5],
+      ['n1', 7],
+      ['t1', 7],
+      ['n2', 1],
+    ]);
+  });
+
+  it('편집 화면은 모든 옛 종류를 트리가 그려도 자기 zIndex로 플러그인과 같은 축에 쌓는다', () => {
+    const scene: Scene = {
+      nodes: [
+        tracker('bottom'),
+        legacyKey('a', 7, 0),
+        // 흩어진 옛 그룹은 트리에서 모이므로 트리 순서와 zIndex가 어긋날 수 있다
+        legacyKey('b', 3, 1),
+        tracker('t1'),
+        legacyKey('c', 12, 2),
+      ],
+    };
+    const slots = (legacyZIndexes?: ReadonlyMap<string, number>) =>
+      documentElementSlots(scene, {
+        legacyKinds: new Set(['key', 'knob']),
+        legacyZIndexes,
+      }).map(({ element, zIndex, aboveLegacy }) => [
+        element.id,
+        zIndex,
+        aboveLegacy,
+      ]);
+    expect(slots()).toEqual([
+      ['bottom', 3, false],
+      ['a', 7, false],
+      ['b', 3, false],
+      ['t1', 3, true],
+      ['c', 12, false],
+    ]);
+    // 낙관 반영된 옛 컬렉션 값이 먼저다
+    expect(slots(new Map([['b', 9]]))).toEqual([
+      ['bottom', 3, false],
+      ['a', 7, false],
+      ['b', 9, false],
+      ['t1', 9, true],
+      ['c', 12, false],
     ]);
   });
 });
