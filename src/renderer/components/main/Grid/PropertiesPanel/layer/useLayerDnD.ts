@@ -10,6 +10,7 @@ import {
 } from '@src/renderer/editor/runtime/intent/elementIntent';
 import { useState, useRef, useEffect } from 'react';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { combinedSelection } from '../../document/treeEditedSelection';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import type { LayerItem, DisplayItem } from '../types';
 import { createRafLatestScheduler } from '@utils/animation/rafLatestScheduler';
@@ -256,7 +257,8 @@ export function useLayerDnD({
         if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
         isDraggingRef.current = true;
         didDragRef.current = true;
-        const currentSel = useGridSelectionStore.getState().selectedElements;
+        // 트리로 옮긴 옛 종류(노브 등)는 트리 선택에 있다
+        const currentSel = combinedSelection(selectedKeyType);
         const isInSelection = currentSel.some((el) => el.id === item.id);
         if (isInSelection && currentSel.length > 1) {
           const isFullGroupSelected = (() => {
@@ -535,7 +537,7 @@ export function useLayerDnD({
           groupDragStateRef.current.groupId,
         )
       ) {
-        for (const el of captureSelection.selectedElements) {
+        for (const el of combinedSelection(selectedKeyType)) {
           groupDraggingSet.add(el.id);
         }
       }
@@ -616,7 +618,7 @@ export function useLayerDnD({
         // 드래그 손잡이였던 그룹이 소실됐으면 무커밋 - 잔존 추가 선택만
         // 단독 이동시키지 않는다
         if (liveGroupMemberIds.size > 0) {
-          const currentSel = useGridSelectionStore.getState().selectedElements;
+          const currentSel = combinedSelection(selectedKeyType);
           const currentGroupIds =
             useGridSelectionStore.getState().selectedGroupIds;
           const isGroupSelected = currentGroupIds.includes(groupId);

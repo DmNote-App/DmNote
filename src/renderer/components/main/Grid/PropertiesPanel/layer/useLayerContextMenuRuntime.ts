@@ -9,6 +9,7 @@ import type { ListItem } from '@components/main/Modal/listPopup/ListPopup';
 import type { DisplayItem, LayerItem } from '../types';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import { deleteFrozenSelection } from '@src/renderer/editor/runtime/intent/deleteFrozenSelection';
+import { combinedSelection } from '../../document/treeEditedSelection';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import {
   createLayerActionMutations,
@@ -84,7 +85,7 @@ export const useLayerContextMenuRuntime = ({
       ];
     }
 
-    const selectedElements = useGridSelectionStore.getState().selectedElements;
+    const selectedElements = combinedSelection(selectedKeyType);
     // 플러그인 인스턴스는 이름 저장 경로가 없다 - 항목 자체를 내지 않는다
     const items: ListItem[] =
       contextMenuItem?.type === 'plugin'
@@ -123,7 +124,8 @@ export const useLayerContextMenuRuntime = ({
     clearPendingDeselect();
     onSelectionFromPanel?.();
 
-    const selectedElements = useGridSelectionStore.getState().selectedElements;
+    // 트리로 옮긴 옛 종류(노브 등)는 트리 선택에 있다
+    const selectedElements = combinedSelection(selectedKeyType);
     const isSelected = selectedElements.some((el) => el.id === item.id);
 
     if (!isSelected) {
@@ -218,8 +220,7 @@ export const useLayerContextMenuRuntime = ({
 
     // 선택 항목 그룹화
     if (itemId === 'groupSelected') {
-      const selectedElements =
-        useGridSelectionStore.getState().selectedElements;
+      const selectedElements = combinedSelection(selectedKeyType);
       if (selectedElements.length < 2) return;
 
       const currentGroups = useLayerGroupStore.getState().layerGroups;
@@ -232,7 +233,7 @@ export const useLayerContextMenuRuntime = ({
       const singleGroupId = stableGroup.groupId;
 
       if (singleGroupId) {
-        await setGroupIdOnSelected(singleGroupId);
+        await setGroupIdOnSelected(singleGroupId, selectedElements);
       } else {
         const groupId = crypto.randomUUID();
         const groupName = buildNextLayerGroupName(
@@ -244,7 +245,7 @@ export const useLayerContextMenuRuntime = ({
           [selectedKeyType]: [...modeGroups, { id: groupId, name: groupName }],
         };
 
-        await setGroupIdOnSelected(groupId, undefined, {
+        await setGroupIdOnSelected(groupId, selectedElements, {
           historyLayerGroups: currentGroups,
           layerGroupsForNormalization: nextGroups,
         });
@@ -280,8 +281,7 @@ export const useLayerContextMenuRuntime = ({
     }
 
     if (itemId === 'delete') {
-      const selectedElements =
-        useGridSelectionStore.getState().selectedElements;
+      const selectedElements = combinedSelection(selectedKeyType);
       // 빈 선택이어도 메뉴는 닫는다
       if (selectedElements.length > 0) {
         onSelectionFromPanel?.();

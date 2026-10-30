@@ -23,6 +23,7 @@ import {
   pasteDocumentClipboard,
   useDocumentClipboardStore,
 } from './documentClipboard';
+import { treeOnlySelectedIds } from './treeEditedSelection';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 const ARROW_STEP = 1;
@@ -78,6 +79,13 @@ export const useDocumentKeyboard = () => {
         event.preventDefault();
         if (useGridSelectionStore.getState().selectedElements.length > 0)
           return;
+        // 트리로 옮긴 옛 종류는 옛 종류 키보드가 옛 그룹으로 묶는다 - 트리에만 있는 종류만 고른 때만
+        if (
+          !event.shiftKey &&
+          treeOnlySelectedIds(sceneId).length !== selectedIds.length
+        ) {
+          return;
+        }
         void (event.shiftKey
           ? ungroupDocumentElements(sceneId, selectedIds)
           : groupDocumentElements(
@@ -103,8 +111,12 @@ export const useDocumentKeyboard = () => {
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
+        // 옛 종류 키보드가 지웠으면 트리로 옮긴 옛 종류도 함께 지웠다 - 트리에만 있는 종류만
+        const targets = isGridKeyHandled(event)
+          ? treeOnlySelectedIds(sceneId)
+          : selectedIds;
         clear();
-        void removeDocumentElements(sceneId, selectedIds);
+        if (targets.length > 0) void removeDocumentElements(sceneId, targets);
         return;
       }
       // 섞인 선택은 옛 종류와 같은 거리 (옛 종류는 Shift를 쓰지 않는다)

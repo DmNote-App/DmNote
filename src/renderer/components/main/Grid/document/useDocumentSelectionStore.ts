@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 
 import { useKeyStore } from '@stores/data/useKeyStore';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import {
   isKeepingOtherSelection,
@@ -52,15 +54,21 @@ setOtherSelectionClearer(() => {
   }
 });
 
-// 옛 선택으로 들어온 트리로 옮긴 옛 종류 요소 - 바꾸거나 넣고 뺀다 (지금 탭)
+// 옛 선택으로 들어온 트리로 옮긴 옛 종류 요소 - 그 몫만 바꾸거나 넣고 뺀다 (지금 탭).
+// 트리에만 있는 종류 선택은 지킨다 - 바꿔 고르기면 옛 선택 스토어가 먼저 비운다
 setOtherSelectionRouter((ids, mode) => {
   const sceneId = useKeyStore.getState().selectedKeyType;
   const selection = useDocumentSelectionStore.getState();
   const current = selection.sceneId === sceneId ? selection.selectedIds : [];
+  const store = getElementDocumentStore();
+  const isTreeEdited = (id: string) => {
+    const kind = store?.getElement(sceneId, id)?.kind;
+    return !!kind && TREE_EDITED_KINDS.has(kind);
+  };
   selection.setSelection(
     sceneId,
     mode === 'replace'
-      ? [...ids]
+      ? [...current.filter((id) => !isTreeEdited(id)), ...ids]
       : ids.reduce(
           (next, id) =>
             next.includes(id)

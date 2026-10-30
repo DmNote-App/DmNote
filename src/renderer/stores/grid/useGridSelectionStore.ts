@@ -192,7 +192,10 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
 
   selectElement: (element, addToSelection = false) => {
     if (isTreeEditedSelection(element)) {
-      if (!addToSelection) set({ selectedElements: [], selectedGroupIds: [] });
+      if (!addToSelection) {
+        set({ selectedElements: [], selectedGroupIds: [] });
+        replaceOtherSelection();
+      }
       routeOtherMembers([element.id], addToSelection ? 'toggle' : 'replace');
       return;
     }
@@ -253,8 +256,10 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
     }));
   },
 
+  // 선택 해제는 트리 선택도 함께 (넣고 빼기 안에서는 지킨다)
   clearSelection: () => {
     set({ selectedElements: [], selectedGroupIds: [] });
+    replaceOtherSelection();
   },
 
   setSelectedElements: (incoming) => {
@@ -277,17 +282,17 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
         selectedGroupIds: [],
       };
     });
+    if (treeIds.length > 0 || elements.length > 0) replaceOtherSelection();
     if (treeIds.length > 0) routeOtherMembers(treeIds, 'replace');
-    else if (elements.length > 0) replaceOtherSelection();
   },
 
   setFullSelection: (incoming, groupIds) => {
     const { elements, treeIds } = splitTreeEdited(incoming);
     set({ selectedElements: elements, selectedGroupIds: groupIds });
-    if (treeIds.length > 0) routeOtherMembers(treeIds, 'replace');
-    else if (elements.length > 0 || groupIds.length > 0) {
+    if (treeIds.length > 0 || elements.length > 0 || groupIds.length > 0) {
       replaceOtherSelection();
     }
+    if (treeIds.length > 0) routeOtherMembers(treeIds, 'replace');
   },
 
   isSelected: (id) => {

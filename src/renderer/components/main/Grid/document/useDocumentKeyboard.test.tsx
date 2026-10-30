@@ -43,9 +43,11 @@ vi.mock('./documentEditActions', () => ({
   stepDocumentElements: mocks.step,
 }));
 
+// t* = 트리에만 있는 종류, n* = 트리로 옮긴 옛 종류(노브)
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   getElementDocumentStore: () => ({
-    getElement: () => ({
+    getElement: (_scene: string, id: string) => ({
+      kind: id.startsWith('n') ? 'knob' : 'cursor',
       frame: { x: 10, y: 20, width: 5, height: 5, rotation: 0 },
     }),
   }),
@@ -162,6 +164,39 @@ describe('트리 요소 키보드', () => {
     );
     press('G', { metaKey: true, shiftKey: true, code: 'KeyG' });
     expect(mocks.ungroup).toHaveBeenCalledWith('4key', ['t1', 't2']);
+  });
+
+  it('트리로 옮긴 옛 종류가 섞이면 Cmd+G를 옛 종류 키보드에 맡긴다', () => {
+    mocks.group.mockClear();
+    useDocumentSelectionStore.getState().setSelection('4key', ['n1', 'n2']);
+    act(() => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'g',
+        code: 'KeyG',
+        metaKey: true,
+        cancelable: true,
+      });
+      event.preventDefault();
+      markGridKeyHandled(event);
+      window.dispatchEvent(event);
+    });
+    press('g', { metaKey: true, code: 'KeyG' });
+    expect(mocks.group).not.toHaveBeenCalled();
+  });
+
+  it('옛 종류 키보드가 지웠으면 트리에만 있는 종류만 지운다', () => {
+    useDocumentSelectionStore.getState().setSelection('4key', ['n1', 't1']);
+    act(() => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'Delete',
+        cancelable: true,
+      });
+      event.preventDefault();
+      markGridKeyHandled(event);
+      window.dispatchEvent(event);
+    });
+    expect(mocks.remove).toHaveBeenCalledWith('4key', ['t1']);
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
   });
 
   it('Delete는 지우고 선택을 푼다', () => {

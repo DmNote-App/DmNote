@@ -30,13 +30,11 @@ import {
 import {
   captureElementCollections,
   getItemStoreState,
-  readAuthorityPositions,
 } from '@src/renderer/editor/model/elementStores';
 import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
-import { defaultElementSize, TREE_EDITED_KINDS } from '@src/types/elementKinds';
+import { defaultElementSize } from '@src/types/elementKinds';
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
-  isEditorElementType,
   isItemElementType,
   modeArraysOf,
   type ElementCollections,
@@ -112,6 +110,10 @@ import DuplicateElementGhost from './DuplicateElementGhost';
 import NativeGridElements from './NativeGridElements';
 import GridSelectionOverlays from '../overlays/GridSelectionOverlays';
 import DocumentContextMenu from '../document/DocumentContextMenu';
+import {
+  combinedSelection as combinedSelectionOf,
+  treeOnlySelectedIds,
+} from '../document/treeEditedSelection';
 import { useDocumentContextMenuStore } from '../document/useDocumentContextMenuStore';
 import DocumentGridLayer from '../document/DocumentGridLayer';
 import DocumentSelectionOverlay from '../document/DocumentSelectionOverlay';
@@ -121,6 +123,7 @@ import { documentKindForAddMenuItem } from '../document/documentAddMenu';
 import { insertDocumentElement } from '../document/documentEditActions';
 import { useDocumentKeyboard } from '../document/useDocumentKeyboard';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { deleteFrozenSelection } from '@src/renderer/editor/runtime/intent/deleteFrozenSelection';
 import { expandDocumentGroup } from '../document/documentGroups';
 import { documentIdsInRect } from '../document/documentSelection';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
@@ -129,7 +132,10 @@ import {
   moveDocumentElementTo,
   removeDocumentElements,
 } from '../document/documentEditActions';
-import { duplicateDocumentSelection } from '../document/documentClipboard';
+import {
+  copyDocumentSelection,
+  pasteDocumentClipboard,
+} from '../document/documentClipboard';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { setCompanionSelectionReader } from '@stores/grid/companionSelection';
 import { executeNativeContextMenuAction } from './nativeContextMenuActions';
@@ -300,7 +306,6 @@ const Grid = ({
   // 선택 관련 로직 훅 사용
   const {
     moveSelectedElements,
-    deleteSelectedElements,
     copySelectedElements,
     pasteElements,
     syncSelectedElementsToOverlay,
@@ -411,37 +416,13 @@ const Grid = ({
     syncSelectedElementsToOverlay();
   };
 
-  // 트리 선택의 트리로 옮긴 옛 종류(노브 등)를 옛 선택 모양으로 - 옛 그룹 동작이 함께 다룬다
-  const treeEditedSelection = (): SelectedElement[] => {
-    const selection = useDocumentSelectionStore.getState();
-    if (selection.sceneId !== selectedKeyType) return [];
-    const store = getElementDocumentStore();
-    return selection.selectedIds.flatMap((id) => {
-      const kind = store?.getElement(selectedKeyType, id)?.kind;
-      if (!kind || !isEditorElementType(kind) || !TREE_EDITED_KINDS.has(kind)) {
-        return [];
-      }
-      const index = (
-        (readAuthorityPositions(kind)[selectedKeyType] ?? []) as Array<{
-          id: string;
-        }>
-      ).findIndex((position) => position.id === id);
-      return index >= 0 ? [{ type: kind, id, index } as SelectedElement] : [];
-    });
-  };
-  const combinedSelection = () => [
-    ...useGridSelectionStore.getState().selectedElements,
-    ...treeEditedSelection(),
-  ];
+  const combinedSelection = () => combinedSelectionOf(selectedKeyType);
   // 트리에만 있는 종류(커서 트래커 등)를 함께 골랐는지
-  const hasTreeOnlySelection = () => {
-    const selection = useDocumentSelectionStore.getState();
-    const store = getElementDocumentStore();
-    return selection.selectedIds.some((id) => {
-      const kind = store?.getElement(selectedKeyType, id)?.kind;
-      return !!kind && !isEditorElementType(kind);
-    });
-  };
+  const hasTreeOnlySelection = () =>
+    treeOnlySelectedIds(selectedKeyType).length > 0;
+  // 지우기는 트리로 옮긴 옛 종류도 옛 지우기에 함께 (트리 몫은 같은 동작 id로 트리에 쓴다)
+  const deleteSelectedElements = () =>
+    deleteFrozenSelection(combinedSelection());
 
   // 트리 요소 키보드 - 옛 종류 키보드가 처리한 뒤 같은 이벤트로 부른다 (섞인 선택)
   const handleDocumentKeyDown = useDocumentKeyboard();
@@ -578,16 +559,15 @@ const Grid = ({
     setDuplicateCursor(null);
   };
 
-  const duplicateSelectedFromContextMenu = async () => {
-    copySelectedElements();
-    await pasteElements().catch(reportElementOpError);
-  };
-
-  const moveSelectedToFront = async () => {
-    if (selectedElements.length === 0) return;
+  // 섞인 메뉴의 맨 앞·맨 뒤 - 트리로 옮긴 옛 종류도 함께 넘긴다 (한 커밋)
+  const moveSelectedTo = async (
+    action: 'front' | 'back',
+    elements: readonly SelectedElement[],
+  ) => {
+    if (elements.length === 0) return;
 
     if (
-      selectedElements.every(
+      elements.every(
         (element) =>
           element.type === 'plugin' || isStableNativeSelection(element),
       )
@@ -595,42 +575,16 @@ const Grid = ({
       await commitStableLayerZOrder({
         mode: selectedKeyType,
         targets: orderStableZTargetsForBatch(
-          selectedElements.map((element) => ({
+          elements.map((element) => ({
             type: element.type as NativeElementType | 'plugin',
             id: element.id,
           })),
         ),
-        action: 'front',
+        action,
       }).catch(reportElementOpError);
       syncSelectedElementsToOverlay();
       return;
     }
-    reportElementOpError(new Error('Invalid native selection ID'));
-  };
-
-  const moveSelectedToBack = async () => {
-    if (selectedElements.length === 0) return;
-
-    if (
-      selectedElements.every(
-        (element) =>
-          element.type === 'plugin' || isStableNativeSelection(element),
-      )
-    ) {
-      await commitStableLayerZOrder({
-        mode: selectedKeyType,
-        targets: orderStableZTargetsForBatch(
-          selectedElements.map((element) => ({
-            type: element.type as NativeElementType | 'plugin',
-            id: element.id,
-          })),
-        ),
-        action: 'back',
-      }).catch(reportElementOpError);
-      syncSelectedElementsToOverlay();
-      return;
-    }
-
     reportElementOpError(new Error('Invalid native selection ID'));
   };
 
@@ -850,10 +804,22 @@ const Grid = ({
     event.stopPropagation();
     // 고른 것 위에서 우클릭하면 선택을 지킨다 (옛 종류와 같다)
     const selection = useDocumentSelectionStore.getState();
+    const selected =
+      selection.sceneId === selectedKeyType &&
+      selection.selectedIds.includes(element.id);
+    // 옛 종류 요소와 섞인 선택이면 두 가족에 함께 적용하는 메뉴
     if (
-      selection.sceneId !== selectedKeyType ||
-      !selection.selectedIds.includes(element.id)
+      selected &&
+      useGridSelectionStore.getState().selectedElements.length > 0
     ) {
+      openMixedSelectionContextMenu(
+        event.clientX,
+        event.clientY,
+        event.currentTarget as HTMLElement,
+      );
+      return;
+    }
+    if (!selected) {
       selection.setSelection(
         selectedKeyType,
         expandDocumentGroup(
@@ -1127,41 +1093,36 @@ const Grid = ({
           }
           onSelect={async (id: string) => {
             if (contextType === 'mixed') {
-              // 함께 고른 트리 요소에도 같은 동작 (트리 쓰기 - 바로 보인다)
-              const documentSelection = useDocumentSelectionStore.getState();
-              const documentIds =
-                documentSelection.sceneId === selectedKeyType
-                  ? documentSelection.selectedIds
-                  : [];
+              // 트리로 옮긴 옛 종류는 옛 동작에 함께 넘기고(한 커밋), 트리에만 있는 종류는 트리에 쓴다
+              const treeOnlyIds = treeOnlySelectedIds(selectedKeyType);
               if (id === 'delete') {
-                if (documentIds.length > 0) {
-                  documentSelection.clear();
-                  void removeDocumentElements(selectedKeyType, [
-                    ...documentIds,
-                  ]);
+                if (treeOnlyIds.length > 0) {
+                  void removeDocumentElements(selectedKeyType, treeOnlyIds);
                 }
-                await deleteSelectedElements().catch(reportElementOpError);
+                // 지울 대상(트리로 옮긴 옛 종류 포함)을 읽은 뒤 트리 선택을 비운다
+                const deleting = deleteSelectedElements();
+                useDocumentSelectionStore.getState().clear();
+                await deleting.catch(reportElementOpError);
               } else if (id === 'duplicate') {
-                await duplicateSelectedFromContextMenu();
-                if (documentIds.length > 0) {
-                  await duplicateDocumentSelection(selectedKeyType);
+                // 트리 선택을 먼저 복사한다 - 옛 붙여넣기가 바꿔 고르며 트리 선택을 비운다
+                copySelectedElements();
+                const copiedDocument = copyDocumentSelection({
+                  keepLegacyClipboard: true,
+                });
+                await pasteElements().catch(reportElementOpError);
+                if (copiedDocument) {
+                  await pasteDocumentClipboard(selectedKeyType, {
+                    keepOther: true,
+                  });
                 }
-              } else if (id === 'bringToFront') {
-                await moveSelectedToFront();
-                if (documentIds.length > 0) {
+              } else if (id === 'bringToFront' || id === 'sendToBack') {
+                const action = id === 'bringToFront' ? 'front' : 'back';
+                await moveSelectedTo(action, combinedSelection());
+                if (treeOnlyIds.length > 0) {
                   await moveDocumentElementTo(
                     selectedKeyType,
-                    [...documentIds],
-                    'front',
-                  );
-                }
-              } else if (id === 'sendToBack') {
-                await moveSelectedToBack();
-                if (documentIds.length > 0) {
-                  await moveDocumentElementTo(
-                    selectedKeyType,
-                    [...documentIds],
-                    'back',
+                    treeOnlyIds,
+                    action,
                   );
                 }
               } else if (id === 'groupSelected') {
