@@ -23,6 +23,7 @@ import { setPluginElementsHidden } from '@plugins/runtime/displayElement/pluginE
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
 import { isPluginKind } from '@src/types/elementKinds';
 import type { Node } from '@src/types/generated/elementDocument';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import {
   editDocument,
   groupDocumentElements,
@@ -126,6 +127,8 @@ const LayerTabContent = ({
   const [dragging, setDragging] = useState(false);
   // 끄는 중 마지막으로 누른 행 클릭은 선택으로 치지 않는다
   const draggedRef = useRef(false);
+  // Shift 범위의 기준 - 마지막으로 보조키 없이·Cmd로 누른 요소
+  const anchorRef = useRef<string | null>(null);
 
   const [renaming, setRenaming] = useState<{
     id: string;
@@ -148,9 +151,8 @@ const LayerTabContent = ({
     return () => win.cancelAnimationFrame(rafId);
   });
 
-  const nameOf = (node: Node) => {
-    if (node.type === 'group') return node.name;
-    if (node.name) return node.name;
+  // 이름이 비었을 때 보이는 이름
+  const defaultNameOf = (node: ElementNode) => {
     // 키는 트리 입력 슬롯 이름 (슬롯 바꾸기가 트리 연산 - 낙관 적용)
     const slot = slotDisplayName(treeKeySlot(node) ?? '');
     if (slot) return slot;
@@ -161,6 +163,8 @@ const LayerTabContent = ({
       ? t(label) || node.kind
       : t('elementKinds.unknownKind') || node.kind;
   };
+  const nameOf = (node: Node) =>
+    node.type === 'group' ? node.name : node.name || defaultNameOf(node);
   const hiddenOf = (node: Node) =>
     node.type === 'element' && isPluginKind(node.kind)
       ? labels.pluginHidden.get(node.id) ?? node.hidden === true
@@ -184,6 +188,7 @@ const LayerTabContent = ({
     const ids = elementIdsOf(row.node);
     const primaryModifier = isMac() ? event.metaKey : event.ctrlKey;
     if (primaryModifier) {
+      anchorRef.current = row.node.id;
       // 그룹 행은 그룹 전체를 넣거나 뺀다
       const allSelected = ids.every(isSelected);
       select(
@@ -197,9 +202,10 @@ const LayerTabContent = ({
     }
     // Shift - 기준 행과 누른 행 사이 요소 행 전체
     if (event.shiftKey && selectedIds.length > 0) {
-      const anchor = rows.findIndex(
-        ({ node }) => node.type === 'element' && node.id === selectedIds[0],
-      );
+      const anchorOf = (id: string | null | undefined) =>
+        rows.findIndex(({ node }) => node.id === id);
+      const remembered = anchorOf(anchorRef.current);
+      const anchor = remembered >= 0 ? remembered : anchorOf(selectedIds[0]);
       const clicked = rows.indexOf(row);
       if (anchor >= 0) {
         const [from, to] =
@@ -214,6 +220,7 @@ const LayerTabContent = ({
       }
     }
     // 레이어 행은 그룹 안 요소도 그 요소 하나만 고른다 (그룹째 고르기는 캔버스 규칙)
+    anchorRef.current = row.node.id;
     select(ids);
   };
 
@@ -245,7 +252,7 @@ const LayerTabContent = ({
           return;
         }
         // 기본 이름과 같거나 비우면 이름을 지운다
-        const fallback = labels.defaultNames.get(node.id) ?? nameOf(node);
+        const fallback = defaultNameOf(node);
         void setDocumentCommon(sceneId, node.id, {
           name: trimmed && trimmed !== fallback ? trimmed : null,
         });

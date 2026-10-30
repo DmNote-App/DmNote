@@ -65,10 +65,12 @@ export const documentElementSlots = (
       if (native) legacyBelow = true;
       if (native && !legacyKinds.has(node.kind)) continue;
       if (includeHidden || (!hidden && !node.hidden)) {
+        const aboveLegacy = native ? stackNatives : legacyBelow;
         slots.push({
           element: node,
-          zIndex: ranks.get(node.id) ?? 0,
-          aboveLegacy: native ? stackNatives : legacyBelow,
+          // 오버레이의 아래 칸(옛 종류보다 아래)은 노트 트랙(z 없음) 아래에 남도록 0
+          zIndex: stackNatives && !aboveLegacy ? 0 : ranks.get(node.id) ?? 0,
+          aboveLegacy,
         });
       }
     }

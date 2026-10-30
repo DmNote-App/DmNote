@@ -5,6 +5,7 @@ import { usePopupPresence } from '@hooks/ui/usePopupPresence';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { runStructureAction } from '../../main/Grid/document/documentEditActions';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
 import type {
   PluginDefinitionInternal,
@@ -201,15 +202,26 @@ export const usePluginElementContextMenu = ({
   })();
 
   const handleContextMenuSelect = (itemId: string) => {
-    // 플러그인 요소의 트리 노드 id가 fullId - 트리 연산으로 옮긴다
+    // 플러그인 요소의 트리 노드 id가 fullId - 트리 연산으로 옮긴다.
+    // 트리에 없는 요소(저장하지 않는 스크립트 표시 요소)는 자기 zIndex를 바꾼다
     const commitLayerOrder = (
       action: 'front' | 'forward' | 'backward' | 'back',
     ) => {
-      void runStructureAction(
-        element.tabId ?? useKeyStore.getState().selectedKeyType,
-        [element.fullId],
-        action,
-      ).catch(reportElementOpError);
+      const sceneId = element.tabId ?? useKeyStore.getState().selectedKeyType;
+      if (!getElementDocumentStore()?.getElement(sceneId, element.fullId)) {
+        const store = usePluginDisplayElementStore.getState();
+        const move = {
+          front: store.bringToFront,
+          forward: store.bringForward,
+          backward: store.sendBackward,
+          back: store.sendToBack,
+        }[action];
+        move(element.fullId);
+        return;
+      }
+      void runStructureAction(sceneId, [element.fullId], action).catch(
+        reportElementOpError,
+      );
     };
 
     if (itemId === 'delete') {

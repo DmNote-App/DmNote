@@ -113,6 +113,20 @@ describe('트리 순서로 쌓기', () => {
       ['t1', 3, true],
       ['c', 4, true],
     ]);
+    // 오버레이 - 옛 종류보다 아래 칸은 노트 트랙 아래에 남도록 0
+    const below: Scene = {
+      nodes: [tracker('b1'), tracker('b2'), legacyKey('k', 1, 0)],
+    };
+    expect(
+      documentElementSlots(below, {
+        legacyKinds: new Set(['key']),
+        stackNatives: true,
+      }).map(({ element, zIndex }) => [element.id, zIndex]),
+    ).toEqual([
+      ['b1', 0],
+      ['b2', 0],
+      ['k', 2],
+    ]);
     // 그리지 않는 옛 종류도 순번을 차지한다
     expect(
       documentElementSlots(scene, { legacyKinds: new Set() }).map(

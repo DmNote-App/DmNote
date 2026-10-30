@@ -10,6 +10,7 @@ vi.mock('@src/types/elementKinds', async (importOriginal) =>
 import type { Scene } from '@src/types/generated/elementDocument';
 import {
   documentGroupActions,
+  documentGroupOps,
   documentGroupRoots,
   documentGroupsOf,
   groupSelectionOf,
@@ -44,6 +45,8 @@ const scene: Scene = {
     },
   ],
 };
+
+const treeOnlyScene = scene;
 
 describe('트리 전용 그룹 계산', () => {
   it('옛 그룹 표시가 없고 안이 모두 트리 전용이면 트리 전용 그룹이다', () => {
@@ -115,5 +118,62 @@ describe('그룹 안 플러그인 요소', () => {
       treeIds: ['t1'],
       plugins: ['demo::i1'],
     });
+  });
+});
+
+describe('옛 모양과 맞는 묶기', () => {
+  const el = (id: string, kind = 'key') => ({
+    type: 'element' as const,
+    id,
+    kind,
+    frame: { x: 0, y: 0, width: 1, height: 1, rotation: 0 },
+  });
+  // 아래→위: k1, G{k2, k3}, H{k4}, t1
+  const scene = {
+    nodes: [
+      el('k1'),
+      {
+        type: 'group' as const,
+        id: 'G',
+        name: 'G',
+        legacy: {},
+        children: [el('k2'), el('k3')],
+      },
+      {
+        type: 'group' as const,
+        id: 'H',
+        name: 'H',
+        legacy: {},
+        children: [el('k4')],
+      },
+      el('t1', 'cursorTracker'),
+    ],
+  } as never;
+  const group = { id: 'N', name: 'N' };
+
+  it('그룹에 든 것이 없으면 새 그룹, 한 그룹에만 들어 있으면 나머지를 그 그룹에 넣는다', () => {
+    expect(documentGroupOps(scene, 's', ['k1', 't1'], group)).toEqual([
+      { op: 'group', scene: 's', ...group, ids: ['k1', 't1'] },
+    ]);
+    // 그룹째 고른 G + k1 - 그룹 안 그룹을 만들지 않고 G에 넣는다
+    expect(documentGroupOps(scene, 's', ['k2', 'k3', 'k1'], group)).toEqual([
+      { op: 'move', scene: 's', ids: ['k1'], parent: 'G', index: null },
+    ]);
+    // 이미 다 한 그룹 안 - 할 것 없음
+    expect(documentGroupOps(scene, 's', ['k2', 'k3'], group)).toBeNull();
+    expect(documentGroupActions(scene, ['k2', 'k3'])).toEqual(['ungroup']);
+  });
+
+  it('여러 그룹에 걸치면 고른 요소만 맨 위 단계로 꺼내 새 그룹으로 묶는다', () => {
+    expect(documentGroupOps(scene, 's', ['k3', 'k4'], group)).toEqual([
+      { op: 'move', scene: 's', ids: ['k3', 'k4'], parent: null, index: 3 },
+      { op: 'group', scene: 's', ...group, ids: ['k3', 'k4'] },
+    ]);
+  });
+
+  it('트리 전용 요소끼리는 다 고른 그룹을 그룹째 넣는다', () => {
+    expect(
+      documentGroupOps(treeOnlyScene, 's', ['a', 'b', 'c'], group),
+    ).toEqual([{ op: 'group', scene: 's', ...group, ids: ['outer', 'c'] }]);
   });
 });

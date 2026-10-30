@@ -80,7 +80,13 @@ export const setStructureSelection = (
     if (kind && isPluginKind(kind)) plugins.push({ type: 'plugin', id });
     else treeIds.push(id);
   }
-  if (treeIds.length === 0 && plugins.length > 0) {
+  if (treeIds.length === 0) {
+    // 빈 선택 - 두 선택 모두 비운다
+    if (plugins.length === 0) {
+      useGridSelectionStore.getState().clearSelection();
+      useDocumentSelectionStore.getState().clear();
+      return;
+    }
     useGridSelectionStore.getState().setSelectedElements(plugins);
     return;
   }

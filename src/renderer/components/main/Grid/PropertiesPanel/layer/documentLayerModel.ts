@@ -5,6 +5,7 @@ import type {
   Op,
   Scene,
 } from '@src/types/generated/elementDocument';
+import { isLegacyNode } from '../../document/documentGroups';
 
 export interface DocumentLayerRowModel {
   node: Node;
@@ -71,6 +72,21 @@ export const documentDropMove = (
     return null;
   }
   if (ids.includes(target.node.id) && position !== 'into') return null;
+  // 옛 모양은 그룹 안 그룹을 나타내지 못한다 - 옛 종류·플러그인이 든 노드를 그룹 안 그룹에 넣거나,
+  // 옛 그룹째 다른 그룹에 넣는 자리는 받지 않는다 (백엔드가 거부한다)
+  if (parent !== null) {
+    const parentRow = rows.find((row) => row.node.id === parent);
+    const nested = parentRow ? parentRow.parentId !== null : false;
+    if (
+      moving.some(
+        (row) =>
+          (row.node.type === 'group' && isLegacyNode(row.node)) ||
+          (nested && isLegacyNode(row.node)),
+      )
+    ) {
+      return null;
+    }
+  }
   return {
     op: 'move',
     scene: sceneId,

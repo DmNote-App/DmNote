@@ -206,4 +206,35 @@ describe('레이어 탭 - 장면 트리 하나', () => {
       },
     ]);
   });
+
+  it('Shift 범위는 마지막으로 누른 행을 기준으로 하고, Cmd로 마지막 플러그인을 빼면 선택이 빈다', () => {
+    act(() => row('k1').click());
+    act(() =>
+      row('t1').dispatchEvent(
+        new MouseEvent('click', { bubbles: true, shiftKey: true }),
+      ),
+    );
+    act(() =>
+      row('demo::p1').dispatchEvent(
+        new MouseEvent('click', { bubbles: true, shiftKey: true }),
+      ),
+    );
+    // 기준은 처음 누른 k1 그대로
+    expect(useDocumentSelectionStore.getState().selectedIds.sort()).toEqual([
+      'k1',
+      't1',
+    ]);
+    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+      { type: 'plugin', id: 'demo::p1' },
+    ]);
+
+    act(() => row('demo::p1').click());
+    act(() =>
+      row('demo::p1').dispatchEvent(
+        new MouseEvent('click', { bubbles: true, metaKey: true }),
+      ),
+    );
+    expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
+  });
 });

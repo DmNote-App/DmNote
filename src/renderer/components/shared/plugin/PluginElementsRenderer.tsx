@@ -179,7 +179,8 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
   const updateElement = usePluginDisplayElementStore(
     (state) => state.updateElement,
   );
-  // 쌓임 순서는 트리 순번 - 키·트리 요소와 같은 축. 트리에 아직 없는 요소(만든 직후)는 맨 위
+  // 쌓임 순서는 트리 순번 - 키·트리 요소와 같은 축. 트리에 없는 요소(만든 직후·스크립트 표시 요소)는
+  // 자기 zIndex, 없으면 맨 위
   const scene = useElementDocumentScene(selectedKeyType);
   const stackRanks = treeStackingRanks(scene);
   // 숨긴 트리 그룹 안 요소는 그리지 않는다 (그룹 숨김은 트리에만 있다)
@@ -297,7 +298,8 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
           panX={panX}
           panY={panY}
           isViewportTransforming={isViewportTransforming}
-          stackZIndex={stackRanks.get(fullId) ?? stackRanks.size + index}
+          stackZIndex={stackRanks.get(fullId)}
+          fallbackZIndex={stackRanks.size + index}
           isSelected={selectedElements.some(
             (sel) => sel.type === 'plugin' && sel.id === fullId,
           )}

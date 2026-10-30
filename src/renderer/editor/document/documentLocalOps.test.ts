@@ -107,7 +107,8 @@ describe('편집 창 낙관 적용', () => {
     const after = applyLocalOps(before, [
       { op: 'setFrame', scene: 's', id: 'missing', frame: { x: 1 } },
       { op: 'setFrame', scene: 'none', id: 'a', frame: { x: 1 } },
-      { op: 'ungroup', scene: 's', id: 'g' },
+      { op: 'setInput', scene: 's', id: 'a', input: null },
+      { op: 'ungroup', scene: 's', id: 'missing' },
     ]);
     expect(after.scenes.s).toBe(before.scenes.s);
   });
@@ -121,5 +122,35 @@ describe('편집 창 낙관 적용', () => {
       { op: 'move', scene: 's', ids: ['b'], parent: null, index: null },
     ]);
     expect(ids(moved)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('묶기는 엔진과 같이 가장 위 멤버 자리에, 멤버는 아래→위로 - 그룹 멤버의 자손은 따로 떼지 않는다', () => {
+    const grouped = applyLocalOps(document(), [
+      { op: 'group', scene: 's', id: 'n', name: 'N', ids: ['c', 'a'] },
+    ]);
+    expect(ids(grouped)).toEqual(['g[b]', 'n[a,c]']);
+    const withGroup = applyLocalOps(document(), [
+      { op: 'group', scene: 's', id: 'n', name: 'N', ids: ['g', 'b', 'a'] },
+    ]);
+    expect(ids(withGroup)).toEqual(['n[a,g]', 'c']);
+    // 그룹 안 요소가 가장 위면 그 그룹 안에 - 비게 된 트리 그룹은 지운다
+    const inner = applyLocalOps(document(), [
+      { op: 'group', scene: 's', id: 'n', name: 'N', ids: ['a', 'b'] },
+    ]);
+    expect(ids(inner)).toEqual(['g[n]', 'c']);
+  });
+
+  it('풀기는 그룹 자리에 자식을 그대로, 그룹 정보는 이름·숨김만 바꾼다', () => {
+    expect(
+      ids(applyLocalOps(document(), [{ op: 'ungroup', scene: 's', id: 'g' }])),
+    ).toEqual(['a', 'b', 'c']);
+    const renamed = applyLocalOps(document(), [
+      { op: 'setGroup', scene: 's', id: 'g', name: 'H', hidden: true },
+    ]);
+    const group = renamed.scenes.s!.nodes[1];
+    expect(group.type === 'group' && [group.name, group.hidden]).toEqual([
+      'H',
+      true,
+    ]);
   });
 });

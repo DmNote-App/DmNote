@@ -14,6 +14,7 @@ import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 type StubProps = {
   element: { fullId: string; state?: Record<string, unknown> };
   stackZIndex?: number;
+  fallbackZIndex?: number;
 };
 
 const probe = vi.hoisted(() => ({
@@ -26,7 +27,8 @@ vi.mock('@components/shared/plugin/PluginElement', () => {
   const Stub = (props: StubProps) => {
     probe.counts[props.element.fullId] =
       (probe.counts[props.element.fullId] ?? 0) + 1;
-    probe.lastStackZIndex[props.element.fullId] = props.stackZIndex;
+    probe.lastStackZIndex[props.element.fullId] =
+      props.stackZIndex ?? props.fallbackZIndex;
     return null;
   };
   return { PluginElement: Stub };

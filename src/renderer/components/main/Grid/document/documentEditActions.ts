@@ -14,6 +14,7 @@ import type {
 } from '@src/types/generated/elementDocument';
 import {
   documentGroupNames,
+  documentGroupOps,
   documentGroupRoots,
   documentGroupsOf,
   documentParentOf,
@@ -237,28 +238,21 @@ export const stepDocumentElements = (
   return ops.length === 0 ? Promise.resolve(null) : editDocument(ops);
 };
 
-/** 고른 트리 요소를 새 그룹으로 묶는다 - 다 고른 트리 그룹은 그룹째 넣는다 */
+/** 고른 요소를 묶는다 - 묶는 방식은 documentGroupOps (옛 모양이 그룹 안 그룹을 못 나타내는 경우 포함) */
 export const groupDocumentElements = (
   sceneId: string,
   ids: readonly string[],
   baseLabel: string,
 ) => {
   const scene = getElementDocumentStore()?.getScene(sceneId);
-  const roots = documentGroupRoots(scene, ids);
-  // 둘 이상이어야 하고, 이미 한 그룹 전체면 그대로 둔다 (옛 종류와 같다)
-  if (ids.length < 2 || roots.length < 2) return Promise.resolve(null);
-  return editDocument([
-    {
-      op: 'group',
-      scene: sceneId,
-      id: crypto.randomUUID(),
-      name: buildNextLayerGroupName(baseLabel, documentGroupNames(scene)),
-      ids: roots,
-    },
-  ]);
+  const ops = documentGroupOps(scene, sceneId, ids, {
+    id: crypto.randomUUID(),
+    name: buildNextLayerGroupName(baseLabel, documentGroupNames(scene)),
+  });
+  return ops ? editDocument(ops) : Promise.resolve(null);
 };
 
-/** 고른 요소가 들어 있는 가장 바깥 트리 그룹을 푼다 */
+/** 고른 요소가 들어 있는 가장 바깥 그룹을 푼다 */
 export const ungroupDocumentElements = (
   sceneId: string,
   ids: readonly string[],

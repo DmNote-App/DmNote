@@ -1,5 +1,12 @@
 // 구조 편집 그룹 계산 - 옛 그룹·트리 전용 그룹 모두 트리 그룹으로 다룬다 (묶기·풀기·겹침 순서는 트리 연산)
-import type { Group, Node, Scene } from '@src/types/generated/elementDocument';
+import type {
+  Group,
+  Node,
+  Op,
+  Scene,
+} from '@src/types/generated/elementDocument';
+import { isTreeOnlyGroup } from '@src/renderer/editor/document/documentPatch';
+import { isEditorElementType } from '@src/types/editor';
 import { isPluginKind } from '@src/types/elementKinds';
 
 const elementIds = (node: Node): string[] =>
@@ -97,17 +104,90 @@ export const documentParentOf = (scene: Scene | undefined, id: string) => {
   return ancestors.length > 0 ? ancestors[ancestors.length - 1].id : null;
 };
 
-/** 묶기·풀기 메뉴 - 둘 이상일 때. 모두 한 그룹이면 풀기만, 아무 그룹도 아니면 묶기만 */
+// 옛 모양(layerGroups)에 드는 노드 - 옛 종류·플러그인 요소, 그것을 품은 그룹
+export const isLegacyNode = (node: Node): boolean =>
+  node.type === 'group'
+    ? !isTreeOnlyGroup(node)
+    : isEditorElementType(node.kind) || isPluginKind(node.kind);
+
+const findNode = (nodes: readonly Node[], id: string): Node | undefined => {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    if (node.type === 'group') {
+      const inner = findNode(node.children, id);
+      if (inner) return inner;
+    }
+  }
+  return undefined;
+};
+
+/** 묶기 연산 - 둘 이상이고 이미 한 그룹 전체가 아닐 때.
+ * 옛 종류·플러그인이 섞이면 옛 모양이 그룹 안 그룹을 나타내지 못하므로 옛 묶기와 같이: 고른 요소가 한 그룹에만
+ * 들어 있으면 나머지를 그 그룹에 넣고, 아니면 고른 요소만 장면 맨 위 단계로 꺼내 새 그룹으로 묶는다.
+ * 트리 전용 요소끼리는 다 고른 그룹을 그룹째 넣는다. 할 것이 없으면 null */
+export const documentGroupOps = (
+  scene: Scene | undefined,
+  sceneId: string,
+  ids: readonly string[],
+  group: { id: string; name: string },
+): Op[] | null => {
+  if (!scene) return null;
+  const roots = documentGroupRoots(scene, ids);
+  if (ids.length < 2 || roots.length < 2) return null;
+  const legacy = roots.some((id) => {
+    const node = findNode(scene.nodes, id);
+    return !!node && isLegacyNode(node);
+  });
+  if (!legacy) {
+    return [{ op: 'group', scene: sceneId, ...group, ids: roots }];
+  }
+  const outer = new Map(
+    ids.map((id) => [id, outermostGroup(scene, id)?.id ?? null]),
+  );
+  const groups = new Set([...outer.values()].filter((id) => id !== null));
+  if (groups.size === 0) {
+    return [{ op: 'group', scene: sceneId, ...group, ids: [...ids] }];
+  }
+  if (groups.size === 1) {
+    const [existing] = groups;
+    const outside = ids.filter((id) => outer.get(id) === null);
+    return outside.length === 0
+      ? null
+      : [
+          {
+            op: 'move',
+            scene: sceneId,
+            ids: outside,
+            parent: existing,
+            index: null,
+          },
+        ];
+  }
+  // 고른 것 중 가장 위 요소의 맨 위 단계 자리 바로 위로 꺼낸 뒤 묶는다
+  const rootIndexOf = (id: string) =>
+    scene.nodes.findIndex(
+      (node) =>
+        node.id === id ||
+        (node.type === 'group' && !!findNode(node.children, id)),
+    );
+  const top = Math.max(...ids.map(rootIndexOf));
+  return [
+    { op: 'move', scene: sceneId, ids: [...ids], parent: null, index: top + 1 },
+    { op: 'group', scene: sceneId, ...group, ids: [...ids] },
+  ];
+};
+
+/** 묶기·풀기 메뉴 - 둘 이상일 때. 묶을 것이 없으면(이미 한 그룹) 풀기만, 아무 그룹도 아니면 묶기만 */
 export const documentGroupActions = (
   scene: Scene | undefined,
   ids: readonly string[],
 ): ('group' | 'ungroup')[] => {
   if (ids.length < 2) return [];
-  const groups = documentGroupsOf(scene, ids);
-  const roots = documentGroupRoots(scene, ids);
-  if (groups.length === 0) return ['group'];
-  if (groups.length === 1 && roots.length === 1 && roots[0] === groups[0]) {
-    return ['ungroup'];
-  }
-  return ['group', 'ungroup'];
+  const canGroup =
+    documentGroupOps(scene, '', ids, { id: '', name: '' }) !== null;
+  const canUngroup = documentGroupsOf(scene, ids).length > 0;
+  return [
+    ...(canGroup ? (['group'] as const) : []),
+    ...(canUngroup ? (['ungroup'] as const) : []),
+  ];
 };
