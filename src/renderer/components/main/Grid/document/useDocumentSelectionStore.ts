@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { isKeepingOtherSelection } from '@stores/grid/keepOtherSelection';
+import {
+  isKeepingOtherSelection,
+  setOtherSelectionClearer,
+} from '@stores/grid/keepOtherSelection';
 
 // 트리 문서에만 있는 종류(커서 트래커 등)의 캔버스 선택.
 // 옛 종류 선택과 함께 하나의 선택이다 (keepOtherSelection 참고)
@@ -40,14 +43,9 @@ export const useDocumentSelectionStore = create<DocumentSelectionState>(
   }),
 );
 
-// 옛 종류 요소를 바꿔 고르면 트리 요소 선택을 비운다
-useGridSelectionStore.subscribe((state, previous) => {
-  if (
-    !isKeepingOtherSelection() &&
-    state.selectedElements !== previous.selectedElements &&
-    state.selectedElements.length > 0 &&
-    useDocumentSelectionStore.getState().selectedIds.length > 0
-  ) {
+// 옛 종류 요소를 바꿔 고르면 트리 요소 선택을 비운다 (옛 선택 스토어가 바꿔 고를 때 부른다)
+setOtherSelectionClearer(() => {
+  if (useDocumentSelectionStore.getState().selectedIds.length > 0) {
     useDocumentSelectionStore.getState().clear();
   }
 });

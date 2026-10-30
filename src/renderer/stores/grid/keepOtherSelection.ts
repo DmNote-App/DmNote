@@ -14,3 +14,15 @@ export const keepOtherSelection = <T>(change: () => T): T => {
 };
 
 export const isKeepingOtherSelection = () => keepingOther;
+
+// 옛 종류 선택을 바꿔 고를 때 비울 다른 쪽(트리 요소) 선택 - 트리 선택 스토어가 건다
+let clearOther: () => void = () => {};
+
+export const setOtherSelectionClearer = (clear: () => void) => {
+  clearOther = clear;
+};
+
+/** 바꿔 고르기 - 넣고 빼기가 아니면 다른 쪽 선택을 비운다 (같은 선택을 다시 골라도) */
+export const replaceOtherSelection = () => {
+  if (!keepingOther) clearOther();
+};

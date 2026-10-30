@@ -1,4 +1,8 @@
 import { create } from 'zustand';
+import {
+  keepOtherSelection,
+  replaceOtherSelection,
+} from './keepOtherSelection';
 import type { KeyPosition, KeySlot } from '@src/types/key/keys';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import type { ReactiveSpritePosition } from '@src/types/key/sprites';
@@ -194,6 +198,7 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
         selectedGroupIds: [],
       };
     });
+    if (!addToSelection) replaceOtherSelection();
   },
 
   toggleSelection: (element) => {
@@ -246,10 +251,12 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
         selectedGroupIds: [],
       };
     });
+    if (elements.length > 0) replaceOtherSelection();
   },
 
   setFullSelection: (elements, groupIds) => {
     set({ selectedElements: elements, selectedGroupIds: groupIds });
+    if (elements.length > 0 || groupIds.length > 0) replaceOtherSelection();
   },
 
   isSelected: (id) => {
@@ -348,7 +355,10 @@ export function invalidateSelectionForChangedIndexedElementArrays(
     [],
   );
 
-  if (changed) selection.setSelectedElements(selectedElements);
+  // 고쳐 맞추기는 바꿔 고르기가 아니다 - 함께 고른 트리 요소 선택을 지킨다
+  if (changed) {
+    keepOtherSelection(() => selection.setSelectedElements(selectedElements));
+  }
 }
 
 // 재주입으로 fullId가 갈린 플러그인 선택 제거. 현존 fullId 집합 기준.
@@ -373,7 +383,7 @@ export function pruneStalePluginSelection(
       liveFullIds.has(element.id),
   );
   if (kept.length === selection.selectedElements.length) return;
-  selection.setSelectedElements(kept);
+  keepOtherSelection(() => selection.setSelectedElements(kept));
 }
 
 /**

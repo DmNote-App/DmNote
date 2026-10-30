@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import {
+  pruneStalePluginSelection,
+  useGridSelectionStore,
+} from '@stores/grid/useGridSelectionStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
@@ -44,5 +47,25 @@ describe('옛 종류 선택과 트리 요소 선택', () => {
     useDocumentSelectionStore.getState().setSelection('4key', ['t1']);
     useGridSelectionStore.getState().setSelectedElements([key]);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
+  });
+
+  it('같은 옛 종류 선택을 다시 골라도(더블클릭 편집 진입 등) 바꿔 고르기다', () => {
+    useGridSelectionStore.getState().setSelectedElements([key]);
+    keepOtherSelection(() =>
+      useDocumentSelectionStore.getState().setSelection('4key', ['t1']),
+    );
+    useGridSelectionStore.getState().setSelectedElements([key]);
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
+  });
+
+  it('사라진 플러그인 선택을 걷어내는 고쳐 맞추기는 트리 요소 선택을 지킨다', () => {
+    const plugin = { type: 'plugin' as const, id: 'demo::gone' };
+    useGridSelectionStore.getState().setSelectedElements([key, plugin]);
+    keepOtherSelection(() =>
+      useDocumentSelectionStore.getState().setSelection('4key', ['t1']),
+    );
+    pruneStalePluginSelection(new Set());
+    expect(useGridSelectionStore.getState().selectedElements).toEqual([key]);
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['t1']);
   });
 });
