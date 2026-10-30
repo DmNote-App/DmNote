@@ -7,6 +7,7 @@ import NativeRotateHandle from '../handles/NativeRotateHandle';
 import SpriteRotateHandle from '../handles/SpriteRotateHandle';
 import SelectionRotateHandle from '../handles/SelectionRotateHandle';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
+import { usePanelSelection } from '../document/treeEditedSelection';
 import { useSelectionRotationFrame } from '@hooks/Grid/selection/useSelectionRotationFrame';
 import { isRotatableElementType } from '@src/types/elementKinds';
 import {
@@ -75,6 +76,8 @@ const GridSelectionOverlays = ({
   getOtherElements,
 }: GridSelectionOverlaysProps) => {
   const selectionFrame = useSelectionRotationFrame();
+  // 일괄 그라데이션 축은 패널이 편집하는 선택(트리로 옮긴 옛 종류 포함)을 감싼다
+  const panelSelection = usePanelSelection(mode);
   // 트리 요소와 섞인 선택 - 묶음 손잡이가 한쪽만 돌리거나 늘리지 않게 손잡이를 닫는다 (윤곽은 그대로)
   const mixedWithDocument = useDocumentSelectionStore(
     (state) => state.selectedIds.length > 0,
@@ -293,7 +296,7 @@ const GridSelectionOverlays = ({
         )}
       <GradientAxisOverlay
         collections={collections}
-        selectedElements={selectedElements}
+        selectedElements={panelSelection}
         selectedKeyType={mode}
         zoom={zoom}
         panX={panX}

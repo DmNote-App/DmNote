@@ -10,6 +10,7 @@ import {
   getPreviewOverlayVersion,
   subscribePreviewOverlay,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
+import { usePanelSelection } from '@components/main/Grid/document/treeEditedSelection';
 import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
 import type { ElementRenderProps } from '@src/renderer/elementKinds/runtime/renderTypes';
 
@@ -17,10 +18,13 @@ import type { ElementRenderProps } from '@src/renderer/elementKinds/runtime/rend
 // 옛 모양 보기와 그 미리보기에서 그린다 (스타일 칸 쓰기는 아직 옛 경로 - 4단계에서 트리로)
 const GraphEditorFace = ({
   element,
-  selected,
 }: ElementRenderProps<Record<string, unknown>>) => {
   useSyncExternalStore(subscribePreviewOverlay, getPreviewOverlayVersion);
   const mode = useKeyStore((state) => state.selectedKeyType);
+  // 일괄 미리보기(그라데이션·상태)는 패널이 편집하는 선택에 든 요소만
+  const inPanelSelection = usePanelSelection(mode).some(
+    ({ id }) => id === element.id,
+  );
   const positions = useGraphItemStore((state) => state.positions);
   const composed = composePreviewPositions('graphPosition', positions)[
     mode
@@ -34,7 +38,7 @@ const GraphEditorFace = ({
         height: element.frame.height,
       }}
       elementId={element.id}
-      isSelected={selected === true}
+      isSelected={inPanelSelection}
     />
   );
 };

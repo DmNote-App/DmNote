@@ -5,16 +5,10 @@ import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useStatItemStore } from '@stores/data/useStatItemStore';
-import {
-  useGridSelectionStore,
-  type SelectedElement,
-} from '@stores/grid/useGridSelectionStore';
+import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
+import { panelSelectionOf } from '../../document/treeEditedSelection';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { sceneElements } from '@src/renderer/editor/document/documentPatch';
-import { readAuthorityPositions } from '@src/renderer/editor/model/elementStores';
-import { isEditorElementType } from '@src/types/editor';
-import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import {
   selectPropertyPanelPluginElements,
   usePluginDisplayElementStore,
@@ -44,39 +38,8 @@ export const usePropertiesPanelSelection = () => {
   );
   const documentSceneId = useDocumentSelectionStore((state) => state.sceneId);
   const documentIds = useDocumentSelectionStore((state) => state.selectedIds);
-  const documentScene = useElementDocumentScene(documentSceneId ?? '');
-  // 트리 선택이 모두 트리로 옮긴 옛 종류면 옛 패널이 옛 선택과 함께 그 요소들을 고른 것처럼 본다
-  // (위치·회전·숨김·이름·지우기 커밋은 공통 커밋 경로가 트리로 보낸다)
-  const bridgedElements =
-    documentSceneId && documentScene
-      ? documentIds.flatMap((id) => {
-          const element = sceneElements(documentScene).find(
-            (node) => node.id === id,
-          );
-          if (
-            !element ||
-            !isEditorElementType(element.kind) ||
-            !TREE_EDITED_KINDS.has(element.kind)
-          ) {
-            return [];
-          }
-          const index = (
-            (readAuthorityPositions(element.kind)[documentSceneId] ??
-              []) as Array<{ id: string }>
-          ).findIndex((position) => position.id === id);
-          return index >= 0
-            ? [{ type: element.kind, id, index } as SelectedElement]
-            : [];
-        })
-      : [];
-  // 플러그인이 섞이면 잇지 않는다 - 플러그인 섞인 일괄 커밋은 트리로 보내지 못한다
-  const bridgedDocumentSelection =
-    bridgedElements.length > 0 &&
-    bridgedElements.length === documentIds.length &&
-    legacySelection.every((element) => element.type !== 'plugin');
-  const selectedElements = bridgedDocumentSelection
-    ? [...legacySelection, ...bridgedElements]
-    : legacySelection;
+  // 트리 문서가 바뀌면(종류 확인) 다시 합친다
+  useElementDocumentScene(documentSceneId ?? '');
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   const positions = useKeyStore((state) => state.positions);
   const canonicalPositions = useKeyStore((state) => state.canonicalPositions);
@@ -91,6 +54,25 @@ export const usePropertiesPanelSelection = () => {
     (state) => state.positions,
   );
   const canonicalSpritePositions = useSpriteStore((state) => state.positions);
+  // 트리 선택이 모두 트리로 옮긴 옛 종류면 옛 패널이 옛 선택과 함께 그 요소들을 고른 것처럼 본다
+  // (위치·회전·숨김·이름·지우기 커밋은 공통 커밋 경로가 트리로 보낸다)
+  const authorityPositions = {
+    key: canonicalPositions,
+    stat: canonicalStatItemPositions,
+    graph: canonicalGraphItemPositions,
+    knob: canonicalKnobItemPositions,
+    sprite: canonicalSpritePositions,
+  };
+  const selectedElements = documentSceneId
+    ? panelSelectionOf(
+        legacySelection,
+        documentSceneId,
+        documentIds,
+        (kind) => authorityPositions[kind] as never,
+      )
+    : legacySelection;
+  const bridgedDocumentSelection =
+    selectedElements.length > legacySelection.length;
   useSyncExternalStore(
     subscribePreviewOverlay,
     getPreviewOverlayVersion,

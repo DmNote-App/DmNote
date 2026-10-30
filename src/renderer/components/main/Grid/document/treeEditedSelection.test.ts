@@ -24,7 +24,11 @@ vi.mock('@src/renderer/editor/model/elementStores', () => ({
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { combinedSelection, treeOnlySelectedIds } from './treeEditedSelection';
+import {
+  combinedSelection,
+  panelSelectionOf,
+  treeOnlySelectedIds,
+} from './treeEditedSelection';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 const key = { type: 'key' as const, id: 'k1', index: 0 };
@@ -100,5 +104,24 @@ describe('옛 선택으로 들어온 트리로 옮긴 옛 종류', () => {
     ]);
     expect(treeOnlySelectedIds('4key')).toEqual(['t1']);
     expect(combinedSelection('5key')).toEqual([key]);
+  });
+
+  it('패널 선택은 트리 선택이 모두 노브이고 플러그인이 없을 때만 노브를 합친다', () => {
+    const positions = () => ({ '4key': [{ id: 'n1' }] });
+    expect(panelSelectionOf([key], '4key', ['n1'], positions)).toEqual([
+      key,
+      { type: 'knob', id: 'n1', index: 0 },
+    ]);
+    // 트리에만 있는 종류가 섞이면 옛 선택만
+    expect(panelSelectionOf([key], '4key', ['n1', 't1'], positions)).toEqual([
+      key,
+    ]);
+    // 플러그인이 섞이면 옛 선택만
+    const plugin = { type: 'plugin' as const, id: 'p:1' };
+    expect(panelSelectionOf([plugin], '4key', ['n1'], positions)).toEqual([
+      plugin,
+    ]);
+    // 옛 컬렉션에 아직 없는 노브(붙여넣기 직후)는 잇지 않는다
+    expect(panelSelectionOf([key], '4key', ['n2'], positions)).toEqual([key]);
   });
 });
