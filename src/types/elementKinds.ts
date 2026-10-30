@@ -81,7 +81,6 @@ export const TREE_EDITED_KINDS: ReadonlySet<string> = new Set([
   'knob',
   'graph',
   'stat',
-  'sprite',
 ]);
 
 /** 트리 편집기가 맡는 종류 - 트리에만 있는 종류와 트리로 옮긴 옛 종류 */
