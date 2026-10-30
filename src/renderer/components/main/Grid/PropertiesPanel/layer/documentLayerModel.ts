@@ -7,7 +7,7 @@ import type {
   Scene,
 } from '@src/types/generated/elementDocument';
 import { isTreeOnlyGroup } from '@src/renderer/editor/document/documentPatch';
-import { isTreeEditedKind } from '@src/types/elementKinds';
+import { isEditorElementType } from '@src/types/editor';
 
 export interface DocumentLayerRowModel {
   node: Node;
@@ -31,7 +31,7 @@ export const documentLayerRows = (
     for (let index = nodes.length - 1; index >= 0; index -= 1) {
       const node = nodes[index];
       if (node.type === 'element') {
-        if (isTreeEditedKind(node.kind)) {
+        if (!isEditorElementType(node.kind)) {
           rows.push({ node, depth, parentId, index });
         }
         continue;

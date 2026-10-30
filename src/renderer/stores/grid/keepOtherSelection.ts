@@ -27,17 +27,21 @@ export const replaceOtherSelection = () => {
   if (!keepingOther) clearOther();
 };
 
-// 옛 그룹 안의 트리 가족 멤버(트리로 옮긴 옛 종류)를 고르는 쪽 - 트리 선택 스토어가 건다
-let selectOther: (sceneId: string, ids: readonly string[]) => void = () => {};
+// 옛 선택으로 들어온 트리로 옮긴 옛 종류 요소를 트리 선택으로 보내는 쪽 - 트리 선택 스토어가 건다
+type OtherMembersMode = 'replace' | 'toggle';
+let routeOther: (
+  ids: readonly string[],
+  mode: OtherMembersMode,
+) => void = () => {};
 
-export const setOtherSelectionSetter = (
-  select: (sceneId: string, ids: readonly string[]) => void,
+export const setOtherSelectionRouter = (
+  route: (ids: readonly string[], mode: OtherMembersMode) => void,
 ) => {
-  selectOther = select;
+  routeOther = route;
 };
 
-/** 옛 그룹째 고를 때 그 그룹의 트리 가족 멤버도 함께 고른다 (옛 종류 선택을 지킨 채) */
-export const selectOtherMembers = (sceneId: string, ids: readonly string[]) => {
-  if (ids.length === 0) return;
-  keepOtherSelection(() => selectOther(sceneId, ids));
-};
+/** 트리로 옮긴 옛 종류 요소는 트리 선택이 맡는다 - 옛 종류 선택을 지킨 채 바꾸거나 넣고 뺀다 */
+export const routeOtherMembers = (
+  ids: readonly string[],
+  mode: OtherMembersMode,
+) => keepOtherSelection(() => routeOther(ids, mode));

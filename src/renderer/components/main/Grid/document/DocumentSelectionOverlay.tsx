@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 
+import { useLegacyPreviewFrame } from '@src/renderer/elementKinds/runtime/useLegacyPreviewFrame';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import { subscribeHistoryEditorFlushStart } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 import {
@@ -88,6 +89,8 @@ const SelectionItem = ({
     useSmartGuidesStore.getState().clearGuides();
     useDocumentFramePreviewStore.getState().clear(id);
   });
+  // 트리로 옮긴 옛 종류는 옛 패널 미리보기의 위치·크기·회전도 따른다
+  const legacyPreview = useLegacyPreviewFrame(element, sceneId);
   // 되돌리기·다른 창 편집으로 고른 요소가 없어지면 선택에서 뺀다
   const missing = !element && !!getElementDocumentStore();
   useEffect(() => {
@@ -100,7 +103,7 @@ const SelectionItem = ({
     );
   }, [missing, sceneId, id]);
   if (!element) return null;
-  const frame = preview ?? element.frame;
+  const frame = preview ?? legacyPreview ?? element.frame;
   const bounds = {
     x: element.frame.x,
     y: element.frame.y,

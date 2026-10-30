@@ -42,6 +42,20 @@ const transport = vi.hoisted(() => {
     cancel: vi.fn(async () => {}),
   };
 });
+// 옛 경로가 노브까지 다루는지 본다 - 트리 편집기 전환은 끈 상태로
+vi.mock('@src/types/elementKinds', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('@src/types/elementKinds')
+  >();
+  const { isEditorElementType } = await import('@src/types/editor');
+  return {
+    ...actual,
+    TREE_EDITED_KINDS: new Set<string>(),
+    isTreeEditedKind: (kind: string) => !isEditorElementType(kind),
+    isLegacyEditedType: () => true,
+  };
+});
+
 vi.mock('@api/modules/editor/editorApi', () => ({ editorApi: transport }));
 vi.mock('@api/modules/editor/previewApi', () => ({ previewApi: transport }));
 vi.mock('@components/main/Grid/PropertiesPanel/index', async () => {

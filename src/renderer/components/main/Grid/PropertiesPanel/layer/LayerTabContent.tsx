@@ -1,10 +1,16 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { sceneElements } from '@src/renderer/editor/document/documentPatch';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { createPortal } from 'react-dom';
 import { useTranslation } from '@contexts/useTranslation';
 import { usePopupPresence } from '@hooks/ui/usePopupPresence';
 import { useRetainedWhileOpen } from '@hooks/ui/useRetainedValue';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import {
+  useGridSelectionStore,
+  type SelectedElement,
+} from '@stores/grid/useGridSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useStatItemStore } from '@stores/data/useStatItemStore';
 import { useGraphItemStore } from '@stores/data/useGraphItemStore';
@@ -85,6 +91,10 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
   const clearSelection = useGridSelectionStore((state) => state.clearSelection);
   const toggleSelection = useGridSelectionStore(
     (state) => state.toggleSelection,
+  );
+  // 트리로 옮긴 옛 종류(노브 등)는 트리 선택이 맡는다 - 목록 행은 그대로 옛 목록에 있다
+  const documentSelectedIds = useDocumentSelectionStore(
+    (state) => state.selectedIds,
   );
   const selectedGroupIds = useGridSelectionStore(
     (state) => state.selectedGroupIds,
@@ -250,7 +260,10 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
   });
 
   // 선택 상태 (렌더링용)
-  const selectedElementIdSet = new Set(selectedElements.map((el) => el.id));
+  const selectedElementIdSet = new Set([
+    ...selectedElements.map((el) => el.id),
+    ...documentSelectedIds,
+  ]);
   const selectedGroupIdSet = new Set(selectedGroupIds);
 
   // 그룹 안 삽입 인디케이터는 멤버 행과 같은 인덴트로 그룹 밖 삽입과 구분
@@ -261,15 +274,71 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
   const isGroupHeaderSelected = (groupId: string) =>
     selectedGroupIdSet.has(groupId);
 
+  // 행 선택 의도 계산용 - 옛 선택에 트리 선택의 트리로 옮긴 옛 종류 행을 더한다
+  const intentSelection = (): SelectedElement[] => {
+    const documentIds = new Set(
+      useDocumentSelectionStore.getState().selectedIds,
+    );
+    return [
+      ...useGridSelectionStore.getState().selectedElements,
+      ...layerItemsRef.current
+        .filter(
+          (item) =>
+            documentIds.has(item.id) &&
+            item.type !== 'plugin' &&
+            TREE_EDITED_KINDS.has(item.type),
+        )
+        .map(layerItemToSelectedElement),
+    ];
+  };
+
+  // 전체 목록 의도 - 트리로 옮긴 옛 종류 몫은 선택 스토어가 트리 선택으로 보낸다.
+  // 그 몫이 없으면(보조키로 마지막 하나를 뺀 경우 등) 트리 선택에서도 그 종류를 걷는다
+  const settleTreeEditedRows = (elements: readonly SelectedElement[]) => {
+    if (
+      elements.some(
+        (element) =>
+          element.type !== 'plugin' && TREE_EDITED_KINDS.has(element.type),
+      )
+    ) {
+      return;
+    }
+    const selection = useDocumentSelectionStore.getState();
+    const scene = getElementDocumentStore()?.getScene(selectedKeyType);
+    const kept = selection.selectedIds.filter((id) => {
+      const kind = scene
+        ? sceneElements(scene).find((node) => node.id === id)?.kind
+        : undefined;
+      return !kind || !TREE_EDITED_KINDS.has(kind);
+    });
+    if (kept.length !== selection.selectedIds.length && selection.sceneId) {
+      keepOtherSelection(() =>
+        selection.setSelection(selection.sceneId!, kept),
+      );
+    }
+  };
+
   const applySelectionIntent = (intent: LayerSelectionIntent) => {
     switch (intent.type) {
       case 'set-full':
         setFullSelection(intent.elements, intent.groupIds);
+        settleTreeEditedRows(intent.elements);
         return;
       case 'set-elements':
         setSelectedElements(intent.elements);
+        settleTreeEditedRows(intent.elements);
         return;
       case 'replace':
+        if (
+          intent.element.type !== 'plugin' &&
+          TREE_EDITED_KINDS.has(intent.element.type)
+        ) {
+          // 그 행만 - 트리 선택을 바꿔 고르면 옛 선택이 비워진다
+          useDocumentSelectionStore
+            .getState()
+            .setSelection(selectedKeyType, [intent.element.id]);
+          return;
+        }
         clearSelection();
         toggleSelection(intent.element);
         return;
@@ -286,6 +355,7 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
         pendingDeselectTimerRef.current = (hostWindow ?? window).setTimeout(
           () => {
             clearSelection();
+            useDocumentSelectionStore.getState().clear();
             pendingDeselectTimerRef.current = null;
           },
           50,
@@ -358,7 +428,7 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
       lastClickedDisplayIndex,
       layerItems: layerItemsRef.current,
       displayItems: displayItemsRef.current,
-      selectedElements,
+      selectedElements: intentSelection(),
       selectedGroupIds,
     });
 
@@ -367,7 +437,9 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
       keepOtherSelection(() => applySelectionIntent(resolution.intent));
     } else if (
       resolution.intent.type === 'delay-clear' &&
-      useDocumentSelectionStore.getState().selectedIds.length > 0
+      useDocumentSelectionStore
+        .getState()
+        .selectedIds.some((id) => id !== item.id)
     ) {
       // 트리 요소와 함께 고른 유일한 옛 행을 누르면 그 행만 고른다 (여럿 중 하나를 누른 것과 같다)
       applySelectionIntent({
@@ -410,7 +482,7 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
       layerItems,
       rangeLayerItems: layerItemsRef.current,
       displayItems: displayItemsRef.current,
-      selectedElements,
+      selectedElements: intentSelection(),
       selectedGroupIds,
     });
 

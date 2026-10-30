@@ -30,11 +30,13 @@ import {
 import {
   captureElementCollections,
   getItemStoreState,
+  readAuthorityPositions,
 } from '@src/renderer/editor/model/elementStores';
 import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
-import { defaultElementSize } from '@src/types/elementKinds';
+import { defaultElementSize, TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
+  isEditorElementType,
   isItemElementType,
   modeArraysOf,
   type ElementCollections,
@@ -64,7 +66,10 @@ import { useSpritePoseHandleStore } from '@stores/grid/useSpritePoseHandleStore'
 import { getGridViewportLayerStyles } from '@utils/grid/gridViewportStyles';
 import KeyCounterPreviewLayer from '../layers/KeyCounterPreviewLayer';
 import StatCounterLayer from '../layers/StatCounterLayer';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import {
+  useGridSelectionStore,
+  type SelectedElement,
+} from '@stores/grid/useGridSelectionStore';
 import { openPropertiesPanelForSelection } from '@stores/grid/usePanelHostStore';
 import { useUIStore } from '@stores/useUIStore';
 import { useSmartGuidesStore } from '@stores/grid/useSmartGuidesStore';
@@ -91,10 +96,7 @@ import {
   groupSelectedElements,
   ungroupSelectedElements,
 } from '@utils/grid/groupActions';
-import {
-  expandGroupSelection,
-  treeEditedGroupMemberIds,
-} from '@utils/grid/groupSelection';
+import { expandGroupSelection } from '@utils/grid/groupSelection';
 import {
   composeItemPreviewCollections,
   getPreviewOverlayVersion,
@@ -124,9 +126,11 @@ import { documentIdsInRect } from '../document/documentSelection';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
 import { createDocumentDragReceipt } from '../document/documentDragReceipt';
 import {
-  keepOtherSelection,
-  selectOtherMembers,
-} from '@stores/grid/keepOtherSelection';
+  moveDocumentElementTo,
+  removeDocumentElements,
+} from '../document/documentEditActions';
+import { duplicateDocumentSelection } from '../document/documentClipboard';
+import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { setCompanionSelectionReader } from '@stores/grid/companionSelection';
 import { executeNativeContextMenuAction } from './nativeContextMenuActions';
 import { useSelectedElementDragLifecycle } from '@hooks/Grid/drag/useSelectedElementDragLifecycle';
@@ -407,6 +411,38 @@ const Grid = ({
     syncSelectedElementsToOverlay();
   };
 
+  // 트리 선택의 트리로 옮긴 옛 종류(노브 등)를 옛 선택 모양으로 - 옛 그룹 동작이 함께 다룬다
+  const treeEditedSelection = (): SelectedElement[] => {
+    const selection = useDocumentSelectionStore.getState();
+    if (selection.sceneId !== selectedKeyType) return [];
+    const store = getElementDocumentStore();
+    return selection.selectedIds.flatMap((id) => {
+      const kind = store?.getElement(selectedKeyType, id)?.kind;
+      if (!kind || !isEditorElementType(kind) || !TREE_EDITED_KINDS.has(kind)) {
+        return [];
+      }
+      const index = (
+        (readAuthorityPositions(kind)[selectedKeyType] ?? []) as Array<{
+          id: string;
+        }>
+      ).findIndex((position) => position.id === id);
+      return index >= 0 ? [{ type: kind, id, index } as SelectedElement] : [];
+    });
+  };
+  const combinedSelection = () => [
+    ...useGridSelectionStore.getState().selectedElements,
+    ...treeEditedSelection(),
+  ];
+  // 트리에만 있는 종류(커서 트래커 등)를 함께 골랐는지
+  const hasTreeOnlySelection = () => {
+    const selection = useDocumentSelectionStore.getState();
+    const store = getElementDocumentStore();
+    return selection.selectedIds.some((id) => {
+      const kind = store?.getElement(selectedKeyType, id)?.kind;
+      return !!kind && !isEditorElementType(kind);
+    });
+  };
+
   // 트리 요소 키보드 - 옛 종류 키보드가 처리한 뒤 같은 이벤트로 부른다 (섞인 선택)
   const handleDocumentKeyDown = useDocumentKeyboard();
 
@@ -424,9 +460,9 @@ const Grid = ({
     onMoveBackward: handleSelectedMoveBackward,
     newGroupLabel: t('layerGroup.newGroup') || 'New Group',
     afterKeyDown: handleDocumentKeyDown,
-    // 트리 요소와 섞인 선택은 두 가족을 한 그룹으로 묶을 수 없다
-    blockGrouping: () =>
-      useDocumentSelectionStore.getState().selectedIds.length > 0,
+    // 트리에만 있는 종류는 옛 그룹에 들 수 없다 - 트리로 옮긴 옛 종류(노브 등)는 함께 묶는다
+    blockGrouping: hasTreeOnlySelection,
+    groupTargets: combinedSelection,
   });
 
   // 키 컨텍스트 메뉴
@@ -449,9 +485,11 @@ const Grid = ({
     y: number;
   } | null>(null);
   const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  // 트리로 옮긴 옛 종류도 함께 묶고 풀 수 있다 - 트리에만 있는 종류가 섞이면 묶기를 감춘다
+  const menuSelection = combinedSelection();
   const mixedSelectionMenuItems = buildMixedSelectionMenuItems(
-    selectedElements,
-    selectedElements.length >= 2
+    menuSelection,
+    menuSelection.length >= 2 && !hasTreeOnlySelection()
       ? {
           mode: selectedKeyType,
           ...modeArraysOf(
@@ -724,12 +762,8 @@ const Grid = ({
       groupSource,
     );
     // 그룹 멤버 수와 무관하게 선택 Store 알림·React render를 1회로 유지
+    // (트리로 옮긴 옛 종류 멤버는 선택 스토어가 트리 선택으로 보낸다)
     setSelectedElements(nextSelection);
-    // 트리로 옮긴 옛 종류 멤버는 트리 선택으로 함께
-    selectOtherMembers(
-      selectedKeyType,
-      treeEditedGroupMemberIds({ type, id: clicked.id, index }, groupSource),
-    );
   };
 
   const toggleNativeElementSelection = (
@@ -784,9 +818,12 @@ const Grid = ({
     // TypeError가 나고 에러 바운더리가 없어 앱이 통째로 언마운트된다.
     // id가 없으면 혼합 선택 판정 자체가 성립하지 않으므로 그냥 건너뛴다
     const clickedId = clickedPosition?.id;
+    // 트리 요소도 함께 골랐으면 고른 것 전체를 다루는 메뉴
     if (
       clickedId &&
-      shouldOpenMixedSelectionMenu(selectedElements, clickedId)
+      (shouldOpenMixedSelectionMenu(selectedElements, clickedId) ||
+        (useDocumentSelectionStore.getState().selectedIds.length > 0 &&
+          selectedElements.some((element) => element.id === clickedId)))
     ) {
       openMixedSelectionContextMenu(clientX, clientY, ref);
       return;
@@ -1090,24 +1127,53 @@ const Grid = ({
           }
           onSelect={async (id: string) => {
             if (contextType === 'mixed') {
+              // 함께 고른 트리 요소에도 같은 동작 (트리 쓰기 - 바로 보인다)
+              const documentSelection = useDocumentSelectionStore.getState();
+              const documentIds =
+                documentSelection.sceneId === selectedKeyType
+                  ? documentSelection.selectedIds
+                  : [];
               if (id === 'delete') {
+                if (documentIds.length > 0) {
+                  documentSelection.clear();
+                  void removeDocumentElements(selectedKeyType, [
+                    ...documentIds,
+                  ]);
+                }
                 await deleteSelectedElements().catch(reportElementOpError);
               } else if (id === 'duplicate') {
                 await duplicateSelectedFromContextMenu();
+                if (documentIds.length > 0) {
+                  await duplicateDocumentSelection(selectedKeyType);
+                }
               } else if (id === 'bringToFront') {
                 await moveSelectedToFront();
+                if (documentIds.length > 0) {
+                  await moveDocumentElementTo(
+                    selectedKeyType,
+                    [...documentIds],
+                    'front',
+                  );
+                }
               } else if (id === 'sendToBack') {
                 await moveSelectedToBack();
+                if (documentIds.length > 0) {
+                  await moveDocumentElementTo(
+                    selectedKeyType,
+                    [...documentIds],
+                    'back',
+                  );
+                }
               } else if (id === 'groupSelected') {
                 await groupSelectedElements(
                   selectedKeyType,
-                  selectedElements,
+                  combinedSelection(),
                   t('layerGroup.newGroup') || 'New Group',
                 );
               } else if (id === 'ungroupSelected') {
                 await ungroupSelectedElements(
                   selectedKeyType,
-                  selectedElements,
+                  combinedSelection(),
                 );
               }
 

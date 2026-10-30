@@ -3,8 +3,6 @@
  * Grid.tsx(native 클릭)와 PluginElement.tsx(플러그인 클릭)에서 공유
  */
 
-import { selectOtherMembers } from '@stores/grid/keepOtherSelection';
-import { isLegacyEditedType } from '@src/types/elementKinds';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
@@ -125,8 +123,7 @@ export const expandGroupSelection = (
     return selection;
   }
 
-  // 트리로 옮긴 옛 종류 멤버는 트리 선택이 고른다 (treeEditedGroupMemberIds)
-  EDITOR_ELEMENT_TYPES.filter(isLegacyEditedType).forEach((memberType) => {
+  EDITOR_ELEMENT_TYPES.forEach((memberType) => {
     modeArrayOf(source, memberType).forEach((pos, index) => {
       if (!pos || pos.groupId !== groupId) return;
       if (clicked.type === memberType && clicked.id === pos.id) return;
@@ -142,50 +139,21 @@ export const expandGroupSelection = (
   return selection;
 };
 
-/** 클릭 요소의 옛 그룹 안에서 트리로 옮긴 옛 종류 멤버 id - 트리 선택으로 함께 고른다 */
-export const treeEditedGroupMemberIds = (
-  clicked: SelectedElement,
-  source: GroupSelectionSource,
-): string[] => {
-  const groupId = resolveClickedGroupId(clicked, source);
-  if (!groupId || !source.modeGroups.some((group) => group.id === groupId)) {
-    return [];
-  }
-  return EDITOR_ELEMENT_TYPES.filter(
-    (type) => !isLegacyEditedType(type),
-  ).flatMap((memberType) =>
-    modeArrayOf(source, memberType).flatMap((pos) =>
-      pos && pos.groupId === groupId ? [pos.id] : [],
-    ),
-  );
-};
-
 // 스토어 스냅샷 기반 편의 래퍼 - 컬렉션을 직접 들고 있지 않은 호출부용
-const sourceFromStores = (mode: string): GroupSelectionSource => ({
-  mode,
-  ...modeArraysOf(
-    {
-      ...captureElementCollections(),
-      // 키는 렌더 positions 기준
-      keyPositions: useKeyStore.getState().positions,
-    },
-    mode,
-  ),
-  pluginElements: usePluginDisplayElementStore.getState().elements,
-  modeGroups: useLayerGroupStore.getState().layerGroups[mode] || [],
-});
-
 export const expandGroupSelectionFromStores = (
   clicked: SelectedElement,
   mode: string,
-): SelectedElement[] => expandGroupSelection(clicked, sourceFromStores(mode));
-
-/** 옛 그룹째 고른 뒤 부른다 - 그 그룹의 트리로 옮긴 옛 종류 멤버를 트리 선택으로 함께 고른다 */
-export const selectTreeEditedGroupMembersFromStores = (
-  clicked: SelectedElement,
-  mode: string,
-) =>
-  selectOtherMembers(
+): SelectedElement[] =>
+  expandGroupSelection(clicked, {
     mode,
-    treeEditedGroupMemberIds(clicked, sourceFromStores(mode)),
-  );
+    ...modeArraysOf(
+      {
+        ...captureElementCollections(),
+        // 키는 렌더 positions 기준
+        keyPositions: useKeyStore.getState().positions,
+      },
+      mode,
+    ),
+    pluginElements: usePluginDisplayElementStore.getState().elements,
+    modeGroups: useLayerGroupStore.getState().layerGroups[mode] || [],
+  });

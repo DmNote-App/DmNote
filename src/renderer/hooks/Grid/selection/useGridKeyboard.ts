@@ -48,6 +48,8 @@ interface UseGridKeyboardParams {
   afterKeyDown?: (event: KeyboardEvent) => void;
   // 다른 가족과 섞인 선택처럼 묶을 수 없으면 true - 묶기·풀기를 하지 않는다
   blockGrouping?: () => boolean;
+  // 묶기·풀기 대상 - 함께 고른 다른 선택의 옛 종류 요소까지 (기본은 이 선택)
+  groupTargets?: () => SelectedElement[];
 }
 
 /**
@@ -68,6 +70,7 @@ export function useGridKeyboard({
   continuousInputStrategy = 'frame',
   afterKeyDown,
   blockGrouping,
+  groupTargets,
 }: UseGridKeyboardParams): void {
   const lastArrowKeyTime = useRef(0);
   const arrowGestureId = useRef<string | null>(null);
@@ -152,12 +155,13 @@ export function useGridKeyboard({
       if (isPrimaryModifierPressed && !e.shiftKey && e.code === 'KeyG') {
         e.preventDefault();
         markGridKeyHandled(e);
-        if (selectedElements.length < 2 || blockGrouping?.()) return;
+        const targets = groupTargets?.() ?? selectedElements;
+        if (targets.length < 2 || blockGrouping?.()) return;
 
         const selectedKeyType = useKeyStore.getState().selectedKeyType;
         void groupSelectedElements(
           selectedKeyType,
-          selectedElements,
+          targets,
           newGroupLabel,
         ).catch(reportElementOpError);
         return;
@@ -167,10 +171,11 @@ export function useGridKeyboard({
       if (isPrimaryModifierPressed && e.shiftKey && e.code === 'KeyG') {
         e.preventDefault();
         markGridKeyHandled(e);
-        if (selectedElements.length === 0 || blockGrouping?.()) return;
+        const targets = groupTargets?.() ?? selectedElements;
+        if (targets.length === 0 || blockGrouping?.()) return;
 
         const selectedKeyType = useKeyStore.getState().selectedKeyType;
-        void ungroupSelectedElements(selectedKeyType, selectedElements).catch(
+        void ungroupSelectedElements(selectedKeyType, targets).catch(
           reportElementOpError,
         );
         return;
@@ -307,5 +312,6 @@ export function useGridKeyboard({
     continuousInputStrategy,
     afterKeyDown,
     blockGrouping,
+    groupTargets,
   ]);
 }

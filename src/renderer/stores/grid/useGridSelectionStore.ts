@@ -2,7 +2,9 @@ import { create } from 'zustand';
 import {
   keepOtherSelection,
   replaceOtherSelection,
+  routeOtherMembers,
 } from './keepOtherSelection';
+import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import type { KeyPosition, KeySlot } from '@src/types/key/keys';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import type { ReactiveSpritePosition } from '@src/types/key/sprites';
@@ -160,6 +162,20 @@ export const selectGridTransformLayerPromotion = (state: {
   isResizing: boolean;
 }): boolean => state.isDraggingOrResizing && !state.isResizing;
 
+// 트리로 옮긴 옛 종류(TREE_EDITED_KINDS)는 트리 선택이 맡는다 - 옛 선택으로 들어오면 그쪽으로 보낸다
+const isTreeEditedSelection = (element: SelectedElement) =>
+  element.type !== 'plugin' && TREE_EDITED_KINDS.has(element.type);
+
+const splitTreeEdited = (incoming: SelectedElement[]) => {
+  if (!incoming.some(isTreeEditedSelection)) {
+    return { elements: incoming, treeIds: [] as string[] };
+  }
+  return {
+    elements: incoming.filter((element) => !isTreeEditedSelection(element)),
+    treeIds: incoming.filter(isTreeEditedSelection).map(({ id }) => id),
+  };
+};
+
 export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
   selectedElements: [],
   selectedGroupIds: [],
@@ -175,6 +191,11 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
   isResizing: false,
 
   selectElement: (element, addToSelection = false) => {
+    if (isTreeEditedSelection(element)) {
+      if (!addToSelection) set({ selectedElements: [], selectedGroupIds: [] });
+      routeOtherMembers([element.id], addToSelection ? 'toggle' : 'replace');
+      return;
+    }
     set((state) => {
       if (addToSelection) {
         const existingIndex = state.selectedElements.findIndex(
@@ -202,6 +223,10 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
   },
 
   toggleSelection: (element) => {
+    if (isTreeEditedSelection(element)) {
+      routeOtherMembers([element.id], 'toggle');
+      return;
+    }
     set((state) => {
       const existingIndex = state.selectedElements.findIndex(
         (el) => el.id === element.id,
@@ -232,7 +257,8 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
     set({ selectedElements: [], selectedGroupIds: [] });
   },
 
-  setSelectedElements: (elements) => {
+  setSelectedElements: (incoming) => {
+    const { elements, treeIds } = splitTreeEdited(incoming);
     set((state) => {
       // 논리적으로 같은 선택이면 참조를 유지해 구독자 리렌더 방지
       const same =
@@ -251,12 +277,17 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
         selectedGroupIds: [],
       };
     });
-    if (elements.length > 0) replaceOtherSelection();
+    if (treeIds.length > 0) routeOtherMembers(treeIds, 'replace');
+    else if (elements.length > 0) replaceOtherSelection();
   },
 
-  setFullSelection: (elements, groupIds) => {
+  setFullSelection: (incoming, groupIds) => {
+    const { elements, treeIds } = splitTreeEdited(incoming);
     set({ selectedElements: elements, selectedGroupIds: groupIds });
-    if (elements.length > 0 || groupIds.length > 0) replaceOtherSelection();
+    if (treeIds.length > 0) routeOtherMembers(treeIds, 'replace');
+    else if (elements.length > 0 || groupIds.length > 0) {
+      replaceOtherSelection();
+    }
   },
 
   isSelected: (id) => {

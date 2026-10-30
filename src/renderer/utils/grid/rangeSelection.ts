@@ -7,10 +7,7 @@ import {
   ITEM_ELEMENT_TYPES,
   type ElementModeArrays,
 } from '@src/types/editor';
-import {
-  fallbackElementSize,
-  isLegacyEditedType,
-} from '@src/types/elementKinds';
+import { fallbackElementSize } from '@src/types/elementKinds';
 
 export interface KeySelectionBounds {
   x: number;
@@ -99,7 +96,7 @@ export const collectElementsInKeyRange = (
     }
   });
 
-  for (const type of ITEM_ELEMENT_TYPES.filter(isLegacyEditedType)) {
+  for (const type of ITEM_ELEMENT_TYPES) {
     const { width, height } = fallbackElementSize(type);
     source[EDITOR_ELEMENT_POSITION_FIELDS[type]].forEach((position, index) => {
       if (!position || position.hidden) return;

@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 
+import { useKeyStore } from '@stores/data/useKeyStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import {
   isKeepingOtherSelection,
   setOtherSelectionClearer,
-  setOtherSelectionSetter,
+  setOtherSelectionRouter,
 } from '@stores/grid/keepOtherSelection';
 
 // 트리 문서에만 있는 종류(커서 트래커 등)의 캔버스 선택.
@@ -51,12 +52,21 @@ setOtherSelectionClearer(() => {
   }
 });
 
-// 옛 그룹째 고를 때 그 그룹의 트리 가족 멤버를 함께 고른다
-setOtherSelectionSetter((sceneId, ids) => {
+// 옛 선택으로 들어온 트리로 옮긴 옛 종류 요소 - 바꾸거나 넣고 뺀다 (지금 탭)
+setOtherSelectionRouter((ids, mode) => {
+  const sceneId = useKeyStore.getState().selectedKeyType;
   const selection = useDocumentSelectionStore.getState();
   const current = selection.sceneId === sceneId ? selection.selectedIds : [];
-  selection.setSelection(sceneId, [
-    ...current,
-    ...ids.filter((id) => !current.includes(id)),
-  ]);
+  selection.setSelection(
+    sceneId,
+    mode === 'replace'
+      ? [...ids]
+      : ids.reduce(
+          (next, id) =>
+            next.includes(id)
+              ? next.filter((other) => other !== id)
+              : [...next, id],
+          current,
+        ),
+  );
 });

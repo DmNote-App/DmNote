@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 
+import { useLegacyPreviewFrame } from '@src/renderer/elementKinds/runtime/useLegacyPreviewFrame';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import {
   isHistoryEditorFlushLocked,
@@ -69,9 +70,11 @@ const DocumentGridElement = ({
     (state) =>
       state.sceneId === sceneId && state.selectedIds.includes(element.id),
   );
+  // 트리로 옮긴 옛 종류는 옛 패널 미리보기의 위치·크기·회전도 얹는다
+  const legacyPreview = useLegacyPreviewFrame(element, sceneId);
   const definition = elementKindDefinition(element.kind);
   const Render = definition?.render;
-  const frame = preview ?? element.frame;
+  const frame = preview ?? legacyPreview ?? element.frame;
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -275,7 +278,7 @@ const DocumentGridElement = ({
     >
       {Render ? (
         <Render
-          element={preview ? { ...element, frame } : element}
+          element={frame !== element.frame ? { ...element, frame } : element}
           // 규칙표로 검사한 값 - 종류 정의의 값 타입과 같다
           values={(element.values ?? {}) as never}
           bundles={{ surface: element.bundles?.surface as SurfaceBundle }}

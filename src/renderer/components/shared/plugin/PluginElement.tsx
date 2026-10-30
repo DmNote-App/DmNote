@@ -25,10 +25,7 @@ import {
   beginPluginInstancesEditSession,
   endPluginInstancesEditSession,
 } from '@plugins/runtime/displayElement/instancesCommitQueue';
-import {
-  expandGroupSelectionFromStores,
-  selectTreeEditedGroupMembersFromStores,
-} from '@utils/grid/groupSelection';
+import { expandGroupSelectionFromStores } from '@utils/grid/groupSelection';
 import {
   buildPluginElementStyle,
   buildPluginOverlayHitStyle,
@@ -557,10 +554,6 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
             useKeyStore.getState().selectedKeyType,
           ),
         );
-      selectTreeEditedGroupMembersFromStores(
-        { type: 'plugin', id: element.fullId },
-        useKeyStore.getState().selectedKeyType,
-      );
       // 마지막 선택 요소 좌표 저장
       if (element.measuredSize) {
         useGridSelectionStore.getState().setLastSelectedKeyBounds({
@@ -616,10 +609,6 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
             useKeyStore.getState().selectedKeyType,
           ),
         );
-      selectTreeEditedGroupMembersFromStores(
-        { type: 'plugin', id: element.fullId },
-        useKeyStore.getState().selectedKeyType,
-      );
     }
     openPropertiesPanelForSelection();
   };
