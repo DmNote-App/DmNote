@@ -43,6 +43,7 @@ import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
+import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import DocumentGridLayer from './DocumentGridLayer';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
@@ -209,6 +210,61 @@ describe('트리 요소에서 시작한 끌기', () => {
     });
     expect(mocks.move).not.toHaveBeenCalled();
     expect(useDocumentFramePreviewStore.getState().frames).toEqual({});
+    unmount();
+  });
+});
+
+describe('트리 요소 Shift 클릭 범위 선택', () => {
+  beforeEach(() => {
+    useGridSelectionStore.getState().clearSelection();
+    useGridSelectionStore.getState().setLastSelectedKeyBounds(null);
+    useDocumentSelectionStore.getState().clear();
+    usePluginDisplayElementStore.setState({
+      elements: [
+        {
+          fullId: 'p:between',
+          position: { x: 60, y: 0 },
+          measuredSize: { width: 10, height: 10 },
+        },
+      ] as never,
+    });
+  });
+
+  it('마지막으로 누른 요소(플러그인 요소 포함) 영역부터 범위 안의 트리 요소와 플러그인 요소를 고른다', () => {
+    useGridSelectionStore
+      .getState()
+      .setLastSelectedKeyBounds({ x: 100, y: 0, width: 10, height: 10 });
+    const { box, unmount } = render();
+    act(() => {
+      box.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          bubbles: true,
+          button: 0,
+          shiftKey: true,
+          pointerId: 1,
+        }),
+      );
+      box.dispatchEvent(pointer('pointerup', 0, 0));
+    });
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['t1']);
+    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+      { type: 'plugin', id: 'p:between' },
+    ]);
+    unmount();
+  });
+
+  it('그냥 누르면 그 요소를 다음 범위 선택의 기준으로 남긴다', () => {
+    const { box, unmount } = render();
+    act(() => {
+      box.dispatchEvent(pointer('pointerdown', 0, 0));
+      box.dispatchEvent(pointer('pointerup', 0, 0));
+    });
+    expect(useGridSelectionStore.getState().lastSelectedKeyBounds).toEqual({
+      x: 0,
+      y: 0,
+      width: 40,
+      height: 40,
+    });
     unmount();
   });
 });

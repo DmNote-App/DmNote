@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Scene } from '@src/types/generated/elementDocument';
 import {
-  documentIdsInRange,
   documentIdsInRect,
+  documentRangeSelection,
   toggleDocumentId,
 } from './documentSelection';
 
@@ -52,9 +52,44 @@ describe('트리 요소 선택 계산', () => {
     ).toEqual([]);
   });
 
-  it('Shift 클릭은 기준 요소와 누른 요소를 감싸는 영역 안을 고른다', () => {
-    expect(documentIdsInRange(scene, 'a', 'b')).toEqual(['a', 'b']);
-    expect(documentIdsInRange(scene, 'a', 'c')).toEqual(['a', 'b', 'c']);
-    expect(documentIdsInRange(scene, 'missing', 'b')).toEqual(['b']);
+  it('Shift 클릭은 마지막으로 누른 요소 영역과 누른 요소를 감싸는 영역 안의 트리 요소와 플러그인 요소를 고른다', () => {
+    const anchor = { x: 0, y: 0, width: 10, height: 10 };
+    const plugin = (
+      fullId: string,
+      x: number,
+      tabId?: string,
+      measured = true,
+    ) => ({
+      fullId,
+      tabId,
+      position: { x, y: 0 },
+      measuredSize: measured ? { width: 10, height: 10 } : undefined,
+    });
+    const pluginElements = [
+      plugin('p:in', 50),
+      plugin('p:other-tab', 50, 'other'),
+      plugin('p:unmeasured', 50, undefined, false),
+      plugin('p:out', 500),
+    ];
+    const frame = { x: 100, y: 0, width: 10, height: 10, rotation: 0 };
+    expect(
+      documentRangeSelection(scene, anchor, frame, pluginElements, 'tab'),
+    ).toEqual({
+      treeIds: ['a', 'b'],
+      plugins: [{ type: 'plugin', id: 'p:in' }],
+    });
+    // 기준이 플러그인 요소여도 같은 영역 규칙
+    expect(
+      documentRangeSelection(
+        scene,
+        { x: 500, y: 0, width: 10, height: 10 },
+        frame,
+        pluginElements,
+        'tab',
+      ),
+    ).toEqual({
+      treeIds: ['b'],
+      plugins: [{ type: 'plugin', id: 'p:out' }],
+    });
   });
 });

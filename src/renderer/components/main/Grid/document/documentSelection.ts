@@ -1,6 +1,9 @@
 // 트리 요소 선택 계산 - 옛 종류 선택(useGridSelectionStore)과 같은 규칙
 import type { Frame, Scene } from '@src/types/generated/elementDocument';
-import { isElementInMarquee } from '@stores/grid/useGridSelectionStore';
+import {
+  isElementInMarquee,
+  type SelectedElement,
+} from '@stores/grid/useGridSelectionStore';
 import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documentElementOrder';
 
 type Rect = { left: number; top: number; width: number; height: number };
@@ -22,25 +25,43 @@ export const documentIdsInRect = (scene: Scene | undefined, rect: Rect) =>
     .filter(({ element }) => isElementInMarquee(boundsOf(element.frame), rect))
     .map(({ element }) => element.id);
 
-/** Shift 클릭 - 기준 요소와 누른 요소를 감싸는 영역과 겹치는 요소 (옛 종류 범위 선택과 같다) */
-export const documentIdsInRange = (
+interface RangePluginElement {
+  fullId: string;
+  tabId?: string;
+  position: { x: number; y: number };
+  measuredSize?: { width: number; height: number };
+}
+
+/** Shift 클릭 - 마지막으로 누른 요소(플러그인 요소 포함) 영역과 누른 요소를 감싸는 영역과 겹치는
+ * 트리 요소와 플러그인 요소 (옛 키 범위 선택과 같다) */
+export const documentRangeSelection = (
   scene: Scene | undefined,
-  anchorId: string,
-  clickedId: string,
-) => {
-  const slots = documentElementSlots(scene);
-  const clicked = slots.find(({ element }) => element.id === clickedId);
-  if (!clicked) return [];
-  const anchor =
-    slots.find(({ element }) => element.id === anchorId) ?? clicked;
-  const a = anchor.element.frame;
-  const b = clicked.element.frame;
-  const left = Math.min(a.x, b.x);
-  const top = Math.min(a.y, b.y);
-  return documentIdsInRect(scene, {
+  anchor: { x: number; y: number; width: number; height: number },
+  clicked: Frame,
+  pluginElements: readonly RangePluginElement[],
+  sceneId: string,
+): { treeIds: string[]; plugins: SelectedElement[] } => {
+  const left = Math.min(anchor.x, clicked.x);
+  const top = Math.min(anchor.y, clicked.y);
+  const rect = {
     left,
     top,
-    width: Math.max(a.x + a.width, b.x + b.width) - left,
-    height: Math.max(a.y + a.height, b.y + b.height) - top,
-  });
+    width: Math.max(anchor.x + anchor.width, clicked.x + clicked.width) - left,
+    height:
+      Math.max(anchor.y + anchor.height, clicked.y + clicked.height) - top,
+  };
+  return {
+    treeIds: documentIdsInRect(scene, rect),
+    plugins: pluginElements
+      .filter(
+        (element) =>
+          (!element.tabId || element.tabId === sceneId) &&
+          element.measuredSize &&
+          isElementInMarquee(
+            { ...element.position, ...element.measuredSize },
+            rect,
+          ),
+      )
+      .map((element) => ({ type: 'plugin', id: element.fullId })),
+  };
 };

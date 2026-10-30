@@ -35,7 +35,8 @@ import {
 } from './documentEditActions';
 import { documentDragSnap } from './documentDragSnap';
 import { expandDocumentGroup, legacyGroupMembersOf } from './documentGroups';
-import { documentIdsInRange, toggleDocumentId } from './documentSelection';
+import { documentRangeSelection, toggleDocumentId } from './documentSelection';
+import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
@@ -94,21 +95,32 @@ const DocumentGridElement = ({
     const store = getElementDocumentStore();
     // 보조키 클릭 - 넣고 빼기 (옛 종류 선택과 같은 키)
     const primaryModifier = isMac() ? event.metaKey : event.ctrlKey;
+    const gridSelection = useGridSelectionStore.getState();
+    // Shift 범위 선택의 기준 - 플러그인 요소와 같은 마지막으로 누른 요소 영역
+    const { x, y, width, height } = element.frame;
     if (primaryModifier) {
       // 넣고 빼기 - 옛 종류 선택을 지킨다
       keepOtherSelection(() =>
         selection.setSelection(sceneId, toggleDocumentId(current, element.id)),
       );
+      gridSelection.setLastSelectedKeyBounds({ x, y, width, height });
       return;
     }
-    // Shift 클릭 - 기준 요소와 누른 요소 사이 범위
-    if (event.shiftKey && current.length > 0) {
-      selection.setSelection(
+    // Shift 클릭 - 마지막으로 누른 요소와 누른 요소 사이 범위 (기준이 없으면 그냥 클릭)
+    const anchor = event.shiftKey ? gridSelection.lastSelectedKeyBounds : null;
+    if (anchor) {
+      const { treeIds, plugins } = documentRangeSelection(
+        store?.getScene(sceneId),
+        anchor,
+        element.frame,
+        usePluginDisplayElementStore.getState().elements,
         sceneId,
-        documentIdsInRange(store?.getScene(sceneId), current[0], element.id),
       );
+      gridSelection.setSelectedElements(plugins);
+      keepOtherSelection(() => selection.setSelection(sceneId, treeIds));
       return;
     }
+    gridSelection.setLastSelectedKeyBounds({ x, y, width, height });
     // 고른 요소를 누르면 선택을 지킨 채 함께 옮긴다. 트리 그룹 안 요소는 그룹째 고른다.
     // 옛 그룹 안이면(트리로 옮긴 옛 종류) 그 그룹의 옛 종류 멤버도 옛 선택으로 함께 고른다
     const legacyGroup = current.includes(element.id)
