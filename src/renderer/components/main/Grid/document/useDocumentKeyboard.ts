@@ -23,7 +23,7 @@ import {
   pasteDocumentClipboard,
   useDocumentClipboardStore,
 } from './documentClipboard';
-import { combinedSelection, treeOnlySelectedIds } from './treeEditedSelection';
+import { structureTargetIds } from './treeEditedSelection';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 const ARROW_STEP = 1;
@@ -31,7 +31,7 @@ const ARROW_STEP_LARGE = 10;
 // 옛 종류 방향키와 같은 되돌리기 병합 간격
 const ARROW_HISTORY_MERGE_MS = 500;
 
-/** 트리 요소 키보드 - 복사·붙여넣기·삭제·화살표 이동·선택 해제 (옛 종류 선택과 같은 키).
+/** 트리 요소 키보드 - 복사·붙여넣기·삭제·화살표 이동·선택 해제·묶기·겹침 순서 (옛 종류 선택과 같은 키).
  * 옛 종류 키보드가 처리한 다음에 불러야 섞인 선택에서 두 가족이 함께 움직인다 - 처리기를 돌려준다 */
 export const useDocumentKeyboard = () => {
   const { t } = useTranslation();
@@ -65,6 +65,34 @@ export const useDocumentKeyboard = () => {
         });
         return;
       }
+      // 구조 편집 - 트리 선택과 옛 선택(플러그인 요소)을 함께 트리 연산 하나로
+      const structureScene = useKeyStore.getState().selectedKeyType;
+      // Cmd+G 묶기, Shift+Cmd+G 풀기
+      if (primaryModifier && event.code === 'KeyG') {
+        const targets = structureTargetIds(structureScene);
+        if (targets.length === 0) return;
+        event.preventDefault();
+        void (event.shiftKey
+          ? ungroupDocumentElements(structureScene, targets)
+          : groupDocumentElements(
+              structureScene,
+              targets,
+              t('layerGroup.newGroup') || 'New Group',
+            ));
+        return;
+      }
+      // ] [ 한 칸 앞·뒤로
+      if (!primaryModifier && (event.key === ']' || event.key === '[')) {
+        const targets = structureTargetIds(structureScene);
+        if (targets.length === 0) return;
+        event.preventDefault();
+        void stepDocumentElements(
+          structureScene,
+          targets,
+          event.key === ']' ? 'forward' : 'backward',
+        );
+        return;
+      }
       const { sceneId, selectedIds, clear } =
         useDocumentSelectionStore.getState();
       if (!sceneId || selectedIds.length === 0) return;
@@ -73,42 +101,8 @@ export const useDocumentKeyboard = () => {
         copyDocumentSelection({ keepLegacyClipboard: isGridKeyHandled(event) });
         return;
       }
-      // Cmd+G 묶기, Shift+Cmd+G 풀기 (옛 종류와 같은 키).
-      // 옛 종류 요소와 섞인 선택은 두 가족을 한 그룹으로 묶을 수 없어 하지 않는다
-      if (primaryModifier && event.code === 'KeyG') {
-        event.preventDefault();
-        if (useGridSelectionStore.getState().selectedElements.length > 0)
-          return;
-        // 트리에만 있는 종류가 없으면(노브 등만) 옛 종류 키보드가 옛 그룹으로 묶고 푼다
-        if (treeOnlySelectedIds(sceneId).length === 0) return;
-        void (event.shiftKey
-          ? ungroupDocumentElements(sceneId, selectedIds)
-          : groupDocumentElements(
-              sceneId,
-              selectedIds,
-              t('layerGroup.newGroup') || 'New Group',
-            ));
-        return;
-      }
       if (event.key === 'Escape') {
         clear();
-        return;
-      }
-      // ] [ 한 칸 앞·뒤로 (옛 종류와 같은 키)
-      if (event.key === ']' || event.key === '[') {
-        event.preventDefault();
-        // 옛 종류 키보드가 하나뿐인 옛·트리로 옮긴 요소를 옛 계획으로 옮겼으면 트리에만 있는 종류만
-        const targets =
-          isGridKeyHandled(event) && combinedSelection(sceneId).length === 1
-            ? treeOnlySelectedIds(sceneId)
-            : selectedIds;
-        if (targets.length > 0) {
-          void stepDocumentElements(
-            sceneId,
-            targets,
-            event.key === ']' ? 'forward' : 'backward',
-          );
-        }
         return;
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {

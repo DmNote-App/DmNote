@@ -4,7 +4,7 @@ import ListPopup, { type ListItem } from '../../main/Modal/listPopup/ListPopup';
 import { usePopupPresence } from '@hooks/ui/usePopupPresence';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { commitStableLayerZOrder } from '@src/renderer/editor/runtime/intent/layerZOrderIntent';
+import { runStructureAction } from '../../main/Grid/document/documentEditActions';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
 import type {
   PluginDefinitionInternal,
@@ -201,14 +201,15 @@ export const usePluginElementContextMenu = ({
   })();
 
   const handleContextMenuSelect = (itemId: string) => {
+    // 플러그인 요소의 트리 노드 id가 fullId - 트리 연산으로 옮긴다
     const commitLayerOrder = (
       action: 'front' | 'forward' | 'backward' | 'back',
     ) => {
-      void commitStableLayerZOrder({
-        mode: element.tabId ?? useKeyStore.getState().selectedKeyType,
-        targets: [{ type: 'plugin', id: element.fullId }],
+      void runStructureAction(
+        element.tabId ?? useKeyStore.getState().selectedKeyType,
+        [element.fullId],
         action,
-      }).catch(reportElementOpError);
+      ).catch(reportElementOpError);
     };
 
     if (itemId === 'delete') {

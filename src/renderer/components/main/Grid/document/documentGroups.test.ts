@@ -9,10 +9,10 @@ vi.mock('@src/types/elementKinds', async (importOriginal) =>
 
 import type { Scene } from '@src/types/generated/elementDocument';
 import {
+  documentGroupActions,
   documentGroupRoots,
   documentGroupsOf,
-  expandDocumentGroup,
-  legacyGroupMembersOf,
+  groupSelectionOf,
 } from './documentGroups';
 import { isTreeOnlyGroup } from '@src/renderer/editor/document/documentPatch';
 
@@ -51,32 +51,47 @@ describe('트리 전용 그룹 계산', () => {
     expect(isTreeOnlyGroup(scene.nodes[2] as never)).toBe(false);
   });
 
-  it('그룹 안 요소를 누르면 가장 바깥 트리 그룹의 요소 전체를 고른다', () => {
-    expect(expandDocumentGroup(scene, 'b')).toEqual(['a', 'b']);
-    expect(expandDocumentGroup(scene, 'c')).toEqual(['c']);
-    // 옛 그룹은 트리에서 다루지 않는다
-    expect(expandDocumentGroup(scene, 'd')).toEqual(['d']);
+  it('그룹 안 요소를 누르면 가장 바깥 그룹(옛 그룹 포함)의 요소 전체를 고른다', () => {
+    expect(groupSelectionOf(scene, 'b')).toEqual({
+      treeIds: ['a', 'b'],
+      plugins: [],
+    });
+    expect(groupSelectionOf(scene, 'c')).toEqual({
+      treeIds: ['c'],
+      plugins: [],
+    });
+    expect(groupSelectionOf(scene, 'd')).toEqual({
+      treeIds: ['d'],
+      plugins: [],
+    });
   });
 
   it('묶을 대상은 다 고른 그룹은 그룹째, 나머지는 요소로 겹치는 순서대로', () => {
     expect(documentGroupRoots(scene, ['a', 'b', 'c'])).toEqual(['outer', 'c']);
     expect(documentGroupRoots(scene, ['b', 'c'])).toEqual(['inner', 'c']);
+    expect(documentGroupRoots(scene, ['c', 'd'])).toEqual(['c', 'legacy']);
   });
 
-  it('풀 대상은 고른 요소가 들어 있는 가장 바깥 트리 그룹', () => {
+  it('풀 대상은 고른 요소가 들어 있는 가장 바깥 그룹', () => {
     expect(documentGroupsOf(scene, ['b', 'c'])).toEqual(['outer']);
-    expect(documentGroupsOf(scene, ['c', 'd'])).toEqual([]);
+    expect(documentGroupsOf(scene, ['c', 'd'])).toEqual(['legacy']);
+  });
+
+  it('묶기·풀기 메뉴 - 모두 한 그룹이면 풀기만, 아무 그룹도 아니면 묶기만', () => {
+    expect(documentGroupActions(scene, ['c'])).toEqual([]);
+    expect(documentGroupActions(scene, ['a', 'b'])).toEqual(['ungroup']);
+    expect(documentGroupActions(scene, ['b', 'c'])).toEqual([
+      'group',
+      'ungroup',
+    ]);
+    expect(
+      documentGroupActions({ nodes: [tracker('x'), tracker('y')] }, ['x', 'y']),
+    ).toEqual(['group']);
   });
 });
 
-describe('옛 그룹 안의 트리로 옮긴 옛 종류', () => {
-  it('옛 그룹 멤버를 트리 가족과 옛 종류로 나눈다', () => {
-    const element = (id: string, kind: string) => ({
-      type: 'element' as const,
-      id,
-      kind,
-      frame: { x: 0, y: 0, width: 1, height: 1, rotation: 0 },
-    });
+describe('그룹 안 플러그인 요소', () => {
+  it('그룹째 고르면 플러그인 요소는 옛 선택 몫으로 나눈다', () => {
     const scene = {
       nodes: [
         {
@@ -84,15 +99,21 @@ describe('옛 그룹 안의 트리로 옮긴 옛 종류', () => {
           id: 'G',
           name: 'G',
           legacy: {},
-          children: [element('k1', 'key'), element('n1', 'knob')],
+          children: [
+            tracker('t1'),
+            {
+              type: 'element' as const,
+              id: 'demo::i1',
+              kind: 'plugin:demo',
+              frame: { x: 0, y: 0, width: 1, height: 1, rotation: 0 },
+            },
+          ],
         },
-        element('k2', 'key'),
       ],
     };
-    expect(legacyGroupMembersOf(scene as never, 'n1')).toEqual({
-      treeIds: ['n1'],
-      legacy: [{ kind: 'key', id: 'k1' }],
+    expect(groupSelectionOf(scene as never, 't1')).toEqual({
+      treeIds: ['t1'],
+      plugins: ['demo::i1'],
     });
-    expect(legacyGroupMembersOf(scene as never, 'k2')).toBeNull();
   });
 });

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { markGridKeyHandled } from '@stores/grid/gridKeyHandled';
+import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useDocumentKeyboard } from './useDocumentKeyboard';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
@@ -82,6 +83,7 @@ describe('트리 요소 키보드', () => {
     container = document.createElement('div');
     root = createRoot(container);
     act(() => root.render(<Harness />));
+    useKeyStore.setState({ selectedKeyType: '4key' });
     mocks.remove.mockClear();
     mocks.move.mockClear();
     mocks.copy.mockClear();
@@ -173,22 +175,25 @@ describe('트리 요소 키보드', () => {
     expect(mocks.ungroup).toHaveBeenCalledWith('4key', ['t1', 't2']);
   });
 
-  it('트리로 옮긴 옛 종류가 섞이면 Cmd+G를 옛 종류 키보드에 맡긴다', () => {
+  it('옛 선택의 플러그인 요소도 함께 트리 연산으로 묶고 옮긴다', () => {
     mocks.group.mockClear();
-    useDocumentSelectionStore.getState().setSelection('4key', ['n1', 'n2']);
-    act(() => {
-      const event = new KeyboardEvent('keydown', {
-        key: 'g',
-        code: 'KeyG',
-        metaKey: true,
-        cancelable: true,
-      });
-      event.preventDefault();
-      markGridKeyHandled(event);
-      window.dispatchEvent(event);
-    });
+    mocks.step.mockClear();
+    // 섞인 선택 - 트리 요소와 옛 선택의 플러그인 요소
+    useDocumentSelectionStore.getState().setSelection('4key', ['t1']);
+    act(() =>
+      keepOtherSelection(() =>
+        useGridSelectionStore
+          .getState()
+          .setSelectedElements([{ type: 'plugin', id: 'demo::p1' }]),
+      ),
+    );
     press('g', { metaKey: true, code: 'KeyG' });
-    expect(mocks.group).not.toHaveBeenCalled();
+    expect(mocks.group).toHaveBeenLastCalledWith(
+      '4key',
+      ['t1', 'demo::p1'],
+      'layerGroup.newGroup',
+    );
+    act(() => useGridSelectionStore.getState().clearSelection());
   });
 
   it('옛 종류 키보드가 지웠으면(트리 요소 포함) 선택만 푼다', () => {
@@ -216,9 +221,10 @@ describe('트리 요소 키보드', () => {
       ['n1', 't1'],
       'layerGroup.newGroup',
     );
+    // 옛 종류 하나도 트리에서 푼다
     useDocumentSelectionStore.getState().setSelection('4key', ['n1']);
     press('G', { metaKey: true, shiftKey: true, code: 'KeyG' });
-    expect(mocks.ungroup).not.toHaveBeenCalled();
+    expect(mocks.ungroup).toHaveBeenCalledWith('4key', ['n1']);
   });
 
   it('Delete는 지우고 선택을 푼다', () => {

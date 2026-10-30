@@ -1,11 +1,12 @@
 import { deleteElementById } from '@src/renderer/editor/runtime/operations/elementOps';
-import { commitStableLayerZOrder } from '@src/renderer/editor/runtime/intent/layerZOrderIntent';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
+import {
+  runStructureAction,
+  type StructureAction,
+} from '../document/documentEditActions';
 import type { NativeElementType } from '@src/renderer/editor/model/elementIdMap';
 
-type NativeLayerAction = 'front' | 'forward' | 'backward' | 'back';
-
-const layerActionByMenuItem: Readonly<Record<string, NativeLayerAction>> = {
+const layerActionByMenuItem: Readonly<Record<string, StructureAction>> = {
   bringToFront: 'front',
   bringForward: 'forward',
   sendBackward: 'backward',
@@ -44,11 +45,9 @@ export const executeNativeContextMenuAction = ({
   const action = layerActionByMenuItem[menuItemId];
   if (!action) return false;
   if (elementId) {
-    void commitStableLayerZOrder({
-      mode,
-      targets: [{ type, id: elementId }],
-      action,
-    }).catch(reportElementOpError);
+    void runStructureAction(mode, [elementId], action).catch(
+      reportElementOpError,
+    );
   }
   return true;
 };

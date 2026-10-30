@@ -10,8 +10,8 @@ const actionMocks = vi.hoisted(() => ({
 vi.mock('@src/renderer/editor/runtime/operations/elementOps', () => ({
   deleteElementById: actionMocks.deleteElement,
 }));
-vi.mock('@src/renderer/editor/runtime/intent/layerZOrderIntent', () => ({
-  commitStableLayerZOrder: actionMocks.commitLayer,
+vi.mock('../document/documentEditActions', () => ({
+  runStructureAction: actionMocks.commitLayer,
 }));
 vi.mock('@src/renderer/editor/runtime/intent/elementIntent', () => ({
   reportElementOpError: actionMocks.reportError,
@@ -72,11 +72,12 @@ describe('executeNativeContextMenuAction', () => {
       onDuplicate: vi.fn(),
     });
 
-    expect(actionMocks.commitLayer).toHaveBeenCalledWith({
-      mode: '4key',
-      targets: [{ type: 'key', id: 'key-id' }],
+    // 트리 노드 id로 트리 연산
+    expect(actionMocks.commitLayer).toHaveBeenCalledWith(
+      '4key',
+      ['key-id'],
       action,
-    });
+    );
   });
 
   it('지원하지 않는 메뉴 항목은 소비하지 않는다', () => {

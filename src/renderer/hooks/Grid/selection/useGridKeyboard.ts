@@ -14,13 +14,8 @@ import {
   type SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
-import { useKeyStore } from '@stores/data/useKeyStore';
 import { ARROW_KEY_HISTORY_DELAY } from '../constants';
 import { isMac } from '@utils/core/platform';
-import {
-  groupSelectedElements,
-  ungroupSelectedElements,
-} from '@utils/grid/groupActions';
 import { useHistoryShortcuts } from './useHistoryShortcuts';
 import { isHistoryEditorFlushLocked } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 import { isModalLayerActive } from '@components/main/Modal/popupLayer';
@@ -40,16 +35,9 @@ interface UseGridKeyboardParams {
   pasteElements: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
-  onMoveForward?: () => void | Promise<void>;
-  onMoveBackward?: () => void | Promise<void>;
-  newGroupLabel?: string;
   continuousInputStrategy?: 'sync' | 'frame';
   // 함께 고른 다른 선택(트리 요소)의 키 처리 - 이 처리기가 끝난 뒤 같은 이벤트로 부른다
   afterKeyDown?: (event: KeyboardEvent) => void;
-  // 다른 가족과 섞인 선택처럼 묶을 수 없으면 true - 묶기·풀기를 하지 않는다
-  blockGrouping?: () => boolean;
-  // 묶기·풀기 대상 - 함께 고른 다른 선택의 옛 종류 요소까지 (기본은 이 선택)
-  groupTargets?: () => SelectedElement[];
 }
 
 /**
@@ -64,13 +52,8 @@ export function useGridKeyboard({
   pasteElements,
   onUndo,
   onRedo,
-  onMoveForward,
-  onMoveBackward,
-  newGroupLabel = 'New Group',
   continuousInputStrategy = 'frame',
   afterKeyDown,
-  blockGrouping,
-  groupTargets,
 }: UseGridKeyboardParams): void {
   const lastArrowKeyTime = useRef(0);
   const arrowGestureId = useRef<string | null>(null);
@@ -151,36 +134,6 @@ export function useGridKeyboard({
 
       const isPrimaryModifierPressed = macOS ? e.metaKey : e.ctrlKey;
 
-      // Ctrl/Cmd + G: 선택 요소 그룹화
-      if (isPrimaryModifierPressed && !e.shiftKey && e.code === 'KeyG') {
-        e.preventDefault();
-        markGridKeyHandled(e);
-        const targets = groupTargets?.() ?? selectedElements;
-        if (targets.length < 2 || blockGrouping?.()) return;
-
-        const selectedKeyType = useKeyStore.getState().selectedKeyType;
-        void groupSelectedElements(
-          selectedKeyType,
-          targets,
-          newGroupLabel,
-        ).catch(reportElementOpError);
-        return;
-      }
-
-      // Ctrl/Cmd + Shift + G: 선택 요소 그룹 해제
-      if (isPrimaryModifierPressed && e.shiftKey && e.code === 'KeyG') {
-        e.preventDefault();
-        markGridKeyHandled(e);
-        const targets = groupTargets?.() ?? selectedElements;
-        if (targets.length === 0 || blockGrouping?.()) return;
-
-        const selectedKeyType = useKeyStore.getState().selectedKeyType;
-        void ungroupSelectedElements(selectedKeyType, targets).catch(
-          reportElementOpError,
-        );
-        return;
-      }
-
       // Ctrl+C: 복사 (선택된 요소가 있을 때)
       if (isPrimaryModifierPressed && e.key.toLowerCase() === 'c') {
         if (selectedElements.length > 0) {
@@ -199,23 +152,6 @@ export function useGridKeyboard({
           markGridKeyHandled(e);
           void Promise.resolve(pasteElements()).catch(reportElementOpError);
         }
-        return;
-      }
-
-      // ] [ 한 칸 앞·뒤 - 트리로 옮긴 옛 종류 하나도 옛 계획으로 옮기므로 옛 선택이 비어도 넘긴다
-      // ] 키로 앞으로 이동
-      if (e.key === ']' && typeof onMoveForward === 'function') {
-        e.preventDefault();
-        markGridKeyHandled(e);
-        void Promise.resolve(onMoveForward()).catch(reportElementOpError);
-        return;
-      }
-
-      // [ 키로 뒤로 이동
-      if (e.key === '[' && typeof onMoveBackward === 'function') {
-        e.preventDefault();
-        markGridKeyHandled(e);
-        void Promise.resolve(onMoveBackward()).catch(reportElementOpError);
         return;
       }
 
@@ -306,13 +242,8 @@ export function useGridKeyboard({
     clearSelection,
     copySelectedElements,
     pasteElements,
-    onMoveForward,
-    onMoveBackward,
-    newGroupLabel,
     selectionSignature,
     continuousInputStrategy,
     afterKeyDown,
-    blockGrouping,
-    groupTargets,
   ]);
 }

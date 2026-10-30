@@ -138,7 +138,7 @@ const loadHarness = async () => {
   ] = await Promise.all([
     import('./coordinator/editorStateCoordinator'),
     import('./gesture/editGestureController'),
-    import('@utils/grid/groupActions'),
+    import('./intent/mixedElementGroups'),
     import('@utils/grid/groupSelection'),
     import('@components/main/Grid/PropertiesPanel/batch/batchPanelShared'),
     import('./operations/elementGeometryOps'),
@@ -166,6 +166,18 @@ const loadHarness = async () => {
 };
 type Harness = Awaited<ReturnType<typeof loadHarness>>;
 let harness: Harness;
+
+// 옛 그룹 소속 커밋 (옛 묶기 동작이 보내던 것)
+const groupTargets = (
+  elements: readonly { type: string; id: string }[],
+  target: Parameters<Harness['setMixedElementGroups']>[3],
+) =>
+  harness.setMixedElementGroups(
+    MODE,
+    elements.map(({ type, id }) => ({ elementType: type as never, id })),
+    [],
+    target,
+  );
 
 describe('그룹 회전 편집 통합', () => {
   beforeEach(async () => {
@@ -212,7 +224,11 @@ describe('그룹 회전 편집 통합', () => {
 
   it('혼합 회전 그룹의 생성·일괄 회전·resize·해제와 히스토리 이벤트가 서로의 값을 보존한다', async () => {
     const initial = structuredClone(harness.captureEditorDocument());
-    const grouping = harness.groupSelectedElements(MODE, selected, '그룹');
+    const grouping = groupTargets(selected, {
+      kind: 'create',
+      id: crypto.randomUUID(),
+      name: '그룹',
+    });
     const groupRequest = await acknowledge(1, [...FIELDS, 'layerGroups']);
     await expect(grouping).resolves.toBe(true);
     expect(groupRequest.ops).toHaveLength(1);
@@ -322,7 +338,7 @@ describe('그룹 회전 편집 통합', () => {
       grouped.keyPositions[MODE][1],
     );
 
-    const ungrouping = harness.ungroupSelectedElements(MODE, expanded);
+    const ungrouping = groupTargets(expanded, null);
     await acknowledge(4, [...FIELDS, 'layerGroups']);
     await expect(ungrouping).resolves.toBe(true);
     const ungrouped = structuredClone(harness.captureEditorDocument());
@@ -378,7 +394,11 @@ describe('그룹 회전 편집 통합', () => {
   });
 
   it('서로 다른 각도의 그룹은 프리뷰 취소와 resize 후에도 원래 각도를 유지한다', async () => {
-    const grouping = harness.groupSelectedElements(MODE, selected, '그룹');
+    const grouping = groupTargets(selected, {
+      kind: 'create',
+      id: crypto.randomUUID(),
+      name: '그룹',
+    });
     await acknowledge(1, [...FIELDS, 'layerGroups']);
     await grouping;
     const before = structuredClone(harness.captureEditorDocument());

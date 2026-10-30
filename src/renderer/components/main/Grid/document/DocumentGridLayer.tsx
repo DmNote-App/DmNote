@@ -6,11 +6,7 @@ import {
   isHistoryEditorFlushLocked,
   subscribeHistoryEditorFlushStart,
 } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
-import {
-  useGridSelectionStore,
-  type SelectedElement,
-} from '@stores/grid/useGridSelectionStore';
-import { readAuthorityPositions } from '@src/renderer/editor/model/elementStores';
+import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { openPropertiesPanelForSelection } from '@stores/grid/usePanelHostStore';
 import {
@@ -34,7 +30,7 @@ import {
   removeDocumentElements,
 } from './documentEditActions';
 import { documentDragSnap } from './documentDragSnap';
-import { expandDocumentGroup, legacyGroupMembersOf } from './documentGroups';
+import { groupSelectionOf } from './documentGroups';
 import { documentRangeSelection, toggleDocumentId } from './documentSelection';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
@@ -121,31 +117,20 @@ const DocumentGridElement = ({
       return;
     }
     gridSelection.setLastSelectedKeyBounds({ x, y, width, height });
-    // 고른 요소를 누르면 선택을 지킨 채 함께 옮긴다. 트리 그룹 안 요소는 그룹째 고른다.
-    // 옛 그룹 안이면(트리로 옮긴 옛 종류) 그 그룹의 옛 종류 멤버도 옛 선택으로 함께 고른다
-    const legacyGroup = current.includes(element.id)
+    // 고른 요소를 누르면 선택을 지킨 채 함께 옮긴다. 그룹 안 요소는 가장 바깥 그룹째 고른다 -
+    // 그룹의 플러그인 요소는 옛 선택으로 함께 고른다
+    const group = current.includes(element.id)
       ? null
-      : legacyGroupMembersOf(store?.getScene(sceneId), element.id);
-    const ids = current.includes(element.id)
-      ? current
-      : legacyGroup
-      ? legacyGroup.treeIds
-      : expandDocumentGroup(store?.getScene(sceneId), element.id);
+      : groupSelectionOf(store?.getScene(sceneId), element.id);
+    const ids = group ? group.treeIds : current;
     if (ids !== current) selection.setSelection(sceneId, ids);
-    if (legacyGroup && legacyGroup.legacy.length > 0) {
+    if (group && group.plugins.length > 0) {
       keepOtherSelection(() =>
-        useGridSelectionStore.getState().setSelectedElements(
-          legacyGroup.legacy.flatMap(({ kind, id }) => {
-            const index = (
-              (readAuthorityPositions(kind)[sceneId] ?? []) as Array<{
-                id: string;
-              }>
-            ).findIndex((position) => position.id === id);
-            return index >= 0
-              ? [{ type: kind, id, index } as SelectedElement]
-              : [];
-          }),
-        ),
+        useGridSelectionStore
+          .getState()
+          .setSelectedElements(
+            group.plugins.map((id) => ({ type: 'plugin', id })),
+          ),
       );
     }
     const origins = ids.flatMap((id) => {

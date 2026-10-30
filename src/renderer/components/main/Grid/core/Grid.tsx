@@ -15,34 +15,24 @@ declare global {
   }
 }
 import { useTranslation } from '@contexts/useTranslation';
-import {
-  commitStableLayerZOrder,
-  orderStableZTargetsForBatch,
-} from '@src/renderer/editor/runtime/intent/layerZOrderIntent';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
 import {
   resolveElementById,
   type NativeElementType,
 } from '@src/renderer/editor/model/elementIdMap';
-import {
-  captureElementCollections,
-  getItemStoreState,
-} from '@src/renderer/editor/model/elementStores';
+import { getItemStoreState } from '@src/renderer/editor/model/elementStores';
 import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
 import { defaultElementSize, TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import {
   isEditorElementType,
   isItemElementType,
-  modeArraysOf,
   type ElementCollections,
   type ItemElementType,
 } from '@src/types/editor';
-import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import TabCssModal from '../../Modal/content/editors/TabCssModal';
 import TabNoteSettingModal from '../../Modal/content/editors/TabNoteSettingModal';
 import ListPopup from '../../Modal/listPopup/ListPopup';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { PluginElementsRenderer } from '@components/shared/plugin/PluginElementsRenderer';
 import { useGridZoomPan } from '@hooks/Grid/viewport/useGridZoomPan';
@@ -61,10 +51,7 @@ import { useSpritePoseHandleStore } from '@stores/grid/useSpritePoseHandleStore'
 import { getGridViewportLayerStyles } from '@utils/grid/gridViewportStyles';
 import KeyCounterPreviewLayer from '../layers/KeyCounterPreviewLayer';
 import StatCounterLayer from '../layers/StatCounterLayer';
-import {
-  useGridSelectionStore,
-  type SelectedElement,
-} from '@stores/grid/useGridSelectionStore';
+import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useUIStore } from '@stores/useUIStore';
 import { useSmartGuidesStore } from '@stores/grid/useSmartGuidesStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
@@ -87,10 +74,6 @@ import { slotCanonical, slotDisplayName } from '@utils/keySlot';
 import { overlayApi } from '@api/modules/window/overlayApi';
 import { panelWindowApi } from '@api/modules/window/panelWindowApi';
 import {
-  groupSelectedElements,
-  ungroupSelectedElements,
-} from '@utils/grid/groupActions';
-import {
   composeItemPreviewCollections,
   getPreviewOverlayVersion,
   subscribePreviewOverlay,
@@ -98,7 +81,6 @@ import {
 import {
   buildMixedSelectionMenuItems,
   gridAddTypeForMenuItem,
-  isStableNativeSelection,
   shouldOpenMixedSelectionMenu,
 } from './gridContextMenuModel';
 import DuplicateElementGhost from './DuplicateElementGhost';
@@ -107,6 +89,7 @@ import DocumentContextMenu from '../document/DocumentContextMenu';
 import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
 import {
   combinedSelection as combinedSelectionOf,
+  structureTargetIds,
   treeOnlySelectedIds,
   usePanelSelection,
 } from '../document/treeEditedSelection';
@@ -120,13 +103,19 @@ import { insertDocumentElement } from '../document/documentEditActions';
 import { useDocumentKeyboard } from '../document/useDocumentKeyboard';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { deleteFrozenSelection } from '@src/renderer/editor/runtime/intent/deleteFrozenSelection';
-import { expandDocumentGroup } from '../document/documentGroups';
+import {
+  documentGroupActions,
+  groupSelectionOf,
+} from '../document/documentGroups';
 import { documentIdsInRect } from '../document/documentSelection';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
+import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { createDocumentDragReceipt } from '../document/documentDragReceipt';
 import {
-  moveDocumentElementTo,
+  groupDocumentElements,
   removeDocumentElements,
+  runStructureAction,
+  ungroupDocumentElements,
 } from '../document/documentEditActions';
 import {
   copyDocumentSelection,
@@ -381,40 +370,7 @@ const Grid = ({
     getOtherElements,
   });
 
-  // 선택된 요소의 z-order 조작 핸들러
-  // ] [ 한 칸 앞·뒤 - 트리로 옮긴 옛 종류 하나도 옛 계획으로 (그룹을 넘는 전체 순서)
-  const handleSelectedMoveForward = async () => {
-    const targets = combinedSelection();
-    if (targets.length !== 1) return;
-    const selected = targets[0];
-    if (selected.type === 'plugin' || isNativeElementId(selected.id)) {
-      await commitStableLayerZOrder({
-        mode: selectedKeyType,
-        targets: [{ type: selected.type, id: selected.id }],
-        action: 'forward',
-      });
-    }
-    syncSelectedElementsToOverlay();
-  };
-
-  const handleSelectedMoveBackward = async () => {
-    const targets = combinedSelection();
-    if (targets.length !== 1) return;
-    const selected = targets[0];
-    if (selected.type === 'plugin' || isNativeElementId(selected.id)) {
-      await commitStableLayerZOrder({
-        mode: selectedKeyType,
-        targets: [{ type: selected.type, id: selected.id }],
-        action: 'backward',
-      });
-    }
-    syncSelectedElementsToOverlay();
-  };
-
   const combinedSelection = () => combinedSelectionOf(selectedKeyType);
-  // 트리에만 있는 종류(커서 트래커 등)를 함께 골랐는지
-  const hasTreeOnlySelection = () =>
-    treeOnlySelectedIds(selectedKeyType).length > 0;
   // 지우기 - 트리로 옮긴 옛 종류는 옛 지우기에 함께, 트리에만 있는 종류는 트리에서 (같은 동작 id - 되돌리기 한 번)
   const deleteSelectedElements = () => {
     const gestureId = crypto.randomUUID();
@@ -438,13 +394,7 @@ const Grid = ({
     pasteElements,
     onUndo,
     onRedo,
-    onMoveForward: handleSelectedMoveForward,
-    onMoveBackward: handleSelectedMoveBackward,
-    newGroupLabel: t('layerGroup.newGroup') || 'New Group',
     afterKeyDown: handleDocumentKeyDown,
-    // 트리에만 있는 종류는 옛 그룹에 들 수 없다 - 트리로 옮긴 옛 종류(노브 등)는 함께 묶는다
-    blockGrouping: hasTreeOnlySelection,
-    groupTargets: combinedSelection,
   });
 
   // 키 컨텍스트 메뉴
@@ -467,22 +417,12 @@ const Grid = ({
     y: number;
   } | null>(null);
   const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  // 트리로 옮긴 옛 종류도 함께 묶고 풀 수 있다 - 트리에만 있는 종류가 섞이면 묶기를 감춘다
-  const menuSelection = combinedSelection();
+  // 섞인 선택 메뉴 - 묶기·풀기는 트리 그룹 기준 (옛 종류·플러그인·트리 전용 요소 함께)
   const mixedSelectionMenuItems = buildMixedSelectionMenuItems(
-    menuSelection,
-    menuSelection.length >= 2 && !hasTreeOnlySelection()
-      ? {
-          mode: selectedKeyType,
-          ...modeArraysOf(
-            { ...captureElementCollections(), keyPositions: positions },
-            selectedKeyType,
-          ),
-          pluginElements: usePluginDisplayElementStore.getState().elements,
-          modeGroups:
-            useLayerGroupStore.getState().layerGroups[selectedKeyType] || [],
-        }
-      : null,
+    documentGroupActions(
+      getElementDocumentStore()?.getScene(selectedKeyType),
+      structureTargetIds(selectedKeyType),
+    ),
     t,
   );
 
@@ -558,38 +498,6 @@ const Grid = ({
       },
     });
     setDuplicateCursor(null);
-  };
-
-  // 섞인 메뉴의 맨 앞·맨 뒤 - 트리로 옮긴 옛 종류도 옛 계획에 함께 넣는다(옛 그룹을 넘는 전체 순서).
-  // 트리에만 있는 종류와는 같은 동작 id (되돌리기 한 번)
-  const moveSelectedTo = async (
-    action: 'front' | 'back',
-    elements: readonly SelectedElement[],
-    gestureId: string,
-  ) => {
-    if (elements.length === 0) return;
-
-    if (
-      elements.every(
-        (element) =>
-          element.type === 'plugin' || isStableNativeSelection(element),
-      )
-    ) {
-      await commitStableLayerZOrder({
-        mode: selectedKeyType,
-        targets: orderStableZTargetsForBatch(
-          elements.map((element) => ({
-            type: element.type as NativeElementType | 'plugin',
-            id: element.id,
-          })),
-        ),
-        action,
-        gestureId,
-      }).catch(reportElementOpError);
-      syncSelectedElementsToOverlay();
-      return;
-    }
-    reportElementOpError(new Error('Invalid native selection ID'));
   };
 
   useEffect(() => {
@@ -758,13 +666,21 @@ const Grid = ({
       return;
     }
     if (!selected) {
-      selection.setSelection(
-        selectedKeyType,
-        expandDocumentGroup(
-          getElementDocumentStore()?.getScene(selectedKeyType),
-          element.id,
-        ),
+      // 그룹 안이면 그룹째 - 그룹의 플러그인 요소는 옛 선택으로
+      const group = groupSelectionOf(
+        getElementDocumentStore()?.getScene(selectedKeyType),
+        element.id,
       );
+      selection.setSelection(selectedKeyType, group.treeIds);
+      if (group.plugins.length > 0) {
+        keepOtherSelection(() =>
+          useGridSelectionStore
+            .getState()
+            .setSelectedElements(
+              group.plugins.map((id) => ({ type: 'plugin', id })),
+            ),
+        );
+      }
     }
     // 트리로 옮긴 옛 종류는 옛 메뉴 - 옛 그룹 묶기·풀기, 그룹을 넘는 겹침 순서, 복제 배치를 그대로 쓴다
     const kind = getElementDocumentStore()?.getElement(
@@ -1066,28 +982,22 @@ const Grid = ({
                   });
                 }
               } else if (id === 'bringToFront' || id === 'sendToBack') {
-                const action = id === 'bringToFront' ? 'front' : 'back';
-                const gestureId = crypto.randomUUID();
-                const treeOnlyIds = treeOnlySelectedIds(selectedKeyType);
-                if (treeOnlyIds.length > 0) {
-                  void moveDocumentElementTo(
-                    selectedKeyType,
-                    treeOnlyIds,
-                    action,
-                    { gestureId },
-                  );
-                }
-                await moveSelectedTo(action, combinedSelection(), gestureId);
-              } else if (id === 'groupSelected') {
-                await groupSelectedElements(
+                // 트리 연산 하나로 옛 종류·플러그인·트리 전용 요소를 함께 (되돌리기 한 번)
+                await runStructureAction(
                   selectedKeyType,
-                  combinedSelection(),
+                  structureTargetIds(selectedKeyType),
+                  id === 'bringToFront' ? 'front' : 'back',
+                );
+              } else if (id === 'groupSelected') {
+                await groupDocumentElements(
+                  selectedKeyType,
+                  structureTargetIds(selectedKeyType),
                   t('layerGroup.newGroup') || 'New Group',
                 );
               } else if (id === 'ungroupSelected') {
-                await ungroupSelectedElements(
+                await ungroupDocumentElements(
                   selectedKeyType,
-                  combinedSelection(),
+                  structureTargetIds(selectedKeyType),
                 );
               }
 

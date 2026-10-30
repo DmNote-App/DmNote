@@ -272,3 +272,16 @@ export const ungroupDocumentElements = (
     groups.map((id) => ({ op: 'ungroup' as const, scene: sceneId, id })),
   );
 };
+
+export type StructureAction = 'front' | 'back' | 'forward' | 'backward';
+
+/** 겹침 순서 - 맨 앞·뒤는 부모 안 끝, 한 칸은 바로 옆 형제를 넘는다 (옛 종류·플러그인·트리 전용 요소 함께) */
+export const runStructureAction = (
+  sceneId: string,
+  ids: string[],
+  action: StructureAction,
+  options?: { gestureId?: string },
+) =>
+  action === 'front' || action === 'back'
+    ? moveDocumentElementTo(sceneId, ids, action, options)
+    : stepDocumentElements(sceneId, ids, action);

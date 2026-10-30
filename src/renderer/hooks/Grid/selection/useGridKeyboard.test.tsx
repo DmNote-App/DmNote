@@ -27,20 +27,11 @@ const {
   rotateSessionMock,
   sendBridgeMessageMock,
   recordedGenerates,
-  groupSelectedElementsMock,
-  ungroupSelectedElementsMock,
 } = vi.hoisted(() => ({
   commitPatchMock: vi.fn().mockResolvedValue(undefined),
   rotateSessionMock: vi.fn(),
   sendBridgeMessageMock: vi.fn(),
   recordedGenerates: [] as Array<(base: unknown) => unknown>,
-  groupSelectedElementsMock: vi.fn().mockResolvedValue(undefined),
-  ungroupSelectedElementsMock: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('@utils/grid/groupActions', () => ({
-  groupSelectedElements: groupSelectedElementsMock,
-  ungroupSelectedElements: ungroupSelectedElementsMock,
 }));
 
 vi.mock(
@@ -158,8 +149,6 @@ interface BlockingHarnessProps {
   clear: () => void;
   copy: () => void;
   paste: () => void;
-  forward: () => void;
-  backward: () => void;
   continuousInputStrategy?: 'sync' | 'frame';
 }
 
@@ -169,8 +158,6 @@ const BlockingHarness = ({
   clear,
   copy,
   paste,
-  forward,
-  backward,
   continuousInputStrategy = 'sync',
 }: BlockingHarnessProps) => {
   useGridKeyboard({
@@ -183,8 +170,6 @@ const BlockingHarness = ({
     clearSelection: clear,
     copySelectedElements: copy,
     pasteElements: paste,
-    onMoveForward: forward,
-    onMoveBackward: backward,
     continuousInputStrategy,
   });
   return null;
@@ -205,8 +190,6 @@ describe('useGridKeyboard arrow history burst', () => {
     rotateSessionMock.mockClear();
     sendBridgeMessageMock.mockClear();
     recordedGenerates.length = 0;
-    groupSelectedElementsMock.mockClear();
-    ungroupSelectedElementsMock.mockClear();
     randomUUIDMock = vi
       .spyOn(crypto, 'randomUUID')
       .mockReturnValueOnce(firstGestureId)
@@ -499,8 +482,6 @@ describe('useGridKeyboard arrow history burst', () => {
       clear: vi.fn(),
       copy: vi.fn(),
       paste: vi.fn(),
-      forward: vi.fn(),
-      backward: vi.fn(),
     };
     await act(async () =>
       root.render(
@@ -542,8 +523,6 @@ describe('useGridKeyboard arrow history burst', () => {
       clear: vi.fn(),
       copy: vi.fn(),
       paste: vi.fn(),
-      forward: vi.fn(),
-      backward: vi.fn(),
     };
     await act(async () =>
       root.render(
@@ -624,8 +603,6 @@ describe('useGridKeyboard arrow history burst', () => {
       clear: vi.fn(),
       copy: vi.fn(),
       paste: vi.fn(),
-      forward: vi.fn(),
-      backward: vi.fn(),
     };
     await act(async () => root.render(<BlockingHarness {...handlers} />));
 
@@ -659,8 +636,6 @@ describe('useGridKeyboard arrow history burst', () => {
     Object.values(handlers).forEach((handler) =>
       expect(handler).not.toHaveBeenCalled(),
     );
-    expect(groupSelectedElementsMock).not.toHaveBeenCalled();
-    expect(ungroupSelectedElementsMock).not.toHaveBeenCalled();
 
     await act(async () => unregister());
     press({ key: 'Backspace', code: 'Backspace' });
@@ -683,8 +658,6 @@ describe('useGridKeyboard arrow history burst', () => {
           clear={vi.fn()}
           copy={vi.fn()}
           paste={vi.fn()}
-          forward={vi.fn()}
-          backward={vi.fn()}
           continuousInputStrategy="frame"
         />,
       ),
@@ -719,11 +692,9 @@ describe('useGridKeyboard arrow history burst', () => {
 const AfterKeyHarness = ({
   remove,
   after,
-  blockGrouping,
 }: {
   remove: () => void;
   after: (event: KeyboardEvent) => void;
-  blockGrouping?: () => boolean;
 }) => {
   useGridKeyboard({
     selectedElements: [
@@ -737,7 +708,6 @@ const AfterKeyHarness = ({
     pasteElements: vi.fn(),
     continuousInputStrategy: 'sync',
     afterKeyDown: after,
-    blockGrouping,
   });
   return null;
 };
@@ -748,7 +718,6 @@ describe('useGridKeyboard 함께 고른 다른 선택', () => {
 
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-    groupSelectedElementsMock.mockClear();
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
@@ -783,19 +752,5 @@ describe('useGridKeyboard 함께 고른 다른 선택', () => {
     // 옛 종류가 처리하지 않는 키도 넘긴다
     press({ key: 'x' });
     expect(after).toHaveBeenCalledTimes(2);
-  });
-
-  it('섞인 선택처럼 묶을 수 없으면 묶지 않는다', () => {
-    act(() =>
-      root.render(
-        <AfterKeyHarness
-          remove={vi.fn()}
-          after={vi.fn()}
-          blockGrouping={() => true}
-        />,
-      ),
-    );
-    press({ key: 'g', code: 'KeyG', metaKey: true, ctrlKey: true });
-    expect(groupSelectedElementsMock).not.toHaveBeenCalled();
   });
 });

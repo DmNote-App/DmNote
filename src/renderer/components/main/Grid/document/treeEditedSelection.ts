@@ -58,6 +58,15 @@ export const combinedSelection = (sceneId: string): SelectedElement[] => [
   ...treeEditedSelection(sceneId),
 ];
 
+/** 구조 편집(묶기·풀기·겹침 순서) 대상 - 트리 선택 전체 + 옛 선택(플러그인 요소 - 트리 노드 id가 fullId) */
+export const structureTargetIds = (sceneId: string): string[] => {
+  const ids = [...selectedDocumentIds(sceneId)];
+  for (const { id } of useGridSelectionStore.getState().selectedElements) {
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids;
+};
+
 /** 트리에만 있는 종류(커서 트래커 등)의 선택 id */
 export const treeOnlySelectedIds = (sceneId: string) =>
   selectedDocumentIds(sceneId).filter((id) => {
