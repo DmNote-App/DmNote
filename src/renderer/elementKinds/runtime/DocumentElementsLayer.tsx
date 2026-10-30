@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 
 import {
   loadElementDocumentStore,
@@ -112,6 +112,12 @@ const DocumentElementsLayer = ({
     );
   }, []);
   const scene = useElementDocumentScene(sceneId);
+  // 창 오프셋은 레이아웃을 다시 셀 때마다 새 객체 - 값이 같으면 요소 뷰 메모를 지킨다
+  // (키 하나가 바뀌어도 오버레이 키가 전부 다시 그려지지 않게)
+  const stableOffset = useMemo(
+    () => ({ x: offset.x, y: offset.y }),
+    [offset.x, offset.y],
+  );
   return (
     <>
       {documentElementSlots(scene, {
@@ -124,7 +130,7 @@ const DocumentElementsLayer = ({
             key={element.id}
             element={element}
             zIndex={zIndex}
-            offset={offset}
+            offset={stableOffset}
             live={live}
             inputs={inputs}
             overlayContext={overlayContext}

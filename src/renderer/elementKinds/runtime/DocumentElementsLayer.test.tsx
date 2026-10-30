@@ -205,4 +205,34 @@ describe('오버레이가 트리에서 그리는 옛 종류', () => {
     });
     act(() => root.unmount());
   });
+
+  it('창 오프셋이 새 객체여도 값이 같으면 요소를 다시 그리지 않는다', () => {
+    const overlayContext = {
+      spriteKeyCanonicalMap: new Map<string, string>(),
+      mode: '4key',
+      keyCounterEnabled: false,
+    };
+    const INPUTS = {};
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const render = () =>
+      act(() => {
+        root.render(
+          <DocumentElementsLayer
+            sceneId="4key"
+            placement="stacked"
+            live
+            inputs={INPUTS}
+            offset={{ x: 5, y: 7 }}
+            overlayContext={overlayContext}
+          />,
+        );
+      });
+    render();
+    const calls = keyProps.mock.calls.length;
+    expect(calls).toBeGreaterThan(0);
+    render();
+    expect(keyProps.mock.calls.length).toBe(calls);
+    act(() => root.unmount());
+  });
 });
