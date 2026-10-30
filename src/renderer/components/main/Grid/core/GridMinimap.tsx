@@ -6,16 +6,13 @@ import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayEle
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documentElementOrder';
+import type { Scene } from '@src/types/generated/elementDocument';
 import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
   EDITOR_ELEMENT_TYPES,
+  isEditorElementType,
   type EditorElementTypeV1,
-  type ElementModeArrays,
 } from '@src/types/editor';
-import {
-  fallbackElementSize,
-  isLegacyEditedType,
-} from '@src/types/elementKinds';
+import { fallbackElementSize } from '@src/types/elementKinds';
 import DigitPopLayer from '@components/main/common/DigitPopLayer';
 import { useDigitPop } from '@hooks/ui/useDigitPop';
 import IconMotion from '@components/main/Tool/icons/IconMotion';
@@ -48,8 +45,8 @@ const MINIMAP_KIND_STYLE: Partial<
 };
 
 interface GridMinimapProps {
-  // 현재 모드의 종류별 위치
-  modeArrays: ElementModeArrays<Position>;
+  // 벤치마크 전용 - 트리 스토어 대신 이 장면을 그린다
+  sceneOverride?: Scene;
   zoom: number;
   panX: number;
   panY: number;
@@ -102,7 +99,7 @@ const ZoomButton = ({ onClick, title, style, children }: ZoomButtonProps) => (
 );
 
 const GridMinimap = ({
-  modeArrays,
+  sceneOverride,
   zoom,
   panX,
   panY,
@@ -180,16 +177,21 @@ const GridMinimap = ({
     }));
   })();
 
-  // 트리 문서에만 있는 종류(커서 트래커 등) - 플러그인 요소와 같은 모양으로 표시
-  const documentScene = useElementDocumentScene(selectedKeyType);
-  const documentPositions: PluginElementPosition[] = documentElementSlots(
-    documentScene,
-  ).map(({ element }) => ({
-    x: element.frame.x,
-    y: element.frame.y,
-    width: element.frame.width,
-    height: element.frame.height,
-  }));
+  // 트리 요소 - 옛 종류는 종류별 모양, 트리에만 있는 종류(커서 트래커 등)는 플러그인 요소와 같은 모양
+  const storedScene = useElementDocumentScene(selectedKeyType);
+  const documentScene = sceneOverride ?? storedScene;
+  const nativeRects = Object.fromEntries(
+    EDITOR_ELEMENT_TYPES.map((type) => [type, [] as Position[]]),
+  ) as Record<EditorElementTypeV1, Position[]>;
+  const documentPositions: PluginElementPosition[] = [];
+  for (const { element } of documentElementSlots(documentScene)) {
+    const { x, y, width, height } = element.frame;
+    if (isEditorElementType(element.kind)) {
+      nativeRects[element.kind].push({ dx: x, dy: y, width, height });
+    } else {
+      documentPositions.push({ x, y, width, height });
+    }
+  }
   const otherPositions = [...pluginPositions, ...documentPositions];
 
   // 컨테이너 크기 추적 (ResizeObserver 사용)
@@ -218,9 +220,9 @@ const GridMinimap = ({
     };
   }, [containerRef]);
 
-  const hasNativeElements = EDITOR_ELEMENT_TYPES.filter(
-    isLegacyEditedType,
-  ).some((type) => modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].length > 0);
+  const hasNativeElements = EDITOR_ELEMENT_TYPES.some(
+    (type) => nativeRects[type].length > 0,
+  );
 
   // 모든 키 + 플러그인 요소의 바운딩 박스 계산
   const contentBounds = (() => {
@@ -234,9 +236,9 @@ const GridMinimap = ({
     let maxY = -Infinity;
 
     // 종류별 요소 바운딩 박스
-    for (const type of EDITOR_ELEMENT_TYPES.filter(isLegacyEditedType)) {
+    for (const type of EDITOR_ELEMENT_TYPES) {
       const fallback = fallbackElementSize(type);
-      modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].forEach((pos) => {
+      nativeRects[type].forEach((pos) => {
         if (pos.hidden) return;
         const x = pos.dx || 0;
         const y = pos.dy || 0;
@@ -542,17 +544,13 @@ const GridMinimap = ({
           className="absolute top-0 left-0"
         >
           {/* 종류별 요소 표시 */}
-          {EDITOR_ELEMENT_TYPES.filter(isLegacyEditedType).map((type) => {
+          {EDITOR_ELEMENT_TYPES.map((type) => {
             const fallback = fallbackElementSize(type);
-            return renderElementRects(
-              type,
-              modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]] as Position[],
-              {
-                ...MINIMAP_KIND_STYLE[type],
-                defaultW: fallback.width,
-                defaultH: fallback.height,
-              },
-            );
+            return renderElementRects(type, nativeRects[type], {
+              ...MINIMAP_KIND_STYLE[type],
+              defaultW: fallback.width,
+              defaultH: fallback.height,
+            });
           })}
           {/* 플러그인 요소 표시 */}
           {renderElementRects(

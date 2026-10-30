@@ -6,13 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import GridMinimap from './GridMinimap';
 import { useGridViewStore } from '@stores/grid/useGridViewStore';
 
-// 키를 옛 종류 대표로 쓴다
-vi.mock('@src/types/elementKinds', async (importOriginal) =>
-  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
-    importOriginal,
-  ),
-);
-
 describe('GridMinimap 연속 드래그', () => {
   let host: HTMLDivElement;
   let root: Root;
@@ -59,12 +52,15 @@ describe('GridMinimap 연속 드래그', () => {
     act(() => {
       root.render(
         <GridMinimap
-          modeArrays={{
-            keyPositions: [{ dx: 0, dy: 0, width: 60, height: 60 }],
-            statPositions: [],
-            graphPositions: [],
-            knobPositions: [],
-            spritePositions: [],
+          sceneOverride={{
+            nodes: [
+              {
+                type: 'element',
+                id: 'k1',
+                kind: 'key',
+                frame: { x: 0, y: 0, width: 60, height: 60, rotation: 0 },
+              },
+            ],
           }}
           zoom={1}
           panX={0}

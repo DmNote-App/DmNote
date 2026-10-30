@@ -14,13 +14,6 @@ export const GridMarqueeBenchmarkSurface = ({
   onRender = () => undefined,
 }: GridMarqueeBenchmarkSurfaceProps) => {
   const { marqueeEnd } = useGridMarquee({
-    collections: {
-      keyPositions: {},
-      statPositions: {},
-      graphPositions: {},
-      knobPositions: {},
-      spritePositions: {},
-    },
     selectedKeyType: 'benchmark',
     pluginElements: [],
     clientToGridCoords: (x, y) => ({ x, y }),

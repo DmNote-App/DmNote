@@ -6,29 +6,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useGridMarquee } from './useGridMarquee';
 
-// 키를 옛 종류 대표로 쓴다
-vi.mock('@src/types/elementKinds', async (importOriginal) =>
-  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
-    importOriginal,
-  ),
-);
-
-// (0,0)→(200,200) 마퀴가 감싸는 키 하나 - 잘못된 확정이 선택으로 드러나게
+// (0,0)→(200,200) 마퀴가 감싸는 플러그인 요소 하나 - 잘못된 확정이 선택으로 드러나게
+// (옛 종류 요소는 트리 편집기가 고른다)
 const Harness = () => {
   useGridMarquee({
-    collections: {
-      keyPositions: {
-        benchmark: [
-          { id: 'key-1', dx: 0, dy: 0, width: 100, height: 100 },
-        ] as never,
-      },
-      statPositions: {},
-      graphPositions: {},
-      knobPositions: {},
-      spritePositions: {},
-    },
     selectedKeyType: 'benchmark',
-    pluginElements: [],
+    pluginElements: [
+      {
+        fullId: 'demo::p1',
+        position: { x: 0, y: 0 },
+        measuredSize: { width: 100, height: 100 },
+      },
+    ] as never,
     clientToGridCoords: (x, y) => ({ x, y }),
   });
   return null;
@@ -198,7 +187,7 @@ describe('useGridMarquee frame coalescing', () => {
 
     expect(useGridSelectionStore.getState()).toMatchObject({
       isMarqueeSelecting: false,
-      selectedElements: [{ type: 'key', id: 'key-1', index: 0 }],
+      selectedElements: [{ type: 'plugin', id: 'demo::p1' }],
     });
   });
 
@@ -226,13 +215,6 @@ describe('useGridMarquee 빈 공간 프레스', () => {
 
   const ApiHarness = () => {
     const api = useGridMarquee({
-      collections: {
-        keyPositions: {},
-        statPositions: {},
-        graphPositions: {},
-        knobPositions: {},
-        spritePositions: {},
-      },
       selectedKeyType: 'benchmark',
       pluginElements: [],
       clientToGridCoords: (x, y) => ({ x, y }),

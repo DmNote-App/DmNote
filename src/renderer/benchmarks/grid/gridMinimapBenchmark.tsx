@@ -1,7 +1,8 @@
-import React, { Profiler, useRef } from 'react';
+import React, { Profiler, useRef, useState } from 'react';
 
 import GridMinimap from '@components/main/Grid/core/GridMinimap';
 import { useGridViewStore } from '@stores/grid/useGridViewStore';
+import type { Scene } from '@src/types/generated/elementDocument';
 
 interface GridMinimapBenchmarkSurfaceProps {
   strategy: 'legacy' | 'frame';
@@ -28,11 +29,20 @@ export const GridMinimapBenchmarkSurface = ({
       toJSON: () => ({}),
     }),
   } as HTMLDivElement);
-  const positions = Array.from({ length: itemCount }, (_, index) => ({
-    dx: index % 20,
-    dy: Math.floor(index / 20),
-    width: 60,
-    height: 60,
+  // 미니맵은 트리 장면에서 요소를 읽는다 - 같은 수의 키 요소
+  const [scene] = useState<Scene>(() => ({
+    nodes: Array.from({ length: itemCount }, (_, index) => ({
+      type: 'element' as const,
+      id: `benchmark-key-${index}`,
+      kind: 'key',
+      frame: {
+        x: index % 20,
+        y: Math.floor(index / 20),
+        width: 60,
+        height: 60,
+        rotation: 0,
+      },
+    })),
   }));
 
   return (
@@ -42,13 +52,7 @@ export const GridMinimapBenchmarkSurface = ({
     >
       <div data-benchmark-grid-minimap="true" data-pan-x={view.panX}>
         <GridMinimap
-          modeArrays={{
-            keyPositions: positions,
-            statPositions: [],
-            graphPositions: [],
-            knobPositions: [],
-            spritePositions: [],
-          }}
+          sceneOverride={scene}
           zoom={view.zoom}
           panX={view.panX}
           panY={view.panY}

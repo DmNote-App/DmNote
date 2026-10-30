@@ -5,16 +5,6 @@
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { calculateBounds, type ElementBounds } from '@utils/grid/smartGuides';
-import { captureElementCollections } from '@src/renderer/editor/model/elementStores';
-import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
-  EDITOR_ELEMENT_TYPES,
-  modeArraysOf,
-} from '@src/types/editor';
-import {
-  fallbackElementSize,
-  isLegacyEditedType,
-} from '@src/types/elementKinds';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documentElementOrder';
 
@@ -28,7 +18,7 @@ import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documen
 const getOtherElementsSnapshot = (
   excludeIds: string | string[],
 ): ElementBounds[] => {
-  const { positions, selectedKeyType } = useKeyStore.getState();
+  const { selectedKeyType } = useKeyStore.getState();
   const pluginElements = usePluginDisplayElementStore.getState().elements;
 
   const bounds: ElementBounds[] = [];
@@ -36,39 +26,6 @@ const getOtherElementsSnapshot = (
   const excludeSet = new Set(
     Array.isArray(excludeIds) ? excludeIds : [excludeIds],
   );
-
-  // 종류별 요소 bounds - 키는 렌더 positions, 나머지는 스토어 positions
-  const modeArrays = modeArraysOf(
-    { ...captureElementCollections(), keyPositions: positions },
-    selectedKeyType,
-  );
-  for (const type of EDITOR_ELEMENT_TYPES.filter(isLegacyEditedType)) {
-    const fallback = fallbackElementSize(type);
-    (
-      modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]] as ReadonlyArray<{
-        id: string;
-        dx: number;
-        dy: number;
-        width?: number;
-        height?: number;
-        hidden?: boolean;
-      } | null>
-    ).forEach((pos) => {
-      if (!pos || pos.hidden) return;
-      const id = pos.id;
-      if (!excludeSet.has(id)) {
-        bounds.push(
-          calculateBounds(
-            pos.dx,
-            pos.dy,
-            pos.width || fallback.width,
-            pos.height || fallback.height,
-            id,
-          ),
-        );
-      }
-    });
-  }
 
   // 플러그인 요소 bounds (현재 탭에 속하는 요소만)
   pluginElements.forEach((el) => {
@@ -90,7 +47,7 @@ const getOtherElementsSnapshot = (
     }
   });
 
-  // 트리 문서에만 있는 요소(커서 트래커 등) - 보이는 것만
+  // 트리 요소(옛 종류 포함) - 보이는 것만
   const scene = getElementDocumentStore()?.getScene(selectedKeyType);
   for (const { element } of documentElementSlots(scene)) {
     if (excludeSet.has(element.id)) continue;

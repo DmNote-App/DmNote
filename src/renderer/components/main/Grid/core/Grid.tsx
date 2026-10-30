@@ -358,7 +358,6 @@ const Grid = ({
   // 마퀴 선택 훅 사용
   const { isMarqueeSelecting: _isMarqueeSelecting, startMarqueeSelection } =
     useGridMarquee({
-      collections,
       selectedKeyType,
       pluginElements,
       clientToGridCoords,
@@ -1339,7 +1338,6 @@ const Grid = ({
       {/* 미니맵 */}
       {minimapEnabled && (
         <GridMinimap
-          modeArrays={currentModeArrays}
           zoom={zoom}
           panX={panX}
           panY={panY}

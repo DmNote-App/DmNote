@@ -11,29 +11,10 @@ import {
   type SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
-import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
-  EDITOR_ELEMENT_TYPES,
-  type ElementCollections,
-} from '@src/types/editor';
-import {
-  fallbackElementSize,
-  isLegacyEditedType,
-} from '@src/types/elementKinds';
-
-type MarqueePosition = {
-  id: string;
-  dx: number;
-  dy: number;
-  width?: number;
-  height?: number;
-  hidden?: boolean;
-};
 import { getActiveElement } from '@utils/dom/activeElement';
 import { isHTMLElementNode } from '@utils/dom/isElementNode';
 
 interface UseGridMarqueeParams {
-  collections: ElementCollections;
   selectedKeyType: string;
   pluginElements: PluginDisplayElementInternal[];
   clientToGridCoords: (
@@ -64,7 +45,6 @@ interface UseGridMarqueeReturn {
  * 마퀴 선택 훅
  */
 export function useGridMarquee({
-  collections,
   selectedKeyType,
   pluginElements,
   clientToGridCoords,
@@ -161,25 +141,7 @@ export function useGridMarquee({
     if (rect && rect.width > 5 && rect.height > 5) {
       const newSelectedElements: SelectedElement[] = [];
 
-      // 종류별 요소 체크 (키→stat→graph→knob→sprite 순서 유지)
-      for (const type of EDITOR_ELEMENT_TYPES.filter(isLegacyEditedType)) {
-        const fallback = fallbackElementSize(type);
-        const modePositions = (collections[
-          EDITOR_ELEMENT_POSITION_FIELDS[type]
-        ][selectedKeyType] || []) as readonly (MarqueePosition | null)[];
-        modePositions.forEach((pos, index) => {
-          if (!pos || pos.hidden) return;
-          const elementBounds = {
-            x: pos.dx,
-            y: pos.dy,
-            width: pos.width || fallback.width,
-            height: pos.height || fallback.height,
-          };
-          if (isElementInMarquee(elementBounds, rect)) {
-            newSelectedElements.push({ type, id: pos.id, index });
-          }
-        });
-      }
+      // 옛 종류 요소는 모두 트리 편집기가 고른다(selectDocumentInRect) - 여기는 플러그인 요소만
       // 플러그인 요소 체크 (현재 탭에 속하는 것만)
       pluginElements.forEach((el) => {
         if (el.hidden) return;
