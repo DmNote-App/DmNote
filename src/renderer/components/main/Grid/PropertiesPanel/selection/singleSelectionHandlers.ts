@@ -1,6 +1,6 @@
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
-import { captureEditorDocument } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
+import { captureEditorView } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import { reportElementOpSkipped } from '@src/renderer/editor/runtime/intent/elementIntent';
 import {
@@ -345,9 +345,9 @@ const stableNotePaintPreviewHandler = (id: string | undefined) =>
     ? (patch: EditorNotePaintPropertyPatchV1) => {
         const locator = resolveElementById('key', id);
         if (!locator) return;
-        // canonical 전달 - 동기화 켜진 키의 글로우 미러가 낙관 적용과 같은 규칙
+        // 지금 값(대기 중인 트리 편집 포함) 전달 - 동기화 켜진 키의 글로우 미러가 낙관 적용과 같은 규칙
         const current =
-          captureEditorDocument().keyPositions[locator.mode]?.[locator.index];
+          captureEditorView().keyPositions[locator.mode]?.[locator.index];
         editGestureController.preview(
           locator.mode,
           [

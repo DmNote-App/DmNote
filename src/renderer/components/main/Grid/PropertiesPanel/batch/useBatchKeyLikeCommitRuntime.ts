@@ -20,7 +20,7 @@ import {
 import { BATCH_STYLE_SOUND_PAGE_KEY } from './style/BatchStyleTabContent';
 import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
-import { captureEditorDocument } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
+import { captureEditorView } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
 import type {
   EditorNotePaintPropertyPatchV1,
   EditorCounterFillPropertyPatchV1,
@@ -117,7 +117,7 @@ export const useBatchKeyLikeCommitRuntime = ({
     patch: EditorNotePaintPropertyPatchV1,
   ): boolean => {
     if (patch.property !== 'noteGlowPaint' || !stableNotePaintIds) return false;
-    const document = captureEditorDocument();
+    const document = captureEditorView();
     return stableNotePaintIds.some((id) => {
       const locator = resolveElementById('key', id);
       const current = locator
@@ -162,8 +162,8 @@ export const useBatchKeyLikeCommitRuntime = ({
           id: string;
           patch: Partial<KeyPosition>;
         }> = [];
-        // canonical 전달 - 동기화 켜진 키의 글로우 미러가 낙관 적용과 같은 규칙
-        const document = captureEditorDocument();
+        // 지금 값(대기 중인 트리 편집 포함) 전달 - 동기화 켜진 키의 글로우 미러가 낙관 적용과 같은 규칙
+        const document = captureEditorView();
         for (const id of stableNotePaintIds) {
           const locator = resolveElementById('key', id);
           if (!locator || locator.mode !== selectedKeyType) return;
