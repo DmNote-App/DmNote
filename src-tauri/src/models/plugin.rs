@@ -81,15 +81,6 @@ pub struct PluginInstancesSnapshot {
     pub authority_generation: u64,
 }
 
-// 전 플러그인 저장 인스턴스의 그룹 참조 - pluginId → normalize 모드 → 그룹 id (정렬).
-// 미로드 플러그인 포함이 목적이라 pluginId 구분을 유지한다
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct PluginGroupRefsSnapshot {
-    pub refs: BTreeMap<String, BTreeMap<String, Vec<String>>>,
-    pub model_revision: u64,
-}
-
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginInstancesCommitResult {

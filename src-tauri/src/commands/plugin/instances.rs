@@ -1,15 +1,13 @@
-use std::collections::{BTreeMap, HashMap};
-
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 use crate::{
     commands::{editor::state::emit_best_effort, run_blocking, run_mutation_task},
     errors::{CmdResult, CommandError},
     models::{
-        PluginGroupRefsSnapshot, PluginInstancesChangedPayload, PluginInstancesCommitRequest,
-        PluginInstancesCommitResult, PluginInstancesReconcileRequest, PluginInstancesSnapshot,
+        PluginInstancesChangedPayload, PluginInstancesCommitRequest, PluginInstancesCommitResult,
+        PluginInstancesReconcileRequest, PluginInstancesSnapshot,
     },
-    state::{plugin::PluginGroupRefs, store::AdmittedPluginInstancesCommit},
+    state::store::AdmittedPluginInstancesCommit,
 };
 
 const MAIN_WINDOW_LABEL: &str = "main";
@@ -102,42 +100,6 @@ pub async fn plugin_instances_get(
             return Err(CommandError::msg("PLUGIN_INSTANCES_SNAPSHOT_TOO_LARGE"));
         }
         Ok(snapshot)
-    })
-    .await
-}
-
-// wire 정렬 변환 - HashSet 비결정 순서를 결정적 스냅샷으로 고정
-fn plugin_group_refs_snapshot(
-    refs_by_plugin: HashMap<String, PluginGroupRefs>,
-    model_revision: u64,
-) -> PluginGroupRefsSnapshot {
-    let refs = refs_by_plugin
-        .into_iter()
-        .map(|(plugin_id, modes)| {
-            let modes = modes
-                .into_iter()
-                .map(|(mode, group_ids)| {
-                    let mut group_ids = group_ids.into_iter().collect::<Vec<_>>();
-                    group_ids.sort_unstable();
-                    (mode, group_ids)
-                })
-                .collect::<BTreeMap<_, _>>();
-            (plugin_id, modes)
-        })
-        .collect();
-    PluginGroupRefsSnapshot {
-        refs,
-        model_revision,
-    }
-}
-
-// editor 단독 커밋의 normalize 그룹 생존 판정 모집단 미러용 - 미로드·데이터만
-// 남은 플러그인의 저장 인스턴스까지 포함해 프론트 replay와 백엔드 판정을 일치시킨다
-#[tauri::command]
-pub async fn plugin_group_refs_get(app: AppHandle) -> CmdResult<PluginGroupRefsSnapshot> {
-    run_blocking(app, |_, state| {
-        let (refs_by_plugin, model_revision) = state.store.plugin_group_refs_by_plugin();
-        Ok(plugin_group_refs_snapshot(refs_by_plugin, model_revision))
     })
     .await
 }
@@ -291,39 +253,6 @@ mod tests {
         assert_eq!(
             serde_json::to_value(restored).unwrap(),
             serde_json::json!({ "pluginId": "demo", "revision": 5 })
-        );
-    }
-
-    #[test]
-    fn group_refs_snapshot_sorts_group_ids_and_serializes_camel_case() {
-        let mut refs_by_plugin: HashMap<String, PluginGroupRefs> = HashMap::new();
-        let mut beta_modes = PluginGroupRefs::new();
-        beta_modes
-            .entry("6key".to_string())
-            .or_default()
-            .extend(["g-b".to_string(), "g-a".to_string()]);
-        beta_modes
-            .entry("4key".to_string())
-            .or_default()
-            .insert("g-c".to_string());
-        refs_by_plugin.insert("beta".to_string(), beta_modes);
-        let mut alpha_modes = PluginGroupRefs::new();
-        alpha_modes
-            .entry("4key".to_string())
-            .or_default()
-            .insert("g-z".to_string());
-        refs_by_plugin.insert("alpha".to_string(), alpha_modes);
-
-        let snapshot = plugin_group_refs_snapshot(refs_by_plugin, 7);
-        assert_eq!(
-            serde_json::to_value(snapshot).unwrap(),
-            serde_json::json!({
-                "refs": {
-                    "alpha": { "4key": ["g-z"] },
-                    "beta": { "4key": ["g-c"], "6key": ["g-a", "g-b"] },
-                },
-                "modelRevision": 7,
-            })
         );
     }
 }

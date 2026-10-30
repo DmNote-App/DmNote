@@ -16,22 +16,6 @@ impl AppStore {
         Ok((instances, guard.plugin_model_revision))
     }
 
-    // 전 플러그인 저장 인스턴스의 그룹 참조를 pluginId 구분 유지로 수집 - 미로드
-    // 플러그인 포함. 순회·관대 decode 규칙은 for_each_stored_plugin_instances가
-    // 단일 소스 (병합 소비가 플러그인 단위라 수집 형태만 다름)
-    pub(crate) fn plugin_group_refs_by_plugin(&self) -> (HashMap<String, PluginGroupRefs>, u64) {
-        let guard = self.state.read();
-        let mut refs_by_plugin: HashMap<String, PluginGroupRefs> = HashMap::new();
-        for_each_stored_plugin_instances(&guard.data, |plugin_id, instances| {
-            let mut refs = PluginGroupRefs::new();
-            add_plugin_group_refs(&mut refs, &instances);
-            if !refs.is_empty() {
-                refs_by_plugin.insert(plugin_id.to_string(), refs);
-            }
-        });
-        (refs_by_plugin, guard.plugin_model_revision)
-    }
-
     #[cfg(test)]
     pub(crate) fn commit_plugin_instances(
         &self,

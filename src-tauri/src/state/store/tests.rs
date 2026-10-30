@@ -1982,62 +1982,6 @@ fn dangling_plugin_group_id_neither_blocks_commits_nor_resurrects_groups() {
 }
 
 #[test]
-fn plugin_group_refs_by_plugin_includes_unloaded_data_and_skips_broken_keys() {
-    let dir = test_directory("plugin-group-refs-by-plugin-test");
-    std::fs::create_dir_all(&dir).unwrap();
-    let mut data = initialize_default_state();
-
-    // 미로드 플러그인 시나리오 - 런타임 등록 없이 저장 데이터만 존재.
-    // tab 미지정 인스턴스는 4key로 normalize
-    let mut first = saved_plugin_instance(10.0);
-    first.group_id = Some("group-a".to_string());
-    let mut second = saved_plugin_instance(20.0);
-    second.tab_id = None;
-    second.group_id = Some("group-b".to_string());
-    let mut third = saved_plugin_instance(30.0);
-    third.tab_id = Some("6key".to_string());
-    third.group_id = Some("group-c".to_string());
-    let ungrouped = saved_plugin_instance(40.0);
-    super::write_plugin_instance_bucket(
-        &mut data,
-        "grouped-plugin",
-        Some(serde_json::to_value(vec![first, second, third, ungrouped]).unwrap()),
-    );
-    // 그룹 참조 없는 플러그인은 결과에서 제외
-    super::write_plugin_instance_bucket(
-        &mut data,
-        "plain-plugin",
-        Some(serde_json::to_value(vec![saved_plugin_instance(50.0)]).unwrap()),
-    );
-    // 형태가 깨진 인스턴스 키는 집계만 skip
-    super::write_plugin_instance_bucket(
-        &mut data,
-        "broken-plugin",
-        Some(json!({ "not": "an array" })),
-    );
-    // 인스턴스 예약 키가 아닌 plugin_data는 무시
-    data.plugin_data.insert(
-        "plugin_data_grouped-plugin/settings".to_string(),
-        json!({ "groupId": "not-a-ref" }),
-    );
-    let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
-
-    let (refs, model_revision) = store.plugin_group_refs_by_plugin();
-    assert_eq!(model_revision, store.plugin_model_revision());
-    assert_eq!(refs.len(), 1);
-    let grouped = &refs["grouped-plugin"];
-    assert_eq!(
-        grouped["4key"],
-        HashSet::from(["group-a".to_string(), "group-b".to_string()])
-    );
-    assert_eq!(grouped["6key"], HashSet::from(["group-c".to_string()]));
-
-    store.flush_and_shutdown().unwrap();
-    drop(store);
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
 fn gesture_transactions_keep_rejoined_actions_atomic_and_ordered() {
     let dir = test_directory("gesture-transaction-rejoined-actions-test");
     std::fs::create_dir_all(&dir).unwrap();

@@ -23,7 +23,6 @@ import {
   notePanelWindowHidden,
 } from '@stores/grid/usePanelHostStore';
 import { initPluginInstancesUndoSync } from '@plugins/runtime/displayElement/instancesUndoSync';
-import { initPluginGroupRefsMirror } from '@plugins/runtime/pluginGroupRefsMirror';
 import { historyApi } from '@api/modules/editor/historyApi';
 import {
   useHistoryStatusStore,
@@ -135,10 +134,7 @@ export function useAppBootstrap() {
     // 새 모드 요소로 재해석되지 않게
     const resetSelectionForModeChange = () => {
       const selection = useGridSelectionStore.getState();
-      if (
-        selection.selectedElements.length > 0 ||
-        selection.selectedGroupIds.length > 0
-      ) {
+      if (selection.selectedElements.length > 0) {
         selection.clearSelection();
       }
     };
@@ -402,11 +398,6 @@ export function useAppBootstrap() {
       window.__dmn_runtime !== 'obs' && window.__dmn_window_type === 'main'
         ? initPluginInstancesUndoSync()
         : null;
-    // 미로드 플러그인 저장 인스턴스의 그룹 참조 미러 - normalize 모집단 정합
-    const stopPluginGroupRefsMirror =
-      window.__dmn_runtime !== 'obs' && window.__dmn_window_type === 'main'
-        ? initPluginGroupRefsMirror()
-        : null;
 
     const unsubscribers = [
       // 다른 창 미리보기 받기·커밋 반영 신호
@@ -606,7 +597,6 @@ export function useAppBootstrap() {
       counterRuntime.markDisposed();
       resetHistoryEditorFlushLock();
       stopPluginInstancesUndoSync?.();
-      stopPluginGroupRefsMirror?.();
       unsubscribers.forEach((unsubscribe) => {
         try {
           unsubscribe();

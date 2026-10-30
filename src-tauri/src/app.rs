@@ -389,7 +389,6 @@ pub fn run() {
             commands::plugin::instances::plugin_instances_commit,
             commands::plugin::instances::plugin_instances_get,
             commands::plugin::instances::plugin_instances_reconcile,
-            commands::plugin::instances::plugin_group_refs_get,
             commands::plugin::storage::plugin_storage_get,
             commands::plugin::storage::plugin_storage_set,
             commands::plugin::storage::plugin_storage_remove,

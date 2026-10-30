@@ -22,10 +22,6 @@ import { useKeyStore } from '@stores/data/useKeyStore';
 import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
 import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
-import {
-  registerLoadedPluginIdsProvider,
-  registerStoredPluginGroupRefsProvider,
-} from '../intent/pluginGroupMembers';
 import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import {
@@ -199,8 +195,6 @@ describe('elementOps', () => {
     useSpriteStore.setState({ positions: {} });
     useLayerGroupStore.setState({ layerGroups: {} });
     useGridSelectionStore.setState({ selectedElements: [] });
-    registerLoadedPluginIdsProvider(() => new Set());
-    registerStoredPluginGroupRefsProvider(() => ({}));
   });
 
   it('단일 축 기하는 슬롯 최신 base의 나머지 bounds를 보존한다', async () => {

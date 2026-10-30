@@ -55,14 +55,6 @@ export interface PluginInstancesChangedPayload {
   originMutationId?: string;
 }
 
-// 전 플러그인 저장 인스턴스의 그룹 참조 - pluginId → normalize 모드 → 그룹 id 목록
-export type PluginGroupRefsByPlugin = Record<string, Record<string, string[]>>;
-
-export interface PluginGroupRefsSnapshot {
-  refs: PluginGroupRefsByPlugin;
-  modelRevision: number;
-}
-
 export const pluginInstancesApi = {
   commit: (request: PluginInstancesCommitRequest, rpcRequestId?: string) =>
     invoke<PluginInstancesCommitResult>('plugin_instances_commit', {
@@ -76,8 +68,6 @@ export const pluginInstancesApi = {
     }),
   get: (pluginId: string) =>
     invoke<PluginInstancesSnapshot>('plugin_instances_get', { pluginId }),
-  // 미로드 플러그인 포함 전 저장 인스턴스의 그룹 참조 (normalize 모집단 미러용)
-  groupRefsGet: () => invoke<PluginGroupRefsSnapshot>('plugin_group_refs_get'),
   onChanged: (listener: (payload: PluginInstancesChangedPayload) => void) =>
     subscribe<PluginInstancesChangedPayload>(
       'pluginInstances:changed',

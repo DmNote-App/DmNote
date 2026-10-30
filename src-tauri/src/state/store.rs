@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashSet, VecDeque},
     fs,
     path::{Path, PathBuf},
     sync::{
@@ -52,13 +52,12 @@ use super::migration::{
 };
 use super::plugin::{
     add_plugin_group_refs, decode_plugin_instance_entries, decode_plugin_instances_lenient,
-    encode_plugin_instance_entries, encode_plugin_instances, for_each_stored_plugin_instances,
-    is_plugin_instances_storage_key, normalize_plugin_instance_tab_id,
-    plugin_group_refs_from_store, plugin_id_from_instances_storage_key, plugin_instance_bucket_ids,
-    plugin_instances_storage_key, read_plugin_instance_bucket, validate_plugin_id,
-    validate_plugin_instances_reconcile_request, validate_plugin_instances_request,
-    validate_plugin_instances_transition, write_plugin_instance_bucket, PluginGroupRefs,
-    StoredPluginInstanceEntry, PLUGIN_DATA_KEY_PREFIX,
+    encode_plugin_instance_entries, encode_plugin_instances, is_plugin_instances_storage_key,
+    normalize_plugin_instance_tab_id, plugin_group_refs_from_store,
+    plugin_id_from_instances_storage_key, plugin_instance_bucket_ids, plugin_instances_storage_key,
+    read_plugin_instance_bucket, validate_plugin_id, validate_plugin_instances_reconcile_request,
+    validate_plugin_instances_request, validate_plugin_instances_transition,
+    write_plugin_instance_bucket, StoredPluginInstanceEntry, PLUGIN_DATA_KEY_PREFIX,
 };
 
 mod asset_references;
