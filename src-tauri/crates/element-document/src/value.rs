@@ -107,6 +107,7 @@ pub enum ViolationCode {
     ValueInvalidColor,
     ValueInvalidGradient,
     UnknownField,
+    // 지금은 내지 않는다 (끊긴 참조 허용) - 저장된 위반 코드 목록과의 호환으로 남긴다
     ReferenceNotFound,
     ReferenceWrongKind,
     DuplicateId,
@@ -329,7 +330,9 @@ impl ValueKind {
             ValueKind::ElementRef { kinds } => match value.as_str() {
                 None => out.push(Violation::new(ViolationCode::ValueTypeMismatch, path)),
                 Some(id) => match scope.kind_of(id) {
-                    None => out.push(Violation::new(ViolationCode::ReferenceNotFound, path)),
+                    // 끊긴 참조는 허용한다 - 지운 요소를 가리키는 값(스프라이트 트리거 등)은 옛 계약에서도 정상이고,
+                    // 함께 붙이는 대상이 나중에 도착할 수도 있다. 있는 요소의 종류만 본다
+                    None => {}
                     Some(kind) => {
                         if !kinds.is_empty() && !kinds.iter().any(|allowed| allowed == kind) {
                             out.push(Violation::new(ViolationCode::ReferenceWrongKind, path));

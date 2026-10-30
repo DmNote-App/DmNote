@@ -627,8 +627,7 @@ impl Engine<'_> {
                     &crate::value::NoReferences,
                     &mut violations,
                 );
-                // 참조는 묶음 끝에서 장면 기준으로 본다
-                violations.retain(|violation| violation.code != ViolationCode::ReferenceNotFound);
+                // 참조 종류는 묶음 끝에서 장면 기준으로 본다
                 if !violations.is_empty() {
                     return Err(violations);
                 }
@@ -883,7 +882,6 @@ impl Engine<'_> {
             &crate::value::NoReferences,
             &mut violations,
         );
-        violations.retain(|violation| violation.code != ViolationCode::ReferenceNotFound);
         for name in element.bundles.keys() {
             if !schema.uses_bundle(name) || !self.bundles.knows(name) {
                 violations.push(Violation::new(

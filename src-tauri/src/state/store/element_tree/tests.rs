@@ -1795,3 +1795,42 @@ fn 옛_종류와_트리_요소를_한_트리_커밋으로_옮기면_한_번에_�
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 지운_키를_가리키는_트리거가_있는_스프라이트도_트리_쓰기로_옮기고_돌린다() {
+    // 옛 계약 - 키를 지워도 스프라이트 트리거는 남는다(패널에 '삭제된 키'). 트리 쓰기도 막지 않는다
+    let dir = std::env::temp_dir().join(format!("dmn-element-commit-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut state = default_state();
+    let sprite_id = uuid::Uuid::new_v4().to_string();
+    let mut sprite = crate::models::ReactiveSpritePosition {
+        id: sprite_id.clone(),
+        ..Default::default()
+    };
+    sprite.poses.push(crate::models::SpritePose {
+        pose_id: uuid::Uuid::new_v4().to_string(),
+        name: None,
+        triggers: vec![uuid::Uuid::new_v4().to_string()],
+        transform: sprite.idle_transform,
+        pivot: None,
+        image_override: None,
+        image_override_metrics: None,
+    });
+    state.sprite_positions.insert("4key".into(), vec![sprite]);
+    std::fs::write(
+        dir.join(crate::state::store::STORE_FILE_NAME),
+        serde_json::to_vec_pretty(&state).unwrap(),
+    )
+    .unwrap();
+    let store = crate::state::AppStore::initialize_for_test(&dir).unwrap();
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "setFrame", "scene": "4key", "id": sprite_id, "frame": { "x": 77, "rotation": 30 } }]),
+    );
+    let moved = &store.snapshot().sprite_positions["4key"][0];
+    assert_eq!(moved.dx, 77.0);
+    assert_eq!(moved.rotation, 30.0);
+    assert_eq!(moved.poses[0].triggers.len(), 1);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

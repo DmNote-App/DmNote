@@ -131,14 +131,9 @@ fn 요소_참조는_장면에_있는_허용_종류만_가리킨다() {
     assert!(out.is_empty());
     reference.validate(&json!("d1"), "v", &scope, &mut out);
     reference.validate(&json!("missing"), "v", &scope, &mut out);
+    // 다른 종류를 가리키면 막고, 없는 요소(끊긴 참조)는 허용한다
     let codes: Vec<_> = out.iter().map(|violation| violation.code).collect();
-    assert_eq!(
-        codes,
-        vec![
-            ViolationCode::ReferenceWrongKind,
-            ViolationCode::ReferenceNotFound
-        ]
-    );
+    assert_eq!(codes, vec![ViolationCode::ReferenceWrongKind]);
     assert_eq!(reference.normalize(&json!("missing"), &scope), None);
 }
 

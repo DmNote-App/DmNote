@@ -142,7 +142,7 @@ fn 위치_크기는_유효한_값만_받는다() {
 }
 
 #[test]
-fn 참조는_묶음이_끝난_뒤_장면_기준으로_검사한다() {
+fn 참조_종류는_묶음이_끝난_뒤_장면_기준으로_검사하고_끊긴_참조는_허용한다() {
     let kinds = registry();
     let mut doc = document(vec![dial("d")]);
     // 같은 묶음 안에서 대상을 먼저 넣으면 통과
@@ -164,10 +164,10 @@ fn 참조는_묶음이_끝난_뒤_장면_기준으로_검사한다() {
             ],
         )
         .unwrap();
-    let error = engine(&kinds)
+    // 없는 요소를 가리켜도 받는다 (지운 요소·나중에 도착할 대상)
+    engine(&kinds)
         .apply(&mut doc, &scene_ops(json!([{ "op": "setValues", "scene": "tab", "id": "d", "values": { "target": "nope" } }])))
-        .unwrap_err();
-    assert_eq!(error[0].code, ViolationCode::ReferenceNotFound);
+        .unwrap();
     let error = engine(&kinds)
         .apply(&mut doc, &scene_ops(json!([{ "op": "setValues", "scene": "tab", "id": "d", "values": { "target": "d" } }])))
         .unwrap_err();
@@ -398,7 +398,7 @@ fn 장면당_개수_상한을_넘으면_거부한다() {
 }
 
 #[test]
-fn 손대지_않은_요소의_끊긴_참조는_다른_편집을_막지_않는다() {
+fn 끊긴_참조는_다른_편집도_그_요소의_편집도_막지_않는다() {
     let kinds = registry();
     let mut values = dial_values();
     values["target"] = json!("gone");
@@ -411,11 +411,16 @@ fn 손대지_않은_요소의_끊긴_참조는_다른_편집을_막지_않는다
             ),
         )
         .unwrap();
-    // 끊긴 참조를 가진 요소 자신을 고치면 그때는 막는다
-    let error = engine(&kinds)
-        .apply(&mut doc, &scene_ops(json!([{ "op": "setValues", "scene": "tab", "id": "d", "values": { "mode": "slide" } }])))
-        .unwrap_err();
-    assert_eq!(error[0].code, ViolationCode::ReferenceNotFound);
+    // 끊긴 참조를 가진 요소 자신을 고쳐도 받는다 (옛 계약 - 지운 키를 가리키는 스프라이트 트리거)
+    engine(&kinds)
+        .apply(
+            &mut doc,
+            &scene_ops(json!([
+                { "op": "setValues", "scene": "tab", "id": "d", "values": { "mode": "slide" } },
+                { "op": "setFrame", "scene": "tab", "id": "d", "frame": { "x": 5 } }
+            ])),
+        )
+        .unwrap();
 }
 
 #[test]
