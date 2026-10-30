@@ -27,8 +27,10 @@ export const replaceOtherSelection = () => {
   if (!keepingOther) clearOther();
 };
 
-// 옛 선택으로 들어온 트리로 옮긴 옛 종류 요소를 트리 선택으로 보내는 쪽 - 트리 선택 스토어가 건다
-type OtherMembersMode = 'replace' | 'toggle';
+// 옛 선택으로 들어온 트리로 옮긴 옛 종류 요소를 트리 선택으로 보내는 쪽 - 트리 선택 스토어가 건다.
+// replace: 트리로 옮긴 옛 종류 몫만 바꾼다, toggle: 넣고 뺀다, set: 트리 선택 전체를 그 요소로(바꿔 고르기 -
+// 비우고 다시 채우지 않아 중간의 빈 선택이 생기지 않는다)
+type OtherMembersMode = 'replace' | 'toggle' | 'set';
 let routeOther: (
   ids: readonly string[],
   mode: OtherMembersMode,

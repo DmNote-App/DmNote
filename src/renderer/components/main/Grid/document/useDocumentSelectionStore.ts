@@ -6,6 +6,7 @@ import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import {
   isKeepingOtherSelection,
+  keepOtherSelection,
   notifyOtherSelectionChanged,
   setOtherSelectionClearer,
   setOtherSelectionReader,
@@ -14,9 +15,10 @@ import {
 
 // 트리 문서에만 있는 종류(커서 트래커 등)의 캔버스 선택.
 // 옛 종류 선택과 함께 하나의 선택이다 (keepOtherSelection 참고)
+// 곧 트리 선택을 채우므로 옛 선택 해제가 트리 선택까지 비우지 않게 한다 (중간의 빈 선택 없이)
 const clearLegacySelection = () => {
   if (!isKeepingOtherSelection()) {
-    useGridSelectionStore.getState().clearSelection();
+    keepOtherSelection(() => useGridSelectionStore.getState().clearSelection());
   }
 };
 
@@ -69,7 +71,9 @@ setOtherSelectionRouter((ids, mode) => {
   };
   selection.setSelection(
     sceneId,
-    mode === 'replace'
+    mode === 'set'
+      ? [...ids]
+      : mode === 'replace'
       ? [...current.filter((id) => !isTreeEdited(id)), ...ids]
       : ids.reduce(
           (next, id) =>

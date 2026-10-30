@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import {
+  isKeepingOtherSelection,
   keepOtherSelection,
   replaceOtherSelection,
   routeOtherMembers,
@@ -282,17 +283,22 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
         selectedGroupIds: [],
       };
     });
-    if (treeIds.length > 0 || elements.length > 0) replaceOtherSelection();
-    if (treeIds.length > 0) routeOtherMembers(treeIds, 'replace');
+    // 트리 몫이 있으면 트리 선택을 그 요소로 바로 (비우고 다시 채우면 중간의 빈 선택이 편집 제스처를 취소한다)
+    if (treeIds.length > 0) {
+      routeOtherMembers(treeIds, isKeepingOtherSelection() ? 'replace' : 'set');
+    } else if (elements.length > 0) {
+      replaceOtherSelection();
+    }
   },
 
   setFullSelection: (incoming, groupIds) => {
     const { elements, treeIds } = splitTreeEdited(incoming);
     set({ selectedElements: elements, selectedGroupIds: groupIds });
-    if (treeIds.length > 0 || elements.length > 0 || groupIds.length > 0) {
+    if (treeIds.length > 0) {
+      routeOtherMembers(treeIds, isKeepingOtherSelection() ? 'replace' : 'set');
+    } else if (elements.length > 0 || groupIds.length > 0) {
       replaceOtherSelection();
     }
-    if (treeIds.length > 0) routeOtherMembers(treeIds, 'replace');
   },
 
   isSelected: (id) => {
