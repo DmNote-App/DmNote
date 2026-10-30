@@ -19,6 +19,16 @@ const apiMocks = vi.hoisted(() => ({
   noteTabSet: vi.fn(),
 }));
 
+// 탭이 있는지는 장면 트리로 본다 - 테스트의 탭 목록(keyMappings 키)으로 장면을 둔다
+vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
+  getElementDocumentStore: () => ({
+    getScene: (sceneId: string) =>
+      Object.prototype.hasOwnProperty.call(testState.keyMappings, sceneId)
+        ? { nodes: [] }
+        : undefined,
+  }),
+}));
+
 vi.mock('@api/modules/editor/noteTabApi', () => ({
   noteTabApi: {
     set: (...args: unknown[]) => apiMocks.noteTabSet(...args),

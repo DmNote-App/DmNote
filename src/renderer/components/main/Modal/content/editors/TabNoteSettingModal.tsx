@@ -4,6 +4,7 @@ import NoteSetting from '../settings/NoteSetting';
 import { useModalPresence } from '@hooks/ui/usePopupPresence';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { mergeNoteSettings } from '@src/types/settings/noteSettings';
 import type {
   NoteSettings,
@@ -71,9 +72,10 @@ const TabNoteSettingModal = ({ isOpen, onClose }: TabNoteSettingModalProps) => {
   }, [isOpen, editingTabId]);
 
   const handleSave = async (normalized: NoteSettings) => {
-    const { keyMappings, customTabs } = useKeyStore.getState();
+    const { customTabs } = useKeyStore.getState();
+    // 탭이 아직 있는지 - 장면 트리 또는 사용자 탭 목록
     if (
-      !Object.prototype.hasOwnProperty.call(keyMappings, editingTabId) &&
+      !getElementDocumentStore()?.getScene(editingTabId) &&
       !customTabs.some((tab) => tab.id === editingTabId)
     ) {
       setSaveErrorMessage(t('common.editTargetMissing'));

@@ -1,22 +1,17 @@
 import { useEffect } from 'react';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
+import { useKeyStore } from '@stores/data/useKeyStore';
+import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { treeModeArrays } from '@src/renderer/elementKinds/runtime/treeModeArrays';
 import { applyStatsSnapshot } from '@stores/signals/statsSignals';
 
 export function useBuiltinStatsSubscription() {
-  const statPositions = useStatItemStore((state) => state.positions);
-  const graphPositions = useGraphItemStore((state) => state.positions);
-
-  const hasAnyStatConsumer = (() => {
-    const hasStat = Object.values(statPositions || {}).some(
-      (list) => Array.isArray(list) && list.length > 0,
-    );
-    if (hasStat) return true;
-
-    return Object.values(graphPositions || {}).some(
-      (list) => Array.isArray(list) && list.length > 0,
-    );
-  })();
+  // 지금 탭 트리에 통계를 읽는 요소(스탯·그래프)가 있을 때만 구독한다
+  const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
+  const { itemArrays } = treeModeArrays(
+    useElementDocumentScene(selectedKeyType),
+  );
+  const hasAnyStatConsumer =
+    itemArrays.statPositions.length > 0 || itemArrays.graphPositions.length > 0;
 
   useEffect(() => {
     if (!hasAnyStatConsumer) {
