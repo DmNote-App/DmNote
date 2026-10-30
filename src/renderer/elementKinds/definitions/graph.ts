@@ -32,7 +32,7 @@ export const graphKind = defineElementKind(
         nullable: true,
       },
     ],
-    bundles: ['surface'],
+    bundles: ['surface', 'image'],
     defaultSize: { width: 120, height: 60 },
     fallbackSize: { width: 200, height: 100 },
   },

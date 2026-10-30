@@ -148,6 +148,8 @@ const sendTreeEdit = async (
     fields: Record<string, unknown>;
   }[],
   gestureId: string | undefined,
+  // 크기가 바뀌면 함께 맞출 값(스프라이트 이동값 비례) - 크기 조절만. 옛 필드 패치는 맞추지 않았다
+  resizeValues = true,
 ): Promise<void> => {
   const releases = pending.map(({ type, id, fields }) =>
     addPendingTreeEdit(PREVIEW_DOMAIN_BY_ELEMENT_TYPE[type], scene, id, fields),
@@ -155,7 +157,7 @@ const sendTreeEdit = async (
   try {
     const result = await store.edit!(
       // 크기와 함께 맞출 값(스프라이트 이동값 등)도 같은 커밋에
-      withResizeValues(treeOps),
+      resizeValues ? withResizeValues(treeOps) : treeOps,
       gestureId ? { gestureId } : undefined,
     );
     if (result.status !== 'committed') {
@@ -190,12 +192,14 @@ export const commitTreeLegacyFields = (
   const { ops, uncovered } = legacyPatchOps(scene, element, fields);
   if (uncovered.length > 0) return null;
   if (ops.length === 0) return Promise.resolve('committed');
+  // 옛 필드 패치처럼 이동값은 그대로 (예: 기본 이미지에 상자를 맞춰도 자세 이동값은 비례하지 않는다)
   return sendTreeEdit(
     store,
     scene,
     ops,
     [{ type, id, fields }],
     gestureId,
+    false,
   ).then(() => 'committed' as const);
 };
 

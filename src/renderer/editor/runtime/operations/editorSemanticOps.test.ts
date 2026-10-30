@@ -37,6 +37,7 @@ import { clearPendingTreeEdits } from '../gesture/pendingTreeEdits';
 import {
   commitGeneratedSemanticOps,
   commitSemanticOps,
+  commitTreeLegacyFields,
   withoutTreeRoutedIntents,
 } from './editorSemanticOps';
 
@@ -393,5 +394,46 @@ describe('트리로 옮긴 종류의 겉모습 칸', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('요소 하나의 옛 칸 패치를 트리로', () => {
+  const SPRITE = '00000000-0000-4000-8000-0000000000s1';
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearPendingTreeEdits();
+    tree.store = {
+      getElement: (_scene, id) =>
+        id === SPRITE
+          ? {
+              type: 'element',
+              id: SPRITE,
+              kind: 'sprite',
+              frame: { x: 0, y: 0, width: 200, height: 200, rotation: 0 },
+              values: {
+                idleTransform: { x: 0, y: 40, rotation: 0, scale: 1 },
+                poses: [],
+              },
+            }
+          : undefined,
+      edit: vi.fn().mockResolvedValue({ status: 'committed', revision: 1 }),
+      getRevision: () => 1,
+    };
+  });
+
+  it('상자를 맞춰도 옛 필드 패치처럼 이동값은 비례하지 않는다', async () => {
+    await commitTreeLegacyFields('sprite', '4key', SPRITE, () => ({
+      baseImage: 'wide.png',
+      width: 200,
+      height: 50,
+    }));
+    const ops = tree.store!.edit.mock.calls[0][0] as Array<{
+      op: string;
+      values?: Record<string, unknown>;
+    }>;
+    expect(ops.find((op) => op.op === 'setValues')?.values).toEqual({
+      baseImage: 'wide.png',
+    });
+    expect(JSON.stringify(ops)).not.toContain('idleTransform');
   });
 });

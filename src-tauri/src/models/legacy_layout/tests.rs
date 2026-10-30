@@ -228,7 +228,11 @@ fn 종류별로_공통_정보_묶음_고유_값_입력이_나뉜다() {
         .unwrap();
     assert_eq!(graph.values["graphType"], json!("bar"));
     assert_eq!(graph.values["graphSpeed"], json!(2500));
-    assert_eq!(graph.bundles.keys().collect::<Vec<_>>(), vec!["surface"]);
+    // 대기·활성 이미지는 이미지 묶음 (편집 화면이 트리에서 그린다)
+    assert_eq!(
+        graph.bundles.keys().collect::<Vec<_>>(),
+        vec!["image", "surface"]
+    );
     // 그래프가 안 쓰는 노트 칸도 기본값과 다르면 보존한다
     assert_eq!(graph.extra["legacy"]["fields"]["noteGlowSize"], json!(33.0));
 
