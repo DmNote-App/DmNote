@@ -286,6 +286,8 @@ pub fn run() {
             commands::editor::state::editor_commit,
             commands::editor::element_document::element_document_get,
             commands::editor::element_document::element_document_commit,
+            commands::editor::element_document::element_kind_register,
+            commands::editor::element_document::element_kind_unregister,
             commands::editor::gesture::commit_gesture,
             commands::editor::history::history_status,
             commands::editor::history::history_undo,

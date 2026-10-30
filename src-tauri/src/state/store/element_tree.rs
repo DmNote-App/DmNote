@@ -8,6 +8,7 @@ use std::sync::atomic::Ordering;
 use anyhow::{Context, Result};
 use element_document::bundles::BuiltinBundles;
 use element_document::document::walk;
+use element_document::schema::{KindRegistry, KindSchema, EXTERNAL_KIND_PREFIX};
 use element_document::{
     ChangeSet, Document, Engine, IdSource, Loader, Node, Op, Violation, ViolationCode,
 };
@@ -678,6 +679,42 @@ pub(crate) enum ElementDocumentCommitPlan {
 }
 
 impl AppStore {
+    /// 지금 아는 요소 종류 - 내장 종류 + 플러그인이 등록한 외부 종류
+    pub(crate) fn kind_registry(&self) -> std::sync::Arc<KindRegistry> {
+        self.kinds.read().clone()
+    }
+
+    /// 플러그인 외부 종류 등록 - 이름은 `plugin:` 으로 시작해야 하고 내장 종류를 덮지 않는다.
+    /// 저장된 요소 값은 다시 쓰지 않는다(다음 편집부터 정의로 검사)
+    pub(crate) fn register_external_kind(&self, schema: KindSchema) -> Result<()> {
+        if !schema.kind.starts_with(EXTERNAL_KIND_PREFIX) {
+            anyhow::bail!(
+                "외부 종류 이름은 '{EXTERNAL_KIND_PREFIX}'로 시작해야 함: {}",
+                schema.kind
+            );
+        }
+        let mut kinds = self.kinds.write();
+        let mut next = (**kinds).clone();
+        next.register(schema)
+            .map_err(|error| anyhow::anyhow!("{}: {}", error.kind, error.message))?;
+        *kinds = std::sync::Arc::new(next);
+        Ok(())
+    }
+
+    /// 플러그인 외부 종류 빼기 - 그 종류의 요소는 모르는 종류로 보존된다
+    pub(crate) fn unregister_external_kind(&self, kind: &str) {
+        if !kind.starts_with(EXTERNAL_KIND_PREFIX) {
+            return;
+        }
+        let mut kinds = self.kinds.write();
+        if kinds.get(kind).is_none() {
+            return;
+        }
+        let mut next = (**kinds).clone();
+        next.unregister(kind);
+        *kinds = std::sync::Arc::new(next);
+    }
+
     pub(crate) fn element_document_revision(&self) -> u64 {
         self.element_document_revision.load(Ordering::Acquire)
     }
@@ -699,8 +736,9 @@ impl AppStore {
     ) -> Result<ElementDocumentCommitPlan> {
         let guard = self.state.read();
         let document = &guard.data.element_document;
+        let kinds = self.kind_registry();
         let engine = Engine {
-            kinds: builtin_kind_registry(),
+            kinds: &kinds,
             bundles: &BuiltinBundles,
         };
         if first_legacy_op(&engine, document, ops).is_none() {
@@ -816,8 +854,9 @@ impl AppStore {
             code,
             violations,
         };
+        let kinds = self.kind_registry();
         let engine = Engine {
-            kinds: builtin_kind_registry(),
+            kinds: &kinds,
             bundles: &BuiltinBundles,
         };
         if let Some(index) = check_legacy

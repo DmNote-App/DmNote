@@ -71,3 +71,22 @@ fn 조건_문법은_데이터로_읽는다() {
     let values = json!({ "mode": "slide", "size": 2 });
     assert!(!condition.matches(values.as_object().unwrap()));
 }
+
+#[test]
+fn 외부_종류는_등록했다가_뺄_수_있다() {
+    let mut registry = KindRegistry::new();
+    registry
+        .register(schema(json!({ "kind": "plugin:sample" })).unwrap())
+        .unwrap();
+    assert!(registry.get("plugin:sample").is_some());
+    assert!(registry.unregister("plugin:sample").is_some());
+    assert!(registry.get("plugin:sample").is_none());
+    assert!(registry.unregister("plugin:sample").is_none());
+}
+
+#[test]
+fn json_칸은_외부_종류의_맨_위_칸에만_허용한다() {
+    let field = json!([{ "name": "anything", "value": { "type": "json" }, "default": 1, "nullable": true }]);
+    assert!(schema(json!({ "kind": "plugin:sample", "fields": field })).is_ok());
+    assert!(schema(json!({ "fields": field })).is_err());
+}

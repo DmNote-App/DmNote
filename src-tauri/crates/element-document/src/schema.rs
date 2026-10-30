@@ -114,7 +114,9 @@ impl KindSchema {
         if self.version == 0 {
             return Err(error("버전은 1부터".into()));
         }
-        check_fields(&self.fields).map_err(error)?;
+        // 외부(플러그인) 종류의 설정 칸은 값 모양을 정할 수 없어 맨 위 칸만 json을 허용한다
+        let allow_json = self.kind.starts_with(EXTERNAL_KIND_PREFIX);
+        check_fields(&self.fields, allow_json).map_err(error)?;
         for (index, migration) in self.migrations.iter().enumerate() {
             if migration.from != index as u32 + 1 {
                 return Err(error(format!(
@@ -134,7 +136,7 @@ impl KindSchema {
     }
 }
 
-fn check_fields(fields: &[FieldRule]) -> Result<(), String> {
+fn check_fields(fields: &[FieldRule], allow_json: bool) -> Result<(), String> {
     for (index, rule) in fields.iter().enumerate() {
         if rule.name.is_empty() {
             return Err("칸 이름이 비어 있음".into());
@@ -165,12 +167,13 @@ fn check_fields(fields: &[FieldRule]) -> Result<(), String> {
             }
         }
         match &rule.value {
-            ValueKind::Object { fields } => check_fields(fields)?,
+            ValueKind::Object { fields } => check_fields(fields, false)?,
             ValueKind::List { item, .. } => {
                 if let ValueKind::Object { fields } = &**item {
-                    check_fields(fields)?;
+                    check_fields(fields, false)?;
                 }
             }
+            ValueKind::Json {} if allow_json => {}
             ValueKind::Json {} => {
                 return Err(format!("{}: json 값 종류는 앱 구조 전용", rule.name));
             }
@@ -182,6 +185,9 @@ fn check_fields(fields: &[FieldRule]) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// 플러그인이 등록하는 외부 종류 이름 앞머리
+pub const EXTERNAL_KIND_PREFIX: &str = "plugin:";
 
 /// 앱이 아는 종류 정의 묶음. 내장 종류는 빌드 때 뽑은 데이터, 외부 종류는 등록 때 받은 데이터
 #[derive(Debug, Clone, Default)]
@@ -211,6 +217,11 @@ impl KindRegistry {
         schema.check()?;
         self.kinds.insert(schema.kind.clone(), schema);
         Ok(())
+    }
+
+    /// 외부 종류 빼기 - 그 종류의 요소는 다시 모르는 종류로 보존된다
+    pub fn unregister(&mut self, kind: &str) -> Option<KindSchema> {
+        self.kinds.remove(kind)
     }
 
     pub fn get(&self, kind: &str) -> Option<&KindSchema> {

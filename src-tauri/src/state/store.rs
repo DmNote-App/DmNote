@@ -125,6 +125,8 @@ pub struct AppStore {
     writer: StoreWriter,
     skip_asset_sweep: bool,
     history_gate: Arc<HistoryAdmissionGate>,
+    // 요소 종류 정의 - 내장 종류 + 플러그인이 등록한 외부 종류 (등록 전 요소는 모르는 종류로 보존)
+    kinds: RwLock<Arc<element_document::schema::KindRegistry>>,
 }
 
 struct VersionedStoreState {
@@ -415,6 +417,7 @@ impl AppStore {
             path,
             skip_asset_sweep,
             history_gate: Arc::new(HistoryAdmissionGate::default()),
+            kinds: RwLock::new(Arc::new(crate::models::builtin_kind_registry().clone())),
             runtime_publication_generation: AtomicU64::new(0),
             element_document_revision: AtomicU64::new(0),
             state: RwLock::new(VersionedStoreState {

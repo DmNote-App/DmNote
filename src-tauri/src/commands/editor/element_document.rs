@@ -158,3 +158,28 @@ pub async fn element_document_commit(
     )
     .await
 }
+
+/// 플러그인 외부 요소 종류 등록 - 등록 전 그 종류의 요소는 모르는 종류로 보존된다(옮기기·크기·삭제만)
+#[tauri::command]
+pub async fn element_kind_register(
+    app: AppHandle,
+    schema: element_document::schema::KindSchema,
+) -> CmdResult<()> {
+    run_blocking(app, move |_, state| {
+        state
+            .store
+            .register_external_kind(schema)
+            .map_err(|error| CommandError::msg(error.to_string()))
+    })
+    .await
+}
+
+/// 플러그인 외부 요소 종류 빼기 - 그 종류의 요소는 다시 모르는 종류로 보존된다
+#[tauri::command]
+pub async fn element_kind_unregister(app: AppHandle, kind: String) -> CmdResult<()> {
+    run_blocking(app, move |_, state| {
+        state.store.unregister_external_kind(&kind);
+        Ok(())
+    })
+    .await
+}

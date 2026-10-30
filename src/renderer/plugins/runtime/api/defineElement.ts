@@ -21,6 +21,8 @@ import type {
 import type { SettingsState } from '@src/types/settings/settings';
 import { createInstanceSettingsDialogFactory } from './instanceSettingsDialog';
 import { createPluginInstancePersistenceRuntime } from './pluginInstancePersistenceRuntime';
+import { pluginKindName, pluginKindSchema } from './pluginKindSchema';
+import { elementDocumentApi } from '@api/modules/editor/elementDocumentApi';
 import {
   createPluginInstanceSnapshotApplier,
   type SavedInstance,
@@ -83,6 +85,22 @@ export const createDefineElement = (deps: DefineElementDependencies) => {
     };
 
     usePluginDisplayElementStore.getState().registerDefinition(internalDef);
+    // 트리 문서에 이 플러그인의 요소 종류를 알린다 - 편집 창 하나만 (내리면 모르는 종류로 보존)
+    if (window.__dmn_window_type === 'main') {
+      void elementDocumentApi
+        .registerKind(pluginKindSchema(pluginId, definition.settings))
+        .catch((error) =>
+          console.error(
+            `[Plugin ${pluginId}] Failed to register element kind`,
+            error,
+          ),
+        );
+      registerCleanup(() => {
+        void elementDocumentApi
+          .unregisterKind(pluginKindName(pluginId))
+          .catch(() => undefined);
+      });
+    }
 
     const instancePersistenceRuntime = createPluginInstancePersistenceRuntime({
       pluginId,

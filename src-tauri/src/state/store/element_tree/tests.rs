@@ -1872,3 +1872,72 @@ fn 스프라이트_자세의_하나뿐인_트리거_키를_트리_쓰기로_지�
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+fn plugin_kind_schema() -> element_document::schema::KindSchema {
+    serde_json::from_value(serde_json::json!({
+        "kind": "plugin:demo",
+        "version": 1,
+        "fields": [{ "name": "label", "value": { "type": "string" }, "default": "" }],
+        "defaultSize": { "width": 100, "height": 50 },
+        "fallbackSize": { "width": 100, "height": 50 }
+    }))
+    .unwrap()
+}
+
+fn plugin_commit(
+    store: &crate::state::AppStore,
+    ops: serde_json::Value,
+) -> ElementDocumentCommitResult {
+    let ops: Vec<Op> = serde_json::from_value(ops).unwrap();
+    store
+        .commit_element_document_checked(&ops, true, None)
+        .unwrap()
+}
+
+#[test]
+fn 플러그인_외부_종류는_등록하면_트리에_넣고_고칠_수_있고_빼면_모르는_종류로_보존된다() {
+    let (dir, store) = open_store();
+    let insert = serde_json::json!([{ "op": "insert", "scene": "4key", "parent": null, "index": null, "node": {
+        "type": "element", "id": "p1", "kind": "plugin:demo",
+        "frame": { "x": 0, "y": 0, "width": 100, "height": 50, "rotation": 0 },
+        "values": { "label": "a" }
+    } }]);
+    // 등록 전에는 모르는 종류라 넣을 수 없다
+    assert!(matches!(
+        plugin_commit(&store, insert.clone()),
+        ElementDocumentCommitResult::Rejected { .. }
+    ));
+    // 내장 종류 이름이나 앞머리 없는 이름은 받지 않는다
+    let mut builtin = plugin_kind_schema();
+    builtin.kind = "key".into();
+    assert!(store.register_external_kind(builtin).is_err());
+    store.register_external_kind(plugin_kind_schema()).unwrap();
+    assert!(matches!(
+        plugin_commit(&store, insert),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    let set_label = serde_json::json!([{ "op": "setValues", "scene": "4key", "id": "p1", "values": { "label": "b" } }]);
+    assert!(matches!(
+        plugin_commit(&store, set_label.clone()),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    // 빼면 값은 보존되고 값 쓰기는 막히지만 옮기기는 된다
+    store.unregister_external_kind("plugin:demo");
+    assert!(matches!(
+        plugin_commit(&store, set_label),
+        ElementDocumentCommitResult::Rejected { .. }
+    ));
+    assert!(matches!(
+        plugin_commit(
+            &store,
+            serde_json::json!([{ "op": "setFrame", "scene": "4key", "id": "p1", "frame": { "x": 9 } }])
+        ),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    let (_, document) = store.element_document_snapshot();
+    let element = document.scenes["4key"].element("p1").unwrap();
+    assert_eq!(element.values["label"], serde_json::json!("b"));
+    assert_eq!(element.frame.x, 9.0);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

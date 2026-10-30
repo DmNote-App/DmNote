@@ -5,6 +5,7 @@ import type {
   ChangeSet,
   Document,
   DocumentPatch,
+  KindSchema,
   Op,
   Violation,
 } from '@src/types/generated/elementDocument';
@@ -44,4 +45,9 @@ export const elementDocumentApi = {
     }),
   onChanged: (listener: (event: ElementDocumentChangedEvent) => void) =>
     subscribe<ElementDocumentChangedEvent>('elementDocument:changed', listener),
+  // 플러그인 외부 요소 종류 - 등록 전 그 종류의 요소는 모르는 종류로 보존된다
+  registerKind: (schema: KindSchema) =>
+    invoke<void>('element_kind_register', { schema }),
+  unregisterKind: (kind: string) =>
+    invoke<void>('element_kind_unregister', { kind }),
 };
