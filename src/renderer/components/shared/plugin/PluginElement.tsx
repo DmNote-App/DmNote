@@ -41,7 +41,10 @@ import {
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { groupSelectionOf } from '../../main/Grid/document/documentGroups';
 import { documentRangeSelection } from '../../main/Grid/document/documentSelection';
-import { setStructureSelection } from '../../main/Grid/document/treeEditedSelection';
+import {
+  setSplitSelection,
+  setStructureSelection,
+} from '../../main/Grid/document/treeEditedSelection';
 
 // 그룹 멤버면 가장 바깥 그룹 전체 - 플러그인 요소는 옛 선택, 나머지는 트리 선택
 const selectGroupOf = (fullId: string) => {
@@ -516,10 +519,11 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
         usePluginDisplayElementStore.getState().elements,
         sceneId,
       );
-      setStructureSelection(sceneId, [
-        ...treeIds,
-        ...plugins.map(({ id }) => id),
-      ]);
+      setSplitSelection(
+        sceneId,
+        treeIds,
+        plugins.map(({ id }) => id),
+      );
       return;
     }
 

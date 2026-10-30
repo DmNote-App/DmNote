@@ -62,12 +62,24 @@ export const setStructureSelection = (
   ids: readonly string[],
 ) => {
   const treeIds: string[] = [];
-  const plugins: SelectedElement[] = [];
+  const pluginIds: string[] = [];
   for (const id of ids) {
     const kind = kindOf(sceneId, id);
-    if (kind && isPluginKind(kind)) plugins.push({ type: 'plugin', id });
-    else treeIds.push(id);
+    (kind && isPluginKind(kind) ? pluginIds : treeIds).push(id);
   }
+  setSplitSelection(sceneId, treeIds, pluginIds);
+};
+
+/** 트리 몫·플러그인 몫을 이미 나눈 선택 - 트리에 아직 없는 플러그인 요소(스크립트가 막 만든 것 등)도 옛 선택으로 */
+export const setSplitSelection = (
+  sceneId: string,
+  treeIds: readonly string[],
+  pluginIds: readonly string[],
+) => {
+  const plugins: SelectedElement[] = pluginIds.map((id) => ({
+    type: 'plugin',
+    id,
+  }));
   if (treeIds.length === 0) {
     // 빈 선택 - 두 선택 모두 비운다
     if (plugins.length === 0) {
@@ -79,7 +91,7 @@ export const setStructureSelection = (
     return;
   }
   // 트리 선택을 바꾸면 옛 선택이 비워진다 - 플러그인 몫은 그 뒤에 다시 고른다
-  useDocumentSelectionStore.getState().setSelection(sceneId, treeIds);
+  useDocumentSelectionStore.getState().setSelection(sceneId, [...treeIds]);
   if (plugins.length > 0) {
     keepOtherSelection(() =>
       useGridSelectionStore.getState().setSelectedElements(plugins),
@@ -95,11 +107,13 @@ export const treeOnlySelectedIds = (sceneId: string) =>
   });
 
 /** 옛 속성 패널이 보는 선택 - 트리 선택이 모두 트리로 옮긴 옛 종류이고 플러그인이 섞이지 않으면
- * 그 요소까지 합친다 (플러그인 섞인 일괄 커밋은 트리로 보내지 못한다) */
+ * 그 요소까지 합친다 (플러그인 섞인 일괄 커밋은 트리로 보내지 못한다).
+ * _scene은 React Compiler가 메모하는 훅에서 장면이 바뀌면 다시 합치도록 넘기는 자리(값은 안에서 읽는다) */
 export const panelSelectionOf = (
   legacy: SelectedElement[],
   sceneId: string,
   documentIds: readonly string[],
+  _scene?: unknown,
 ): SelectedElement[] => {
   if (documentIds.length === 0) return legacy;
   const treeEdited = treeEditedOf(sceneId, documentIds);
@@ -117,7 +131,7 @@ export const usePanelSelection = (sceneId: string): SelectedElement[] => {
   const documentIds = useDocumentSelectionStore((state) =>
     state.sceneId === sceneId ? state.selectedIds : EMPTY_IDS,
   );
-  // 트리가 바뀌면(종류 확인) 다시 합친다
-  useElementDocumentScene(sceneId);
-  return panelSelectionOf(legacy, sceneId, documentIds);
+  // 트리가 바뀌면(종류 확인·지운 요소) 다시 합친다
+  const scene = useElementDocumentScene(sceneId);
+  return panelSelectionOf(legacy, sceneId, documentIds, scene);
 };
