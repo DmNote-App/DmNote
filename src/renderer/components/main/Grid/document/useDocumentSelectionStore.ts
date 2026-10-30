@@ -4,6 +4,7 @@ import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import {
   isKeepingOtherSelection,
   setOtherSelectionClearer,
+  setOtherSelectionSetter,
 } from '@stores/grid/keepOtherSelection';
 
 // 트리 문서에만 있는 종류(커서 트래커 등)의 캔버스 선택.
@@ -48,4 +49,14 @@ setOtherSelectionClearer(() => {
   if (useDocumentSelectionStore.getState().selectedIds.length > 0) {
     useDocumentSelectionStore.getState().clear();
   }
+});
+
+// 옛 그룹째 고를 때 그 그룹의 트리 가족 멤버를 함께 고른다
+setOtherSelectionSetter((sceneId, ids) => {
+  const selection = useDocumentSelectionStore.getState();
+  const current = selection.sceneId === sceneId ? selection.selectedIds : [];
+  selection.setSelection(sceneId, [
+    ...current,
+    ...ids.filter((id) => !current.includes(id)),
+  ]);
 });

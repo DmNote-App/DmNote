@@ -91,7 +91,10 @@ import {
   groupSelectedElements,
   ungroupSelectedElements,
 } from '@utils/grid/groupActions';
-import { expandGroupSelection } from '@utils/grid/groupSelection';
+import {
+  expandGroupSelection,
+  treeEditedGroupMemberIds,
+} from '@utils/grid/groupSelection';
 import {
   composeItemPreviewCollections,
   getPreviewOverlayVersion,
@@ -118,7 +121,10 @@ import { expandDocumentGroup } from '../document/documentGroups';
 import { documentIdsInRect } from '../document/documentSelection';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
 import { createDocumentDragReceipt } from '../document/documentDragReceipt';
-import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
+import {
+  keepOtherSelection,
+  selectOtherMembers,
+} from '@stores/grid/keepOtherSelection';
 import { setCompanionSelectionReader } from '@stores/grid/companionSelection';
 import { executeNativeContextMenuAction } from './nativeContextMenuActions';
 import { useSelectedElementDragLifecycle } from '@hooks/Grid/drag/useSelectedElementDragLifecycle';
@@ -704,18 +710,24 @@ const Grid = ({
       return;
     }
     // 같은 그룹의 native·플러그인 멤버 전체 확장 (공용 헬퍼)
+    const groupSource = {
+      mode: selectedKeyType,
+      ...modeArrays,
+      pluginElements: usePluginDisplayElementStore.getState().elements,
+      modeGroups:
+        useLayerGroupStore.getState().layerGroups[selectedKeyType] || [],
+    };
     const nextSelection = expandGroupSelection(
       { type, id: clicked.id, index },
-      {
-        mode: selectedKeyType,
-        ...modeArrays,
-        pluginElements: usePluginDisplayElementStore.getState().elements,
-        modeGroups:
-          useLayerGroupStore.getState().layerGroups[selectedKeyType] || [],
-      },
+      groupSource,
     );
     // 그룹 멤버 수와 무관하게 선택 Store 알림·React render를 1회로 유지
     setSelectedElements(nextSelection);
+    // 트리로 옮긴 옛 종류 멤버는 트리 선택으로 함께
+    selectOtherMembers(
+      selectedKeyType,
+      treeEditedGroupMemberIds({ type, id: clicked.id, index }, groupSource),
+    );
   };
 
   const toggleNativeElementSelection = (

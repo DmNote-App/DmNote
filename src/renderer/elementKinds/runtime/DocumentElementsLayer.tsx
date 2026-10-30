@@ -5,6 +5,7 @@ import {
   useElementDocumentScene,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { elementRotationTransform } from '@utils/element/rotation';
+import { TREE_EDITED_KINDS, TREE_OVERLAY_KINDS } from '@src/types/elementKinds';
 import { documentElementSlots } from './documentElementOrder';
 import { elementKindDefinition } from './elementKindRegistry';
 import { legacyPositionOf } from './legacyPosition';
@@ -112,7 +113,10 @@ const DocumentElementsLayer = ({
   const scene = useElementDocumentScene(sceneId);
   return (
     <>
-      {documentElementSlots(scene, { overlay: live })
+      {documentElementSlots(scene, {
+        legacyKinds: live ? TREE_OVERLAY_KINDS : TREE_EDITED_KINDS,
+        ownZIndex: live,
+      })
         .filter(({ aboveLegacy }) => aboveLegacy === (placement === 'stacked'))
         .map(({ element, zIndex }) => (
           <DocumentElementView

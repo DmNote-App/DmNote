@@ -1,4 +1,5 @@
 import { Fragment, useState, type MouseEvent } from 'react';
+import { isLegacyEditedType } from '@src/types/elementKinds';
 import DraggableKey from '@components/shared/key/Key';
 import { renderCanvasItem } from '../layers/canvasItemRenderers';
 import { commitElementPosition } from '@hooks/Grid/elementPositionCommit';
@@ -189,30 +190,34 @@ const NativeGridElements = ({
 
   // 종류별 아이템 - 키는 매핑·범위 선택 결합이라 위에서 따로 그린다.
   // 핸들러 슬롯은 매 렌더 등록돼야 커밋 시 유지되므로 종류 단위 메모를 두지 않는다
-  const itemElements = ITEM_ELEMENT_TYPES.map((type) => (
-    <Fragment key={type}>
-      {modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].map((position, index) =>
-        renderCanvasItem(type, position as never, {
-          index,
-          elementId: position.id,
-          zIndex: position.zIndex ?? index,
-          isSelected: selectedElements.some(
-            (element) => element.type === type && element.id === position.id,
-          ),
-          selectedElements,
-          activeTool,
-          zoom,
-          panX,
-          panY,
-          isViewportTransforming,
-          ...stableHandlers(
-            position.id,
-            createCommonHandlers(type, index, position.id),
-          ),
-        }),
-      )}
-    </Fragment>
-  ));
+  const itemElements = ITEM_ELEMENT_TYPES.filter(isLegacyEditedType).map(
+    (type) => (
+      <Fragment key={type}>
+        {modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].map(
+          (position, index) =>
+            renderCanvasItem(type, position as never, {
+              index,
+              elementId: position.id,
+              zIndex: position.zIndex ?? index,
+              isSelected: selectedElements.some(
+                (element) =>
+                  element.type === type && element.id === position.id,
+              ),
+              selectedElements,
+              activeTool,
+              zoom,
+              panX,
+              panY,
+              isViewportTransforming,
+              ...stableHandlers(
+                position.id,
+                createCommonHandlers(type, index, position.id),
+              ),
+            }),
+        )}
+      </Fragment>
+    ),
+  );
 
   return (
     <>

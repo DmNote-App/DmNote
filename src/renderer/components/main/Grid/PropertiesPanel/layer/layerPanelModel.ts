@@ -4,6 +4,7 @@
  */
 
 import { slotDisplayName } from '@utils/keySlot';
+import { isLegacyEditedType } from '@src/types/elementKinds';
 import type { KeyMappings } from '@src/types/key/keys';
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
@@ -32,7 +33,7 @@ type BuildLayerItemsParams = ItemElementCollections & {
 };
 
 // 키 외 종류별 레이어 기본 이름
-const ITEM_LAYER_DEFAULT_NAMES: {
+export const ITEM_LAYER_DEFAULT_NAMES: {
   [K in ItemElementType]: (
     position: CanonicalPositionOf<K>,
     index: number,
@@ -72,7 +73,7 @@ export function buildLayerItems(params: BuildLayerItemsParams): LayerItem[] {
   });
 
   // 키 외 종류 아이템 (종류 순서)
-  for (const type of ITEM_ELEMENT_TYPES) {
+  for (const type of ITEM_ELEMENT_TYPES.filter(isLegacyEditedType)) {
     const defaultName = ITEM_LAYER_DEFAULT_NAMES[type] as (
       position: never,
       index: number,

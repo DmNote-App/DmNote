@@ -8,7 +8,10 @@ import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elemen
 import { setDocumentCommon } from '../../document/documentEditActions';
 import { useDocumentContextMenuStore } from '../../document/useDocumentContextMenuStore';
 import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
-import { PluginIcon } from './LayerIcons';
+import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
+import { isItemElementType } from '@src/types/editor';
+import { ITEM_LAYER_DEFAULT_NAMES } from './layerPanelModel';
+import { KnobIcon, PluginIcon } from './LayerIcons';
 import LayerRenameInput from './LayerRenameInput';
 import { layerRowIndent } from './documentLayerModel';
 
@@ -41,9 +44,17 @@ const DocumentLayerRow = ({
   const renameInputRef = useRef<HTMLInputElement>(null);
   const renameCancelledRef = useRef(false);
   const definition = elementKindDefinition(element.kind);
-  const kindName = definition?.label
-    ? t(definition.label) || element.kind
-    : t('elementKinds.unknownKind') || element.kind;
+  // 트리로 옮긴 옛 종류는 옛 레이어 목록과 같은 기본 이름 (예: Knob 3)
+  const legacyIndex = (element.legacy as { index?: number } | undefined)?.index;
+  const kindName =
+    isItemElementType(element.kind) && legacyIndex !== undefined
+      ? ITEM_LAYER_DEFAULT_NAMES[element.kind](
+          legacyPositionOf(element) as never,
+          legacyIndex,
+        )
+      : definition?.label
+      ? t(definition.label) || element.kind
+      : t('elementKinds.unknownKind') || element.kind;
   const name = element.name || kindName;
   const hidden = element.hidden === true;
   return (
@@ -84,7 +95,7 @@ const DocumentLayerRow = ({
       `}
     >
       <div className="flex-shrink-0">
-        <PluginIcon />
+        {element.kind === 'knob' ? <KnobIcon /> : <PluginIcon />}
       </div>
       {renaming ? (
         <LayerRenameInput

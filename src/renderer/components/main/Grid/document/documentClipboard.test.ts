@@ -78,6 +78,22 @@ describe('트리 요소 붙여넣기', () => {
   });
 });
 
+describe('옛 종류 요소 붙여넣기', () => {
+  it('원본의 배열 자리·z는 버리고 옛 칸만 남긴다', () => {
+    const knob = {
+      ...tracker('k', 0),
+      kind: 'knob',
+      legacy: { index: 3, zIndex: 9, fields: { noteColor: '#fff' } },
+    };
+    const { ops } = buildDocumentPaste('4key', [knob as never], () => 'n');
+    expect(
+      (ops[0] as unknown as { node: { legacy: unknown } }).node.legacy,
+    ).toEqual({
+      fields: { noteColor: '#fff' },
+    });
+  });
+});
+
 describe('트리 요소 복사', () => {
   beforeEach(() => {
     useGridSelectionStore.setState({ clipboard: [{ type: 'key' } as never] });

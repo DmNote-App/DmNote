@@ -5,7 +5,11 @@ import {
   isHistoryEditorFlushLocked,
   subscribeHistoryEditorFlushStart,
 } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import {
+  useGridSelectionStore,
+  type SelectedElement,
+} from '@stores/grid/useGridSelectionStore';
+import { readAuthorityPositions } from '@src/renderer/editor/model/elementStores';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import {
   getElementDocumentStore,
@@ -28,7 +32,7 @@ import {
   removeDocumentElements,
 } from './documentEditActions';
 import { documentDragSnap } from './documentDragSnap';
-import { expandDocumentGroup } from './documentGroups';
+import { expandDocumentGroup, legacyGroupMembersOf } from './documentGroups';
 import { documentIdsInRange, toggleDocumentId } from './documentSelection';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
@@ -101,11 +105,33 @@ const DocumentGridElement = ({
       );
       return;
     }
-    // 고른 요소를 누르면 선택을 지킨 채 함께 옮긴다. 트리 그룹 안 요소는 그룹째 고른다
+    // 고른 요소를 누르면 선택을 지킨 채 함께 옮긴다. 트리 그룹 안 요소는 그룹째 고른다.
+    // 옛 그룹 안이면(트리로 옮긴 옛 종류) 그 그룹의 옛 종류 멤버도 옛 선택으로 함께 고른다
+    const legacyGroup = current.includes(element.id)
+      ? null
+      : legacyGroupMembersOf(store?.getScene(sceneId), element.id);
     const ids = current.includes(element.id)
       ? current
+      : legacyGroup
+      ? legacyGroup.treeIds
       : expandDocumentGroup(store?.getScene(sceneId), element.id);
     if (ids !== current) selection.setSelection(sceneId, ids);
+    if (legacyGroup && legacyGroup.legacy.length > 0) {
+      keepOtherSelection(() =>
+        useGridSelectionStore.getState().setSelectedElements(
+          legacyGroup.legacy.flatMap(({ kind, id }) => {
+            const index = (
+              (readAuthorityPositions(kind)[sceneId] ?? []) as Array<{
+                id: string;
+              }>
+            ).findIndex((position) => position.id === id);
+            return index >= 0
+              ? [{ type: kind, id, index } as SelectedElement]
+              : [];
+          }),
+        ),
+      );
+    }
     const origins = ids.flatMap((id) => {
       const frame = store?.getElement(sceneId, id)?.frame;
       return frame ? [{ id, frame }] : [];
@@ -255,6 +281,7 @@ const DocumentGridElement = ({
           bundles={{ surface: element.bundles?.surface as SurfaceBundle }}
           live={false}
           inputs={EDITOR_INPUTS}
+          selected={selected}
         />
       ) : (
         // 모르는 종류(플러그인을 지움 등) - 옮기기·크기·삭제만 된다

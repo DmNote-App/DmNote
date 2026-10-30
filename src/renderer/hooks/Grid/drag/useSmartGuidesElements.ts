@@ -11,7 +11,10 @@ import {
   EDITOR_ELEMENT_TYPES,
   modeArraysOf,
 } from '@src/types/editor';
-import { fallbackElementSize } from '@src/types/elementKinds';
+import {
+  fallbackElementSize,
+  isLegacyEditedType,
+} from '@src/types/elementKinds';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documentElementOrder';
 
@@ -39,7 +42,7 @@ const getOtherElementsSnapshot = (
     { ...captureElementCollections(), keyPositions: positions },
     selectedKeyType,
   );
-  for (const type of EDITOR_ELEMENT_TYPES) {
+  for (const type of EDITOR_ELEMENT_TYPES.filter(isLegacyEditedType)) {
     const fallback = fallbackElementSize(type);
     (
       modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]] as ReadonlyArray<{

@@ -12,7 +12,10 @@ import {
   type EditorElementTypeV1,
   type ElementModeArrays,
 } from '@src/types/editor';
-import { fallbackElementSize } from '@src/types/elementKinds';
+import {
+  fallbackElementSize,
+  isLegacyEditedType,
+} from '@src/types/elementKinds';
 import DigitPopLayer from '@components/main/common/DigitPopLayer';
 import { useDigitPop } from '@hooks/ui/useDigitPop';
 import IconMotion from '@components/main/Tool/icons/IconMotion';
@@ -215,9 +218,9 @@ const GridMinimap = ({
     };
   }, [containerRef]);
 
-  const hasNativeElements = EDITOR_ELEMENT_TYPES.some(
-    (type) => modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].length > 0,
-  );
+  const hasNativeElements = EDITOR_ELEMENT_TYPES.filter(
+    isLegacyEditedType,
+  ).some((type) => modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].length > 0);
 
   // 모든 키 + 플러그인 요소의 바운딩 박스 계산
   const contentBounds = (() => {
@@ -231,7 +234,7 @@ const GridMinimap = ({
     let maxY = -Infinity;
 
     // 종류별 요소 바운딩 박스
-    for (const type of EDITOR_ELEMENT_TYPES) {
+    for (const type of EDITOR_ELEMENT_TYPES.filter(isLegacyEditedType)) {
       const fallback = fallbackElementSize(type);
       modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].forEach((pos) => {
         if (pos.hidden) return;
@@ -539,7 +542,7 @@ const GridMinimap = ({
           className="absolute top-0 left-0"
         >
           {/* 종류별 요소 표시 */}
-          {EDITOR_ELEMENT_TYPES.map((type) => {
+          {EDITOR_ELEMENT_TYPES.filter(isLegacyEditedType).map((type) => {
             const fallback = fallbackElementSize(type);
             return renderElementRects(
               type,

@@ -1,6 +1,6 @@
 import type { Node, Scene } from '@src/types/generated/elementDocument';
 import { isEditorElementType } from '@src/types/editor';
-import { TREE_OVERLAY_KINDS } from '@src/types/elementKinds';
+import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 
 export interface DocumentElementSlot {
@@ -21,14 +21,22 @@ const legacyZIndex = (element: ElementNode): number | null => {
   return legacy.zIndex ?? legacy.index ?? null;
 };
 
-/** 트리에만 있는 종류 요소를 겹치는 순서대로 - 숨긴 요소·숨긴 그룹 안은 뺀다.
- * overlay면 오버레이가 트리에서 그리는 옛 종류도 자기 zIndex로 넣는다 */
+/** 트리 편집기가 그리는 요소를 겹치는 순서대로 - 숨긴 요소·숨긴 그룹 안은 뺀다.
+ * 트리에만 있는 종류에 더해 legacyKinds의 옛 종류도 옛 요소 사이에 넣는다
+ * (편집 화면은 트리로 옮긴 옛 종류, 오버레이는 트리에서 그리는 옛 종류, 창 크기 계산은 없음).
+ * 편집 화면은 트리 요소처럼 바로 아래 옛 요소의 zIndex를 따른다 - 순서 바꾸기가 백엔드 왕복 없이 보인다.
+ * 오버레이는(ownZIndex) 저장된 자기 zIndex로 옛 오버레이와 같은 순서를 그린다 */
 export const documentElementSlots = (
   scene: Scene | undefined,
   {
     includeHidden = false,
-    overlay = false,
-  }: { includeHidden?: boolean; overlay?: boolean } = {},
+    legacyKinds = TREE_EDITED_KINDS,
+    ownZIndex = false,
+  }: {
+    includeHidden?: boolean;
+    legacyKinds?: ReadonlySet<string>;
+    ownZIndex?: boolean;
+  } = {},
 ): DocumentElementSlot[] => {
   if (!scene) return [];
   const slots: DocumentElementSlot[] = [];
@@ -50,15 +58,15 @@ export const documentElementSlots = (
         visit(node.children, hidden || node.hidden === true);
         continue;
       }
-      if (isEditorElementType(node.kind)) {
+      if (isEditorElementType(node.kind) && !legacyKinds.has(node.kind)) {
+        below = legacyZIndex(node) ?? below;
+        continue;
+      }
+      // 트리가 그리는 옛 종류 - 오버레이는 자기 zIndex, 편집 화면은 트리 요소처럼
+      if (isEditorElementType(node.kind) && ownZIndex) {
         const z = legacyZIndex(node);
         below = z ?? below;
-        // 오버레이가 트리에서 그리는 옛 종류는 자기 zIndex로 옛 요소 사이에 선다
-        if (
-          overlay &&
-          TREE_OVERLAY_KINDS.has(node.kind) &&
-          (includeHidden || (!hidden && !node.hidden))
-        ) {
+        if (includeHidden || (!hidden && !node.hidden)) {
           slots.push({
             element: node,
             zIndex: z ?? below ?? lowest ?? 0,
@@ -96,6 +104,8 @@ const sameBoxes = (left: LayoutBox[], right: LayoutBox[]) =>
       box.measuredSize.height === right[index].measuredSize.height,
   );
 
+const NO_KINDS: ReadonlySet<string> = new Set();
+
 // 탭마다 마지막 상자 - 옛 종류 요소만 바뀐 패치에도 같은 배열을 돌려준다
 const lastBoxes = new Map<string, LayoutBox[]>();
 
@@ -105,11 +115,17 @@ export const documentLayoutElements = (
   scene: Scene | undefined,
   tabId: string,
 ): LayoutBox[] => {
-  const boxes = documentElementSlots(scene).map(({ element }) => ({
-    tabId,
-    position: { x: element.frame.x, y: element.frame.y },
-    measuredSize: { width: element.frame.width, height: element.frame.height },
-  }));
+  // 옛 종류는 옛 배열이 창 크기에 이미 넣는다
+  const boxes = documentElementSlots(scene, { legacyKinds: NO_KINDS }).map(
+    ({ element }) => ({
+      tabId,
+      position: { x: element.frame.x, y: element.frame.y },
+      measuredSize: {
+        width: element.frame.width,
+        height: element.frame.height,
+      },
+    }),
+  );
   const previous = lastBoxes.get(tabId);
   if (previous && sameBoxes(previous, boxes)) return previous;
   lastBoxes.set(tabId, boxes);

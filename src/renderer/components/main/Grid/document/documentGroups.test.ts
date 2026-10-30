@@ -1,10 +1,23 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// 노브를 트리 편집기로 옮긴 상태를 가정한다
+vi.mock('@src/types/elementKinds', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('@src/types/elementKinds')
+  >();
+  return {
+    ...actual,
+    isTreeEditedKind: (kind: string) =>
+      kind === 'knob' || actual.isTreeEditedKind(kind),
+  };
+});
 
 import type { Scene } from '@src/types/generated/elementDocument';
 import {
   documentGroupRoots,
   documentGroupsOf,
   expandDocumentGroup,
+  legacyGroupMembersOf,
 } from './documentGroups';
 import { isTreeOnlyGroup } from '@src/renderer/editor/document/documentPatch';
 
@@ -58,5 +71,33 @@ describe('트리 전용 그룹 계산', () => {
   it('풀 대상은 고른 요소가 들어 있는 가장 바깥 트리 그룹', () => {
     expect(documentGroupsOf(scene, ['b', 'c'])).toEqual(['outer']);
     expect(documentGroupsOf(scene, ['c', 'd'])).toEqual([]);
+  });
+});
+
+describe('옛 그룹 안의 트리로 옮긴 옛 종류', () => {
+  it('옛 그룹 멤버를 트리 가족과 옛 종류로 나눈다', () => {
+    const element = (id: string, kind: string) => ({
+      type: 'element' as const,
+      id,
+      kind,
+      frame: { x: 0, y: 0, width: 1, height: 1, rotation: 0 },
+    });
+    const scene = {
+      nodes: [
+        {
+          type: 'group' as const,
+          id: 'G',
+          name: 'G',
+          legacy: {},
+          children: [element('k1', 'key'), element('n1', 'knob')],
+        },
+        element('k2', 'key'),
+      ],
+    };
+    expect(legacyGroupMembersOf(scene as never, 'n1')).toEqual({
+      treeIds: ['n1'],
+      legacy: [{ kind: 'key', id: 'k1' }],
+    });
+    expect(legacyGroupMembersOf(scene as never, 'k2')).toBeNull();
   });
 });

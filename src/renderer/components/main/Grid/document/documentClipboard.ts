@@ -5,7 +5,7 @@ import { create } from 'zustand';
 
 import { PASTE_OFFSET } from '@hooks/Grid/constants';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
-import type { Node, Op } from '@src/types/generated/elementDocument';
+import type { JsonValue, Node, Op } from '@src/types/generated/elementDocument';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { editDocument } from './documentEditActions';
 import { documentGroupNames, documentGroupRoots } from './documentGroups';
@@ -37,6 +37,11 @@ useGridSelectionStore.subscribe((state, previous) => {
   }
 });
 
+const legacyFieldsOnly = (legacy: unknown): JsonValue => {
+  const fields = (legacy as { fields?: JsonValue } | null)?.fields;
+  return fields === undefined ? {} : { fields };
+};
+
 const reissue = (
   node: Node,
   nextId: () => string,
@@ -54,6 +59,10 @@ const reissue = (
     : {
         ...node,
         id: nextId(),
+        // 옛 종류 요소(트리로 옮긴 노브 등)는 원본의 배열 자리·z를 버린다 - 붙일 때 새로 받는다
+        ...(node.legacy !== undefined
+          ? { legacy: legacyFieldsOnly(node.legacy) }
+          : {}),
         frame: {
           ...node.frame,
           x: node.frame.x + PASTE_OFFSET,

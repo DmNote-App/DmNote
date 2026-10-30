@@ -54,7 +54,7 @@ describe('트리 전용 요소 쌓임 순서', () => {
       ['t2', 3],
     ]);
   });
-  it('오버레이는 트리에서 그리는 옛 종류(노브)를 자기 zIndex로 넣고 편집 화면은 뺀다', () => {
+  it('트리가 그리는 옛 종류(노브)는 자기 zIndex로 넣고, 넣을 옛 종류가 없으면 뺀다', () => {
     const knob = (id: string, zIndex: number | null, index: number) =>
       ({ ...legacyKey(id, zIndex, index), kind: 'knob' } as Node);
     const scene: Scene = {
@@ -68,11 +68,29 @@ describe('트리 전용 요소 쌓임 순서', () => {
     };
     const ids = (slots: ReturnType<typeof documentElementSlots>) =>
       slots.map(({ element, zIndex }) => [element.id, zIndex]);
-    expect(ids(documentElementSlots(scene))).toEqual([['t1', 7]]);
-    expect(ids(documentElementSlots(scene, { overlay: true }))).toEqual([
+    expect(
+      ids(documentElementSlots(scene, { legacyKinds: new Set() })),
+    ).toEqual([['t1', 7]]);
+    // 오버레이 - 저장된 자기 zIndex
+    expect(
+      ids(
+        documentElementSlots(scene, {
+          legacyKinds: new Set(['knob']),
+          ownZIndex: true,
+        }),
+      ),
+    ).toEqual([
       ['n1', 7],
       ['t1', 7],
       ['n2', 1],
+    ]);
+    // 편집 화면 - 트리 요소처럼 바로 아래 옛 요소(k1)의 zIndex
+    expect(
+      ids(documentElementSlots(scene, { legacyKinds: new Set(['knob']) })),
+    ).toEqual([
+      ['n1', 5],
+      ['t1', 5],
+      ['n2', 5],
     ]);
   });
 });

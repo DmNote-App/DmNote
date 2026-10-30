@@ -26,3 +26,18 @@ export const setOtherSelectionClearer = (clear: () => void) => {
 export const replaceOtherSelection = () => {
   if (!keepingOther) clearOther();
 };
+
+// 옛 그룹 안의 트리 가족 멤버(트리로 옮긴 옛 종류)를 고르는 쪽 - 트리 선택 스토어가 건다
+let selectOther: (sceneId: string, ids: readonly string[]) => void = () => {};
+
+export const setOtherSelectionSetter = (
+  select: (sceneId: string, ids: readonly string[]) => void,
+) => {
+  selectOther = select;
+};
+
+/** 옛 그룹째 고를 때 그 그룹의 트리 가족 멤버도 함께 고른다 (옛 종류 선택을 지킨 채) */
+export const selectOtherMembers = (sceneId: string, ids: readonly string[]) => {
+  if (ids.length === 0) return;
+  keepOtherSelection(() => selectOther(sceneId, ids));
+};
