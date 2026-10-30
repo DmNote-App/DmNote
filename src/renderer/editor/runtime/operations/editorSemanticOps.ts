@@ -16,10 +16,7 @@ import type {
 } from '../coordinator/editorCoordinator';
 
 // 트리로 옮긴 옛 종류의 위치·회전·숨김·이름·지우기는 트리에 쓴다 (낙관 반영 - 편집 화면이 트리에서 그린다)
-const routeToTree = (
-  ops: readonly EditorOpV1[],
-  gestureId: string | undefined,
-): Set<number> | null => {
+const splitForTree = (ops: readonly EditorOpV1[]) => {
   if (TREE_EDITED_KINDS.size === 0) return null;
   const store = getElementDocumentStore();
   if (!store?.edit) return null;
@@ -30,10 +27,15 @@ const routeToTree = (
     inScene: (id) => store.getElement(scene, id) !== undefined,
   });
   if (treeOps.length === 0) return null;
-  void store
-    .edit(treeOps, gestureId ? { gestureId } : undefined)
-    .catch((error) => console.error('[ElementDocument] edit failed', error));
-  return legacyIndexes;
+  const send = (gestureId: string | undefined) =>
+    void store
+      .edit(treeOps, gestureId ? { gestureId } : undefined)
+      .catch((error) => console.error('[ElementDocument] edit failed', error));
+  return {
+    send,
+    legacyIndexes,
+    legacyOps: ops.filter((_op, index) => legacyIndexes.has(index)),
+  };
 };
 
 const treeRoutedOutcome = (
@@ -56,17 +58,18 @@ export const commitSemanticOps = (
   ops: readonly EditorOpV1[],
   meta?: EditorSemanticCommitMeta,
 ): Promise<EditorSemanticCommitOutcome> => {
-  const legacyIndexes = routeToTree(ops, meta?.gestureId);
-  if (legacyIndexes) {
-    const legacyOps = ops.filter((_op, index) => legacyIndexes.has(index));
-    if (legacyOps.length === 0) {
-      return Promise.resolve(treeRoutedOutcome(ops, legacyIndexes, null));
-    }
-    return commitSemanticOpsDirect(legacyOps, meta).then((legacy) =>
-      treeRoutedOutcome(ops, legacyIndexes, legacy),
-    );
+  const split = splitForTree(ops);
+  if (!split) return commitSemanticOpsDirect(ops, meta);
+  if (split.legacyOps.length === 0) {
+    split.send(meta?.gestureId);
+    return Promise.resolve(treeRoutedOutcome(ops, split.legacyIndexes, null));
   }
-  return commitSemanticOpsDirect(ops, meta);
+  // 트리 몫과 옛 몫이 같은 동작 id - 되돌리기 한 번
+  const gestureId = meta?.gestureId ?? crypto.randomUUID();
+  split.send(gestureId);
+  return commitSemanticOpsDirect(split.legacyOps, { ...meta, gestureId }).then(
+    (legacy) => treeRoutedOutcome(ops, split.legacyIndexes, legacy),
+  );
 };
 
 const commitSemanticOpsDirect = (
@@ -96,42 +99,58 @@ export const commitGeneratedSemanticOps = (
   generate: EditorSemanticOpsGenerator,
   meta?: EditorSemanticCommitMeta,
 ): Promise<EditorSemanticCommitOutcome | null> => {
-  // 트리로 옮긴 옛 종류가 섞였으면 지금 문서로 한 번 만들어 그 몫을 트리로 먼저 보낸다
-  if (TREE_EDITED_KINDS.size > 0 && getElementDocumentStore()?.edit) {
-    const ops = generate(captureEditorDocument());
-    const legacyIndexes = ops ? routeToTree(ops, meta?.gestureId) : null;
-    if (ops && legacyIndexes) {
-      const legacyOps = ops.filter((_op, index) => legacyIndexes.has(index));
-      if (legacyOps.length === 0) {
-        return Promise.resolve(treeRoutedOutcome(ops, legacyIndexes, null));
-      }
-      return commitSemanticOpsDirect(legacyOps, meta).then((legacy) =>
-        treeRoutedOutcome(ops, legacyIndexes, legacy),
-      );
-    }
-  }
   let enrolled = false;
+  const slotMeta: EditorSemanticCommitMeta = {
+    ...meta,
+    onEnrolled: () => {
+      enrolled = true;
+      meta?.onEnrolled?.();
+    },
+  };
+  // 직렬 슬롯 안에서 최신 base로 만든 연산의 트리로 옮긴 옛 종류 몫은 트리로 보내고 옛 몫만 커밋한다.
+  // 트리 쓰기는 처음 만들 때 한 번만 (다시 시도는 옛 몫만). 동작 id는 연산을 만든 뒤 읽힌다
+  let routed: {
+    ops: readonly EditorOpV1[];
+    legacyIndexes: Set<number>;
+  } | null = null;
+  let sentToTree = false;
+  const routedGenerate: EditorSemanticOpsGenerator = (base) => {
+    const ops = generate(base);
+    const split = ops ? splitForTree(ops) : null;
+    routed = ops && split ? { ops, legacyIndexes: split.legacyIndexes } : null;
+    if (!ops || !split) return ops;
+    if (split.legacyOps.length > 0) {
+      slotMeta.gestureId ??= crypto.randomUUID();
+    }
+    if (!sentToTree) {
+      sentToTree = true;
+      split.send(slotMeta.gestureId);
+    }
+    return split.legacyOps.length > 0 ? split.legacyOps : null;
+  };
   const run = enqueueEditorCompatibilityOperation(() =>
-    editorCoordinator.commitGeneratedSemanticOpsInternal(generate, {
-      ...meta,
-      onEnrolled: () => {
-        enrolled = true;
-        meta?.onEnrolled?.();
-      },
-    }),
-  );
-  if (!meta?.gestureId) return run;
+    editorCoordinator.commitGeneratedSemanticOpsInternal(
+      routedGenerate,
+      slotMeta,
+    ),
+  ).then((result) => {
+    const tree = routed;
+    return tree
+      ? treeRoutedOutcome(tree.ops, tree.legacyIndexes, result)
+      : result;
+  });
+  const discard = () => {
+    if (!enrolled && slotMeta.gestureId) {
+      editorCoordinator.discardSemanticGesture(slotMeta.gestureId);
+    }
+  };
   return run
     .then((result) => {
-      if (!result && !enrolled) {
-        editorCoordinator.discardSemanticGesture(meta.gestureId!);
-      }
+      if (!result) discard();
       return result;
     })
     .catch((error) => {
-      if (!enrolled) {
-        editorCoordinator.discardSemanticGesture(meta.gestureId!);
-      }
+      discard();
       throw error;
     });
 };
