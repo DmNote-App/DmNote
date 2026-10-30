@@ -1,3 +1,5 @@
+'use no memo';
+// 트리 스토어·프리뷰 오버레이(모듈 상태)를 렌더 중에 읽어서 컴파일러 메모 제외
 import { useSyncExternalStore } from 'react';
 import { useGraphItemStore } from '@stores/data/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
@@ -8,7 +10,12 @@ import { useStatItemStore } from '@stores/data/useStatItemStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
 import { panelSelectionOf } from '../../document/treeEditedSelection';
-import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
+import {
+  getElementDocumentStore,
+  useElementDocumentScene,
+} from '@src/renderer/editor/document/elementDocumentRuntime';
+import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
+import { treeElementPositionOf } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import {
   selectPropertyPanelPluginElements,
   usePluginDisplayElementStore,
@@ -41,6 +48,8 @@ export const usePropertiesPanelSelection = () => {
   // 트리 문서가 바뀌면(종류 확인) 다시 합친다
   useElementDocumentScene(documentSceneId ?? '');
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
+  // 단일 요소 값은 트리에서 - 바뀌면 다시 읽는다
+  useElementDocumentScene(selectedKeyType);
   const positions = useKeyStore((state) => state.positions);
   const canonicalPositions = useKeyStore((state) => state.canonicalPositions);
   const keyMappings = useKeyStore((state) => state.keyMappings);
@@ -211,6 +220,17 @@ export const usePropertiesPanelSelection = () => {
       150,
   };
 
+  // 트리 편집기가 맡는 요소의 단일 값 - 트리 값(트리로 보낸 편집의 낙관 반영 포함) + 편집 미리보기.
+  // 옛 배열에는 순번(키 매핑 결합)만 남는다. 트리에 아직 없으면 옛 값
+  const storedElement = (id: string) =>
+    getElementDocumentStore()?.getElement(selectedKeyType, id);
+  const treeView = <T>(id: string, fallback: T | null): T | null => {
+    const element = storedElement(id);
+    return element
+      ? (treeElementPositionOf(element, selectedKeyType) as unknown as T)
+      : fallback;
+  };
+
   const singleKeyId =
     selectedKeyElements.length === 1 ? selectedKeyElements[0].id : null;
   const singleKeyIndex = singleKeyId
@@ -219,8 +239,19 @@ export const usePropertiesPanelSelection = () => {
       )
     : -1;
   const singleKeyPosition =
-    singleKeyIndex >= 0 ? positions[selectedKeyType]?.[singleKeyIndex] : null;
-  const singleCanonicalKeyPosition = singleKeyId
+    singleKeyId && singleKeyIndex >= 0
+      ? treeView(
+          singleKeyId,
+          positions[selectedKeyType]?.[singleKeyIndex] ?? null,
+        )
+      : null;
+  // 미리보기 없는 값
+  const singleKeyElement = singleKeyId ? storedElement(singleKeyId) : undefined;
+  const singleCanonicalKeyPosition = singleKeyElement
+    ? (legacyPositionOf(singleKeyElement) as unknown as NonNullable<
+        typeof singleKeyPosition
+      >)
+    : singleKeyId
     ? (canonicalPositions[selectedKeyType] ?? []).find(
         (position) => position.id === singleKeyId,
       ) ?? null
@@ -250,8 +281,11 @@ export const usePropertiesPanelSelection = () => {
       )
     : -1;
   const singleStatPosition: StatItemPosition | null =
-    singleStatIndex >= 0
-      ? statItemPositions[selectedKeyType]?.[singleStatIndex] ?? null
+    singleStatId && singleStatIndex >= 0
+      ? treeView(
+          singleStatId,
+          statItemPositions[selectedKeyType]?.[singleStatIndex] ?? null,
+        )
       : null;
   const singleGraphId =
     selectedGraphElements.length === 1 ? selectedGraphElements[0].id : null;
@@ -261,8 +295,11 @@ export const usePropertiesPanelSelection = () => {
       )
     : -1;
   const singleGraphPosition: GraphItemPosition | null =
-    singleGraphIndex >= 0
-      ? graphItemPositions[selectedKeyType]?.[singleGraphIndex] ?? null
+    singleGraphId && singleGraphIndex >= 0
+      ? treeView(
+          singleGraphId,
+          graphItemPositions[selectedKeyType]?.[singleGraphIndex] ?? null,
+        )
       : null;
   const singleKnobId =
     selectedKnobElements.length === 1 ? selectedKnobElements[0].id : null;
@@ -272,16 +309,22 @@ export const usePropertiesPanelSelection = () => {
       )
     : -1;
   const singleKnobPosition: KnobItemPosition | null =
-    singleKnobIndex >= 0
-      ? knobItemPositions[selectedKeyType]?.[singleKnobIndex] ?? null
+    singleKnobId && singleKnobIndex >= 0
+      ? treeView(
+          singleKnobId,
+          knobItemPositions[selectedKeyType]?.[singleKnobIndex] ?? null,
+        )
       : null;
   const singleSpriteId =
     selectedSpriteElements.length === 1 ? selectedSpriteElements[0].id : null;
+  const legacySingleSpritePosition = singleSpriteId
+    ? (spriteItemPositions[selectedKeyType] ?? []).find(
+        (position) => position.id === singleSpriteId,
+      ) ?? null
+    : null;
   const singleSpritePosition: CanonicalReactiveSpritePosition | null =
-    singleSpriteId
-      ? (spriteItemPositions[selectedKeyType] ?? []).find(
-          (position) => position.id === singleSpriteId,
-        ) ?? null
+    singleSpriteId && legacySingleSpritePosition
+      ? treeView(singleSpriteId, legacySingleSpritePosition)
       : null;
 
   const allLayerGroups = useLayerGroupStore((state) => state.layerGroups);
