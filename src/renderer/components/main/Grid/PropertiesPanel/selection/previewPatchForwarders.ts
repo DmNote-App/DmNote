@@ -4,7 +4,7 @@
  * 오염시키므로 프리뷰 진입 전 반드시 projection을 거친다
  */
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
-import { captureEditorDocument } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
+import { captureEditorView } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
 import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
 import {
   inheritedPaintMaterialization,
@@ -52,7 +52,7 @@ const isShadowPreviewPatch = (
   patch.property === 'shadow' || patch.property === 'activeShadow';
 
 const currentPositionOf = (
-  document: ReturnType<typeof captureEditorDocument>,
+  document: ReturnType<typeof captureEditorView>,
   target: PreviewTarget,
   mode: string,
   index: number,
@@ -69,7 +69,8 @@ const previewBatchShadow = (
   selectedKeyType: string,
   patch: EditorShadowPreviewPatchV1,
 ): void => {
-  const document = captureEditorDocument();
+  // 트리로 보내 확인 전인 값까지 - 이어서 고칠 때 앞 편집을 되돌리지 않게
+  const document = captureEditorView();
   const grouped = new Map<
     PreviewTargetType,
     Array<{ id: string; patch: Record<string, unknown> }>
@@ -221,7 +222,7 @@ export const previewBatchPaint = (
   selectedKeyType: string,
   patch: EditorPaintPropertyPatchV1,
 ): void => {
-  const document = captureEditorDocument();
+  const document = captureEditorView();
   const grouped = new Map<
     PreviewTargetType,
     Array<{ id: string; patch: Record<string, unknown> }>

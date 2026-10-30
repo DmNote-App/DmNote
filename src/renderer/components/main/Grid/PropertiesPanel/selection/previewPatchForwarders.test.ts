@@ -45,8 +45,8 @@ vi.mock(
       ),
       getState: () => ({ revision: null }),
     },
-    // 프로덕션과 동일하게 canonical 스토어를 문서로 캡처
-    captureEditorDocument: () => ({
+    // 프로덕션과 동일하게 canonical 스토어를 문서로 캡처 (대기 중인 트리 편집 없음)
+    captureEditorView: () => ({
       schemaVersion: 1,
       keys: {},
       keyPositions: useKeyStore.getState().canonicalPositions,

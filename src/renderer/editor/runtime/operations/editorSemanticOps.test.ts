@@ -166,6 +166,7 @@ describe('트리로 옮긴 옛 종류 몫', () => {
     tree.store = {
       getElement: (_scene, id) => (id === KNOB ? { id } : undefined),
       edit: vi.fn().mockResolvedValue({ status: 'committed', revision: 1 }),
+      getRevision: () => 1,
     };
   });
 
@@ -290,45 +291,61 @@ describe('트리로 옮긴 종류의 겉모습 칸', () => {
     };
   });
 
-  it('트리 연산으로 보내고, 옛 스토어 대신 대기 편집이 확인 전까지 보여 준다', async () => {
-    await commitSemanticOps([patchOp] as never);
+  it('트리 연산으로 보내고, 옛 스토어 대신 대기 편집이 확인 전까지 보여 주고, 반영된 뒤 끝난다', async () => {
+    let done = false;
+    const commit = commitSemanticOps([patchOp] as never).then(() => {
+      done = true;
+    });
 
     expect(tree.store!.edit.mock.calls[0][0]).toEqual([
       { op: 'setValues', scene: '4key', id: KNOB, values: { sensitivity: 2 } },
     ]);
     expect(api.commitSemanticOpsInternal).not.toHaveBeenCalled();
     expect(useKnobItemStore.getState().positions['4key'][0]).toBe(legacyKnob);
-    await vi.waitFor(() => expect(listeners).toHaveLength(1));
     expect(shown().sensitivity).toBe(2);
+    await vi.waitFor(() => expect(listeners).toHaveLength(1));
+    expect(done).toBe(false);
 
-    // 트리 스토어가 그 revision을 받고 코디네이터가 이벤트를 반영하면 내린다
+    // 트리 스토어가 그 revision을 받고 코디네이터가 이벤트를 반영하면 내리고 끝난다
     revision = 1;
     listeners.forEach((listener) => listener());
-    await vi.waitFor(() => expect(shown().sensitivity).toBe(1));
+    await commit;
     expect(api.whenEventsApplied).toHaveBeenCalled();
+    expect(shown().sensitivity).toBe(1);
   });
 
-  it('트리가 받지 않으면 대기 편집을 내리고 옛 경로로 다시 보낸다', async () => {
+  it('트리가 받지 않으면 대기 편집을 내리고 옛 경로로 다시 보내지 않는다', async () => {
     tree.store!.edit.mockResolvedValueOnce({
       status: 'rejected',
       revision: 0,
       code: 'VIOLATION',
       violations: [],
     });
-    api.commitSemanticOpsInternal.mockResolvedValueOnce({
-      document: {},
-      opResults: [{ status: 'applied' }],
-    });
 
     await commitSemanticOps([patchOp] as never, { gestureId: 'g1' });
 
-    await vi.waitFor(() =>
-      expect(api.commitSemanticOpsInternal).toHaveBeenCalled(),
-    );
-    const [ops, meta] = api.commitSemanticOpsInternal.mock.calls[0];
-    expect(ops).toEqual([patchOp]);
-    expect(meta.gestureId).toBe('g1');
+    expect(api.commitSemanticOpsInternal).not.toHaveBeenCalled();
     expect(shown().sensitivity).toBe(1);
+  });
+
+  it('숨김·이름·회전도 트리로 가면 먼저 쓰기에서 빼고 대기 편집으로 보여 준다', () => {
+    const hideOp = {
+      ...patchOp,
+      patch: { property: 'hidden', value: true },
+    };
+    const intents = new Map([['knob', new Map([[KNOB, { hidden: true }]])]]);
+    expect(
+      withoutTreeRoutedIntents(intents as never, [hideOp] as never).get(
+        'knob' as never,
+      )?.size,
+    ).toBe(0);
+    void commitSemanticOps([hideOp] as never);
+    expect(tree.store!.edit.mock.calls[0][0]).toEqual([
+      { op: 'setCommon', scene: '4key', id: KNOB, hidden: true },
+    ]);
+    expect((shown() as typeof legacyKnob & { hidden?: boolean }).hidden).toBe(
+      true,
+    );
   });
 
   it('트리에 자리가 없는 옛 칸이 섞이면 옛 경로로, 먼저 쓰기도 걸러내지 않는다', async () => {

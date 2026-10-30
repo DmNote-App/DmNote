@@ -71,7 +71,30 @@ const treeStylePatchOf = (
   return uncovered.length === 0 && ops.length > 0 ? { fields, ops } : null;
 };
 
-/** 옛 스토어에 먼저 쓸 의도에서 트리로 갈 겉모습 패치의 요소를 뺀다 - 그 몫은 대기 중인 트리 편집이 얹는다
+// 트리로 갈 몫 - 커밋 나누기와 옛 스토어 먼저 쓰기 거르기가 같은 판정을 쓴다
+const routeForTree = (
+  ops: readonly EditorOpV1[],
+  scene: string,
+  store: ElementDocumentStore,
+) =>
+  treeRoutedOps(ops, {
+    scene,
+    isTreeEdited: (type) => TREE_EDITED_KINDS.has(type),
+    inScene: (id) => store.getElement(scene, id) !== undefined,
+    styleOps: (op) => treeStylePatchOf(op, scene, store)?.ops ?? null,
+  });
+
+// 트리로 가는 옛 칸 패치 - 그 몫은 대기 중인 트리 편집이 얹는다
+const treeRoutedPatches = (
+  ops: readonly EditorOpV1[],
+  legacyIndexes: ReadonlySet<number>,
+) =>
+  ops.filter(
+    (op, index): op is PatchElementOp =>
+      op.kind === 'patchElement' && !legacyIndexes.has(index),
+  );
+
+/** 옛 스토어에 먼저 쓸 의도에서 트리로 갈 옛 칸 패치의 요소를 뺀다 - 그 몫은 대기 중인 트리 편집이 얹는다
  * (옛 스토어에 쓰면 코디네이터가 옛 편집으로 보고 다시 커밋하거나 되감기 소유가 틀어진다) */
 export const withoutTreeRoutedIntents = (
   intents: PropertyIntents,
@@ -80,12 +103,9 @@ export const withoutTreeRoutedIntents = (
   const store = getElementDocumentStore();
   if (TREE_EDITED_KINDS.size === 0 || !store?.edit) return intents;
   const scene = useKeyStore.getState().selectedKeyType;
+  const { legacyIndexes } = routeForTree(ops, scene, store);
   const routed = new Set(
-    ops.flatMap((op) =>
-      op.kind === 'patchElement' && treeStylePatchOf(op, scene, store)
-        ? [op.id]
-        : [],
-    ),
+    treeRoutedPatches(ops, legacyIndexes).map(({ id }) => id),
   );
   if (routed.size === 0) return intents;
   return new Map(
@@ -117,22 +137,20 @@ const splitForTree = (ops: readonly EditorOpV1[]) => {
   const store = getElementDocumentStore();
   if (!store?.edit) return null;
   const scene = useKeyStore.getState().selectedKeyType;
-  const styled: { op: PatchElementOp; fields: Record<string, unknown> }[] = [];
-  const { treeOps, legacyIndexes } = treeRoutedOps(ops, {
-    scene,
-    isTreeEdited: (type) => TREE_EDITED_KINDS.has(type),
-    inScene: (id) => store.getElement(scene, id) !== undefined,
-    styleOps: (op) => {
-      const style = treeStylePatchOf(op, scene, store);
-      if (style)
-        styled.push({ op: op as PatchElementOp, fields: style.fields });
-      return style?.ops ?? null;
-    },
-  });
+  const { treeOps, legacyIndexes } = routeForTree(ops, scene, store);
   if (treeOps.length === 0) return null;
-  const send = (gestureId: string | undefined) => {
+  const pending = treeRoutedPatches(ops, legacyIndexes).map((op) => ({
+    op,
+    fields: legacyFieldPatch(
+      op.elementType,
+      viewPositionOf(op, scene, store),
+      op.patch,
+    ),
+  }));
+  // 옛 스토어가 같은 값을 받을 때까지(거부·실패면 바로) - 옛 편집 커밋처럼 반영된 뒤 끝난다
+  const send = async (gestureId: string | undefined): Promise<void> => {
     // 옛 스토어를 읽는 곳도 확인 전까지 보낸 값을 보도록
-    const releases = styled.map(({ op, fields }) =>
+    const releases = pending.map(({ op, fields }) =>
       addPendingTreeEdit(
         PREVIEW_DOMAIN_BY_ELEMENT_TYPE[op.elementType],
         scene,
@@ -140,29 +158,20 @@ const splitForTree = (ops: readonly EditorOpV1[]) => {
         fields,
       ),
     );
-    const release = () => releases.forEach((done) => done());
-    void store
-      // 크기와 함께 맞출 값(스프라이트 이동값 등)도 같은 커밋에
-      .edit(withResizeValues(treeOps), gestureId ? { gestureId } : undefined)
-      .then(async (result) => {
-        if (result.status === 'committed') {
-          await whenLegacyCaughtUp(store, result.revision);
-          release();
-          return;
-        }
-        release();
-        // 트리가 받지 않은 겉모습 칸은 옛 경로로 다시 보낸다 - 편집을 잃지 않게
-        if (styled.length > 0) {
-          await commitSemanticOpsDirect(
-            styled.map(({ op }) => op),
-            gestureId ? { gestureId } : undefined,
-          );
-        }
-      })
-      .catch((error) => {
-        release();
-        console.error('[ElementDocument] edit failed', error);
-      });
+    try {
+      const result = await store.edit!(
+        // 크기와 함께 맞출 값(스프라이트 이동값 등)도 같은 커밋에
+        withResizeValues(treeOps),
+        gestureId ? { gestureId } : undefined,
+      );
+      if (result.status === 'committed') {
+        await whenLegacyCaughtUp(store, result.revision);
+      }
+    } catch (error) {
+      console.error('[ElementDocument] edit failed', error);
+    } finally {
+      releases.forEach((release) => release());
+    }
   };
   return {
     send,
@@ -211,15 +220,20 @@ export const commitSemanticOps = (
 ): Promise<EditorSemanticCommitOutcome> => {
   const split = splitForTree(ops);
   if (!split) return commitSemanticOpsDirect(ops, meta);
+  // 트리 몫도 반영된 뒤 끝난다 - 미리보기 정리(분리된 패널의 취소 등)가 반영보다 앞서지 않게
   if (split.legacyOps.length === 0) {
-    split.send(meta?.gestureId);
-    return Promise.resolve(treeRoutedOutcome(ops, split.legacyIndexes, null));
+    return split
+      .send(meta?.gestureId)
+      .then(() => treeRoutedOutcome(ops, split.legacyIndexes, null));
   }
   // 트리 몫과 옛 몫이 같은 동작 id - 되돌리기 한 번
   const gestureId = meta?.gestureId ?? crypto.randomUUID();
-  split.send(gestureId);
+  const tree = split.send(gestureId);
   return commitSemanticOpsDirect(split.legacyOps, { ...meta, gestureId }).then(
-    (legacy) => treeRoutedOutcome(ops, split.legacyIndexes, legacy),
+    async (legacy) => {
+      await tree;
+      return treeRoutedOutcome(ops, split.legacyIndexes, legacy);
+    },
   );
 };
 
@@ -275,7 +289,8 @@ export const commitGeneratedSemanticOps = (
     }
     if (!sentToTree) {
       sentToTree = true;
-      split.send(slotMeta.gestureId);
+      // 직렬 슬롯 안 - 트리 반영을 기다리지 않는다
+      void split.send(slotMeta.gestureId);
     }
     return split.legacyOps.length > 0 ? split.legacyOps : null;
   };
