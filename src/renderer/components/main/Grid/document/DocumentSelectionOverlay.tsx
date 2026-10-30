@@ -18,6 +18,8 @@ import { useSmartGuidesStore } from '@stores/grid/useSmartGuidesStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import CanvasRotateHandle from '../handles/CanvasRotateHandle';
 import ResizeHandles from '../handles/ResizeHandles';
+import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
+import { useSpritePoseHandleStore } from '@stores/grid/useSpritePoseHandleStore';
 import { SELECTION_BORDER_WIDTH } from '../handles/selectionOutline';
 import { editDocument, setDocumentFrame } from './documentEditActions';
 import { clampGroupResize, scaleDocumentFrames } from './documentGroupResize';
@@ -394,6 +396,14 @@ const DocumentSelectionOverlay = (props: DocumentSelectionOverlayProps) => {
   const mixed = useGridSelectionStore(
     (state) => state.selectedElements.length > 0,
   );
+  // 온캔버스 그라데이션·스프라이트 자세 편집 중에는 그 핸들이 맡는다 (옛 종류와 같다)
+  const gradientSession = useGradientEditStore(
+    (state) => state.session !== null,
+  );
+  const poseSession = useSpritePoseHandleStore(
+    (state) => state.session !== null,
+  );
+  const handlesOpen = !mixed && !gradientSession && !poseSession;
   return (
     <>
       {ids.map((id) => (
@@ -401,10 +411,10 @@ const DocumentSelectionOverlay = (props: DocumentSelectionOverlayProps) => {
           key={id}
           {...props}
           id={id}
-          withHandles={ids.length === 1 && !mixed}
+          withHandles={ids.length === 1 && handlesOpen}
         />
       ))}
-      {ids.length > 1 && !mixed && (
+      {ids.length > 1 && handlesOpen && (
         <>
           <DocumentGroupResizeHandles {...props} ids={ids} />
           <DocumentGroupRotateHandle {...props} ids={ids} />
