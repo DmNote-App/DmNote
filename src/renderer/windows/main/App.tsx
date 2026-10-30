@@ -168,8 +168,6 @@ export default function App() {
   const gridAreaRef = useRef<HTMLDivElement | null>(null);
 
   const {
-    keyMappings,
-    positions,
     handleKeyMappingChange,
     handleResetCurrentMode,
     handleUndo,
@@ -438,8 +436,6 @@ export default function App() {
             onMouseLeave={() => setGridAreaHovered(false)}
           >
             <Grid
-              keyMappings={keyMappings}
-              positions={positions}
               color={backgroundColor}
               activeTool={activeTool}
               showConfirm={showConfirm}

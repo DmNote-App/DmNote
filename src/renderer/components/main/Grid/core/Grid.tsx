@@ -17,7 +17,7 @@ declare global {
 import { useTranslation } from '@contexts/useTranslation';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
 import type { NativeElementType } from '@src/renderer/editor/model/elementIdMap';
-import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
+import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
 import { defaultElementSize, TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import {
   isEditorElementType,
@@ -63,7 +63,6 @@ import { slotCanonical, slotDisplayName } from '@utils/keySlot';
 import { overlayApi } from '@api/modules/window/overlayApi';
 import { panelWindowApi } from '@api/modules/window/panelWindowApi';
 import {
-  composeItemPreviewCollections,
   getPreviewOverlayVersion,
   subscribePreviewOverlay,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
@@ -92,7 +91,10 @@ import {
 import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
 import { keyMenuContextOf } from '@hooks/Grid/contextMenu/useGridContextMenu';
 import { useDocumentKeyboard } from '../document/useDocumentKeyboard';
-import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import {
+  getElementDocumentStore,
+  useElementDocumentScene,
+} from '@src/renderer/editor/document/elementDocumentRuntime';
 import { deleteStructureSelection } from '../document/deleteStructureSelection';
 import {
   documentGroupActions,
@@ -132,8 +134,6 @@ interface GridProps {
     },
   ) => void;
   showAlert: (message: string, confirmText?: string) => void;
-  keyMappings: KeyMappings;
-  positions: ReturnType<typeof useKeyStore.getState>['positions'];
   color: string;
   activeTool: string;
   onUndo: () => void;
@@ -147,8 +147,6 @@ interface GridProps {
 const Grid = ({
   showConfirm,
   showAlert,
-  keyMappings,
-  positions,
   color,
   activeTool,
   onUndo,
@@ -240,24 +238,32 @@ const Grid = ({
   const pluginElements = usePluginDisplayElementStore(
     (state) => state.elements,
   );
-  // 키 외 요소 위치 정보 - canonical 위에 활성 프리뷰 합성
-  const canonicalItemCollections = useItemElementCollections();
+  // 요소 위치 기록 - 트리 값 + 편집 미리보기 (지금 탭, 패널과 같은 원천)
   const previewVersion = useSyncExternalStore(
     subscribePreviewOverlay,
     getPreviewOverlayVersion,
     getPreviewOverlayVersion,
   );
+  const records = treePanelRecords(
+    useElementDocumentScene(selectedKeyType),
+    selectedKeyType,
+  );
   // 묶음 identity 유지 - 컴파일된 자식(선택 오버레이·미니맵)의 메모가 기대는 참조
   const collections = useMemo<ElementCollections>(
-    () => ({
-      keyPositions: positions,
-      ...composeItemPreviewCollections(canonicalItemCollections),
-    }),
-    // canonical 밖 프리뷰 patch가 바뀔 때도 다시 합성
+    () =>
+      ({
+        keyPositions: records.positions,
+        statPositions: records.statItemPositions,
+        graphPositions: records.graphItemPositions,
+        knobPositions: records.knobItemPositions,
+        spritePositions: records.spriteItemPositions,
+      } as unknown as ElementCollections),
+    // 장면·미리보기 판이 같으면 같은 기록
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [positions, canonicalItemCollections, previewVersion],
+    [records, previewVersion],
   );
-  const { statPositions } = collections;
+  const { statPositions, keyPositions: positions } = collections;
+  const keyMappings = records.keyMappings as unknown as KeyMappings;
 
   const panelSelection = usePanelSelection(selectedKeyType);
   // 트리에서 그리는 키의 바깥 카운터는 트리 틀을 따라간다
