@@ -204,6 +204,11 @@ class EditorSaveCoordinator {
     };
   }
 
+  // 지금까지 받은 커밋 이벤트를 모두 스토어에 반영할 때까지
+  whenEventsApplied(): Promise<void> {
+    return this.eventQueue.wait();
+  }
+
   subscribe(listener: (state: EditorCoordinatorState) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

@@ -19,6 +19,10 @@ import {
   type PreviewDomain,
 } from '@src/types/preview';
 import type { ItemElementCollections } from '../../model/elementStores';
+import {
+  composePendingTreeEdits,
+  subscribePendingTreeEdits,
+} from './pendingTreeEdits';
 
 interface PreviewSession {
   mode: string;
@@ -60,9 +64,11 @@ export const composePreviewPositions = <T extends { id: string }>(
   domain: PreviewDomain,
   canonical: Record<string, T[]>,
 ): Record<string, T[]> => {
-  if (sessions.size === 0) return canonical;
+  // 트리로 보낸 겉모습 편집이 먼저, 미리보기가 그 위
+  const pending = composePendingTreeEdits(domain, canonical);
+  if (sessions.size === 0) return pending;
 
-  let rendered = canonical;
+  let rendered = pending;
   for (const session of sessions.values()) {
     const targetPatches = session.domainPatches.get(domain);
     const idPatches = session.localIdPatches.get(domain);
@@ -129,6 +135,9 @@ const refreshRenderedState = () => {
   overlayVersion += 1;
   overlayListeners.forEach((listener) => listener());
 };
+
+const unsubscribePendingTreeEdits =
+  subscribePendingTreeEdits(refreshRenderedState);
 
 const mergeTargetPatch = (
   session: PreviewSession,
@@ -322,6 +331,7 @@ const hotModule = (
 ).hot;
 if (hotModule) {
   hotModule.dispose(() => {
+    unsubscribePendingTreeEdits();
     previewOverlay.clearAll();
     registerRenderedPositionsComposer(null);
   });
