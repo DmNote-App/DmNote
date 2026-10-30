@@ -86,6 +86,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const {
     selectedElements,
     legacySelectionCount,
+    bridgedDocumentSelection,
     selectedKeyType,
     positions,
     canonicalPositions,
@@ -1129,13 +1130,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   // 캔버스 선택에 묶이지 않는 뷰는 EditSessionScope 밖에 둔다.
   // 플러그인 설정 세션의 색상 피커까지 대상 전환 억제를 걸면, 무관한 캔버스 선택
   // 변경 뒤에 피커가 닫힐 때 멀쩡한 색 편집이 폐기된다
-  // 트리 선택이 모두 트리로 옮긴 옛 종류라 옛 패널로 보는 경우 - 위치·회전·숨김·이름·지우기
-  // 커밋은 공통 커밋 경로가 트리로 보낸다
-  const bridgedDocumentSelection =
-    legacySelectionCount === 0 &&
-    selectedElements.length > 0 &&
-    selectedElements.length === documentSelectedIds.length;
-
   const renderPanelBody = () => {
     if (pluginSettingsPanel) {
       return (
@@ -1166,12 +1160,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    // 옛 종류 요소와 섞인 선택 - 함께 편집하는 패널이 생기기 전까지 레이어 패널로 둘 다 보인다.
+    // 옛 종류 요소와 트리에만 있는 종류가 섞인 선택 - 함께 편집하는 패널이 생기기 전까지 레이어 패널로
+    // 둘 다 보인다 (트리로 옮긴 옛 종류만 섞였으면 옛 패널이 함께 본다).
     // 이미 속성 모드라 행 더블클릭은 모드를 뒤집지 않고 속성 모드를 지킨다
     if (
       documentSceneId &&
       documentSelectedIds.length > 0 &&
-      legacySelectionCount > 0
+      legacySelectionCount > 0 &&
+      !bridgedDocumentSelection
     ) {
       return (
         <LayerPanel
@@ -1253,7 +1249,9 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     documentElementId !== null;
   // 트리 요소와 섞인 선택은 레이어 패널을 보이므로 머리도 레이어로
   const mixedSelection =
-    documentSelectedIds.length > 0 && legacySelectionCount > 0;
+    documentSelectedIds.length > 0 &&
+    legacySelectionCount > 0 &&
+    !bridgedDocumentSelection;
   const displayedPanelMode =
     panelMode === 'layer' || !hasAnySelection || mixedSelection
       ? 'layer'

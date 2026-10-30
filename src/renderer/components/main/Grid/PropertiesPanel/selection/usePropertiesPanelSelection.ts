@@ -45,10 +45,10 @@ export const usePropertiesPanelSelection = () => {
   const documentSceneId = useDocumentSelectionStore((state) => state.sceneId);
   const documentIds = useDocumentSelectionStore((state) => state.selectedIds);
   const documentScene = useElementDocumentScene(documentSceneId ?? '');
-  // 트리 선택이 모두 트리로 옮긴 옛 종류면 옛 패널이 그 요소들을 고른 것처럼 본다
-  // (겉모습 칸은 옛 처리기로 쓴다 - 위치·크기는 패널이 트리 처리기로 바꿔 끼운다)
+  // 트리 선택이 모두 트리로 옮긴 옛 종류면 옛 패널이 옛 선택과 함께 그 요소들을 고른 것처럼 본다
+  // (위치·회전·숨김·이름·지우기 커밋은 공통 커밋 경로가 트리로 보낸다)
   const bridgedElements =
-    legacySelection.length === 0 && documentSceneId && documentScene
+    documentSceneId && documentScene
       ? documentIds.flatMap((id) => {
           const element = sceneElements(documentScene).find(
             (node) => node.id === id,
@@ -69,10 +69,11 @@ export const usePropertiesPanelSelection = () => {
             : [];
         })
       : [];
-  const selectedElements =
-    bridgedElements.length > 0 && bridgedElements.length === documentIds.length
-      ? bridgedElements
-      : legacySelection;
+  const bridgedDocumentSelection =
+    bridgedElements.length > 0 && bridgedElements.length === documentIds.length;
+  const selectedElements = bridgedDocumentSelection
+    ? [...legacySelection, ...bridgedElements]
+    : legacySelection;
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   const positions = useKeyStore((state) => state.positions);
   const canonicalPositions = useKeyStore((state) => state.canonicalPositions);
@@ -386,6 +387,7 @@ export const usePropertiesPanelSelection = () => {
     selectedElements,
     // 실제 옛 선택 수 - 트리 선택을 옛 패널로 본 경우와 섞인 선택을 가린다
     legacySelectionCount: legacySelection.length,
+    bridgedDocumentSelection,
     selectedKeyType,
     positions,
     canonicalPositions,
