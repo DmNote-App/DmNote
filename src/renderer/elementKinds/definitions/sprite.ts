@@ -1,6 +1,10 @@
 import { createElement } from 'react';
 import OverlaySpriteItem from '@components/overlay/counters/OverlaySpriteItem';
 import { defineElementKind, type FieldDecl } from '../defineElementKind';
+import SpriteEditorFace from './sprite/SpriteEditorFace';
+import SpriteEditorHandles, {
+  spriteOccupiedResizeHandle,
+} from './sprite/SpriteEditorHandles';
 
 // 반응형 스프라이트 - 담당 키를 누르는 동안 자세가 바뀌는 이미지 레이어
 
@@ -160,7 +164,13 @@ export const spriteKind = defineElementKind(
     rotatable: false,
   },
   {
-    // 오버레이·OBS는 트리에서 옛 스프라이트를 그대로 그린다(트리거 키는 오버레이 맥락). 편집 화면은 옛 경로
+    // 편집 화면은 옛 스프라이트 겉모습, 오버레이·OBS는 트리에서 옛 스프라이트를 그대로 그린다(트리거 키는 오버레이 맥락)
+    render: SpriteEditorFace as never,
+    // 그림 레이어 - 늘리지 않는다
+    lockAspect: () => true,
+    // 회전은 스프라이트 전용 손잡이, 기준점 표식이 앉은 크기 조절 자리는 비운다
+    editorHandles: SpriteEditorHandles,
+    occupiedResizeHandle: spriteOccupiedResizeHandle,
     legacyOverlay: ({ position, context }) =>
       createElement(OverlaySpriteItem, {
         position: position as never,

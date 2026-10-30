@@ -8,6 +8,7 @@ import SpriteRotateHandle from '../handles/SpriteRotateHandle';
 import SelectionRotateHandle from '../handles/SelectionRotateHandle';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
 import { usePanelSelection } from '../document/treeEditedSelection';
+import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
 import { useSelectionRotationFrame } from '@hooks/Grid/selection/useSelectionRotationFrame';
 import { isRotatableElementType } from '@src/types/elementKinds';
 import {
@@ -78,6 +79,16 @@ const GridSelectionOverlays = ({
   const selectionFrame = useSelectionRotationFrame();
   // 일괄 그라데이션 축은 패널이 편집하는 선택(트리로 옮긴 옛 종류 포함)을 감싼다
   const panelSelection = usePanelSelection(mode);
+  // 기준점·자세 손잡이 - 트리에서 그리는 스프라이트는 트리 틀(끌기·크기 미리보기 포함)을 따른다
+  const framedSprites = useTreeFramedPositions(
+    'sprite',
+    collections.spritePositions[mode] ?? [],
+    mode,
+  );
+  const spriteHandlePositions = {
+    ...collections.spritePositions,
+    [mode]: [...framedSprites],
+  };
   // 트리 요소와 섞인 선택 - 묶음 손잡이가 한쪽만 돌리거나 늘리지 않게 손잡이를 닫는다 (윤곽은 그대로)
   const mixedWithDocument = useDocumentSelectionStore(
     (state) => state.selectedIds.length > 0,
@@ -304,8 +315,8 @@ const GridSelectionOverlays = ({
       />
       {/* 온캔버스 스프라이트 핸들 - 선택 중엔 기준점, 자세 편집 중엔 자세 프레임 */}
       <SpriteCanvasHandles
-        spritePositions={collections.spritePositions}
-        selectedElements={selectedElements}
+        spritePositions={spriteHandlePositions}
+        selectedElements={panelSelection}
         selectedKeyType={mode}
         zoom={zoom}
         panX={panX}

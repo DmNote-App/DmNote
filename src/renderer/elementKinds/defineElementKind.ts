@@ -6,6 +6,7 @@
 import type { OverlayItemContext } from '@components/overlay/counters/overlayItemRenderers';
 import type { ComponentType } from 'react';
 
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import type { ElementRenderProps } from './runtime/renderTypes';
 import type {
   AssetKind,
@@ -107,6 +108,18 @@ export type FieldValues<Fields extends readonly FieldDecl[]> = {
 export type KindValues<D extends { fields: readonly FieldDecl[] }> =
   FieldValues<D['fields']>;
 
+export interface EditorHandlesProps {
+  sceneId: string;
+  element: ElementNode;
+  // 확정 틀(손잡이 기준)과 크기 조절 미리보기
+  bounds: { x: number; y: number; width: number; height: number };
+  previewBounds: { x: number; y: number; width: number; height: number } | null;
+  rotation: number;
+  zoom: number;
+  panX: number;
+  panY: number;
+}
+
 // 코드 부분 - 그리기·미리보기·이름 (백엔드는 읽지 않는다)
 export interface ElementKindCode<Values> {
   // 선언으로 못 옮기는 버전 옮기기 - 옛 값을 받아 새 규칙표에 맞는 값을 돌려준다
@@ -128,6 +141,13 @@ export interface ElementKindCode<Values> {
   readonly faceOwnsClassName?: boolean;
   // 크기 조절 때 비율을 지킬지
   readonly lockAspect?: (values: Values) => boolean;
+  // 편집 화면에서 하나만 골랐을 때 더 그리는 종류 전용 손잡이 (예: 스프라이트 회전)
+  readonly editorHandles?: ComponentType<EditorHandlesProps>;
+  // 크기 조절 손잡이 중 비울 자리 - 종류의 다른 표식이 그 자리에 앉는다 (예: 스프라이트 기준점)
+  readonly occupiedResizeHandle?: (
+    element: ElementNode,
+    sceneId: string,
+  ) => { x: number; y: number } | null;
   // 값이 바뀔 때 함께 맞출 위치·크기 (예: 비율 고정으로 바꾸면 높이를 비율에 맞춘다)
   readonly adjustFrame?: (
     values: Values,

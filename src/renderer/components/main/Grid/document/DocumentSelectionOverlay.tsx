@@ -148,6 +148,9 @@ const SelectionItem = ({
           panY={panY}
           elementId={element.id}
           lockAspect={lockAspect}
+          occupiedHandle={
+            definition?.occupiedResizeHandle?.(element, sceneId) ?? null
+          }
           rotation={frame.rotation}
           onResize={(result) => {
             if (resizeCancelled.isCancelled()) return;
@@ -200,6 +203,18 @@ const SelectionItem = ({
               useDocumentFramePreviewStore.getState().clear(element.id),
             );
           }}
+        />
+      )}
+      {withHandles && definition?.editorHandles && (
+        <definition.editorHandles
+          sceneId={sceneId}
+          element={element}
+          bounds={bounds}
+          previewBounds={preview ?? null}
+          rotation={frame.rotation}
+          zoom={zoom}
+          panX={panX}
+          panY={panY}
         />
       )}
       {withHandles && definition?.rotatable !== false && (
