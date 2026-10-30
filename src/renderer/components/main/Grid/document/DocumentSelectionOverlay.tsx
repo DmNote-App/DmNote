@@ -25,6 +25,7 @@ import { editDocument, setDocumentFrame } from './documentEditActions';
 import { clampGroupResize, scaleDocumentFrames } from './documentGroupResize';
 import { startDocumentRotation } from './documentRotation';
 import {
+  documentRotationEntries,
   documentSelectionFrame,
   startDocumentGroupRotation,
 } from './documentGroupRotation';
@@ -231,16 +232,7 @@ const DocumentGroupRotateHandle = ({
   panY,
 }: DocumentSelectionOverlayProps & { ids: readonly string[] }) => {
   const scene = useElementDocumentScene(sceneId);
-  const store = getElementDocumentStore();
-  const entries = ids.flatMap((id) => {
-    const element = store?.getElement(sceneId, id);
-    return element ? [{ id, frame: element.frame }] : [];
-  });
-  const rotatable = entries.every(
-    ({ id }) =>
-      elementKindDefinition(store?.getElement(sceneId, id)?.kind ?? '')
-        ?.rotatable !== false,
-  );
+  const { entries, rotatable } = documentRotationEntries(scene, ids);
   const frame = documentSelectionFrame(entries);
   if (!scene || !frame || !rotatable || entries.length < 2) return null;
   return (

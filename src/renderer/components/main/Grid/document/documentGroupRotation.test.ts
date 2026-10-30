@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('./documentEditActions', () => ({ editDocument: mocks.edit }));
 
 import {
+  documentRotationEntries,
   documentSelectionFrame,
   startDocumentGroupRotation,
 } from './documentGroupRotation';
@@ -77,5 +78,49 @@ describe('트리 요소 묶음 회전', () => {
     session.cancel();
     expect(useDocumentFramePreviewStore.getState().frames).toEqual({});
     expect(mocks.edit).not.toHaveBeenCalled();
+  });
+});
+
+describe('묶음 회전 대상', () => {
+  const element = (id: string, kind: string, frame: Frame) => ({
+    type: 'element' as const,
+    id,
+    kind,
+    frame,
+  });
+
+  it('고른 요소의 틀을 장면 순서와 무관하게 고른 순서로, 그룹 안 요소도 찾는다', () => {
+    const scene = {
+      nodes: [
+        element('a', 'key', box(0, 0)),
+        {
+          type: 'group' as const,
+          id: 'g',
+          name: 'G',
+          children: [element('b', 'stat', box(40, 0, 15))],
+        },
+      ],
+    };
+    expect(documentRotationEntries(scene, ['b', 'a', 'missing'])).toEqual({
+      entries: [
+        { id: 'b', frame: box(40, 0, 15) },
+        { id: 'a', frame: box(0, 0) },
+      ],
+      rotatable: true,
+    });
+  });
+
+  it('회전 못 하는 종류가 섞이면 돌릴 수 없다', () => {
+    const scene = {
+      nodes: [
+        element('a', 'key', box(0, 0)),
+        element('p', 'plugin:demo', box(10, 10)),
+      ],
+    };
+    expect(documentRotationEntries(scene, ['a', 'p']).rotatable).toBe(false);
+    expect(documentRotationEntries(undefined, ['a'])).toEqual({
+      entries: [],
+      rotatable: false,
+    });
   });
 });

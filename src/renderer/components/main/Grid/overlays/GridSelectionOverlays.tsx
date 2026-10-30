@@ -5,12 +5,10 @@ import GradientAxisOverlay from '../handles/GradientAxisHandle';
 import SpriteCanvasHandles from '../handles/SpriteCanvasHandles';
 import NativeRotateHandle from '../handles/NativeRotateHandle';
 import SpriteRotateHandle from '../handles/SpriteRotateHandle';
-import SelectionRotateHandle from '../handles/SelectionRotateHandle';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
 import { usePanelSelection } from '../document/treeEditedSelection';
 import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
 import { projectSpriteResize } from '@utils/sprite/resizeProjection';
-import { useSelectionRotationFrame } from '@hooks/Grid/selection/useSelectionRotationFrame';
 import { isRotatableElementType } from '@src/types/elementKinds';
 import {
   getSelectionOutlineEdges,
@@ -77,7 +75,6 @@ const GridSelectionOverlays = ({
   onGroupResizeEnd,
   getOtherElements,
 }: GridSelectionOverlaysProps) => {
-  const selectionFrame = useSelectionRotationFrame();
   // 일괄 그라데이션 축은 패널이 편집하는 선택(트리로 옮긴 옛 종류 포함)을 감싼다
   const panelSelection = usePanelSelection(mode);
   // 기준점·자세 손잡이 - 트리에서 그리는 스프라이트는 트리 틀(끌기·크기 미리보기 포함)을 따른다
@@ -110,27 +107,13 @@ const GridSelectionOverlays = ({
   const mixedWithDocument = useDocumentSelectionStore(
     (state) => state.selectedIds.length > 0,
   );
-  // 공통 틀이 없는 회전 혼합 선택은 개별 윤곽만 표시하고 그룹 리사이즈는 닫는다
+  // 회전 섞인 여러 선택은 개별 윤곽만 표시하고 그룹 리사이즈는 닫는다
   const rotatedWithoutFrame =
     selectedElements.length > 1 &&
-    !selectionFrame &&
     selectedElements.some(
       (element) => getElementRotation(element, collections, mode) !== 0,
     );
   const isMultiSelection = selectedElements.length > 1;
-  const rotationFrame =
-    selectionFrame &&
-    (selectionFrame.rotation !== 0 ||
-      selectionFrame.snapshot.hasRotatedContent ||
-      selectionFrame.snapshot.entries.some(
-        (entry) =>
-          entry.type === 'sprite' &&
-          (entry.idleTransform.x !== 0 ||
-            entry.idleTransform.y !== 0 ||
-            entry.idleTransform.scale !== 1),
-      ))
-      ? { bounds: selectionFrame.bounds, rotation: selectionFrame.rotation }
-      : undefined;
   const groupData =
     isMultiSelection && !rotatedWithoutFrame
       ? calculateGroupBounds(
@@ -143,8 +126,8 @@ const GridSelectionOverlays = ({
   // 그룹 핸들이 실제로 그리는 프레임과 같은 좌표·회전·프리뷰 사용
   const groupOutlineFrame = groupData
     ? {
-        bounds: previewGroupBounds ?? rotationFrame?.bounds ?? groupData,
-        rotation: rotationFrame?.rotation ?? 0,
+        bounds: previewGroupBounds ?? groupData,
+        rotation: 0,
       }
     : null;
   const previewByElement = new Map(
@@ -292,7 +275,6 @@ const GridSelectionOverlays = ({
             panX={panX}
             panY={panY}
             previewGroupBounds={previewGroupBounds}
-            rotationFrame={rotationFrame}
             onGroupResizeStart={onResizeStart}
             onGroupResize={onGroupResize}
             onGroupResizeEnd={onGroupResizeEnd}
@@ -310,18 +292,6 @@ const GridSelectionOverlays = ({
           panY={panY}
         />
       )}
-      {selectedElements.length > 1 &&
-        !mixedWithDocument &&
-        !hasGradientEditSession &&
-        !previewElementBounds &&
-        selectionFrame && (
-          <SelectionRotateHandle
-            frame={selectionFrame}
-            zoom={zoom}
-            panX={panX}
-            panY={panY}
-          />
-        )}
       <GradientAxisOverlay
         collections={collections}
         selectedElements={panelSelection}

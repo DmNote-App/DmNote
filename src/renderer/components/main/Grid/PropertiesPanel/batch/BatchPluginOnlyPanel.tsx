@@ -3,7 +3,6 @@ import { PANEL_ROOT_CLASS } from '../navigation/panelChrome';
 import { PropertySection } from '../controls/PropertyInputs';
 import { TABS, type TabType } from '../types';
 import BatchGeometrySection from './geometry/BatchGeometrySection';
-import SelectionRotationInput from './geometry/SelectionRotationInput';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
 import BatchPanelHeader from './BatchPanelHeader';
 import type { MixedValueResult } from './batchPanelShared';
@@ -95,9 +94,6 @@ const BatchPluginOnlyPanel: React.FC<BatchPluginOnlyPanelProps> = ({
                 handleBatchSpacingCommit={handleBatchSpacingCommit}
                 batchSpacing={batchPluginSpacing}
                 t={t}
-              />
-              <SelectionRotationInput
-                label={t('propertiesPanel.rotation') || '회전'}
               />
             </PropertySection>
           </EditSessionBoundary>

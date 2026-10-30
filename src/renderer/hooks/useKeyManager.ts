@@ -20,8 +20,6 @@ import { keysApi } from '@api/modules/editor/keysApi';
 
 export function useKeyManager() {
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
-  const keyMappings = useKeyStore((state) => state.keyMappings);
-  const positions = useKeyStore((state) => state.positions);
 
   // undo/redo 로컬 single-flight 가드
   const historyActionInFlightRef = useRef(false);
@@ -95,8 +93,6 @@ export function useKeyManager() {
   const handleRedo = () => void executeHistoryAction('redo');
 
   return {
-    keyMappings,
-    positions,
     handleKeyMappingChange,
     handleResetCurrentMode,
     handleUndo,

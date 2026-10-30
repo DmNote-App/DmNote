@@ -1,4 +1,6 @@
-import type { Frame } from '@src/types/generated/elementDocument';
+import type { Frame, Node, Scene } from '@src/types/generated/elementDocument';
+import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
+import { isPluginKind } from '@src/types/elementKinds';
 import {
   pointsAabb,
   rotatePointAround,
@@ -14,6 +16,41 @@ export interface DocumentRotationEntry {
 }
 
 const ORIGIN = { x: 0, y: 0 };
+
+const findElement = (nodes: readonly Node[], id: string) => {
+  for (const node of nodes) {
+    if (node.type === 'element') {
+      if (node.id === id) return node;
+    } else {
+      const inner: Extract<Node, { type: 'element' }> | undefined = findElement(
+        node.children,
+        id,
+      );
+      if (inner) return inner;
+    }
+  }
+  return undefined;
+};
+
+/** 묶음 회전 대상 - 고른 순서대로 트리 요소의 틀. 플러그인·회전 없는 종류가 섞이면 돌릴 수 없다 */
+export const documentRotationEntries = (
+  scene: Scene | undefined,
+  ids: readonly string[],
+) => {
+  if (!scene)
+    return { entries: [] as DocumentRotationEntry[], rotatable: false };
+  const elements = ids.flatMap((id) => {
+    const element = findElement(scene.nodes, id);
+    return element ? [element] : [];
+  });
+  return {
+    entries: elements.map(({ id, frame }) => ({ id, frame })),
+    rotatable: elements.every(
+      ({ kind }) =>
+        !isPluginKind(kind) && elementKindDefinition(kind)?.rotatable !== false,
+    ),
+  };
+};
 
 const corners = (frame: Frame): Point[] => {
   const center = {

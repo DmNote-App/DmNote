@@ -20,7 +20,6 @@ import {
   useGridSelectionStore,
   type SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
-import { useSelectionRotationStore } from '@stores/grid/useSelectionRotationStore';
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -158,10 +157,6 @@ describe('GridSelectionOverlays', () => {
     useGraphItemStore.setState({ positions: {} });
     useKnobItemStore.setState({ positions: {} });
     useSpriteStore.setState({ positions: {} });
-    useSelectionRotationStore.setState({
-      selectionKey: null,
-      referenceRotation: 0,
-    });
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
@@ -251,30 +246,6 @@ describe('GridSelectionOverlays', () => {
       host.querySelector('[data-rotation-handles="selection"]'),
     ).toBeNull();
   });
-
-  it.each([0, 30])(
-    '기존 각도 %s°의 다중 선택은 공통 틀과 개별 윤곽을 함께 표시한다',
-    (rotation) => {
-      renderOverlays({
-        selectedElements: [
-          { type: 'key', id: FIRST_ID, index: 0 },
-          { type: 'key', id: SECOND_ID, index: 1 },
-        ],
-        firstKeyRotation: rotation,
-      });
-      expect(
-        host.querySelectorAll('[data-grid-selection-outline]'),
-      ).toHaveLength(2);
-      expect(host.querySelectorAll('[data-group-resize-handles]')).toHaveLength(
-        1,
-      );
-      expect(
-        host.querySelectorAll('[data-rotation-handles="selection"]'),
-      ).toHaveLength(1);
-      expect(host.querySelectorAll('[data-rotate-corner]')).toHaveLength(4);
-      expect(host.querySelector('[data-rotation-handles="native"]')).toBeNull();
-    },
-  );
 
   it('회전 요소가 든 플러그인 혼합 선택은 공통 틀이 없어 그룹 리사이즈도 닫는다', () => {
     const mixed = [

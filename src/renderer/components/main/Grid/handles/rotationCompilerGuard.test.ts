@@ -1,6 +1,5 @@
 /**
- * React Compiler 회귀 가드 - 회전 핸들·패널 입력은 컴파일 대상으로 남고,
- * 프리뷰 모듈 상태를 읽는 선택 틀 훅만 'use no memo'로 제외를 명시한다
+ * React Compiler 회귀 가드 - 회전 핸들·패널 입력은 컴파일 대상으로 남는다
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -27,14 +26,5 @@ const COMPILED = [
 describe('요소 회전 컴파일러 가드', () => {
   it.each(COMPILED)('%s는 컴파일 대상으로 남는다', (path) => {
     expect(compile(path)).toContain('react/compiler-runtime');
-  });
-
-  it("useSelectionRotationFrame은 'use no memo'로 제외를 명시한다", () => {
-    const path =
-      'src/renderer/hooks/Grid/selection/useSelectionRotationFrame.ts';
-    expect(readFileSync(resolve(process.cwd(), path), 'utf8')).toMatch(
-      /^'use no memo';/,
-    );
-    expect(compile(path)).not.toContain('react/compiler-runtime');
   });
 });
