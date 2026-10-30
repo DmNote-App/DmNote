@@ -42,6 +42,21 @@ const runtime = vi.hoisted(() => {
   };
 });
 
+// 스프라이트 손잡이는 지금 값을 트리에서 읽는다 - 이 테스트는 모듈을 매번 다시 불러오므로
+// 그때의 스프라이트 스토어 값을 지금 값으로 돌려준다
+const treeHost = vi.hoisted(() => ({
+  positions: (() => undefined) as (
+    mode: string,
+  ) => Array<{ id: string }> | undefined,
+}));
+vi.mock(
+  '@src/renderer/elementKinds/runtime/treeElementPosition',
+  async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    currentTreePosition: (mode: string, id: string) =>
+      treeHost.positions(mode)?.find((position) => position.id === id),
+  }),
+);
 vi.mock('@api/modules/editor/editorApi', () => ({
   editorApi: {
     get: runtime.get,
@@ -202,6 +217,8 @@ describe('SpriteCanvasHandles 기준점 드래그 통합', () => {
     });
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     harness = await loadHarness();
+    treeHost.positions = (mode) =>
+      harness.useSpriteStore.getState().positions[mode];
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);

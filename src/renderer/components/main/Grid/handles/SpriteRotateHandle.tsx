@@ -1,5 +1,5 @@
 import { spriteItemsApi } from '@api/modules/editor/itemsApi';
-import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
+import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import CanvasRotateHandle from './CanvasRotateHandle';
 import type { Bounds } from './groupResizeUtils';
@@ -31,14 +31,14 @@ const SpriteRotateHandle = ({
     panY={panY}
     sessionKey={`sprite:${mode}:${elementId}`}
     start={() => {
-      if (resolveElementById('sprite', elementId)?.mode !== mode) return null;
+      if (!currentTreePosition(mode, elementId)) return null;
       let gestureId: string | undefined;
       return {
         preview: (value) => {
           if (
             (gestureId &&
               editGestureController.activeGestureId() !== gestureId) ||
-            resolveElementById('sprite', elementId)?.mode !== mode
+            !currentTreePosition(mode, elementId)
           )
             return false;
           editGestureController.preview(

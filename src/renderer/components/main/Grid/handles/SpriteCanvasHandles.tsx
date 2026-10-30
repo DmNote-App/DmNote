@@ -9,12 +9,11 @@ import {
   useSpritePoseHandleStore,
   type SpritePoseHandleSession,
 } from '@stores/grid/useSpritePoseHandleStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import { spriteItemsApi } from '@api/modules/editor/itemsApi';
 import { subscribeHistoryEditorFlushStart } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
-import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
+import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import {
   SPRITE_CONSTRAINTS,
@@ -174,13 +173,12 @@ const PIVOT_BRACKETS = (() => {
 // 축과 겹친 모서리는 배율 방향이 정의되지 않아 잡지 않는다
 const MIN_SCALE_ARM_PX = 2;
 
+// 지금 값(트리 낙관 적용 포함, 미리보기 없음)
 const findCanonicalSprite = (
   mode: string,
   id: string,
 ): ReactiveSpritePosition | null =>
-  useSpriteStore
-    .getState()
-    .positions[mode]?.find((candidate) => candidate.id === id) ?? null;
+  (currentTreePosition(mode, id) as ReactiveSpritePosition | undefined) ?? null;
 
 const SpriteCanvasHandles = ({
   spritePositions,
@@ -900,9 +898,7 @@ const SpriteCanvasHandles = ({
     } else {
       const id = live.sprite?.id;
       if (!id || !isNativeElementId(id)) return;
-      const locator = resolveElementById('sprite', id);
-      if (!locator) return;
-      const canonical = findCanonicalSprite(locator.mode, id);
+      const canonical = findCanonicalSprite(selectedKeyType, id);
       if (!canonical) return;
       // 컨트롤러 소유권이 사라진 로컬 프리뷰는 새 조작보다 먼저 회수한다
       reclaimedOrphanPreview =
@@ -937,7 +933,7 @@ const SpriteCanvasHandles = ({
       ).rect;
       pivotBase = {
         kind: 'base',
-        mode: locator.mode,
+        mode: selectedKeyType,
         id,
         canonical,
         frame: {
