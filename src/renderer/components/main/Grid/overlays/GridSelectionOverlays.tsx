@@ -9,6 +9,7 @@ import SelectionRotateHandle from '../handles/SelectionRotateHandle';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
 import { usePanelSelection } from '../document/treeEditedSelection';
 import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
+import { projectSpriteResize } from '@utils/sprite/resizeProjection';
 import { useSelectionRotationFrame } from '@hooks/Grid/selection/useSelectionRotationFrame';
 import { isRotatableElementType } from '@src/types/elementKinds';
 import {
@@ -85,9 +86,25 @@ const GridSelectionOverlays = ({
     collections.spritePositions[mode] ?? [],
     mode,
   );
+  // 크기가 달라졌으면 이동값도 같은 비율로 (얼굴·커밋과 같은 projection)
   const spriteHandlePositions = {
     ...collections.spritePositions,
-    [mode]: [...framedSprites],
+    [mode]: framedSprites.map((framed, index) => {
+      const source = collections.spritePositions[mode]?.[index];
+      return source && framed !== source
+        ? {
+            ...framed,
+            ...projectSpriteResize(source, {
+              dx: framed.dx,
+              dy: framed.dy,
+              width: framed.width,
+              height: framed.height,
+            }),
+            rotation: framed.rotation,
+            hidden: framed.hidden,
+          }
+        : framed;
+    }),
   };
   // 트리 요소와 섞인 선택 - 묶음 손잡이가 한쪽만 돌리거나 늘리지 않게 손잡이를 닫는다 (윤곽은 그대로)
   const mixedWithDocument = useDocumentSelectionStore(
