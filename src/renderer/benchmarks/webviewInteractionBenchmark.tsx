@@ -840,7 +840,6 @@ export const prepareWebViewInteractionBenchmark = (): void => {
   if (scenario === 'GRID-09') {
     useGridSelectionStore.setState({
       selectedElements: [],
-      selectedGroupIds: [],
       isMarqueeSelecting: false,
       marqueeStart: null,
       marqueeEnd: null,

@@ -477,27 +477,4 @@ describe('GridSelectionOverlays', () => {
     expect(host.querySelector('[data-group-resize-handles]')).toBeNull();
     expect(host.querySelector('[data-gradient-axis]')).not.toBeNull();
   });
-
-  it('단독 스프라이트는 배치 회전을 표시하고 자세 편집 중에는 자세 핸들에 자리를 내준다', () => {
-    const options = {
-      selectedElements: [{ type: 'sprite' as const, id: FIRST_ID }],
-      spritePositions: {
-        '4key': [makeCanonicalSpritePosition({ id: FIRST_ID, rotation: 90 })],
-      },
-    };
-    renderOverlays(options);
-    expect(
-      host.querySelectorAll('[data-rotation-handles="native"]'),
-    ).toHaveLength(1);
-    expect(host.querySelectorAll('[data-rotate-corner]')).toHaveLength(4);
-    expect(
-      (host.querySelector('[data-grid-selection-outline]') as HTMLElement).style
-        .transform,
-    ).toBe('rotate(90deg)');
-    renderOverlays({ ...options, hasSpritePoseSession: true });
-    expect(host.querySelector('[data-rotation-handles="native"]')).toBeNull();
-    expect(host.querySelector('[data-sprite-handles]')).not.toBeNull();
-    renderOverlays(options);
-    expect(host.querySelectorAll('[data-rotate-corner]')).toHaveLength(4);
-  });
 });

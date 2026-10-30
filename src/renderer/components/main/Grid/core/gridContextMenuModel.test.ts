@@ -4,7 +4,6 @@ import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import {
   buildMixedSelectionMenuItems,
   gridAddTypeForMenuItem,
-  isStableNativeSelection,
   shouldOpenMixedSelectionMenu,
 } from './gridContextMenuModel';
 
@@ -46,18 +45,7 @@ describe('gridContextMenuModel', () => {
     );
   });
 
-  it('native 안정 ID와 그리드 추가 메뉴 ID를 fail-closed로 분류한다', () => {
-    const nativeId = '11111111-1111-4111-8111-111111111111';
-    expect(isStableNativeSelection({ type: 'key', id: nativeId })).toBe(true);
-    expect(isStableNativeSelection({ type: 'sprite', id: nativeId })).toBe(
-      true,
-    );
-    expect(isStableNativeSelection({ type: 'plugin', id: nativeId })).toBe(
-      false,
-    );
-    expect(isStableNativeSelection({ type: 'key', id: '' })).toBe(false);
-    expect(isStableNativeSelection({ type: 'key', id: 'legacy' })).toBe(false);
-
+  it('그리드 추가 메뉴 ID를 fail-closed로 분류한다', () => {
     expect(gridAddTypeForMenuItem('add')).toBe('key');
     expect(gridAddTypeForMenuItem('addStat')).toBe('stat');
     expect(gridAddTypeForMenuItem('addGraph')).toBe('graph');

@@ -613,7 +613,6 @@ const resetStores = () => {
   });
   useGridSelectionStore.setState({
     selectedElements: [],
-    selectedGroupIds: [],
   });
 };
 
@@ -694,7 +693,6 @@ describe('PropertiesPanel canonical native contract', () => {
     }
     useGridSelectionStore.setState({
       selectedElements: [{ type, id, index: staleIndex }],
-      selectedGroupIds: [],
     });
   };
 
@@ -891,7 +889,6 @@ describe('PropertiesPanel canonical native contract', () => {
         id,
         index,
       })),
-      selectedGroupIds: [],
     });
     mounted = mountPanel();
     const props = batchGraphPropsMock.mock.lastCall?.[0] as {
@@ -962,7 +959,6 @@ describe('PropertiesPanel canonical native contract', () => {
       }
       useGridSelectionStore.setState({
         selectedElements: ids.map((id, index) => ({ type, id, index })),
-        selectedGroupIds: [],
       });
       mounted = mountPanel();
       const props = (
@@ -1003,7 +999,6 @@ describe('PropertiesPanel canonical native contract', () => {
         { type: 'key', id: firstId, index: 1 },
         { type: 'key', id: secondId, index: 0 },
       ],
-      selectedGroupIds: [],
     });
     mounted = mountPanel();
     const props = batchPropsMock.mock.lastCall?.[0] as {
@@ -1047,7 +1042,6 @@ describe('PropertiesPanel canonical native contract', () => {
         { type: 'key', id: stableId, index: 0 },
         { type: 'key', id: 'key-1', index: 1 },
       ],
-      selectedGroupIds: [],
     });
     mounted = mountPanel();
 
@@ -1089,7 +1083,6 @@ describe('PropertiesPanel canonical native contract', () => {
           { type: 'key', id: MIXED_KEY_ID, index: 0 },
           { type: 'sprite', id: MIXED_SPRITE_ID, index: 0 },
         ],
-        selectedGroupIds: [],
       });
 
       mounted = mountPanel();
@@ -1143,7 +1136,6 @@ describe('PropertiesPanel canonical native contract', () => {
           { type: 'key', id: MIXED_KEY_ID, index: 0 },
           { type: 'sprite', id: MIXED_SPRITE_ID, index: 0 },
         ],
-        selectedGroupIds: [],
       });
 
       mounted = mountPanel();
@@ -1214,7 +1206,6 @@ describe('PropertiesPanel canonical native contract', () => {
           { type: 'key', id: SECOND_KEY_ID, index: 1 },
           { type: 'plugin', id: PLUGIN_FULL_ID },
         ],
-        selectedGroupIds: [],
       });
     };
 
@@ -1322,7 +1313,6 @@ describe('PropertiesPanel canonical native contract', () => {
           { type: 'key', id: SECOND_KEY_ID, index: 1 },
           { type: 'plugin', id: PLUGIN_FULL_ID },
         ],
-        selectedGroupIds: [],
       });
       mounted = mountPanel();
 
@@ -1360,7 +1350,6 @@ describe('PropertiesPanel canonical native contract', () => {
           { type: 'plugin', id: PLUGIN_FULL_ID },
           { type: 'plugin', id: secondFullId },
         ],
-        selectedGroupIds: [],
       });
       mounted = mountPanel();
 
@@ -1407,7 +1396,6 @@ describe('PropertiesPanel 편집 세션 scope 경계', () => {
     });
     useGridSelectionStore.setState({
       selectedElements: [{ type: 'stat', id, index: 0 }],
-      selectedGroupIds: [],
     });
     mounted = mountPanel();
 
@@ -1502,7 +1490,6 @@ describe('PropertiesPanel 배치 색상 피커 대상 결합', () => {
         id: `key-${index}`,
         index,
       })),
-      selectedGroupIds: [],
     });
   };
 
@@ -1575,7 +1562,6 @@ describe('PropertiesPanel detached selection sync contract', () => {
     usePropertiesPanelStore.setState({ propertyPanelActiveTab: 'counter' });
     useGridSelectionStore.setState({
       selectedElements: [{ type: 'graph', id: 'graph-0', index: 0 }],
-      selectedGroupIds: [],
     });
     mounted = mountPanel();
 
@@ -1590,7 +1576,6 @@ describe('PropertiesPanel detached selection sync contract', () => {
       usePropertiesPanelStore.setState({ canvasPanelMode: mode });
       useGridSelectionStore.setState({
         selectedElements: [{ type: 'plugin', id: 'missing-plugin' }],
-        selectedGroupIds: [],
       });
       mounted = mountPanel();
 
@@ -1605,7 +1590,6 @@ describe('PropertiesPanel detached selection sync contract', () => {
     act(() => {
       useGridSelectionStore.setState({
         selectedElements: [{ type: 'plugin', id: 'missing-plugin' }],
-        selectedGroupIds: [],
       });
     });
 

@@ -6,13 +6,14 @@ import { useKeyStore } from '@stores/data/useKeyStore';
 import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
 import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import {
-  composePreviewPositions,
   previewOverlay,
+  previewPatchOf,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 
 import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
+import type { PreviewDomain } from '@src/types/preview';
 
 import {
   previewBatchGraphColor,
@@ -70,6 +71,17 @@ const knobFixture = (): CanonicalEditorDocumentV1['knobPositions'] =>
       },
     ],
   } as CanonicalEditorDocumentV1['knobPositions']);
+
+// 화면에 보일 값 - 지금 값 위에 요소별 미리보기 patch
+const composePreviewPositions = <T extends { id: string }>(
+  domain: PreviewDomain,
+  canonical: Record<string, T[]>,
+): Record<string, T[]> => ({
+  '4key': (canonical['4key'] ?? []).map((position) => ({
+    ...position,
+    ...previewPatchOf(domain, '4key', position.id),
+  })),
+});
 
 const composedKey = () =>
   composePreviewPositions(

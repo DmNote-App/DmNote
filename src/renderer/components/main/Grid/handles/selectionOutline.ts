@@ -4,7 +4,11 @@ import {
   type Point,
 } from '@utils/element/rotation';
 import type { Bounds } from './groupResizeUtils';
-import type { GroupRotationFrame } from './rotatedGroupResize';
+
+export interface GroupRotationFrame {
+  bounds: Bounds;
+  rotation: number;
+}
 
 // 선택 테두리 규격 - 상자 바깥쪽에 선을 두르고 선 중심은 두께의 절반만큼 바깥에 배치
 // 테두리·리사이즈 핸들·스프라이트 기준점 표식이 같은 프레임에 놓이도록 한 곳에서 정한다

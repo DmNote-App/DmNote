@@ -13,9 +13,6 @@ import {
 } from './groupResizeUtils';
 import type { GroupResizeHandle, GroupResizeResult } from './groupResizePlan';
 import { useGroupResizeSession } from './useGroupResizeSession';
-import { rotatePointAround } from '@utils/element/rotation';
-import { resizeCursorForHandle } from './rotatedResize';
-import type { GroupRotationFrame } from './rotatedGroupResize';
 import {
   GROUP_SELECTION_BORDER_WIDTH,
   GROUP_SELECTION_BORDER_COLOR,
@@ -33,7 +30,6 @@ interface HandleProps {
   handle: GroupResizeHandle;
   centerX: number;
   centerY: number;
-  rotation: number;
   onMouseDown: (e: React.MouseEvent, handle: GroupResizeHandle) => void;
 }
 
@@ -46,7 +42,6 @@ interface GroupResizeHandlesProps {
   panX?: number;
   panY?: number;
   previewGroupBounds?: Bounds | null;
-  rotationFrame?: GroupRotationFrame;
   onGroupResizeStart?: (handle: GroupResizeHandle) => void;
   onGroupResize?: (result: GroupResizeResult) => void;
   onGroupResizeEnd?: () => void;
@@ -138,7 +133,6 @@ const Handle = ({
   handle,
   centerX,
   centerY,
-  rotation,
   onMouseDown,
 }: HandleProps): React.ReactElement => {
   const hover = useCustomCursorHover(handle.cursor);
@@ -169,12 +163,7 @@ const Handle = ({
       onPointerEnter={hover.onPointerEnter}
       onPointerLeave={hover.onPointerLeave}
     >
-      <div
-        style={{
-          ...getHandleStyle(handle.type),
-          ...(rotation !== 0 ? { transform: `rotate(${rotation}deg)` } : {}),
-        }}
-      />
+      <div style={getHandleStyle(handle.type)} />
     </div>
   );
 };
@@ -188,7 +177,6 @@ const GroupResizeHandles = ({
   panX = 0,
   panY = 0,
   previewGroupBounds,
-  rotationFrame,
   onGroupResizeStart,
   onGroupResize,
   onGroupResizeEnd,
@@ -214,11 +202,8 @@ const GroupResizeHandles = ({
   const handleMouseDown = useGroupResizeSession({
     groupData,
     selectedElements,
-    collections,
-    selectedKeyType,
     pluginElements,
     zoom,
-    rotationFrame,
     onGroupResizeStart,
     onGroupResize,
     onGroupResizeEnd,
@@ -228,14 +213,12 @@ const GroupResizeHandles = ({
   if (!groupData || selectedElements.length < 2) return null;
 
   // 표시할 bounds (프리뷰 또는 실제)
-  const displayBounds: Bounds = previewGroupBounds ||
-    rotationFrame?.bounds || {
-      x: groupData.x,
-      y: groupData.y,
-      width: groupData.width,
-      height: groupData.height,
-    };
-  const rotation = rotationFrame?.rotation ?? 0;
+  const displayBounds: Bounds = previewGroupBounds || {
+    x: groupData.x,
+    y: groupData.y,
+    width: groupData.width,
+    height: groupData.height,
+  };
 
   // 그룹 테두리 좌표 계산 - 내부 요소 테두리와 동일한 위치에 겹치게
   const selectionLeft = displayBounds.x * zoom + panX - SELECTION_BORDER_WIDTH;
@@ -263,7 +246,6 @@ const GroupResizeHandles = ({
           top: selectionTop,
           width: selectionWidth,
           height: selectionHeight,
-          ...(rotation !== 0 ? { transform: `rotate(${rotation}deg)` } : {}),
           boxSizing: 'border-box',
           border: `${GROUP_SELECTION_BORDER_WIDTH}px solid ${GROUP_SELECTION_BORDER_COLOR}`,
           borderRadius: '6px',
@@ -276,31 +258,12 @@ const GroupResizeHandles = ({
       {resizableElements.length > 0 &&
         HANDLES.map((handle) => {
           // 핸들을 테두리 중앙에 배치
-          const center = rotatePointAround(
-            {
-              x: handleAreaLeft + handleAreaWidth * handle.x,
-              y: handleAreaTop + handleAreaHeight * handle.y,
-            },
-            {
-              x: selectionLeft + selectionWidth / 2,
-              y: selectionTop + selectionHeight / 2,
-            },
-            rotation,
-          );
-          const rotatedHandle = rotationFrame
-            ? {
-                ...handle,
-                cursor: resizeCursorForHandle(handle.dx, handle.dy, rotation),
-              }
-            : handle;
-
           return (
             <Handle
               key={handle.id}
-              handle={rotatedHandle}
-              centerX={center.x}
-              centerY={center.y}
-              rotation={rotation}
+              handle={handle}
+              centerX={handleAreaLeft + handleAreaWidth * handle.x}
+              centerY={handleAreaTop + handleAreaHeight * handle.y}
               onMouseDown={handleMouseDown}
             />
           );

@@ -47,7 +47,6 @@ describe('CanvasTool', () => {
     root = createRoot(container);
     useGridSelectionStore.setState({
       selectedElements: [],
-      selectedGroupIds: [],
     });
   });
 
@@ -76,7 +75,6 @@ describe('CanvasTool', () => {
     const setActiveTool = vi.fn();
     useGridSelectionStore.setState({
       selectedElements: [{ type: 'key', id: 'key-1', index: 0 }],
-      selectedGroupIds: ['group-1'],
     });
 
     act(() => {
@@ -99,7 +97,6 @@ describe('CanvasTool', () => {
     });
 
     expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
-    expect(useGridSelectionStore.getState().selectedGroupIds).toEqual([]);
     expect(setActiveTool).toHaveBeenCalledWith('eraser');
   });
 

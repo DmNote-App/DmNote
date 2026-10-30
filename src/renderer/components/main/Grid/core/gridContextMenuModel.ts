@@ -1,5 +1,4 @@
 import type { ListItem } from '@components/main/Modal/listPopup/ListPopup';
-import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import type {
   IndexedSelectableElementType,
   SelectedElement,
@@ -30,18 +29,6 @@ export const shouldOpenMixedSelectionMenu = (
 ): boolean =>
   selectedElements.length > 1 &&
   selectedElements.some((element) => element.id === clickedId);
-
-export const isStableNativeSelection = (element: {
-  type: string;
-  id: string;
-}): element is { type: IndexedSelectableElementType; id: string } =>
-  (element.type === 'key' ||
-    element.type === 'stat' ||
-    element.type === 'graph' ||
-    element.type === 'knob' ||
-    element.type === 'sprite') &&
-  element.id.length > 0 &&
-  isNativeElementId(element.id);
 
 export const gridAddTypeForMenuItem = (
   id: string,

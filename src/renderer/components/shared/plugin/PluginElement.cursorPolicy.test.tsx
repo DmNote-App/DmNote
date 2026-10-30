@@ -52,7 +52,6 @@ const seedStores = (options?: { scoped?: boolean }) => {
   });
   useGridSelectionStore.setState({
     selectedElements: [],
-    selectedGroupIds: [],
     lastSelectedKeyBounds: null,
   });
 };

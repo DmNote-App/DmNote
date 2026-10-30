@@ -43,7 +43,6 @@ describe('useGridMarquee frame coalescing', () => {
     vi.stubGlobal('cancelAnimationFrame', (id: number) => callbacks.delete(id));
     useGridSelectionStore.setState({
       selectedElements: [],
-      selectedGroupIds: [],
       isMarqueeSelecting: false,
       marqueeStart: null,
       marqueeEnd: null,
@@ -229,7 +228,6 @@ describe('useGridMarquee 빈 공간 프레스', () => {
   beforeEach(async () => {
     useGridSelectionStore.setState({
       selectedElements: [],
-      selectedGroupIds: [],
       isMarqueeSelecting: false,
       marqueeStart: null,
       marqueeEnd: null,

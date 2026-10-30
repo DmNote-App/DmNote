@@ -1,5 +1,3 @@
-import { isEditorElementType } from '@src/types/editor';
-
 type ElementKindsModule = typeof import('@src/types/elementKinds');
 
 // 키를 옛 종류 대표로 쓰는 옛 선택·끌기·레이어 테스트 - 키만 옛 편집 경로에 남긴 종류 목록.
@@ -16,9 +14,5 @@ export const keepKeyLegacy = async (
   return {
     ...actual,
     TREE_EDITED_KINDS: kinds,
-    isTreeEditedKind: (kind) =>
-      !actual.isPluginKind(kind) &&
-      (!isEditorElementType(kind) || kinds.has(kind)),
-    isLegacyEditedType: (type) => !kinds.has(type),
   };
 };

@@ -41,12 +41,6 @@ const treeEditedOf = (
 export const treeEditedSelection = (sceneId: string) =>
   treeEditedOf(sceneId, selectedDocumentIds(sceneId));
 
-/** 옛 선택 + 트리로 옮긴 옛 종류 선택 */
-export const combinedSelection = (sceneId: string): SelectedElement[] => [
-  ...useGridSelectionStore.getState().selectedElements,
-  ...treeEditedSelection(sceneId),
-];
-
 /** 구조 편집(묶기·풀기·겹침 순서) 대상 - 트리 선택 전체 + 옛 선택(플러그인 요소 - 트리 노드 id가 fullId) */
 export const structureTargetIds = (sceneId: string): string[] => {
   const ids = [...selectedDocumentIds(sceneId)];
@@ -98,13 +92,6 @@ export const setSplitSelection = (
     );
   }
 };
-
-/** 트리에만 있는 종류(커서 트래커 등)의 선택 id */
-export const treeOnlySelectedIds = (sceneId: string) =>
-  selectedDocumentIds(sceneId).filter((id) => {
-    const kind = kindOf(sceneId, id);
-    return !!kind && !isEditorElementType(kind);
-  });
 
 /** 옛 속성 패널이 보는 선택 - 트리 선택이 모두 트리로 옮긴 옛 종류이고 플러그인이 섞이지 않으면
  * 그 요소까지 합친다 (플러그인 섞인 일괄 커밋은 트리로 보내지 못한다).

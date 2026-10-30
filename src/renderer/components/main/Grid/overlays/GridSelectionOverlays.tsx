@@ -3,13 +3,10 @@ import ResizeHandles from '../handles/ResizeHandles';
 import GroupResizeHandles from '../handles/GroupResizeHandles';
 import GradientAxisOverlay from '../handles/GradientAxisHandle';
 import SpriteCanvasHandles from '../handles/SpriteCanvasHandles';
-import NativeRotateHandle from '../handles/NativeRotateHandle';
-import SpriteRotateHandle from '../handles/SpriteRotateHandle';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
 import { usePanelSelection } from '../document/treeEditedSelection';
 import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
 import { projectSpriteResize } from '@utils/sprite/resizeProjection';
-import { isRotatableElementType } from '@src/types/elementKinds';
 import {
   getSelectionOutlineEdges,
   GROUP_SELECTION_BORDER_WIDTH,
@@ -25,7 +22,6 @@ import {
   type Bounds,
   type ElementBounds,
 } from '../handles/groupResizeUtils';
-import { matchSpriteAnchorPreset } from '@utils/sprite/spriteGeometry';
 import type { ElementCollections } from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
@@ -212,21 +208,6 @@ const GridSelectionOverlays = ({
       isElementResizable(singleElement, pluginElements),
   );
 
-  // 기준점 표식이 프리셋 자리에 앉아 있으면 그 자리 핸들은 표식에 자리를 내준다.
-  // 표식 히트 영역이 핸들을 덮어 어차피 잡히지 않고, 비율 고정이라 다른 핸들로 충분하다
-  const spriteAtRest =
-    singleElement?.type === 'sprite'
-      ? collections.spritePositions[mode]?.find(
-          (candidate) => candidate.id === singleElement.id,
-        ) ?? null
-      : null;
-  const occupiedHandle =
-    spriteAtRest &&
-    Math.abs(spriteAtRest.idleTransform.x) < 1e-6 &&
-    Math.abs(spriteAtRest.idleTransform.y) < 1e-6
-      ? matchSpriteAnchorPreset(spriteAtRest.pivot)
-      : null;
-
   return (
     <>
       {selectionOutlines}
@@ -244,24 +225,9 @@ const GridSelectionOverlays = ({
           getOtherElements={getOtherElements}
           // 스프라이트는 그림 레이어라 늘리지 않는다
           lockAspect={isAspectLockedElement(singleElement)}
-          occupiedHandle={occupiedHandle}
           rotation={singleRotation}
         />
       )}
-      {showSingleResizeHandles &&
-        singleElement &&
-        singleBounds &&
-        isRotatableElementType(singleElement.type) && (
-          <NativeRotateHandle
-            elementType={singleElement.type}
-            elementId={singleElement.id}
-            bounds={previewBounds ?? singleBounds}
-            rotation={singleRotation}
-            zoom={zoom}
-            panX={panX}
-            panY={panY}
-          />
-        )}
       {selectedElements.length > 1 &&
         !mixedWithDocument &&
         !hasGradientEditSession &&
@@ -281,17 +247,6 @@ const GridSelectionOverlays = ({
             getOtherElements={getOtherElements}
           />
         )}
-      {showSingleResizeHandles && spriteAtRest && singleBounds && (
-        <SpriteRotateHandle
-          elementId={spriteAtRest.id}
-          mode={mode}
-          bounds={previewBounds ?? singleBounds}
-          rotation={spriteAtRest.rotation ?? 0}
-          zoom={zoom}
-          panX={panX}
-          panY={panY}
-        />
-      )}
       <GradientAxisOverlay
         collections={collections}
         selectedElements={panelSelection}

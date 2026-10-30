@@ -42,7 +42,6 @@ benchmarkDescribe('GRID-09 마퀴 연속 입력 성능', () => {
     );
     useGridSelectionStore.setState({
       selectedElements: [],
-      selectedGroupIds: [],
       isMarqueeSelecting: false,
       marqueeStart: null,
       marqueeEnd: null,

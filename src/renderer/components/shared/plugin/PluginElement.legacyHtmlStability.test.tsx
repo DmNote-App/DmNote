@@ -76,7 +76,6 @@ const seedStores = (element: PluginDisplayElementInternal) => {
   });
   useGridSelectionStore.setState({
     selectedElements: [],
-    selectedGroupIds: [],
     lastSelectedKeyBounds: null,
   });
 };

@@ -97,7 +97,6 @@ const seedStores = (options: {
   });
   useGridSelectionStore.setState({
     selectedElements: [],
-    selectedGroupIds: [],
     lastSelectedKeyBounds: null,
   });
   usePropertiesPanelStore.setState({ isCanvasPanelOpen: false });

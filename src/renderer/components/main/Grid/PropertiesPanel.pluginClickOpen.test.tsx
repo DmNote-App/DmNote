@@ -312,7 +312,6 @@ const seedStores = (target: Target) => {
   } as never);
   useGridSelectionStore.setState({
     selectedElements: [],
-    selectedGroupIds: [],
     lastSelectedKeyBounds: null,
     isDraggingOrResizing: false,
   });

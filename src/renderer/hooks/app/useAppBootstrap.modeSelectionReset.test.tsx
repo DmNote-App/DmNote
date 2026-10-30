@@ -165,7 +165,6 @@ vi.mock('@stores/grid/useGridSelectionStore', () => ({
   useGridSelectionStore: {
     getState: () => ({
       selectedElements: [{ type: 'key', id: 'k1' }],
-      selectedGroupIds: [],
       clearSelection,
     }),
   },

@@ -1,12 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import {
-  previewOverlay,
-  composePreviewPositions,
-} from './gesture/previewOverlay';
+import { previewOverlay, previewPatchOf } from './gesture/previewOverlay';
 
-const canonical = {
-  '4key': [{ id: 'sprite-a', value: 0, remote: 0 }],
-};
+const patchOfSprite = () =>
+  previewPatchOf('spritePosition', '4key', 'sprite-a');
 
 describe('previewOverlay 로컬 세션 수명', () => {
   beforeEach(() => previewOverlay.clearAll());
@@ -38,14 +34,10 @@ describe('previewOverlay 로컬 세션 수명', () => {
       'spritePosition',
     );
 
-    expect(
-      composePreviewPositions('spritePosition', canonical)['4key'][0],
-    ).toEqual({ id: 'sprite-a', value: 20, remote: 7 });
+    expect(patchOfSprite()).toEqual({ value: 20, remote: 7 });
 
     previewOverlay.endSession('33333333-3333-4333-8333-333333333333');
-    expect(
-      composePreviewPositions('spritePosition', canonical)['4key'][0],
-    ).toEqual({ id: 'sprite-a', value: 0, remote: 7 });
+    expect(patchOfSprite()).toEqual({ remote: 7 });
   });
 
   it('소유권 없는 로컬 세션만 회수하고 원격 세션은 유지한다', () => {
@@ -72,35 +64,6 @@ describe('previewOverlay 로컬 세션 수명', () => {
     expect(previewOverlay.discardLocalSessionsExcept(null)).toEqual([
       localSessionId,
     ]);
-    expect(
-      composePreviewPositions('spritePosition', canonical)['4key'][0],
-    ).toEqual({ id: 'sprite-a', value: 0, remote: 7 });
-  });
-
-  it('다수 ID patch 합성은 ID를 대상 수의 제곱만큼 다시 조회하지 않는다', () => {
-    let idReads = 0;
-    const positions = Array.from({ length: 200 }, (_, index) => ({
-      get id() {
-        idReads += 1;
-        return `sprite-${index}`;
-      },
-      value: 0,
-    }));
-    previewOverlay.applyLocalPatchByIds(
-      '11111111-1111-4111-8111-111111111111',
-      '4key',
-      positions.map(({ id }) => id).reverse(),
-      { value: 1 },
-      'spritePosition',
-    );
-    idReads = 0;
-
-    const rendered = composePreviewPositions('spritePosition', {
-      '4key': positions,
-    });
-
-    expect(idReads).toBeLessThanOrEqual(positions.length * 3);
-    expect(rendered['4key'].every(({ value }) => value === 1)).toBe(true);
-    expect(positions.every(({ value }) => value === 0)).toBe(true);
+    expect(patchOfSprite()).toEqual({ remote: 7 });
   });
 });

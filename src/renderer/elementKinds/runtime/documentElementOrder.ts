@@ -94,27 +94,6 @@ export const treeGroupHiddenKey = (scene: Scene | undefined): string => {
   return ids.sort().join('\n');
 };
 
-/** 숨긴 트리 그룹 안 요소를 hidden으로 - 옛 배열로 자리를 잡는 오버레이 층(바깥 카운터·노트 트랙·창 크기)이
- * 트리 층과 같게 보이도록. 바뀐 요소가 없으면 같은 배열 */
-export const withTreeGroupHidden = <
-  T extends { id: string; hidden?: boolean } | null | undefined,
->(
-  positions: readonly T[],
-  hiddenKey: string,
-): readonly T[] => {
-  if (!hiddenKey) return positions;
-  const hidden = new Set(hiddenKey.split('\n'));
-  let changed = false;
-  const next = positions.map((position) => {
-    if (!position || position.hidden || !hidden.has(position.id)) {
-      return position;
-    }
-    changed = true;
-    return { ...position, hidden: true };
-  });
-  return changed ? next : positions;
-};
-
 type LayoutBox = {
   tabId: string;
   position: { x: number; y: number };

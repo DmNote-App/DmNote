@@ -77,7 +77,6 @@ const seedStores = () => {
   useLayerGroupStore.setState({ layerGroups: {} });
   useGridSelectionStore.setState({
     selectedElements: [],
-    selectedGroupIds: [],
     lastSelectedKeyBounds: null,
   });
   usePropertiesPanelStore.setState({ isCanvasPanelOpen: false });

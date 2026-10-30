@@ -6,7 +6,6 @@ import {
   EDITOR_ELEMENT_POSITION_FIELDS,
   EDITOR_ELEMENT_TYPES,
   EDITOR_FIELDS,
-  ELEMENT_TYPE_BY_POSITION_FIELD,
   isEditorElementType,
 } from '../src/types/editor';
 import {
@@ -33,21 +32,16 @@ describe('요소 종류 파리티', () => {
     );
   });
 
-  it('종류별 문서 필드와 역매핑이 fixture와 같다', () => {
+  it('종류별 문서 필드가 fixture와 같다', () => {
     for (const entry of fixture) {
       expect(isEditorElementType(entry.type)).toBe(true);
       if (!isEditorElementType(entry.type)) continue;
       expect(EDITOR_ELEMENT_POSITION_FIELDS[entry.type]).toBe(
         entry.positionField,
       );
-      expect(
-        ELEMENT_TYPE_BY_POSITION_FIELD[
-          entry.positionField as keyof typeof ELEMENT_TYPE_BY_POSITION_FIELD
-        ],
-      ).toBe(entry.type);
       expect(EDITOR_FIELDS).toContain(entry.positionField);
     }
-    expect(Object.keys(ELEMENT_TYPE_BY_POSITION_FIELD)).toHaveLength(
+    expect(Object.keys(EDITOR_ELEMENT_POSITION_FIELDS)).toHaveLength(
       fixture.length,
     );
   });

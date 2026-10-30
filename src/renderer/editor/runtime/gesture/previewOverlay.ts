@@ -39,39 +39,6 @@ const addTombstone = (sessionId: string) => {
   }
 };
 
-export const composePreviewPositions = <T extends { id: string }>(
-  domain: PreviewDomain,
-  canonical: Record<string, T[]>,
-): Record<string, T[]> => {
-  if (sessions.size === 0) return canonical;
-
-  let rendered = canonical;
-  for (const session of sessions.values()) {
-    const idPatches = session.idPatches.get(domain);
-    if (!idPatches?.size) continue;
-    const modePositions = rendered[session.mode];
-    if (!modePositions) continue;
-
-    let nextMode: T[] | null = null;
-    const indexById = new Map<string, number>();
-    modePositions.forEach(({ id }, index) => {
-      if (!indexById.has(id)) indexById.set(id, index);
-    });
-    for (const [id, patch] of idPatches) {
-      const index = indexById.get(id);
-      if (index === undefined) continue;
-      const current = (nextMode ?? modePositions)[index];
-      if (!current) continue;
-      if (nextMode === null) nextMode = [...modePositions];
-      nextMode[index] = { ...current, ...patch };
-    }
-    if (nextMode !== null) {
-      rendered = { ...rendered, [session.mode]: nextMode };
-    }
-  }
-  return rendered;
-};
-
 /** 요소 하나의 활성 미리보기 패치(세션 순서대로 합침) - 없으면 null */
 export const previewPatchOf = (
   domain: PreviewDomain,

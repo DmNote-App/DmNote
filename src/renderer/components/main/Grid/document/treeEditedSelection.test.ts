@@ -24,11 +24,7 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import {
-  combinedSelection,
-  panelSelectionOf,
-  treeOnlySelectedIds,
-} from './treeEditedSelection';
+import { panelSelectionOf } from './treeEditedSelection';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 const key = { type: 'key' as const, id: 'k1', index: 0 };
@@ -91,19 +87,6 @@ describe('옛 선택으로 들어온 트리로 옮긴 옛 종류', () => {
     useDocumentSelectionStore.getState().setSelection('4key', ['t1']);
     useGridSelectionStore.getState().setSelectedElements([knob]);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['n1']);
-  });
-
-  it('합친 선택은 옛 선택 뒤에 노브를 옛 선택 모양으로 붙인다', () => {
-    useGridSelectionStore.getState().setSelectedElements([key]);
-    keepOtherSelection(() =>
-      useDocumentSelectionStore.getState().setSelection('4key', ['t1', 'n2']),
-    );
-    expect(combinedSelection('4key')).toEqual([
-      key,
-      { type: 'knob', id: 'n2', index: 1 },
-    ]);
-    expect(treeOnlySelectedIds('4key')).toEqual(['t1']);
-    expect(combinedSelection('5key')).toEqual([key]);
   });
 
   it('패널 선택은 트리 선택이 모두 노브이고 플러그인이 없을 때만 노브를 합친다', () => {

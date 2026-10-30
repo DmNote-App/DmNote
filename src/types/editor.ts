@@ -166,14 +166,6 @@ export const EDITOR_ELEMENT_POSITION_FIELDS = {
 export type EditorElementPositionField =
   (typeof EDITOR_ELEMENT_POSITION_FIELDS)[EditorElementTypeV1];
 
-export const ELEMENT_TYPE_BY_POSITION_FIELD = {
-  keyPositions: 'key',
-  statPositions: 'stat',
-  graphPositions: 'graph',
-  knobPositions: 'knob',
-  spritePositions: 'sprite',
-} as const satisfies Record<EditorElementPositionField, EditorElementTypeV1>;
-
 export const isEditorElementType = (
   value: unknown,
 ): value is EditorElementTypeV1 =>
@@ -199,12 +191,6 @@ export type ElementCollections = Pick<
 export type CanonicalPositionOf<K extends EditorElementTypeV1> =
   CanonicalEditorDocumentV1[(typeof EDITOR_ELEMENT_POSITION_FIELDS)[K]][string][number];
 
-// 한 모드의 종류별 배열 묶음 - 필드 이름은 문서와 같다
-export type ElementModeArrays<T> = Record<
-  EditorElementPositionField,
-  readonly T[]
->;
-
 export type ElementCollectionsModeArrays = {
   [F in EditorElementPositionField]: ElementCollections[F][string];
 };
@@ -213,43 +199,6 @@ export type ItemElementModeArrays = Omit<
   ElementCollectionsModeArrays,
   'keyPositions'
 >;
-
-// 모드에 없는 컬렉션의 고정 빈 배열 - 렌더마다 참조가 바뀌지 않게
-const EMPTY_MODE_ARRAY: readonly never[] = Object.freeze([] as never[]);
-
-export const modeArraysOf = (
-  collections: ElementCollections,
-  mode: string,
-): ElementCollectionsModeArrays =>
-  Object.fromEntries(
-    EDITOR_ELEMENT_TYPES.map((type) => {
-      const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
-      return [field, collections[field][mode] ?? EMPTY_MODE_ARRAY];
-    }),
-  ) as unknown as ElementCollectionsModeArrays;
-
-// 문서·투영 결과에서 종류별 컬렉션만 뽑는다
-export const pickElementCollections = (
-  source: ElementCollections,
-): ElementCollections =>
-  Object.fromEntries(
-    EDITOR_ELEMENT_TYPES.map((type) => {
-      const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
-      return [field, source[field]];
-    }),
-  ) as unknown as ElementCollections;
-
-// 종류별 컬렉션을 대상 문서에 덮어쓴다
-export const assignElementCollections = (
-  target: ElementCollections,
-  source: ElementCollections,
-): void => {
-  for (const type of EDITOR_ELEMENT_TYPES) {
-    const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
-    (target as Record<EditorElementPositionField, unknown>)[field] =
-      source[field];
-  }
-};
 
 export interface EditorBoundsV1 {
   dx: number;

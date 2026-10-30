@@ -7,11 +7,7 @@ import {
 } from './keepOtherSelection';
 import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
-import type {
-  CanonicalPositionOf,
-  EditorElementTypeV1,
-  ItemElementType,
-} from '@src/types/editor';
+import type { EditorElementTypeV1 } from '@src/types/editor';
 
 export type SelectableElementType = EditorElementTypeV1 | 'plugin';
 
@@ -19,11 +15,6 @@ export type IndexedSelectableElementType = Exclude<
   SelectableElementType,
   'plugin'
 >;
-
-export type IndexedElementArrays = {
-  keyMappings: readonly unknown[];
-  keyPositions: readonly CanonicalPositionOf<'key'>[];
-} & { [K in ItemElementType]: readonly CanonicalPositionOf<K>[] };
 
 type NativeSelectedElement = {
   [Type in IndexedSelectableElementType]: {
@@ -51,8 +42,6 @@ export interface ClipboardItem {
 interface GridSelectionState {
   // 선택된 요소들
   selectedElements: SelectedElement[];
-  // 명시적으로 선택된 그룹 ID들 (그룹 헤더 클릭으로 선택된 경우)
-  selectedGroupIds: string[];
 
   // 마지막으로 선택된 키의 좌표 (Shift+클릭 범위 선택용)
   lastSelectedKeyBounds: {
@@ -85,7 +74,6 @@ interface GridSelectionState {
   deselectElement: (id: string) => void;
   clearSelection: () => void;
   setSelectedElements: (elements: SelectedElement[]) => void;
-  setFullSelection: (elements: SelectedElement[], groupIds: string[]) => void;
   isSelected: (id: string) => boolean;
   setLastSelectedKeyBounds: (
     bounds: { x: number; y: number; width: number; height: number } | null,
@@ -132,7 +120,6 @@ const splitTreeEdited = (incoming: SelectedElement[]) => {
 
 export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
   selectedElements: [],
-  selectedGroupIds: [],
   lastSelectedKeyBounds: null,
   clipboard: [],
   isMarqueeSelecting: false,
@@ -145,7 +132,7 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
   selectElement: (element, addToSelection = false) => {
     if (isTreeEditedSelection(element)) {
       if (!addToSelection) {
-        set({ selectedElements: [], selectedGroupIds: [] });
+        set({ selectedElements: [] });
         replaceOtherSelection();
       }
       routeOtherMembers([element.id], addToSelection ? 'toggle' : 'replace');
@@ -161,17 +148,14 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
             selectedElements: state.selectedElements.filter(
               (el) => el.id !== element.id,
             ),
-            selectedGroupIds: [],
           };
         }
         return {
           selectedElements: [...state.selectedElements, element],
-          selectedGroupIds: [],
         };
       }
       return {
         selectedElements: [element],
-        selectedGroupIds: [],
       };
     });
     if (!addToSelection) replaceOtherSelection();
@@ -191,12 +175,10 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
           selectedElements: state.selectedElements.filter(
             (el) => el.id !== element.id,
           ),
-          selectedGroupIds: [],
         };
       }
       return {
         selectedElements: [...state.selectedElements, element],
-        selectedGroupIds: [],
       };
     });
   },
@@ -204,13 +186,12 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
   deselectElement: (id) => {
     set((state) => ({
       selectedElements: state.selectedElements.filter((el) => el.id !== id),
-      selectedGroupIds: [],
     }));
   },
 
   // 선택 해제는 트리 선택도 함께 (넣고 빼기 안에서는 지킨다)
   clearSelection: () => {
-    set({ selectedElements: [], selectedGroupIds: [] });
+    set({ selectedElements: [] });
     replaceOtherSelection();
   },
 
@@ -228,26 +209,12 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
             el.index === next.index
           );
         });
-      if (same && state.selectedGroupIds.length === 0) return {};
-      return {
-        selectedElements: same ? state.selectedElements : elements,
-        selectedGroupIds: [],
-      };
+      return same ? {} : { selectedElements: elements };
     });
     // 트리 몫이 있으면 트리 선택을 그 요소로 바로 (비우고 다시 채우면 중간의 빈 선택이 편집 제스처를 취소한다)
     if (treeIds.length > 0) {
       routeOtherMembers(treeIds, isKeepingOtherSelection() ? 'replace' : 'set');
     } else if (elements.length > 0) {
-      replaceOtherSelection();
-    }
-  },
-
-  setFullSelection: (incoming, groupIds) => {
-    const { elements, treeIds } = splitTreeEdited(incoming);
-    set({ selectedElements: elements, selectedGroupIds: groupIds });
-    if (treeIds.length > 0) {
-      routeOtherMembers(treeIds, isKeepingOtherSelection() ? 'replace' : 'set');
-    } else if (elements.length > 0 || groupIds.length > 0) {
       replaceOtherSelection();
     }
   },
@@ -305,50 +272,6 @@ export const useGridSelectionStore = create<GridSelectionState>((set, get) => ({
     // 이 함수는 외부에서 호출될 콜백을 위한 placeholder
   },
 }));
-
-export function invalidateSelectionForChangedIndexedElementArrays(
-  _current: IndexedElementArrays,
-  next: IndexedElementArrays,
-) {
-  const selection = useGridSelectionStore.getState();
-  if (selection.selectedElements.length === 0) return;
-
-  const nextPositionsFor = (
-    type: IndexedSelectableElementType,
-  ): readonly { id: string }[] =>
-    type === 'key' ? next.keyPositions : next[type];
-
-  let changed = false;
-  const selectedElements = selection.selectedElements.reduce<SelectedElement[]>(
-    (resolved, element) => {
-      if (element.type === 'plugin') {
-        resolved.push(element);
-        return resolved;
-      }
-
-      const newIndex = nextPositionsFor(element.type).findIndex(
-        (position) => position?.id === element.id,
-      );
-      if (newIndex === -1) {
-        changed = true;
-        return resolved;
-      }
-      if (newIndex !== element.index) {
-        changed = true;
-        resolved.push({ ...element, index: newIndex });
-        return resolved;
-      }
-      resolved.push(element);
-      return resolved;
-    },
-    [],
-  );
-
-  // 고쳐 맞추기는 바꿔 고르기가 아니다 - 함께 고른 트리 요소 선택을 지킨다
-  if (changed) {
-    keepOtherSelection(() => selection.setSelectedElements(selectedElements));
-  }
-}
 
 // 재주입으로 fullId가 갈린 플러그인 선택 제거. 현존 fullId 집합 기준.
 // ownerPluginId를 주면 그 플러그인 소유 선택만 판정한다 - 스토어는 전

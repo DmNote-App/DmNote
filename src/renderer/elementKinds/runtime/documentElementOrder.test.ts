@@ -6,7 +6,6 @@ import {
   documentLayoutElements,
   treeStackingRanks,
   treeGroupHiddenKey,
-  withTreeGroupHidden,
 } from './documentElementOrder';
 
 // 키를 옛 종류 대표로 쓴다
@@ -171,7 +170,7 @@ describe('오버레이 창 크기용 트리 요소 상자', () => {
 });
 
 describe('숨긴 트리 그룹 안 요소', () => {
-  it('숨김 열쇠는 내용이 같으면 같고, 옛 배열의 그 요소만 hidden으로 (없으면 같은 배열)', () => {
+  it('숨김 열쇠는 숨긴 그룹 안 요소이고 내용이 같으면 같다', () => {
     const scene: Scene = {
       nodes: [
         legacyKey('k1', 1, 0),
@@ -187,12 +186,6 @@ describe('숨긴 트리 그룹 안 요소', () => {
     const key = treeGroupHiddenKey(scene);
     expect(key).toBe('k2');
     expect(treeGroupHiddenKey({ ...scene })).toBe(key);
-    const positions = [{ id: 'k1' }, { id: 'k2' }];
-    expect(withTreeGroupHidden(positions, key)).toEqual([
-      { id: 'k1' },
-      { id: 'k2', hidden: true },
-    ]);
-    expect(withTreeGroupHidden(positions, '')).toBe(positions);
   });
 });
 

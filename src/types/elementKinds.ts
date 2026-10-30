@@ -59,11 +59,6 @@ type KindsWith<F extends 'commonRotation' | 'surfaceStyle'> = {
 export type RotatableElementType = KindsWith<'commonRotation'>;
 export type SurfaceStyledElementType = KindsWith<'surfaceStyle'>;
 
-export const isRotatableElementType = (
-  type: unknown,
-): type is RotatableElementType =>
-  isEditorElementType(type) && ELEMENT_KIND_MODELS[type].commonRotation;
-
 export const isSurfaceStyledElementType = (
   type: unknown,
 ): type is SurfaceStyledElementType =>
@@ -88,15 +83,6 @@ export const TREE_EDITED_KINDS: ReadonlySet<string> = new Set([
 /** 플러그인 인스턴스 요소(`plugin:{id}`) - 트리 문서에 두지만 목록은 플러그인 버킷이 맡고 옛 플러그인
  * 렌더러가 그린다. 트리 편집기(그리기·선택·레이어·쌓임)는 아직 건너뛴다 */
 export const isPluginKind = (kind: string) => kind.startsWith('plugin:');
-
-/** 트리 편집기가 맡는 종류 - 트리에만 있는 종류와 트리로 옮긴 옛 종류 (플러그인 인스턴스 제외) */
-export const isTreeEditedKind = (kind: string) =>
-  !isPluginKind(kind) &&
-  (!isEditorElementType(kind) || TREE_EDITED_KINDS.has(kind));
-
-/** 옛 편집 경로가 아직 맡는 옛 종류 */
-export const isLegacyEditedType = (type: EditorElementTypeV1) =>
-  !TREE_EDITED_KINDS.has(type);
 
 // 오버레이·OBS가 트리에서 그리는 옛 종류 - 옛 오버레이 그리기에서 빠진다 (편집 화면은 TREE_EDITED_KINDS).
 // 노트 트랙과 바깥 카운터는 아직 옛 배열에서 자리를 잡는다

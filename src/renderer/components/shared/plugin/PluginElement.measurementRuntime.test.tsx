@@ -82,7 +82,6 @@ const seedBaseStores = () => {
   useLayerGroupStore.setState({ layerGroups: {} });
   useGridSelectionStore.setState({
     selectedElements: [],
-    selectedGroupIds: [],
     lastSelectedKeyBounds: null,
   });
 };
