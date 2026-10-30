@@ -18,7 +18,10 @@ import {
 } from '@utils/plugin/layout/pluginRenderList';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { treeStackingRanks } from '@src/renderer/elementKinds/runtime/documentElementOrder';
+import {
+  treeGroupHiddenKey,
+  treeStackingRanks,
+} from '@src/renderer/elementKinds/runtime/documentElementOrder';
 import PluginElementHost from './PluginElementHost';
 import type {
   PluginDisplayElementInternal,
@@ -177,9 +180,11 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
     (state) => state.updateElement,
   );
   // 쌓임 순서는 트리 순번 - 키·트리 요소와 같은 축. 트리에 아직 없는 요소(만든 직후)는 맨 위
-  const stackRanks = treeStackingRanks(
-    useElementDocumentScene(selectedKeyType),
-  );
+  const scene = useElementDocumentScene(selectedKeyType);
+  const stackRanks = treeStackingRanks(scene);
+  // 숨긴 트리 그룹 안 요소는 그리지 않는다 (그룹 숨김은 트리에만 있다)
+  const hiddenByGroup = treeGroupHiddenKey(scene);
+  const hiddenIds = hiddenByGroup ? new Set(hiddenByGroup.split('\n')) : null;
 
   // 선택 상태 가져오기 (main 윈도우에서만 실제 값 사용)
   const selectedElementsRaw = useGridSelectionStore(
@@ -278,7 +283,10 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
 
   return (
     <>
-      {renderIds.map((fullId, index) => (
+      {(hiddenIds
+        ? renderIds.filter((fullId) => !hiddenIds.has(fullId))
+        : renderIds
+      ).map((fullId, index) => (
         <PluginElementHost
           key={fullId}
           fullId={fullId}

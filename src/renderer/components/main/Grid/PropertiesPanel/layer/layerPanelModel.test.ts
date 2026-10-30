@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildLayerItems } from './layerPanelModel';
+import { buildLayerLabels } from './layerPanelModel';
 
-const plugin = (fullId: string, tabId?: string, groupId?: string) =>
+const plugin = (fullId: string, tabId?: string, hidden = false) =>
   ({
     id: fullId,
     fullId,
@@ -11,13 +11,12 @@ const plugin = (fullId: string, tabId?: string, groupId?: string) =>
     position: { x: 0, y: 0 },
     tabId,
     zIndex: 1,
-    hidden: false,
-    groupId,
+    hidden,
   } as never);
 
-describe('layer panel plugin mode scope', () => {
-  it('현재 mode와 전역 plugin만 포함하고 다른 mode는 제외한다', () => {
-    const items = buildLayerItems({
+describe('레이어 패널 이름표', () => {
+  it('현재 탭과 전역 플러그인만 넣고 숨김은 플러그인 스토어 값', () => {
+    const labels = buildLayerLabels({
       selectedKeyType: '4key',
       positions: {},
       keyMappings: {},
@@ -26,35 +25,29 @@ describe('layer panel plugin mode scope', () => {
       knobPositions: {},
       spritePositions: {},
       pluginElements: [
-        plugin('same', '4key'),
+        plugin('same', '4key', true),
         plugin('global'),
         plugin('other', '7key'),
       ],
-      layerGroupsForMode: [],
     });
-
-    expect(items.map((item) => item.id).sort()).toEqual(['global', 'same']);
+    expect([...labels.defaultNames.keys()].sort()).toEqual(['global', 'same']);
+    expect(labels.pluginHidden.get('same')).toBe(true);
   });
 
-  it('plugin groupId는 현재 mode에 def가 있을 때만 노출한다', () => {
-    const items = buildLayerItems({
+  it('옛 종류는 저장된 레이어 이름과 상관없이 기본 이름 (키는 슬롯 이름)', () => {
+    const labels = buildLayerLabels({
       selectedKeyType: '4key',
-      positions: {},
-      keyMappings: {},
+      positions: {
+        '4key': [{ id: 'k1', layerName: '왼손' } as never],
+      },
+      keyMappings: { '4key': [''] },
       statPositions: {},
       graphPositions: {},
-      knobPositions: {},
+      knobPositions: { '4key': [{ id: 'n1' } as never] },
       spritePositions: {},
-      pluginElements: [
-        plugin('grouped', '4key', 'group-a'),
-        plugin('dangling', '4key', 'group-missing'),
-      ],
-      layerGroupsForMode: [{ id: 'group-a', name: 'Group A' }],
+      pluginElements: [],
     });
-
-    const byId = new Map(items.map((item) => [item.id, item]));
-    expect(byId.get('grouped')?.groupId).toBe('group-a');
-    // dangling group_id는 무소속으로 취급 - 유령 그룹 헤더 방지
-    expect(byId.get('dangling')?.groupId).toBeUndefined();
+    expect(labels.defaultNames.get('k1')).toBe('Key 1');
+    expect(labels.defaultNames.get('n1')).toBe('Knob 1');
   });
 });

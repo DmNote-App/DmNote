@@ -102,7 +102,7 @@ import { documentKindForAddMenuItem } from '../document/documentAddMenu';
 import { insertDocumentElement } from '../document/documentEditActions';
 import { useDocumentKeyboard } from '../document/useDocumentKeyboard';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { deleteFrozenSelection } from '@src/renderer/editor/runtime/intent/deleteFrozenSelection';
+import { deleteStructureSelection } from '../document/deleteStructureSelection';
 import {
   documentGroupActions,
   groupSelectionOf,
@@ -113,7 +113,6 @@ import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { createDocumentDragReceipt } from '../document/documentDragReceipt';
 import {
   groupDocumentElements,
-  removeDocumentElements,
   runStructureAction,
   ungroupDocumentElements,
 } from '../document/documentEditActions';
@@ -371,15 +370,8 @@ const Grid = ({
   });
 
   const combinedSelection = () => combinedSelectionOf(selectedKeyType);
-  // 지우기 - 트리로 옮긴 옛 종류는 옛 지우기에 함께, 트리에만 있는 종류는 트리에서 (같은 동작 id - 되돌리기 한 번)
-  const deleteSelectedElements = () => {
-    const gestureId = crypto.randomUUID();
-    const treeOnlyIds = treeOnlySelectedIds(selectedKeyType);
-    if (treeOnlyIds.length > 0) {
-      void removeDocumentElements(selectedKeyType, treeOnlyIds, { gestureId });
-    }
-    return deleteFrozenSelection(combinedSelection(), { gestureId });
-  };
+  const deleteSelectedElements = () =>
+    deleteStructureSelection(selectedKeyType);
 
   // 트리 요소 키보드 - 옛 종류 키보드가 처리한 뒤 같은 이벤트로 부른다 (섞인 선택)
   const handleDocumentKeyDown = useDocumentKeyboard();

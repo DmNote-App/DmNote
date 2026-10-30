@@ -1,14 +1,10 @@
-// 레이어 패널의 트리 요소 구역 - 트리 전용 노드만 위→아래 겹침 순서로 보인다
-// (옛 종류 행은 위쪽 옛 목록이 맡는다. 옛 그룹은 안의 트리 요소만 드러나게 지나간다)
+// 레이어 패널 행 - 장면 트리의 모든 노드(옛 종류·플러그인·트리 전용 요소, 모든 그룹)를 위→아래 겹침 순서로
 import type {
   Group,
   Node,
   Op,
   Scene,
 } from '@src/types/generated/elementDocument';
-import { isTreeOnlyGroup } from '@src/renderer/editor/document/documentPatch';
-import { isEditorElementType } from '@src/types/editor';
-import { isPluginKind } from '@src/types/elementKinds';
 
 export interface DocumentLayerRowModel {
   node: Node;
@@ -31,18 +27,9 @@ export const documentLayerRows = (
   ) => {
     for (let index = nodes.length - 1; index >= 0; index -= 1) {
       const node = nodes[index];
-      if (node.type === 'element') {
-        // 플러그인 인스턴스는 옛 목록이 보인다
-        if (!isEditorElementType(node.kind) && !isPluginKind(node.kind)) {
-          rows.push({ node, depth, parentId, index });
-        }
-        continue;
-      }
-      if (isTreeOnlyGroup(node)) {
-        rows.push({ node, depth, parentId, index });
-        if (!collapsed.has(node.id)) visit(node.children, depth + 1, node.id);
-      } else {
-        visit(node.children, depth, node.id);
+      rows.push({ node, depth, parentId, index });
+      if (node.type === 'group' && !collapsed.has(node.id)) {
+        visit(node.children, depth + 1, node.id);
       }
     }
   };

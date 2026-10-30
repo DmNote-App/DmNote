@@ -13,7 +13,8 @@ import {
   isEditorElementType,
   type EditorElementTypeV1,
 } from '@src/types/editor';
-import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
+import { isPluginKind, TREE_EDITED_KINDS } from '@src/types/elementKinds';
+import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 type PositionsOf = (
@@ -65,6 +66,31 @@ export const structureTargetIds = (sceneId: string): string[] => {
     if (!ids.includes(id)) ids.push(id);
   }
   return ids;
+};
+
+/** 구조 편집 대상 고르기 - 플러그인 요소는 옛 선택, 나머지는 트리 선택 (둘 다 바꾼다) */
+export const setStructureSelection = (
+  sceneId: string,
+  ids: readonly string[],
+) => {
+  const treeIds: string[] = [];
+  const plugins: SelectedElement[] = [];
+  for (const id of ids) {
+    const kind = kindOf(sceneId, id);
+    if (kind && isPluginKind(kind)) plugins.push({ type: 'plugin', id });
+    else treeIds.push(id);
+  }
+  if (treeIds.length === 0 && plugins.length > 0) {
+    useGridSelectionStore.getState().setSelectedElements(plugins);
+    return;
+  }
+  // 트리 선택을 바꾸면 옛 선택이 비워진다 - 플러그인 몫은 그 뒤에 다시 고른다
+  useDocumentSelectionStore.getState().setSelection(sceneId, treeIds);
+  if (plugins.length > 0) {
+    keepOtherSelection(() =>
+      useGridSelectionStore.getState().setSelectedElements(plugins),
+    );
+  }
 };
 
 /** 트리에만 있는 종류(커서 트래커 등)의 선택 id */

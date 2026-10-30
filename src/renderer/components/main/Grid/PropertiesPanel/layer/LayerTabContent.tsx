@@ -1,185 +1,143 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
-import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { sceneElements } from '@src/renderer/editor/document/documentPatch';
-import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+
 import { useTranslation } from '@contexts/useTranslation';
 import { usePopupPresence } from '@hooks/ui/usePopupPresence';
 import { useRetainedWhileOpen } from '@hooks/ui/useRetainedValue';
-import {
-  useGridSelectionStore,
-  type SelectedElement,
-} from '@stores/grid/useGridSelectionStore';
+import { useLenis } from '@hooks/useLenis';
+import { usePanelHost } from '@contexts/PanelHostContext';
+import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
+import ListPopup, {
+  type ListItem,
+} from '@components/main/Modal/listPopup/ListPopup';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import {
   selectPropertyPanelPluginElements,
   usePluginDisplayElementStore,
 } from '@stores/plugin/usePluginDisplayElementStore';
 import { isMac } from '@utils/core/platform';
-import { useLenis } from '@hooks/useLenis';
-import { usePanelHost } from '@contexts/PanelHostContext';
-import ListPopup from '@components/main/Modal/listPopup/ListPopup';
-import IconSwap from '@components/main/common/IconSwap';
-import CloseEyeIcon from '@assets/svgs/close_eye.svg';
-import OpenEyeIcon from '@assets/svgs/open_eye.svg';
-import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
-import type { DisplayItem, LayerItem } from '../types';
-import { buildLayerItems, buildDisplayItems } from './layerPanelModel';
-import {
-  KeyIcon,
-  KnobIcon,
-  PluginIcon,
-  StatIcon,
-  GraphIcon,
-  SpriteIcon,
-} from './LayerIcons';
-import { useLayerActions } from './useLayerActions';
-import { useLayerDnD } from './useLayerDnD';
-import LayerRenameInput from './LayerRenameInput';
-import DocumentLayerSection from './DocumentLayerSection';
-import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documentElementOrder';
+import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
+import { setPluginElementsHidden } from '@plugins/runtime/displayElement/pluginElementActions';
+import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
+import { isPluginKind } from '@src/types/elementKinds';
+import type { Node } from '@src/types/generated/elementDocument';
 import {
-  LayerGroupDisclosure,
-  LayerGroupVisibilityButton,
-} from './LayerGroupControls';
+  editDocument,
+  groupDocumentElements,
+  setDocumentCommon,
+} from '../../document/documentEditActions';
 import {
-  layerItemToSelectedElement,
-  resolveLayerGroupSelectionIntent,
-  resolveLayerItemSelectionIntent,
-  type LayerSelectionIntent,
-} from './layerSelectionIntent';
+  documentGroupActions,
+  documentGroupRoots,
+} from '../../document/documentGroups';
+import { deleteStructureSelection } from '../../document/deleteStructureSelection';
+import { toggleDocumentId } from '../../document/documentSelection';
+import {
+  setStructureSelection,
+  structureTargetIds,
+} from '../../document/treeEditedSelection';
+import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
+import {
+  documentDropMove,
+  documentLayerRows,
+  layerRowIndent,
+  type DocumentLayerRowModel,
+} from './documentLayerModel';
+import { buildLayerLabels } from './layerPanelModel';
+import {
+  LayerElementRow,
+  LayerGroupRow,
+  type LayerRowRename,
+} from './LayerRows';
+import { useLayerCollapseStore } from './useLayerCollapseStore';
 
-// ============================================================================
-// 레이어 탭 콘텐츠 Props
-// ============================================================================
+// 끌기로 보지 않는 움직임 (화면 px)
+const DRAG_THRESHOLD = 4;
+const EMPTY_IDS: string[] = [];
+
+type DropPosition = 'above' | 'below' | 'into';
+
+interface DropTarget {
+  index: number;
+  position: DropPosition;
+}
+
+interface ContextMenuState {
+  row: DocumentLayerRowModel;
+  x: number;
+  y: number;
+}
+
+const elementIdsOf = (node: Node): string[] =>
+  node.type === 'group' ? node.children.flatMap(elementIdsOf) : [node.id];
 
 interface LayerTabContentProps {
   onSwitchToProperty?: () => void;
   onSelectionFromPanel?: () => void;
 }
 
-// ============================================================================
-// 레이어 탭 콘텐츠 컴포넌트
-// ============================================================================
-
-const LayerTabContent: React.FC<LayerTabContentProps> = ({
+/** 레이어 탭 - 장면 트리 하나를 위→아래 겹침 순서로 보인다.
+ * 묶기·풀기·끌어 옮기기·이름·숨김은 트리 연산 (옛 종류·플러그인·트리 전용 요소 함께) */
+const LayerTabContent = ({
   onSwitchToProperty,
   onSelectionFromPanel,
-}) => {
+}: LayerTabContentProps) => {
   const { t } = useTranslation();
-  const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
-  const positions = useKeyStore((state) => state.positions);
+  const sceneId = useKeyStore((state) => state.selectedKeyType);
+  const scene = useElementDocumentScene(sceneId);
+  const collapsed = useLayerCollapseStore((state) => state.collapsed);
+  const toggleCollapsed = useLayerCollapseStore((state) => state.toggle);
+  const rows = documentLayerRows(scene, collapsed);
+
+  // 이름이 비었을 때의 기본 이름 - 옛 컬렉션의 슬롯·종류 이름
+  const keyPositions = useKeyStore((state) => state.positions);
   const keyMappings = useKeyStore((state) => state.keyMappings);
-  const statPositions = useStatItemStore((state) => state.positions);
-  const graphPositions = useGraphItemStore((state) => state.positions);
-  const knobPositions = useKnobItemStore((state) => state.positions);
-  const spritePositions = useSpriteStore((state) => state.positions);
+  const items = useItemElementCollections();
   const pluginElements = usePluginDisplayElementStore(
     selectPropertyPanelPluginElements,
   );
+  const labels = buildLayerLabels({
+    selectedKeyType: sceneId,
+    positions: keyPositions,
+    keyMappings,
+    ...items,
+    pluginElements,
+  });
 
-  const selectedElements = useGridSelectionStore(
+  const documentSelected = useDocumentSelectionStore((state) =>
+    state.sceneId === sceneId ? state.selectedIds : EMPTY_IDS,
+  );
+  const legacySelected = useGridSelectionStore(
     (state) => state.selectedElements,
   );
-  const clearSelection = useGridSelectionStore((state) => state.clearSelection);
-  const toggleSelection = useGridSelectionStore(
-    (state) => state.toggleSelection,
-  );
-  // 트리로 옮긴 옛 종류(노브 등)는 트리 선택이 맡는다 - 목록 행은 그대로 옛 목록에 있다
-  const documentSelectedIds = useDocumentSelectionStore(
-    (state) => state.selectedIds,
-  );
-  const selectedGroupIds = useGridSelectionStore(
-    (state) => state.selectedGroupIds,
-  );
-  const setFullSelection = useGridSelectionStore(
-    (state) => state.setFullSelection,
-  );
-  const setSelectedElements = useGridSelectionStore(
-    (state) => state.setSelectedElements,
-  );
+  const selectedIds = [
+    ...documentSelected,
+    ...legacySelected
+      .map(({ id }) => id)
+      .filter((id) => !documentSelected.includes(id)),
+  ];
+  const isSelected = (id: string) => selectedIds.includes(id);
 
-  // Shift 선택 앵커
-  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
-  const [lastClickedDisplayIndex, setLastClickedDisplayIndex] = useState<
-    number | null
-  >(null);
+  const [drop, setDrop] = useState<DropTarget | null>(null);
+  const [dragging, setDragging] = useState(false);
+  // 끄는 중 마지막으로 누른 행 클릭은 선택으로 치지 않는다
+  const draggedRef = useRef(false);
 
-  // 패널이 사는 창 - 분리 시 프레임·타이머를 자식 창에 싣는다
-  const { window: hostWindow } = usePanelHost();
+  const [renaming, setRenaming] = useState<{
+    id: string;
+    value: string;
+  } | null>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const renameCancelledRef = useRef(false);
 
-  // 더블클릭/클릭 충돌 방지 타이머
-  const pendingDeselectTimerRef = useRef<number | null>(null);
-  const clearPendingDeselect = () => {
-    if (pendingDeselectTimerRef.current !== null) {
-      (hostWindow ?? window).clearTimeout(pendingDeselectTimerRef.current);
-      pendingDeselectTimerRef.current = null;
-    }
-  };
-  useEffect(() => {
-    return () => clearPendingDeselect();
-  });
-
-  // 스크롤 상태 — scrollElementRef는 DnD 훅의 오토스크롤 계산용
-  const scrollElementRef = useRef<HTMLDivElement | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const { scrollContainerRef: lenisRef, lenisInstance } = useLenis();
-
-  const setScrollRef = (node: HTMLDivElement | null) => {
-    scrollElementRef.current = node;
-    lenisRef(node);
-  };
-
-  // 레이어 그룹 스토어
-  const allLayerGroups = useLayerGroupStore((state) => state.layerGroups);
-  const layerGroupsForMode = allLayerGroups[selectedKeyType] || [];
-  const collapsedGroups = useLayerGroupStore((state) => state.collapsedGroups);
-  const toggleCollapsed = useLayerGroupStore((state) => state.toggleCollapsed);
-
-  // 레이어 아이템 목록
-  const layerItems = buildLayerItems({
-    selectedKeyType,
-    positions,
-    keyMappings,
-    statPositions,
-    graphPositions,
-    knobPositions,
-    spritePositions,
-    pluginElements,
-    layerGroupsForMode,
-  });
-
-  // 트리 문서에만 있는 요소(커서 트래커 등) - 그릴 때만 겹침 순서 자리에 끼운다
-  const documentScene = useElementDocumentScene(selectedKeyType);
-  const documentSlots = documentElementSlots(documentScene, {
-    includeHidden: true,
-  });
-
-  // 디스플레이 아이템
-  const displayItems = buildDisplayItems({
-    layerItems,
-    layerGroupsForMode,
-    collapsedGroups,
-    defaultGroupName: t('layerGroup.defaultName'),
-  });
-
-  // Refs (이벤트 핸들러에서 최신 값 참조)
-  const layerItemsRef = useRef(layerItems);
-  const displayItemsRef = useRef(displayItems);
-  useEffect(() => {
-    layerItemsRef.current = layerItems;
-    displayItemsRef.current = displayItems;
-  });
-
-  // 콘텐츠 높이 변경 시 Lenis 갱신 - 분리 창에서는 그 창의 프레임에 실어야
-  // 메인이 가려져도 멈추지 않는다
+  // 패널이 사는 창 - 분리 시 프레임을 자식 창에 싣는다
+  const { window: hostWindow } = usePanelHost();
+  // 콘텐츠 높이 변경 시 Lenis 갱신
   useEffect(() => {
     const win = hostWindow ?? window;
     const rafId = win.requestAnimationFrame(() => {
@@ -188,523 +146,296 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
     return () => win.cancelAnimationFrame(rafId);
   });
 
-  // 접기/펼치기 시 displayIndex 앵커 리셋 (stale 인덱스 방지)
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- collapsedGroups 변경 시 stale 앵커 리셋 (의도적)
-    setLastClickedDisplayIndex(null);
-  }, [collapsedGroups]);
+  const nameOf = (node: Node) => {
+    if (node.type === 'group') return node.name;
+    if (node.name) return node.name;
+    const fallback = labels.defaultNames.get(node.id);
+    if (fallback) return fallback;
+    const label = elementKindDefinition(node.kind)?.label;
+    return label
+      ? t(label) || node.kind
+      : t('elementKinds.unknownKind') || node.kind;
+  };
+  const hiddenOf = (node: Node) =>
+    node.type === 'element' && isPluginKind(node.kind)
+      ? labels.pluginHidden.get(node.id) ?? node.hidden === true
+      : node.hidden === true;
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // 액션 훅
-  // ──────────────────────────────────────────────────────────────────────────
-
-  const actions = useLayerActions({
-    selectedKeyType,
-    layerItems,
-    layerGroupsForMode,
-    onSelectionFromPanel,
-    clearPendingDeselect,
-    displayItemsRef,
-    setLastClickedIndex,
-    setLastClickedDisplayIndex,
-    t,
-  });
-
-  // 퇴장 모션이 도는 동안 메뉴 DOM과 표시 내용을 유지한다
-  const contextMenuPresence = usePopupPresence(actions.contextMenuOpen);
-  const contextMenuShown = useRetainedWhileOpen(actions.contextMenuOpen, {
-    position: actions.contextMenuPosition,
-    items: actions.contextMenuItems,
-  });
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // DnD 훅
-  // ──────────────────────────────────────────────────────────────────────────
-
-  // 드롭 확정 시점의 authoritative 재구성 - effect 지연 ref는 외부
-  // 재정렬을 한 렌더 늦게 본다
-  const buildLiveLayerModel = () => {
-    const keyState = useKeyStore.getState();
-    const liveGroupState = useLayerGroupStore.getState();
-    const liveLayerItems = buildLayerItems({
-      selectedKeyType,
-      positions: keyState.canonicalPositions,
-      keyMappings: keyState.keyMappings,
-      statPositions: useStatItemStore.getState().positions,
-      graphPositions: useGraphItemStore.getState().positions,
-      knobPositions: useKnobItemStore.getState().positions,
-      spritePositions: useSpriteStore.getState().positions,
-      // 패널 창의 elements는 항상 비어 있으므로 창별 미러 셀렉터를 경유한다
-      pluginElements: selectPropertyPanelPluginElements(
-        usePluginDisplayElementStore.getState(),
-      ),
-      layerGroupsForMode: liveGroupState.layerGroups[selectedKeyType] || [],
-    });
-    const groupState = useLayerGroupStore.getState();
-    const liveDisplayItems = buildDisplayItems({
-      layerItems: liveLayerItems,
-      layerGroupsForMode: groupState.layerGroups[selectedKeyType] || [],
-      collapsedGroups: groupState.collapsedGroups,
-      defaultGroupName: t('layerGroup.defaultName'),
-    });
-    return { layerItems: liveLayerItems, displayItems: liveDisplayItems };
+  const select = (ids: readonly string[]) => {
+    onSelectionFromPanel?.();
+    setStructureSelection(sceneId, ids);
   };
 
-  const dnd = useLayerDnD({
-    selectedKeyType,
-    layerItemsRef,
-    displayItemsRef,
-    scrollElementRef,
-    clearPendingDeselect,
-    buildLiveLayerModel,
-  });
-
-  // 선택 상태 (렌더링용)
-  const selectedElementIdSet = new Set([
-    ...selectedElements.map((el) => el.id),
-    ...documentSelectedIds,
-  ]);
-  const selectedGroupIdSet = new Set(selectedGroupIds);
-
-  // 그룹 안 삽입 인디케이터는 멤버 행과 같은 인덴트로 그룹 밖 삽입과 구분
-  const itemIndicatorIndentClass = dnd.dragOverTargetGroupId
-    ? 'left-[28px]'
-    : 'left-0';
-  const isItemSelected = (item: LayerItem) => selectedElementIdSet.has(item.id);
-  const isGroupHeaderSelected = (groupId: string) =>
-    selectedGroupIdSet.has(groupId);
-
-  // 행 선택 의도 계산용 - 옛 선택에 트리 선택의 트리로 옮긴 옛 종류 행을 더한다
-  const intentSelection = (): SelectedElement[] => {
-    const documentIds = new Set(
-      useDocumentSelectionStore.getState().selectedIds,
-    );
-    return [
-      ...useGridSelectionStore.getState().selectedElements,
-      ...layerItemsRef.current
-        .filter(
-          (item) =>
-            documentIds.has(item.id) &&
-            item.type !== 'plugin' &&
-            TREE_EDITED_KINDS.has(item.type),
-        )
-        .map(layerItemToSelectedElement),
-    ];
-  };
-
-  // 전체 목록 의도 - 트리로 옮긴 옛 종류 몫은 선택 스토어가 트리 선택으로 보낸다.
-  // 그 몫이 없으면(보조키로 마지막 하나를 뺀 경우 등) 트리 선택에서도 그 종류를 걷는다
-  const settleTreeEditedRows = (elements: readonly SelectedElement[]) => {
-    if (
-      elements.some(
-        (element) =>
-          element.type !== 'plugin' && TREE_EDITED_KINDS.has(element.type),
-      )
-    ) {
+  const handleRowClick = (
+    event: React.MouseEvent,
+    row: DocumentLayerRowModel,
+  ) => {
+    if (draggedRef.current) {
+      draggedRef.current = false;
       return;
     }
-    const selection = useDocumentSelectionStore.getState();
-    const scene = getElementDocumentStore()?.getScene(selectedKeyType);
-    const kept = selection.selectedIds.filter((id) => {
-      const kind = scene
-        ? sceneElements(scene).find((node) => node.id === id)?.kind
-        : undefined;
-      return !kind || !TREE_EDITED_KINDS.has(kind);
-    });
-    if (kept.length !== selection.selectedIds.length && selection.sceneId) {
-      keepOtherSelection(() =>
-        selection.setSelection(selection.sceneId!, kept),
+    // macOS Ctrl 클릭은 contextmenu 뒤에 따라오는 click - 무시한다
+    if (isMac() && event.ctrlKey) return;
+    const ids = elementIdsOf(row.node);
+    const primaryModifier = isMac() ? event.metaKey : event.ctrlKey;
+    if (primaryModifier) {
+      // 그룹 행은 그룹 전체를 넣거나 뺀다
+      const allSelected = ids.every(isSelected);
+      select(
+        row.node.type === 'group'
+          ? allSelected
+            ? selectedIds.filter((id) => !ids.includes(id))
+            : [...selectedIds, ...ids.filter((id) => !isSelected(id))]
+          : toggleDocumentId(selectedIds, row.node.id),
       );
+      return;
     }
+    // Shift - 기준 행과 누른 행 사이 요소 행 전체
+    if (event.shiftKey && selectedIds.length > 0) {
+      const anchor = rows.findIndex(
+        ({ node }) => node.type === 'element' && node.id === selectedIds[0],
+      );
+      const clicked = rows.indexOf(row);
+      if (anchor >= 0) {
+        const [from, to] =
+          anchor < clicked ? [anchor, clicked] : [clicked, anchor];
+        select(
+          rows
+            .slice(from, to + 1)
+            .flatMap(({ node }) => elementIdsOf(node))
+            .filter((id, index, all) => all.indexOf(id) === index),
+        );
+        return;
+      }
+    }
+    // 레이어 행은 그룹 안 요소도 그 요소 하나만 고른다 (그룹째 고르기는 캔버스 규칙)
+    select(ids);
   };
 
-  const applySelectionIntent = (intent: LayerSelectionIntent) => {
-    switch (intent.type) {
-      case 'set-full':
-        setFullSelection(intent.elements, intent.groupIds);
-        settleTreeEditedRows(intent.elements);
-        return;
-      case 'set-elements':
-        setSelectedElements(intent.elements);
-        settleTreeEditedRows(intent.elements);
-        return;
-      case 'replace':
-        if (
-          intent.element.type !== 'plugin' &&
-          TREE_EDITED_KINDS.has(intent.element.type)
-        ) {
-          // 그 행만 - 트리 선택을 바꿔 고르면 옛 선택이 비워진다
-          useDocumentSelectionStore
-            .getState()
-            .setSelection(selectedKeyType, [intent.element.id]);
+  const startRename = (id: string, value: string) => {
+    renameCancelledRef.current = false;
+    setRenaming({ id, value });
+    (hostWindow ?? window).requestAnimationFrame(() => {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    });
+  };
+
+  const renameOf = (row: DocumentLayerRowModel): LayerRowRename | null => {
+    if (renaming?.id !== row.node.id) return null;
+    const node = row.node;
+    return {
+      inputRef: renameInputRef,
+      cancelledRef: renameCancelledRef,
+      value: renaming.value,
+      onChange: (value) => setRenaming({ id: node.id, value }),
+      onCommit: (value) => {
+        setRenaming(null);
+        const trimmed = value.trim();
+        if (node.type === 'group') {
+          if (!trimmed || trimmed === node.name) return;
+          void editDocument([
+            { op: 'setGroup', scene: sceneId, id: node.id, name: trimmed },
+          ]);
           return;
         }
-        clearSelection();
-        toggleSelection(intent.element);
-        return;
-      case 'delay-single':
-        pendingDeselectTimerRef.current = (hostWindow ?? window).setTimeout(
-          () => {
-            setFullSelection([intent.element], []);
-            pendingDeselectTimerRef.current = null;
-          },
-          50,
-        );
-        return;
-      case 'delay-clear':
-        pendingDeselectTimerRef.current = (hostWindow ?? window).setTimeout(
-          () => {
-            clearSelection();
-            useDocumentSelectionStore.getState().clear();
-            pendingDeselectTimerRef.current = null;
-          },
-          50,
-        );
-        return;
-      case 'none':
-        return;
-    }
+        // 기본 이름과 같거나 비우면 이름을 지운다
+        const fallback = labels.defaultNames.get(node.id) ?? nameOf(node);
+        void setDocumentCommon(sceneId, node.id, {
+          name: trimmed && trimmed !== fallback ? trimmed : null,
+        });
+      },
+      onCancel: () => setRenaming(null),
+    };
   };
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // 더블클릭 핸들러
-  // ──────────────────────────────────────────────────────────────────────────
-
-  const handleItemDoubleClick = (
-    item: LayerItem,
-    index: number,
-    e: React.MouseEvent,
-  ) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (dnd.getDidDrag() || dnd.getIsDraggingRef()) return;
-
-    clearPendingDeselect();
-    onSelectionFromPanel?.();
-
-    clearSelection();
-    toggleSelection(layerItemToSelectedElement(item));
-
-    onSwitchToProperty?.();
-    setLastClickedIndex(index);
-
-    const displayIdx = displayItemsRef.current.findIndex(
-      (di) => di.displayType === 'layer' && di.item.id === item.id,
-    );
-    setLastClickedDisplayIndex(displayIdx !== -1 ? displayIdx : null);
-  };
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 아이템 클릭 핸들러
-  // ──────────────────────────────────────────────────────────────────────────
-
-  const handleItemClick = (
-    item: LayerItem,
-    index: number,
-    e: React.MouseEvent,
-  ) => {
-    clearPendingDeselect();
-
-    if (dnd.getDidDrag()) {
-      dnd.resetDidDrag();
+  const toggleHidden = (node: Node) => {
+    const hidden = hiddenOf(node);
+    if (node.type === 'group') {
+      void editDocument([
+        { op: 'setGroup', scene: sceneId, id: node.id, hidden: !hidden },
+      ]);
       return;
     }
-    if (dnd.getIsDraggingRef()) return;
+    // 플러그인 요소는 플러그인 스토어가 낙관 반영한다
+    if (isPluginKind(node.kind)) {
+      void setPluginElementsHidden([{ fullId: node.id, hidden: !hidden }]);
+      return;
+    }
+    void setDocumentCommon(sceneId, node.id, { hidden: !hidden });
+  };
 
-    onSelectionFromPanel?.();
+  const startDrag = (event: React.PointerEvent, row: DocumentLayerRowModel) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('button, input')) return;
+    // 고른 행을 끌면 고른 것 전체(다 고른 그룹은 그룹째), 아니면 그 행만
+    const ownIds = elementIdsOf(row.node);
+    const moving =
+      ownIds.length > 0 && ownIds.every(isSelected)
+        ? documentGroupRoots(scene, selectedIds)
+        : [row.node.id];
+    const startY = event.clientY;
+    let started = false;
+    let current: DropTarget | null = null;
+    const element = event.currentTarget as HTMLElement;
+    element.setPointerCapture(event.pointerId);
+    const handleMove = (move: PointerEvent) => {
+      if (!started && Math.abs(move.clientY - startY) < DRAG_THRESHOLD) {
+        return;
+      }
+      if (!started) setDragging(true);
+      started = true;
+      const hit = element.ownerDocument
+        .elementFromPoint(move.clientX, move.clientY)
+        ?.closest<HTMLElement>('[data-document-layer-index]');
+      if (!hit) {
+        current = null;
+        setDrop(null);
+        return;
+      }
+      const index = Number(hit.dataset.documentLayerIndex);
+      const rect = hit.getBoundingClientRect();
+      const ratio = (move.clientY - rect.top) / Math.max(1, rect.height);
+      const isGroup = rows[index]?.node.type === 'group';
+      const position: DropPosition = isGroup
+        ? ratio < 0.25
+          ? 'above'
+          : ratio > 0.75
+          ? 'below'
+          : 'into'
+        : ratio < 0.5
+        ? 'above'
+        : 'below';
+      current = { index, position };
+      setDrop(current);
+    };
+    const handleUp = () => {
+      element.removeEventListener('pointermove', handleMove);
+      element.removeEventListener('pointerup', handleUp);
+      element.removeEventListener('pointercancel', handleUp);
+      setDrop(null);
+      setDragging(false);
+      if (!started) return;
+      draggedRef.current = true;
+      if (!current) return;
+      // 펼친 그룹 행 아래 가장자리는 그 그룹 안 첫 자리
+      const dropRow = rows[current.index];
+      const position =
+        current.position === 'below' &&
+        dropRow?.node.type === 'group' &&
+        !collapsed.has(dropRow.node.id)
+          ? 'into'
+          : current.position;
+      const op = documentDropMove(
+        scene,
+        rows,
+        moving,
+        current.index,
+        position,
+        sceneId,
+      );
+      if (op) void editDocument([op]);
+    };
+    element.addEventListener('pointermove', handleMove);
+    element.addEventListener('pointerup', handleUp);
+    element.addEventListener('pointercancel', handleUp);
+  };
 
-    // macOS ctrl+클릭은 우클릭 제스처 — contextmenu 뒤에 따라오는 click 무시
-    if (isMac() && e.ctrlKey) return;
+  const openContextMenu = (
+    event: React.MouseEvent,
+    row: DocumentLayerRowModel,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    // 고른 것 위에서 우클릭하면 선택을 지킨다
+    if (row.node.type === 'element' && !isSelected(row.node.id)) {
+      select([row.node.id]);
+    }
+    setContextMenu({ row, x: event.clientX, y: event.clientY });
+  };
 
-    const isPrimaryModifierPressed = isMac() ? e.metaKey : e.ctrlKey;
-    const isShiftPressed = e.shiftKey;
-    const resolution = resolveLayerItemSelectionIntent({
-      item,
-      index,
-      primary: isPrimaryModifierPressed,
-      shift: isShiftPressed,
-      lastClickedIndex,
-      lastClickedDisplayIndex,
-      layerItems: layerItemsRef.current,
-      displayItems: displayItemsRef.current,
-      selectedElements: intentSelection(),
-      selectedGroupIds,
-    });
-
-    // 보조키 넣고 빼기는 트리 요소 선택을 지킨다
-    if (isPrimaryModifierPressed) {
-      keepOtherSelection(() => applySelectionIntent(resolution.intent));
-    } else if (
-      resolution.intent.type === 'delay-clear' &&
-      useDocumentSelectionStore
-        .getState()
-        .selectedIds.some((id) => id !== item.id)
+  const contextMenuItems: ListItem[] = (() => {
+    const row = contextMenu?.row;
+    if (!row) return [];
+    if (row.node.type === 'group') {
+      return [
+        { id: 'renameGroup', label: t('contextMenu.renameGroup') || 'Rename' },
+        { id: 'ungroup', label: t('contextMenu.ungroup') || 'Ungroup' },
+      ];
+    }
+    const items: ListItem[] = isPluginKind(row.node.kind)
+      ? []
+      : [{ id: 'rename', label: t('contextMenu.rename') || 'Rename' }];
+    if (
+      documentGroupActions(scene, structureTargetIds(sceneId)).includes('group')
     ) {
-      // 트리 요소와 함께 고른 유일한 옛 행을 누르면 그 행만 고른다 (여럿 중 하나를 누른 것과 같다)
-      applySelectionIntent({
-        type: 'delay-single',
-        element: layerItemToSelectedElement(item),
+      items.push({
+        id: 'groupSelected',
+        label: t('contextMenu.groupSelected') || 'Group',
       });
-    } else {
-      applySelectionIntent(resolution.intent);
     }
-    if (resolution.anchor) {
-      setLastClickedIndex(resolution.anchor.index);
-      setLastClickedDisplayIndex(resolution.anchor.displayIndex);
+    if (row.parentId !== null) {
+      items.push({
+        id: 'removeFromGroup',
+        label: t('contextMenu.removeFromGroup') || 'Remove from Group',
+      });
     }
-  };
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 그룹 헤더 클릭
-  // ──────────────────────────────────────────────────────────────────────────
-
-  const handleGroupHeaderClick = (groupId: string, e: React.MouseEvent) => {
-    onSelectionFromPanel?.();
-    clearPendingDeselect();
-
-    if (dnd.getDidDrag()) {
-      dnd.resetDidDrag();
-      return;
-    }
-    if (dnd.getIsDraggingRef()) return;
-
-    // macOS ctrl+클릭은 우클릭 제스처 — contextmenu 뒤에 따라오는 click 무시
-    if (isMac() && e.ctrlKey) return;
-
-    const isPrimaryModifierPressed = isMac() ? e.metaKey : e.ctrlKey;
-    const isShiftPressed = e.shiftKey;
-    const resolution = resolveLayerGroupSelectionIntent({
-      groupId,
-      primary: isPrimaryModifierPressed,
-      shift: isShiftPressed,
-      lastClickedDisplayIndex,
-      layerItems,
-      rangeLayerItems: layerItemsRef.current,
-      displayItems: displayItemsRef.current,
-      selectedElements: intentSelection(),
-      selectedGroupIds,
+    items.push({
+      id: 'delete',
+      label: t('propertiesPanel.delete') || 'Delete',
     });
+    return items;
+  })();
 
-    if (isPrimaryModifierPressed) {
-      keepOtherSelection(() => applySelectionIntent(resolution.intent));
-    } else {
-      applySelectionIntent(resolution.intent);
-    }
-    if (resolution.anchor) {
-      setLastClickedDisplayIndex(resolution.anchor.displayIndex);
-      setLastClickedIndex(resolution.anchor.index);
+  const handleContextMenuSelect = (itemId: string) => {
+    const row = contextMenu?.row;
+    setContextMenu(null);
+    if (!row) return;
+    const node = row.node;
+    if (itemId === 'rename' || itemId === 'renameGroup') {
+      startRename(node.id, nameOf(node));
+    } else if (itemId === 'ungroup') {
+      void editDocument([{ op: 'ungroup', scene: sceneId, id: node.id }]);
+    } else if (itemId === 'groupSelected') {
+      void groupDocumentElements(
+        sceneId,
+        structureTargetIds(sceneId),
+        t('layerGroup.newGroup') || 'New Group',
+      );
+    } else if (itemId === 'removeFromGroup' && row.parentId !== null) {
+      // 그룹 바로 위(그룹의 부모 안)로 꺼낸다
+      const groupRow = rows.find(({ node }) => node.id === row.parentId);
+      if (groupRow) {
+        void editDocument([
+          {
+            op: 'move',
+            scene: sceneId,
+            ids: [node.id],
+            parent: groupRow.parentId,
+            index: groupRow.index + 1,
+          },
+        ]);
+      }
+    } else if (itemId === 'delete') {
+      onSelectionFromPanel?.();
+      void deleteStructureSelection(sceneId).catch(reportElementOpError);
     }
   };
+
+  const contextMenuPresence = usePopupPresence(contextMenu !== null);
+  const contextMenuShown = useRetainedWhileOpen(contextMenu !== null, {
+    position: contextMenu ? { x: contextMenu.x, y: contextMenu.y } : undefined,
+    items: contextMenuItems,
+  });
 
   // 빈 공간 클릭 시 선택 해제
-  const handleEmptySpaceMouseDown = (e: React.MouseEvent) => {
-    if (e.target !== e.currentTarget) return;
-    if (e.button !== 0) return;
-    clearPendingDeselect();
+  const handleEmptySpaceMouseDown = (event: React.MouseEvent) => {
+    if (event.target !== event.currentTarget) return;
+    if (event.button !== 0) return;
     onSelectionFromPanel?.();
-    clearSelection();
+    useGridSelectionStore.getState().clearSelection();
     useDocumentSelectionStore.getState().clear();
-    setLastClickedIndex(null);
-    setLastClickedDisplayIndex(null);
-  };
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 렌더링
-  // ──────────────────────────────────────────────────────────────────────────
-
-  const renderDisplayItem = (
-    displayItem: DisplayItem,
-    displayIndex: number,
-  ) => {
-    // ── 그룹 헤더 렌더링 ──
-    if (displayItem.displayType === 'group-header') {
-      const gh = displayItem;
-      const isRenamingGroup = actions.renamingItemId === `group:${gh.groupId}`;
-      const isBeingDragged = dnd.draggedGroupId === gh.groupId;
-      const isSelected = isGroupHeaderSelected(gh.groupId);
-      // 그룹 진입 존 - 행 전체를 hover 토큰으로 하이라이트
-      const isDropInto =
-        dnd.draggedItemId != null && dnd.dragOverIntoGroupId === gh.groupId;
-
-      return (
-        <div
-          key={`group:${gh.groupId}`}
-          onMouseDown={(e) => dnd.handleGroupMouseDown(e, gh.groupId)}
-          onContextMenu={(e) =>
-            actions.handleGroupHeaderContextMenu(e, gh.groupId)
-          }
-          onClick={(e) => {
-            handleGroupHeaderClick(gh.groupId, e);
-          }}
-          className={`
-                      group relative flex items-center gap-[8px] pl-[12px] pr-[4px] h-[34px]
-                      select-none dmn-row-grabbable
-                      ${gh.allHidden && !isBeingDragged ? 'opacity-60' : ''}
-                      ${isBeingDragged ? 'opacity-30' : ''}
-                      ${
-                        isDropInto
-                          ? 'bg-fill-hover text-fg-muted'
-                          : isSelected
-                          ? 'bg-accent-muted text-fg'
-                          : dnd.isDragging
-                          ? 'text-fg-muted'
-                          : 'hover:bg-fill text-fg-muted'
-                      }
-                    `}
-        >
-          {/* 아이템 드래그 드롭 인디케이터 */}
-          {dnd.draggedItemId &&
-            dnd.dragOverItemDisplayIndex === displayIndex && (
-              <div
-                className={`absolute ${itemIndicatorIndentClass} right-0 top-0 h-[2px] bg-accent z-10`}
-              />
-            )}
-          {/* 그룹 드래그 드롭 인디케이터 */}
-          {dnd.draggedGroupId &&
-            dnd.dragOverDisplayIndex === displayIndex &&
-            dnd.draggedGroupId !== gh.groupId && (
-              <div className="absolute left-0 right-0 top-0 h-[2px] bg-accent z-10" />
-            )}
-          <LayerGroupDisclosure
-            collapsed={gh.isCollapsed}
-            onToggle={() => toggleCollapsed(gh.groupId)}
-          />
-
-          {/* 그룹 이름 */}
-          {isRenamingGroup ? (
-            <LayerRenameInput
-              inputRef={actions.renameInputRef}
-              value={actions.renameValue}
-              cancelledRef={actions.renameCancelledRef}
-              onChange={actions.setRenameValue}
-              onCommit={(value) =>
-                actions.handleGroupRenameCommit(gh.groupId, value)
-              }
-              onCancel={() => actions.setRenamingItemId(null)}
-            />
-          ) : (
-            <span className="flex-1 text-body truncate font-medium">
-              {gh.groupName}
-            </span>
-          )}
-
-          {/* 그룹 표시/숨김 토글 */}
-          <LayerGroupVisibilityButton
-            groupId={gh.groupId}
-            allHidden={gh.allHidden}
-            onToggle={actions.handleToggleGroupVisibility}
-          />
-        </div>
-      );
-    }
-
-    // ── 레이어 아이템 렌더링 ──
-    const { item, groupDepth, flatIndex } = displayItem;
-    const paddingLeft = groupDepth > 0 ? 28 : 12;
-    const isInDraggedGroup =
-      dnd.draggedGroupId != null && item.groupId === dnd.draggedGroupId;
-
-    return (
-      <div
-        key={item.id}
-        onMouseDown={(e) => dnd.handleMouseDown(e, item, flatIndex)}
-        onClick={(e) => handleItemClick(item, flatIndex, e)}
-        onDoubleClick={(e) => handleItemDoubleClick(item, flatIndex, e)}
-        onContextMenu={(e) => actions.handleContextMenu(e, item, flatIndex)}
-        style={{ paddingLeft }}
-        className={`
-                    group relative flex items-center gap-[8px] pr-[4px] h-[34px]
-                    select-none dmn-row-grabbable
-                    ${item.hidden && !isInDraggedGroup ? 'opacity-60' : ''}
-                    ${isInDraggedGroup ? 'opacity-30' : ''}
-                    ${
-                      isItemSelected(item)
-                        ? 'bg-accent-muted text-fg'
-                        : dnd.isDragging
-                        ? 'text-fg-muted'
-                        : 'hover:bg-fill text-fg-muted'
-                    }
-                  `}
-      >
-        {/* 드롭 인디케이터 */}
-        {dnd.draggedItemId && dnd.dragOverItemDisplayIndex === displayIndex && (
-          <div
-            className={`absolute ${itemIndicatorIndentClass} right-0 top-0 h-[2px] bg-accent z-10`}
-          />
-        )}
-        {dnd.draggedGroupId &&
-          dnd.dragOverDisplayIndex === displayIndex &&
-          item.groupId !== dnd.draggedGroupId && (
-            <div className="absolute left-0 right-0 top-0 h-[2px] bg-accent z-10" />
-          )}
-
-        {/* 아이콘 */}
-        <div className="flex-shrink-0">
-          {item.type === 'key' ? (
-            <KeyIcon />
-          ) : item.type === 'stat' ? (
-            <StatIcon />
-          ) : item.type === 'graph' ? (
-            <GraphIcon />
-          ) : item.type === 'knob' ? (
-            <KnobIcon />
-          ) : item.type === 'sprite' ? (
-            <SpriteIcon />
-          ) : (
-            <PluginIcon />
-          )}
-        </div>
-
-        {/* 이름 */}
-        {actions.renamingItemId === item.id ? (
-          <LayerRenameInput
-            inputRef={actions.renameInputRef}
-            value={actions.renameValue}
-            cancelledRef={actions.renameCancelledRef}
-            onChange={actions.setRenameValue}
-            onCommit={(value) => actions.handleLayerRenameCommit(item, value)}
-            onCancel={() => actions.setRenamingItemId(null)}
-          />
-        ) : (
-          <span className="flex-1 text-body truncate">{item.name}</span>
-        )}
-
-        {/* 표시/숨김 토글 */}
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onDoubleClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onClick={(e) => actions.handleToggleVisibility(e, item)}
-          title={
-            item.hidden
-              ? t('propertiesPanel.showLayer') || 'Show'
-              : t('propertiesPanel.hideLayer') || 'Hide'
-          }
-          className={`flex-shrink-0 w-[28px] h-[28px] flex items-center justify-center rounded-md cursor-pointer ${
-            item.hidden
-              ? ''
-              : 'opacity-0 group-hover:opacity-60 hover:!opacity-100'
-          }`}
-        >
-          <IconSwap
-            active={item.hidden}
-            activeIcon={
-              <CloseEyeIcon width={14} height={14} fill="currentColor" />
-            }
-            inactiveIcon={
-              <OpenEyeIcon width={14} height={14} fill="currentColor" />
-            }
-          />
-        </button>
-      </div>
-    );
   };
 
   return (
@@ -713,11 +444,11 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
       onMouseDown={handleEmptySpaceMouseDown}
     >
       <div
-        ref={setScrollRef}
+        ref={lenisRef}
         className="properties-panel-overlay-viewport"
         onMouseDown={handleEmptySpaceMouseDown}
       >
-        {layerItems.length === 0 && documentSlots.length === 0 ? (
+        {rows.length === 0 ? (
           <div className="flex items-center justify-center h-full p-[16px]">
             <p className="text-fg-caption text-body text-center">
               {t('propertiesPanel.noLayers') || 'No layers'}
@@ -725,39 +456,92 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
           </div>
         ) : (
           <div className="relative">
-            {displayItems.map(renderDisplayItem)}
-
-            {/* 마지막 아이템 뒤 드롭 인디케이터 */}
-            {dnd.draggedItemId &&
-              dnd.dragOverItemDisplayIndex === displayItems.length && (
-                <div
-                  className={`absolute ${itemIndicatorIndentClass} right-0 bottom-0 h-[2px] bg-accent z-10`}
-                />
-              )}
-            {dnd.draggedGroupId &&
-              dnd.dragOverDisplayIndex === displayItems.length && (
-                <div className="absolute left-0 right-0 bottom-0 h-[2px] bg-accent z-10" />
-              )}
+            {rows.map((row, index) => {
+              const indicator =
+                drop?.index === index && drop.position !== 'into' ? (
+                  <div
+                    className={`absolute right-0 ${
+                      drop.position === 'above' ? 'top-0' : 'bottom-0'
+                    } h-[2px] bg-accent z-10 pointer-events-none`}
+                    style={{ left: layerRowIndent(row.depth) }}
+                  />
+                ) : null;
+              const handlers = {
+                onClick: (event: React.MouseEvent) =>
+                  handleRowClick(event, row),
+                onPointerDown: (event: React.PointerEvent) =>
+                  startDrag(event, row),
+                onContextMenu: (event: React.MouseEvent) =>
+                  openContextMenu(event, row),
+              };
+              if (row.node.type === 'group') {
+                const group = row.node;
+                const members = elementIdsOf(group);
+                return (
+                  <div key={`group:${group.id}`} className="relative">
+                    <LayerGroupRow
+                      group={group}
+                      depth={row.depth}
+                      rowIndex={index}
+                      collapsed={collapsed.has(group.id)}
+                      selected={members.length > 0 && members.every(isSelected)}
+                      dragging={dragging}
+                      dropInto={
+                        drop?.index === index && drop.position === 'into'
+                      }
+                      rename={renameOf(row)}
+                      onToggleCollapsed={() => toggleCollapsed(group.id)}
+                      onToggleHidden={() => toggleHidden(group)}
+                      onDoubleClick={(event) => {
+                        event.preventDefault();
+                        startRename(group.id, group.name);
+                      }}
+                      {...handlers}
+                    />
+                    {indicator}
+                  </div>
+                );
+              }
+              const node = row.node;
+              return (
+                <div key={node.id} className="relative">
+                  <LayerElementRow
+                    id={node.id}
+                    kind={node.kind}
+                    name={nameOf(node)}
+                    depth={row.depth}
+                    rowIndex={index}
+                    hidden={hiddenOf(node)}
+                    selected={isSelected(node.id)}
+                    dragging={dragging}
+                    rename={renameOf(row)}
+                    onToggleHidden={() => toggleHidden(node)}
+                    onDoubleClick={(event) => {
+                      event.preventDefault();
+                      // 그 요소만 고르고 속성 탭으로
+                      select([node.id]);
+                      onSwitchToProperty?.();
+                    }}
+                    t={t}
+                    {...handlers}
+                  />
+                  {indicator}
+                </div>
+              );
+            })}
           </div>
         )}
-        {/* 트리 문서에만 있는 요소(커서 트래커 등) - 옛 행의 끌기 계산(행 높이 × 순번)을
-            흔들지 않게 옛 목록 아래에 위→아래 겹침 순서로 둔다 */}
-        <DocumentLayerSection sceneId={selectedKeyType} t={t} />
       </div>
 
-      {/* 컨텍스트 메뉴 */}
       {contextMenuPresence.mounted &&
         createPortal(
           <ListPopup
-            open={actions.contextMenuOpen}
+            open={contextMenu !== null}
             ariaLabel={t('common.more')}
             position={contextMenuShown.position}
-            onClose={() => {
-              actions.setContextMenuOpen(false);
-              actions.setContextMenuGroupId(null);
-            }}
+            onClose={() => setContextMenu(null)}
             items={contextMenuShown.items}
-            onSelect={actions.handleContextMenuSelect}
+            onSelect={handleContextMenuSelect}
           />,
           document.body,
         )}
