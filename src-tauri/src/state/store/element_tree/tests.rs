@@ -1728,3 +1728,70 @@ fn 사이에_다른_트리_편집이_끼면_같은_동작이라도_따로_기록
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 같은_동작_사이에_다른_편집이_끼면_되돌리기_단계를_잃지_않는다() {
+    let (dir, store) = open_store();
+    insert_tracker(&store);
+    let gesture = Some(uuid::Uuid::new_v4().to_string());
+    move_tracker(&store, "tracker-1", 6.0, gesture.clone());
+    move_tracker(&store, "tracker-1", 4.0, None);
+    move_tracker(&store, "tracker-1", 5.0, gesture);
+    let x = |store: &crate::state::AppStore| {
+        store.element_document_snapshot().1.scenes["4key"]
+            .element("tracker-1")
+            .map(|element| element.frame.x)
+    };
+    for expected in [Some(4.0), Some(6.0), Some(5.0), None] {
+        undo(&store).unwrap();
+        assert_eq!(x(&store), expected);
+    }
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 옛_종류와_트리_요소를_한_트리_커밋으로_옮기면_한_번에_되돌리고_다시_한다() {
+    use crate::state::history::HistoryDirection;
+    let (dir, store) = open_store();
+    insert_tracker(&store);
+    let key = store.snapshot().key_positions["4key"][1].id.clone();
+    let key_x = store.snapshot().key_positions["4key"][1].dx;
+    // 트리 선택에 옛 종류(트리로 옮긴 노브 등)와 트리 요소가 섞인 끌기 - 한 커밋
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "setFrame", "scene": "4key", "id": key, "frame": { "x": 321 } },
+        { "op": "setFrame", "scene": "4key", "id": "tracker-1", "frame": { "x": 77 } }
+    ]))
+    .unwrap();
+    match store.plan_element_document_commit(&ops, None).unwrap() {
+        ElementDocumentCommitPlan::Legacy { request, .. } => {
+            store.commit_editor_document(*request).unwrap();
+        }
+        _ => panic!("옛 편집 커밋이어야 한다"),
+    }
+    let positions = |store: &crate::state::AppStore| {
+        (
+            store.snapshot().key_positions["4key"][1].dx,
+            store.element_document_snapshot().1.scenes["4key"]
+                .element("tracker-1")
+                .unwrap()
+                .frame
+                .x,
+        )
+    };
+    assert_eq!(positions(&store), (321.0, 77.0));
+    undo(&store).unwrap();
+    assert_eq!(positions(&store), (key_x, 5.0));
+    let counters = Default::default();
+    store
+        .apply_history_operation(
+            HistoryDirection::Redo,
+            &uuid::Uuid::new_v4().to_string(),
+            &counters,
+            || {},
+        )
+        .unwrap();
+    assert_eq!(positions(&store), (321.0, 77.0));
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

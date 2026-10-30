@@ -328,6 +328,39 @@ impl AppStore {
             .map_err(|error| {
                 EditorCommitError::validation("HISTORY_SERIALIZATION_FAILED", error)
             })?;
+        // 트리 쓰기에서 온 커밋이 트리 전용 노드도 바꿨으면 그 장면 뼈대를 같은 기록에 담는다
+        // (옛 종류·트리 요소를 함께 옮긴 섞인 선택 - 되돌리기 한 번에 둘 다)
+        let history_plan = match (history_plan, options.element_tree.as_ref()) {
+            (Some(plan), Some(tree)) => {
+                let changed_scenes: Vec<&String> = tree
+                    .scenes
+                    .keys()
+                    .filter(|scene_id| {
+                        element_tree_snapshot(&current_store.element_document, [*scene_id])
+                            != element_tree_snapshot(tree, [*scene_id])
+                    })
+                    .collect();
+                if changed_scenes.is_empty() {
+                    Some(plan)
+                } else {
+                    Some(
+                        guard
+                            .history
+                            .add_element_tree_to_plan(
+                                plan,
+                                element_tree_snapshot(
+                                    &current_store.element_document,
+                                    changed_scenes,
+                                ),
+                            )
+                            .map_err(|error| {
+                                EditorCommitError::validation("HISTORY_SERIALIZATION_FAILED", error)
+                            })?,
+                    )
+                }
+            }
+            (plan, _) => plan,
+        };
 
         let revision = next_revision(current_store.editor_revision)?;
         if options.apply_key_side_effects && changed_fields.contains(&EditorField::Keys) {
@@ -346,7 +379,10 @@ impl AppStore {
             .map_err(|error| EditorCommitError::io(error.to_string()))?;
 
         let history_status = history_plan.map(|plan| {
-            guard.history.apply_editor_record_plan(plan, &candidate);
+            let tree = guard.data.element_document.clone();
+            guard
+                .history
+                .apply_editor_record_plan(plan, &candidate, &tree);
             guard.history.issue_status(self.history_gate.is_closed())
         });
         let event = options.origin.event_name().map(|origin| EditorCommittedV1 {

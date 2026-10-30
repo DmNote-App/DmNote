@@ -9,10 +9,10 @@ pub(crate) use admission::{
 };
 use snapshot::{
     merge_editor_snapshot, merge_element_tree_snapshot, merge_gesture_snapshots,
-    merge_plugin_elements_snapshot, normalize_gesture_ids, remove_net_zero_editor_snapshot,
-    remove_net_zero_element_tree_snapshot, remove_net_zero_plugin_snapshot,
-    snapshot_contains_element_tree, snapshot_contains_plugin_elements, validate_compound_snapshots,
-    HistoryEntryPayload,
+    merge_plugin_elements_snapshot, normalize_gesture_ids, refresh_history_entry_size,
+    remove_net_zero_editor_snapshot, remove_net_zero_element_tree_snapshot,
+    remove_net_zero_plugin_snapshot, snapshot_contains_plugin_elements,
+    validate_compound_snapshots, HistoryEntryPayload,
 };
 pub(crate) use snapshot::{
     CustomTabsHistorySnapshot, ElementTreeHistorySnapshot, HistoryDirection, HistoryEntry,
@@ -285,15 +285,12 @@ impl HistoryService {
         gesture_id: Option<String>,
     ) -> Result<HistoryRecordPlan, String> {
         let gesture_ids = gesture_id.into_iter().collect::<Vec<_>>();
-        // 맨 위 기록이거나 이미 트리 뼈대를 담은 기록에만 합친다 - 사이에 낀 다른 트리 편집 뒤에
-        // 처음 찍는 뼈대는 동작 전 모습이 아니다
-        let last = self.past.back().map(|entry| entry.access_sequence);
-        if let Some(target) = self.past.iter().rev().find(|entry| {
+        // 맨 위 기록에만 합친다(옛 편집과 같다) - 사이에 다른 편집이 끼면 따로 기록한다.
+        // 아래 기록에 합치면 사이 편집 뒤에 찍은 뼈대가 쓰이거나, 제자리 판정이 뒤 편집까지 본다
+        if let Some(target) = self.past.back().filter(|entry| {
             self.future.is_empty()
                 && !gesture_ids.is_empty()
                 && entry.matches_any_gesture(&gesture_ids)
-                && (Some(entry.access_sequence) == last
-                    || snapshot_contains_element_tree(&entry.before))
         }) {
             let merged = merge_element_tree_snapshot(&target.before, before)?;
             let mut merged_gesture_ids = target.gesture_ids.clone();
@@ -469,14 +466,44 @@ impl HistoryService {
         self.enforce_budget();
     }
 
+    /// 트리 쓰기에서 온 옛 편집 커밋 - 트리 전용 노드 편집 전 뼈대를 같은 기록에 담는다
+    pub(crate) fn add_element_tree_to_plan(
+        &self,
+        plan: HistoryRecordPlan,
+        before: ElementTreeHistorySnapshot,
+    ) -> Result<HistoryRecordPlan, String> {
+        let attach = |mut entry: Box<HistoryEntry>| -> Result<Box<HistoryEntry>, String> {
+            entry.before = merge_element_tree_snapshot(&entry.before, before)?;
+            entry.scope = entry.before.scope();
+            refresh_history_entry_size(&mut entry);
+            Ok(entry)
+        };
+        Ok(match plan {
+            HistoryRecordPlan::Entry(entry) => HistoryRecordPlan::Entry(attach(entry)?),
+            HistoryRecordPlan::Merge {
+                entry,
+                target_access_sequence,
+                remove_access_sequences,
+            } => HistoryRecordPlan::Merge {
+                entry: attach(entry)?,
+                target_access_sequence,
+                remove_access_sequences,
+            },
+            HistoryRecordPlan::Truncate => HistoryRecordPlan::Truncate,
+        })
+    }
+
+    /// 옛 편집 기록 반영 - 같은 동작으로 제자리로 돌아온 몫(옛 편집·트리)을 뺀다
     pub(crate) fn apply_editor_record_plan(
         &mut self,
         mut plan: HistoryRecordPlan,
         canonical: &EditorDocumentV1,
+        tree: &element_document::Document,
     ) {
         let remove_entry = match &mut plan {
             HistoryRecordPlan::Merge { entry, .. } => {
                 remove_net_zero_editor_snapshot(entry, canonical)
+                    || remove_net_zero_element_tree_snapshot(entry, tree)
             }
             _ => false,
         };

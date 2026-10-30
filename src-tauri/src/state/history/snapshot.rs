@@ -610,7 +610,7 @@ pub(super) struct HistoryEntryPayload<'a> {
     pub(super) gesture_ids: &'a Vec<String>,
 }
 
-fn refresh_history_entry_size(entry: &mut HistoryEntry) {
+pub(super) fn refresh_history_entry_size(entry: &mut HistoryEntry) {
     if let Ok(payload) = serde_json::to_vec(&HistoryEntryPayload {
         scope: entry.scope,
         before: &entry.before,
@@ -665,16 +665,6 @@ pub(super) fn remove_net_zero_element_tree_snapshot(
     }
     refresh_history_entry_size(entry);
     matches!(&entry.before, HistorySnapshot::Compound { snapshots } if snapshots.is_empty())
-}
-
-pub(super) fn snapshot_contains_element_tree(snapshot: &HistorySnapshot) -> bool {
-    match snapshot {
-        HistorySnapshot::ElementTree(_) => true,
-        HistorySnapshot::Compound { snapshots } => {
-            snapshots.iter().any(snapshot_contains_element_tree)
-        }
-        _ => false,
-    }
 }
 
 pub(super) fn remove_net_zero_plugin_snapshot(
