@@ -26,6 +26,14 @@ const mocks = vi.hoisted(() => ({
   >,
 }));
 
+// 오버레이는 키·아이템 위치를 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
+vi.mock(
+  '@src/renderer/editor/document/elementDocumentRuntime',
+  async (importOriginal) =>
+    (
+      await import('@src/renderer/__tests__/overlayTreeFromStores')
+    ).treeFromStores(importOriginal as never),
+);
 vi.mock('@tauri-apps/api/window', () => ({
   currentMonitor: vi.fn(),
   getCurrentWindow: () => ({
@@ -227,10 +235,12 @@ describe('overlay sprite preview composition', () => {
 
     expect(lastLayoutSprites()[0].dx).toBe(15);
     expect(lastSceneSprites()[0].dx).toBe(15);
-    // canonical 참조가 그대로 유지되어 layout memo 재계산도 없다
-    expect(lastLayoutSprites()).toBe(
-      useSpriteStore.getState().positions['4key'],
-    );
+    // 트리 장면이 그대로라 같은 위치 목록 - layout memo 재계산도 없다
+    const before = lastLayoutSprites();
+    act(() => {
+      previewOverlay.applyRemoteEnvelope(remoteEnvelope());
+    });
+    expect(lastLayoutSprites()).toBe(before);
   });
 
   it('커밋 정산 후에는 갱신된 canonical을 프리뷰 없이 반영한다', async () => {
@@ -246,7 +256,7 @@ describe('overlay sprite preview composition', () => {
     });
 
     expect(lastLayoutSprites()[0].dx).toBe(99);
-    expect(lastLayoutSprites()).toBe(committed['4key']);
-    expect(lastSceneSprites()).toBe(committed['4key']);
+    expect(lastSceneSprites()[0].dx).toBe(99);
+    expect(lastSceneSprites()).toBe(lastLayoutSprites());
   });
 });

@@ -31,6 +31,14 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+// 오버레이는 키·아이템 위치를 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
+vi.mock(
+  '@src/renderer/editor/document/elementDocumentRuntime',
+  async (importOriginal) =>
+    (
+      await import('@src/renderer/__tests__/overlayTreeFromStores')
+    ).treeFromStores(importOriginal as never),
+);
 vi.mock('@tauri-apps/api/window', () => ({
   currentMonitor: mocks.currentMonitor,
   getCurrentWindow: () => mocks.overlayWindow,

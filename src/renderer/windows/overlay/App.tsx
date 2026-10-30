@@ -15,12 +15,7 @@ import { useAppBootstrap } from '@hooks/app/useAppBootstrap';
 import { overlayApi } from '@api/modules/window/overlayApi';
 import { useBuiltinStatsSubscription } from '@hooks/overlay/useBuiltinStatsSubscription';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
-import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
-  ITEM_ELEMENT_TYPES,
-  type ItemElementModeArrays,
-} from '@src/types/editor';
+import type { KeyMappings } from '@src/types/key/keys';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useStoreWithEqualityFn } from 'zustand/traditional';
@@ -28,11 +23,8 @@ import {
   useElementDocumentReady,
   useElementDocumentScene,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
-import {
-  documentLayoutElements,
-  treeGroupHiddenKey,
-  withTreeGroupHidden,
-} from '@src/renderer/elementKinds/runtime/documentElementOrder';
+import { documentLayoutElements } from '@src/renderer/elementKinds/runtime/documentElementOrder';
+import { treeModeArrays } from '@src/renderer/elementKinds/runtime/treeModeArrays';
 import {
   selectPluginLayoutElements,
   pluginLayoutElementsEqual,
@@ -40,10 +32,6 @@ import {
 import OverlayScene from '@components/shared/OverlayScene';
 import { computeLayout } from '@hooks/shared/useLayoutComputation';
 import { buildSpriteKeyCanonicalMap } from '@utils/sprite/spriteKeyBinding';
-
-// 슬라이스 부재 시에도 identity 안정 - computeLayout 메모 deps로 사용됨
-// 이종 배열 5곳이 같은 인스턴스를 별칭하므로 freeze로 교차 오염 차단
-const EMPTY_SLICE: never[] = Object.freeze([]) as never[];
 
 export default function App() {
   const isBootstrapped = useKeyStore((state) => state.isBootstrapped);
@@ -91,9 +79,6 @@ export default function App() {
   }, []);
 
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
-  const keyMappings = useKeyStore((state) => state.keyMappings);
-  const positions = useKeyStore((state) => state.positions);
-  const itemCollections = useItemElementCollections();
   // 레이아웃 필드만 투영 구독 - 플러그인 state/html 변경이 App 리렌더로 승격되지 않게
   const pluginElements = useStoreWithEqualityFn(
     usePluginDisplayElementStore,
@@ -162,13 +147,24 @@ export default function App() {
 
   // 키 딜레이 설정
   const keyDisplayDelayMs = Number(noteSettings?.keyDisplayDelayMs ?? 0);
-  const currentSlots = keyMappings[selectedKeyType] ?? EMPTY_SLICE;
+  // 키·아이템 위치 목록은 트리에서 - 숨긴 그룹 안은 숨김, 겹침 순서는 트리 순번
+  const documentScene = useElementDocumentScene(selectedKeyType);
+  const treeArrays = treeModeArrays(documentScene);
+  const currentSlots = treeArrays.keySlots;
+  const modeKeyMappings = useMemo(
+    () => ({ [selectedKeyType]: currentSlots } as KeyMappings),
+    [selectedKeyType, currentSlots],
+  );
+  const modeKeyPositions = useMemo(
+    () => ({ [selectedKeyType]: treeArrays.keyPositions }),
+    [selectedKeyType, treeArrays.keyPositions],
+  );
   const { currentKeys, currentKeyLabels } = useOverlayKeyStateRuntime({
     noteEffect,
     keyDisplayDelayMs,
-    keyMappings,
+    keyMappings: modeKeyMappings,
     currentSlots,
-    positions,
+    positions: modeKeyPositions,
     selectedKeyType,
     handleKeyDown,
     handleKeyUp,
@@ -176,36 +172,10 @@ export default function App() {
     reconcileActiveNotes,
   });
 
-  // 트리 문서 - 그룹 숨김(트리에만 있다)과 트리에만 있는 종류의 상자
-  const documentScene = useElementDocumentScene(selectedKeyType);
-  const treeGroupHidden = treeGroupHiddenKey(documentScene);
-  // 숨긴 트리 그룹 안의 키·아이템은 바깥 카운터·노트 트랙·창 크기에서도 숨긴다 (트리 층이 그리지 않는다)
-  const currentPositions = useMemo(
-    () =>
-      withTreeGroupHidden(
-        positions[selectedKeyType] ?? EMPTY_SLICE,
-        treeGroupHidden,
-      ) as typeof EMPTY_SLICE,
-    [positions, selectedKeyType, treeGroupHidden],
-  );
+  const currentPositions = treeArrays.keyPositions;
   // 오버레이는 방송 화면이라 스크럽 프리뷰를 구독하지 않는다 (커밋 시점만 반영).
   // 편집 중 실시간 피드백은 편집 캔버스 몫
-  const currentItemArrays = useMemo(
-    () =>
-      Object.fromEntries(
-        ITEM_ELEMENT_TYPES.map((type) => {
-          const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
-          return [
-            field,
-            withTreeGroupHidden(
-              (itemCollections[field][selectedKeyType] ?? EMPTY_SLICE) as never,
-              treeGroupHidden,
-            ),
-          ];
-        }),
-      ) as unknown as ItemElementModeArrays,
-    [itemCollections, selectedKeyType, treeGroupHidden],
-  );
+  const currentItemArrays = treeArrays.itemArrays;
 
   // 스프라이트 트리거(키 요소 id) -> canonical 키 문자열, 잎이 시그널을 찾을 때 쓴다
   const spriteKeyCanonicalMap = useMemo(
