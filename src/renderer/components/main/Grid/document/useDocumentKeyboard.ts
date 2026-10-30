@@ -12,6 +12,7 @@ import {
   groupDocumentElements,
   moveDocumentElements,
   removeDocumentElements,
+  stepDocumentElements,
   ungroupDocumentElements,
 } from './documentEditActions';
 import {
@@ -74,6 +75,16 @@ export const useDocumentKeyboard = () => {
       }
       if (event.key === 'Escape') {
         clear();
+        return;
+      }
+      // ] [ 한 칸 앞·뒤로 (옛 종류와 같은 키)
+      if (event.key === ']' || event.key === '[') {
+        event.preventDefault();
+        void stepDocumentElements(
+          sceneId,
+          selectedIds,
+          event.key === ']' ? 'forward' : 'backward',
+        );
         return;
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {

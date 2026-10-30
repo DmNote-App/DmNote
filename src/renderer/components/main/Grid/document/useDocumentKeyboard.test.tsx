@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   move: vi.fn(() => Promise.resolve(null)),
   group: vi.fn(() => Promise.resolve(null)),
   ungroup: vi.fn(() => Promise.resolve(null)),
+  step: vi.fn(() => Promise.resolve(null)),
   copy: vi.fn(() => true),
   paste: vi.fn(() => Promise.resolve()),
   clipboard: [] as unknown[],
@@ -39,6 +40,7 @@ vi.mock('./documentEditActions', () => ({
   moveDocumentElements: mocks.move,
   groupDocumentElements: mocks.group,
   ungroupDocumentElements: mocks.ungroup,
+  stepDocumentElements: mocks.step,
 }));
 
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
@@ -171,5 +173,13 @@ describe('트리 요소 키보드', () => {
       window.dispatchEvent(event);
     });
     expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
+  it('] [는 고른 트리 요소를 한 칸 앞·뒤로 옮긴다', () => {
+    useDocumentSelectionStore.getState().setSelection('4key', ['t1']);
+    press(']');
+    expect(mocks.step).toHaveBeenLastCalledWith('4key', ['t1'], 'forward');
+    press('[');
+    expect(mocks.step).toHaveBeenLastCalledWith('4key', ['t1'], 'backward');
   });
 });

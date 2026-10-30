@@ -7,7 +7,9 @@ import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
 import type {
   FramePatch,
   JsonValue,
+  Node,
   Op,
+  Scene,
 } from '@src/types/generated/elementDocument';
 import {
   documentGroupNames,
@@ -159,6 +161,68 @@ export const moveDocumentElementTo = (
       index: place === 'front' ? null : 0,
     })),
   );
+};
+
+// 부모의 자식 id 목록 (null이면 장면 맨 위)
+const childIdsOf = (scene: Scene | undefined, parent: string | null) => {
+  if (!scene) return [];
+  if (parent === null) return scene.nodes.map((node) => node.id);
+  let found: string[] = [];
+  const visit = (nodes: readonly Node[]) => {
+    for (const node of nodes) {
+      if (node.type !== 'group') continue;
+      if (node.id === parent) {
+        found = node.children.map((child) => child.id);
+        return;
+      }
+      visit(node.children);
+    }
+  };
+  visit(scene.nodes);
+  return found;
+};
+
+/** 한 칸 앞·뒤로 - 부모 안에서 바로 위·아래 형제를 넘는다. 함께 고른 것끼리는 넘지 않는다 */
+export const stepDocumentElements = (
+  sceneId: string,
+  ids: string[],
+  direction: 'forward' | 'backward',
+) => {
+  const scene = getElementDocumentStore()?.getScene(sceneId);
+  const roots = documentGroupRoots(scene, ids);
+  const picked = new Set(roots.length > 0 ? roots : ids);
+  const parents = new Set<string | null>();
+  for (const id of picked) {
+    const parent = documentParentOf(scene, id);
+    if (parent !== undefined) parents.add(parent);
+  }
+  const ops: Op[] = [];
+  for (const parent of parents) {
+    const order = childIdsOf(scene, parent);
+    // 앞으로는 위(목록 끝)부터, 뒤로는 아래부터 옮겨야 서로의 자리에 영향이 없다
+    const indices = order.map((_, index) => index);
+    if (direction === 'forward') indices.reverse();
+    for (const index of indices) {
+      const id = order[index];
+      const neighbor = direction === 'forward' ? index + 1 : index - 1;
+      if (!picked.has(id) || neighbor < 0 || neighbor >= order.length) {
+        continue;
+      }
+      if (picked.has(order[neighbor])) continue;
+      // 자리는 옮기기 전 목록 기준 - 앞으로는 이웃 다음, 뒤로는 이웃 자리
+      const target = direction === 'forward' ? index + 2 : index - 1;
+      ops.push({
+        op: 'move',
+        scene: sceneId,
+        ids: [id],
+        parent,
+        index: target >= order.length ? null : target,
+      });
+      order.splice(index, 1);
+      order.splice(direction === 'forward' ? index + 1 : index - 1, 0, id);
+    }
+  }
+  return ops.length === 0 ? Promise.resolve(null) : editDocument(ops);
 };
 
 /** 고른 트리 요소를 새 그룹으로 묶는다 - 다 고른 트리 그룹은 그룹째 넣는다 */

@@ -254,6 +254,7 @@ export function useGridKeyboard({
       // ] 키로 앞으로 이동
       if (e.key === ']' && typeof onMoveForward === 'function') {
         e.preventDefault();
+        markGridKeyHandled(e);
         void Promise.resolve(onMoveForward()).catch(reportElementOpError);
         return;
       }
@@ -261,6 +262,7 @@ export function useGridKeyboard({
       // [ 키로 뒤로 이동
       if (e.key === '[' && typeof onMoveBackward === 'function') {
         e.preventDefault();
+        markGridKeyHandled(e);
         void Promise.resolve(onMoveBackward()).catch(reportElementOpError);
         return;
       }

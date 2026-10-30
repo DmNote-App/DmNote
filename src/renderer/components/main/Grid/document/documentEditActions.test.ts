@@ -24,6 +24,7 @@ import {
   groupDocumentElements,
   insertDocumentElement,
   moveDocumentElementTo,
+  stepDocumentElements,
 } from './documentEditActions';
 
 describe('트리 문서 편집 동작', () => {
@@ -107,5 +108,34 @@ describe('트리 문서 편집 동작', () => {
       { op: 'move', scene: '4key', ids: ['a'], parent: null, index: null },
       { op: 'move', scene: '4key', ids: ['b'], parent: 'G', index: null },
     ]);
+  });
+
+  it('한 칸 앞·뒤로는 부모 안에서 바로 위·아래 형제를 넘는다 (함께 고른 것끼리는 넘지 않는다)', async () => {
+    const tracker = (id: string) => ({
+      type: 'element',
+      id,
+      kind: 'cursorTracker',
+      frame: { x: 0, y: 0, width: 1, height: 1, rotation: 0 },
+    });
+    mocks.scene = {
+      nodes: ['a', 'b', 'c', 'd'].map(tracker),
+    };
+    await stepDocumentElements('4key', ['a', 'c'], 'forward');
+    // 위에서부터: c는 d 위로(끝), a는 b 위로(원래 c 자리 앞)
+    expect(mocks.edit.mock.calls[0][0]).toEqual([
+      { op: 'move', scene: '4key', ids: ['c'], parent: null, index: null },
+      { op: 'move', scene: '4key', ids: ['a'], parent: null, index: 2 },
+    ]);
+    mocks.edit.mockClear();
+    await stepDocumentElements('4key', ['b', 'c'], 'backward');
+    // 아래에서부터: b는 a 아래로, c는 a 다음(원래 b 자리)으로 - b를 넘지 않는다
+    expect(mocks.edit.mock.calls[0][0]).toEqual([
+      { op: 'move', scene: '4key', ids: ['b'], parent: null, index: 0 },
+      { op: 'move', scene: '4key', ids: ['c'], parent: null, index: 1 },
+    ]);
+    mocks.edit.mockClear();
+    // 이미 맨 위면 아무것도 보내지 않는다
+    await stepDocumentElements('4key', ['d'], 'forward');
+    expect(mocks.edit).not.toHaveBeenCalled();
   });
 });
