@@ -1,14 +1,6 @@
 import { isNativeElementId } from '../../model/elementId';
 import type { NativeElementType } from '../../model/elementIdMap';
-import {
-  applyPropertyIntentsEagerly,
-  type PropertyIntents,
-} from '../intent/elementIntent';
-import {
-  commitSemanticOps,
-  withoutTreeRoutedIntents,
-} from './editorSemanticOps';
-import { captureEditorDocument } from '../coordinator/editorStateCoordinator';
+import { commitSemanticOps } from './editorSemanticOps';
 import type {
   EditorCounterFillPropertyPatchV1,
   EditorNotePaintPropertyPatchV1,
@@ -18,25 +10,12 @@ import type {
   EditorShadowPropertyPatchV1,
 } from '@src/types/editor';
 import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
   isEditorPaintPropertyPatchV1,
   isEditorShadowPropertyPatchV1,
 } from '@src/types/editor';
-import type { KeyPosition } from '@src/types/key/keys';
-import { paintPropertyFields, projectPaintDescriptor } from '@src/types/color';
-import { projectElementShadowPatch } from '@src/types/key/shadows';
-import {
-  isNotePaintPropertyPatchV1,
-  projectNotePaintPatch,
-} from '@src/types/key/notePaint';
-import {
-  isCounterFillPropertyPatchV1,
-  projectCounterFillPatch,
-} from '@src/types/key/counterFill';
-import {
-  DEFAULT_ELEMENT_ACTIVE_SHADOW_SPEC,
-  DEFAULT_ELEMENT_SHADOW_SPEC,
-} from '@utils/element/elementDefaults';
+import { paintPropertyFields } from '@src/types/color';
+import { isNotePaintPropertyPatchV1 } from '@src/types/key/notePaint';
+import { isCounterFillPropertyPatchV1 } from '@src/types/key/counterFill';
 import {
   idTargets,
   patchElementPropertyById,
@@ -45,41 +24,6 @@ import {
 } from './elementPropertyCore';
 
 type PaintTarget = { elementType: NativeElementType; id: string };
-
-const paintPropertyIntents = (
-  targets: readonly PaintTarget[],
-  patch: EditorPaintPropertyPatchV1,
-): PropertyIntents => {
-  const document = captureEditorDocument();
-  const fieldName = patch.property;
-  const descriptor = patch.value;
-  const intents = new Map<
-    NativeElementType,
-    Map<string, Record<string, unknown>>
-  >();
-  for (const { elementType, id } of targets) {
-    // 스프라이트는 페인트 속성이 없다
-    if (elementType === 'sprite') continue;
-    const collection = document[EDITOR_ELEMENT_POSITION_FIELDS[elementType]];
-    const current = Object.values(collection)
-      .flat()
-      .find((position) => position.id === id) as
-      | (Record<string, unknown> & { id: string })
-      | undefined;
-    if (!current) continue;
-    const next = projectPaintDescriptor(
-      current,
-      elementType,
-      fieldName,
-      descriptor,
-    );
-    const byId =
-      intents.get(elementType) ?? new Map<string, Record<string, unknown>>();
-    byId.set(id, next);
-    intents.set(elementType, byId);
-  }
-  return intents;
-};
 
 export const patchPaintByTargets = (
   targets: readonly PaintTarget[],
@@ -111,24 +55,12 @@ export const patchPaintByTargets = (
     id,
     patch: structuredClone(patch),
   }));
-  const receipt = applyPropertyIntentsEagerly(
-    withoutTreeRoutedIntents(paintPropertyIntents(targets, patch), ops),
-  );
-  let enrolled = false;
   return commitSemanticOps(ops, {
     ...(options.gestureId ? { gestureId: options.gestureId } : {}),
     preflight: options.preflight,
-    onEnrolled: () => {
-      enrolled = true;
-    },
-  })
-    .then((outcome) =>
-      outcome.opResults.some((result) => result.status !== 'targetMissing'),
-    )
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
+  }).then((outcome) =>
+    outcome.opResults.some((result) => result.status !== 'targetMissing'),
+  );
 };
 
 export const patchPaintById = (
@@ -140,30 +72,6 @@ export const patchPaintById = (
   patchPaintByTargets([{ elementType, id }], patch, options);
 
 type CounterFillTarget = { elementType: 'key' | 'stat'; id: string };
-
-const counterFillPropertyIntents = (
-  targets: readonly CounterFillTarget[],
-  patch: EditorCounterFillPropertyPatchV1,
-): PropertyIntents => {
-  const document = captureEditorDocument();
-  const intents = new Map<
-    NativeElementType,
-    Map<string, Record<string, unknown>>
-  >();
-  for (const { elementType, id } of targets) {
-    const collection =
-      elementType === 'key' ? document.keyPositions : document.statPositions;
-    const current = Object.values(collection)
-      .flat()
-      .find((position) => position.id === id) as KeyPosition | undefined;
-    if (!current) continue;
-    const byId =
-      intents.get(elementType) ?? new Map<string, Record<string, unknown>>();
-    byId.set(id, projectCounterFillPatch(current, patch));
-    intents.set(elementType, byId);
-  }
-  return intents;
-};
 
 export const patchCounterFillByTargets = (
   targets: readonly CounterFillTarget[],
@@ -191,23 +99,11 @@ export const patchCounterFillByTargets = (
     id,
     patch: structuredClone(patch),
   }));
-  const receipt = applyPropertyIntentsEagerly(
-    withoutTreeRoutedIntents(counterFillPropertyIntents(targets, patch), ops),
-  );
-  let enrolled = false;
   return commitSemanticOps(ops, {
     preflight: options.preflight,
-    onEnrolled: () => {
-      enrolled = true;
-    },
-  })
-    .then((outcome) =>
-      outcome.opResults.some((result) => result.status !== 'targetMissing'),
-    )
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
+  }).then((outcome) =>
+    outcome.opResults.some((result) => result.status !== 'targetMissing'),
+  );
 };
 
 export const patchCounterFillById = (
@@ -220,39 +116,6 @@ export const patchCounterFillById = (
 type ShadowTarget = {
   elementType: NativeElementType;
   id: string;
-};
-
-const shadowPropertyIntents = (
-  targets: readonly ShadowTarget[],
-  patch: EditorShadowPropertyPatchV1,
-): PropertyIntents => {
-  const document = captureEditorDocument();
-  const intents = new Map<
-    NativeElementType,
-    Map<string, Record<string, unknown>>
-  >();
-  for (const { elementType, id } of targets) {
-    if (elementType === 'graph' || elementType === 'sprite') continue;
-    const collection = document[EDITOR_ELEMENT_POSITION_FIELDS[elementType]];
-    const current = Object.values(collection)
-      .flat()
-      .find((position) => position.id === id) as
-      | (Record<string, unknown> & { id: string })
-      | undefined;
-    if (!current) continue;
-    const next = projectElementShadowPatch({
-      position: current as never,
-      elementType,
-      patch,
-      defaultShadow: DEFAULT_ELEMENT_SHADOW_SPEC,
-      defaultActiveShadow: DEFAULT_ELEMENT_ACTIVE_SHADOW_SPEC,
-    });
-    const byId =
-      intents.get(elementType) ?? new Map<string, Record<string, unknown>>();
-    byId.set(id, next);
-    intents.set(elementType, byId);
-  }
-  return intents;
 };
 
 export const patchShadowByTargets = (
@@ -280,24 +143,12 @@ export const patchShadowByTargets = (
     id,
     patch: structuredClone(patch),
   }));
-  const receipt = applyPropertyIntentsEagerly(
-    withoutTreeRoutedIntents(shadowPropertyIntents(targets, patch), ops),
-  );
-  let enrolled = false;
   return commitSemanticOps(ops, {
     ...(options.gestureId ? { gestureId: options.gestureId } : {}),
     preflight: options.preflight,
-    onEnrolled: () => {
-      enrolled = true;
-    },
-  })
-    .then((outcome) =>
-      outcome.opResults.some((result) => result.status !== 'targetMissing'),
-    )
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
+  }).then((outcome) =>
+    outcome.opResults.some((result) => result.status !== 'targetMissing'),
+  );
 };
 
 export const patchShadowById = (
@@ -307,29 +158,6 @@ export const patchShadowById = (
   options: { gestureId?: string; preflight?: () => void } = {},
 ): Promise<boolean> =>
   patchShadowByTargets([{ elementType, id }], patch, options);
-
-const notePaintPropertyIntents = (
-  ids: readonly string[],
-  patch: EditorNotePaintPropertyPatchV1,
-): PropertyIntents => {
-  const document = captureEditorDocument();
-  const byId = new Map<string, Record<string, unknown>>();
-  for (const id of ids) {
-    const current = Object.values(document.keyPositions)
-      .flat()
-      .find((position) => position.id === id);
-    if (!current) continue;
-    // position 전달 - {opacity} 단독의 sibling shadow 재계산이 백엔드와 일치 (§9-5)
-    byId.set(
-      id,
-      projectNotePaintPatch(patch, current as unknown as KeyPosition) as Record<
-        string,
-        unknown
-      >,
-    );
-  }
-  return new Map([['key', byId]]);
-};
 
 export const patchNotePaintByIds = (
   ids: readonly string[],
@@ -350,24 +178,12 @@ export const patchNotePaintByIds = (
     id,
     patch: structuredClone(patch),
   }));
-  const receipt = applyPropertyIntentsEagerly(
-    withoutTreeRoutedIntents(notePaintPropertyIntents(ids, patch), ops),
-  );
-  let enrolled = false;
   return commitSemanticOps(ops, {
     ...(options.gestureId ? { gestureId: options.gestureId } : {}),
     preflight: options.preflight,
-    onEnrolled: () => {
-      enrolled = true;
-    },
-  })
-    .then((outcome) =>
-      outcome.opResults.some((result) => result.status !== 'targetMissing'),
-    )
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
+  }).then((outcome) =>
+    outcome.opResults.some((result) => result.status !== 'targetMissing'),
+  );
 };
 
 export const patchNotePaintById = (

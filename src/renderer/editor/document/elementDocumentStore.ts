@@ -26,6 +26,8 @@ export interface ElementDocumentStore {
   getRevision(): number;
   // 장면이 바뀌기 전까지 같은 객체를 돌려준다 (useSyncExternalStore 스냅샷)
   getScene(sceneId: string): Scene | undefined;
+  // 장면(탭) id 목록 - 문서 순서
+  getSceneIds(): string[];
   getElement(sceneId: string, id: string): ElementNode | undefined;
   subscribe(listener: ElementDocumentListener): () => void;
   // 편집 창만 - 오버레이·OBS는 undefined
@@ -165,6 +167,7 @@ export const createMirrorDocumentStore = (
   return {
     getRevision: () => revision,
     getScene: (sceneId) => readScene(document, sceneId),
+    getSceneIds: () => Object.keys(document.scenes),
     getElement: (sceneId, id) => readElement(document, sceneId, id),
     subscribe: (listener) => listeners.add(listener),
     resync,
@@ -259,6 +262,7 @@ export const createEditorDocumentStore = (
   return {
     getRevision: () => revision,
     getScene: (sceneId) => readScene(view, sceneId),
+    getSceneIds: () => Object.keys(view.scenes),
     getElement: (sceneId, id) => readElement(view, sceneId, id),
     subscribe: (listener) => listeners.add(listener),
     edit: async (ops, options) => {

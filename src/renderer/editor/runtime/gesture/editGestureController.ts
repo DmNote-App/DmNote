@@ -21,13 +21,8 @@ import { stableStringify } from '@utils/core/stableStringify';
 import { isNativeElementId } from '../../model/elementId';
 
 import { previewOverlay } from './previewOverlay';
-import {
-  applyPropertyIntentsEagerly,
-  generatePropertyIntentPatch,
-  intentPatch,
-  runElementIntent,
-  type PropertyIntents,
-} from '../intent/elementIntent';
+import { commitPropertyIntents } from '../operations/editorSemanticOps';
+import { type PropertyIntents } from '../intent/elementIntent';
 import {
   drainEditorWrites,
   trackEditorWrite,
@@ -344,22 +339,14 @@ export const editGestureController = {
       return drainEditorWrites();
     }
 
-    // (domain, id) 의도를 (type, id) 속성 의도로 변환 - eager 낙관과 실패
-    // 복원(편입 전·대상 소실)은 runElementIntent가 소유하고, wire는 직렬
-    // 슬롯 안에서 최신 base로 재생성된다. 정산에는 거절되는 원 promise가
-    // 필요하므로 오류를 삼키는 applier 경로는 쓰지 않는다
+    // (domain, id) 의도를 (type, id) 속성 의도로 바꿔 트리 커밋 하나로 (트리 스토어가 낙관 반영)
     const propertyIntents: PropertyIntents = new Map(
       [...intents].map(([domain, resolved]) => [
         ELEMENT_TYPE_BY_PREVIEW_DOMAIN[domain],
         resolved,
       ]),
     );
-    const persisted = runElementIntent({
-      applyEager: () => applyPropertyIntentsEagerly(propertyIntents),
-      generate: (base) =>
-        intentPatch(generatePropertyIntentPatch(base, propertyIntents)),
-      gestureId: gesture.sessionId,
-    });
+    const persisted = commitPropertyIntents(propertyIntents, gesture.sessionId);
     this.settleCommit(persisted);
     const own = await persisted.then(
       () => true,

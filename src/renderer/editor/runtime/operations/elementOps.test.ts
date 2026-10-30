@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultKeyPosition } from '../../model/keys';
-import type {
-  EditorCounterLayoutPropertyPatchV1,
-  EditorCounterTypographyPropertyPatchV1,
-} from '@src/types/editor';
 
 const api = vi.hoisted(() => ({
   commitGeneratedPatch: vi.fn(),
@@ -25,7 +21,6 @@ vi.mock('./editorSemanticOps', () => ({
   commitGeneratedSemanticOps: api.commitGeneratedSemanticOps,
   commitSemanticOps: api.commitSemanticOps,
   // 트리 문서 없이 옛 경로만 시험한다
-  withoutTreeRoutedIntents: (intents: unknown) => intents,
 }));
 
 import { useGraphItemStore } from '@stores/data/useGraphItemStore';
@@ -58,12 +53,8 @@ import {
   patchGraphPropertiesByIds,
   patchGraphTypesByIds,
   patchKnobPropertiesByIds,
-  patchKnobAxisIdById,
-  patchSoundEnabledById,
   patchSoundEnabledByIds,
-  patchSoundPathById,
   patchSoundPathByIds,
-  patchSoundVolumeById,
   patchSoundVolumeByIds,
   patchCounterAnimationEnabledByTargets,
   patchCounterAnimationPresetByTargets,
@@ -71,21 +62,15 @@ import {
   patchCounterLayoutByTargets,
   patchCounterTypographyByTargets,
   patchCounterFillByTargets,
-  patchInactiveImageById,
   patchInactiveImageByTargets,
-  patchActiveImageById,
   patchActiveImageByTargets,
-  patchIdleTransparentById,
   patchIdleTransparentByTargets,
   patchActiveTransparentById,
   patchActiveTransparentByTargets,
   patchIdleImageFitById,
   patchActiveImageFitById,
-  patchImageModeById,
-  patchImageTransformById,
   patchNotePropertiesByIds,
   patchUseInlineStylesByTargets,
-  patchElementPropertyById,
 } from './elementOps';
 
 import { enqueueEditorCompatibilityOperation } from '../lifecycle/editorCompatibilityQueue';
@@ -350,102 +335,6 @@ describe('elementOps', () => {
     ]);
   });
 
-  it('배치 정렬의 sprite는 resizeSprite로 이동한다 (치수 불변이라 배율 1)', async () => {
-    const sprite = { ...spriteAt(ID_B), dx: 50, dy: 10, width: 20, height: 30 };
-    useKeyStore.setState({
-      canonicalPositions: {
-        '4key': [{ ...keyAt(ID_A), dx: 10, dy: 0, width: 10, height: 20 }],
-      },
-      positions: {
-        '4key': [{ ...keyAt(ID_A), dx: 10, dy: 0, width: 10, height: 20 }],
-      },
-    });
-    useSpriteStore.setState({ positions: { '4key': [sprite] } });
-    api.lastAck = documentFromStores();
-
-    await commitBatchGeometryByIds({
-      mode: '4key',
-      targets: [
-        { type: 'key', id: ID_A },
-        { type: 'sprite', id: ID_B },
-      ],
-      operation: { kind: 'align', direction: 'right' },
-    });
-
-    expect(api.commitGeneratedSemanticOps).toHaveBeenCalledOnce();
-    const generate = api.commitGeneratedSemanticOps.mock.calls[0][0];
-    expect(generate(documentFromStores())).toEqual([
-      {
-        kind: 'setBounds',
-        elementType: 'key',
-        id: ID_A,
-        bounds: { dx: 60, dy: 0, width: 10, height: 20 },
-      },
-      {
-        kind: 'resizeSprite',
-        id: ID_B,
-        bounds: { dx: 50, dy: 10, width: 20, height: 30 },
-      },
-    ]);
-    // eager: key가 sprite 오른끝에 즉시 정렬
-    expect(useKeyStore.getState().canonicalPositions['4key'][0].dx).toBe(60);
-  });
-
-  it('배치 resize의 sprite는 resizeSprite + projection eager로 콘텐츠까지 스케일한다', async () => {
-    const sprite = {
-      ...spriteAt(ID_B),
-      dx: 50,
-      dy: 10,
-      width: 200,
-      height: 120,
-      idleTransform: { x: 12, y: -6, rotation: 15, scale: 1.5 },
-    };
-    useKeyStore.setState({
-      canonicalPositions: {
-        '4key': [{ ...keyAt(ID_A), dx: 10, dy: 0, width: 10, height: 20 }],
-      },
-      positions: {
-        '4key': [{ ...keyAt(ID_A), dx: 10, dy: 0, width: 10, height: 20 }],
-      },
-    });
-    useSpriteStore.setState({ positions: { '4key': [sprite] } });
-    api.lastAck = documentFromStores();
-
-    await commitBatchGeometryByIds({
-      mode: '4key',
-      targets: [
-        { type: 'key', id: ID_A },
-        { type: 'sprite', id: ID_B },
-      ],
-      operation: { kind: 'resize', dimension: 'width', value: 400 },
-    });
-
-    expect(api.commitGeneratedSemanticOps).toHaveBeenCalledOnce();
-    const generate = api.commitGeneratedSemanticOps.mock.calls[0][0];
-    expect(generate(documentFromStores())).toEqual([
-      {
-        kind: 'setBounds',
-        elementType: 'key',
-        id: ID_A,
-        bounds: { dx: 10, dy: 0, width: 400, height: 20 },
-      },
-      {
-        kind: 'resizeSprite',
-        id: ID_B,
-        bounds: { dx: 50, dy: 10, width: 400, height: 120 },
-      },
-    ]);
-    // eager: sx=2, sy=1로 스프라이트 콘텐츠 동반 스케일
-    const eager = useSpriteStore.getState().positions['4key'][0];
-    expect(eager).toMatchObject({ width: 400, height: 120 });
-    expect(eager.idleTransform).toEqual({
-      x: 24,
-      y: -6,
-      rotation: 15,
-      scale: 1.5,
-    });
-  });
-
   it('배치 geometry는 slot 최신 base에서 전체 계획을 다시 계산한다', async () => {
     useKeyStore.setState({
       canonicalPositions: {
@@ -493,45 +382,6 @@ describe('elementOps', () => {
     ]);
   });
 
-  it('배치 geometry eager는 lastAck가 아니라 최신 canonical store를 기준으로 한다', async () => {
-    useKeyStore.setState({
-      canonicalPositions: {
-        '4key': [
-          { ...keyAt(ID_A), dx: 10, width: 10 },
-          { ...keyAt(ID_B), dx: 80, width: 20 },
-        ],
-      },
-      positions: {
-        '4key': [
-          { ...keyAt(ID_A), dx: 10, width: 10 },
-          { ...keyAt(ID_B), dx: 80, width: 20 },
-        ],
-      },
-    });
-    const staleAck = documentFromStores();
-    staleAck.keyPositions = {
-      '4key': [
-        { ...keyAt(ID_A), dx: 0, width: 10 },
-        { ...keyAt(ID_B), dx: 30, width: 10 },
-      ],
-    } as never;
-    api.lastAck = staleAck;
-
-    await commitBatchGeometryByIds({
-      mode: '4key',
-      targets: [
-        { type: 'key', id: ID_A },
-        { type: 'key', id: ID_B },
-      ],
-      operation: { kind: 'align', direction: 'right' },
-    });
-
-    expect(useKeyStore.getState().canonicalPositions['4key']).toEqual([
-      expect.objectContaining({ id: ID_A, dx: 90 }),
-      expect.objectContaining({ id: ID_B, dx: 80 }),
-    ]);
-  });
-
   it('배치 geometry 대상 하나가 소실되면 전체 null이고 eager를 복원한다', async () => {
     useKeyStore.setState({
       canonicalPositions: {
@@ -571,60 +421,6 @@ describe('elementOps', () => {
         expect.objectContaining({ id: ID_B, dx: 30 }),
       ]),
     );
-  });
-
-  it('슬롯 base가 이미 원하는 spacing이면 N noChange 의도로 정산하고 eager를 되돌리지 않는다', async () => {
-    useKeyStore.setState({
-      canonicalPositions: {
-        '4key': [
-          { ...keyAt(ID_A), dx: 0, width: 10 },
-          { ...keyAt(ID_B), dx: 30, width: 10 },
-        ],
-      },
-      positions: {
-        '4key': [
-          { ...keyAt(ID_A), dx: 0, width: 10 },
-          { ...keyAt(ID_B), dx: 30, width: 10 },
-        ],
-      },
-    });
-    slotBase = () => {
-      const base = documentFromStores();
-      base.keyPositions = {
-        '4key': [
-          { ...keyAt(ID_A), dx: 0, width: 10 },
-          { ...keyAt(ID_B), dx: 15, width: 10 },
-        ],
-      } as never;
-      return base;
-    };
-
-    await expect(
-      commitBatchGeometryByIds({
-        mode: '4key',
-        targets: [
-          { type: 'key', id: ID_A },
-          { type: 'key', id: ID_B },
-        ],
-        operation: { kind: 'spacing', spacing: 5 },
-      }),
-    ).resolves.toBe(true);
-
-    const generate = api.commitGeneratedSemanticOps.mock.calls[0][0];
-    expect(generate(slotBase())).toEqual([
-      expect.objectContaining({
-        id: ID_A,
-        bounds: expect.objectContaining({ dx: 0 }),
-      }),
-      expect.objectContaining({
-        id: ID_B,
-        bounds: expect.objectContaining({ dx: 15 }),
-      }),
-    ]);
-    expect(useKeyStore.getState().canonicalPositions['4key']).toEqual([
-      expect.objectContaining({ id: ID_A, dx: 0 }),
-      expect.objectContaining({ id: ID_B, dx: 15 }),
-    ]);
   });
 
   it('호출 시점에 배치 geometry 대상이 없으면 eager나 슬롯 커밋을 시작하지 않는다', async () => {
@@ -740,87 +536,6 @@ describe('elementOps', () => {
     });
   });
 
-  it('단일 bounds op는 wire에 안정 id와 gesture를 싣는다', async () => {
-    const committed = await commitSingleElementBoundsById(
-      'key',
-      ID_A,
-      { dx: 50, dy: 60, width: 90, height: 80 },
-      'resize-gesture',
-    );
-
-    expect(committed).toBe(true);
-    expect(api.commitSemanticOps).toHaveBeenCalledWith(
-      [
-        {
-          kind: 'setBounds',
-          elementType: 'key',
-          id: ID_A,
-          bounds: { dx: 50, dy: 60, width: 90, height: 80 },
-        },
-      ],
-      expect.objectContaining({ gestureId: 'resize-gesture' }),
-    );
-    expect(useKeyStore.getState().canonicalPositions['4key'][0]).toMatchObject({
-      dx: 50,
-      dy: 60,
-      width: 90,
-      height: 80,
-    });
-  });
-
-  it('단일 sprite bounds는 resizeSprite op으로 콘텐츠까지 eager 스케일한다', async () => {
-    const sprite = {
-      ...spriteAt(ID_B),
-      idleTransform: { x: 12, y: -6, rotation: 15, scale: 1.5 },
-      poses: [
-        {
-          poseId: 'pose-1',
-          triggers: [ID_A],
-          transform: { x: -30, y: 44, rotation: -90, scale: 0.5 },
-          imageOverride: null,
-          imageOverrideMetrics: null,
-        },
-      ],
-    };
-    useSpriteStore.setState({ positions: { '4key': [sprite] } });
-
-    const committed = await commitSingleElementBoundsById(
-      'sprite',
-      ID_B,
-      { dx: 5, dy: 8, width: 400, height: 60 },
-      'resize-gesture',
-    );
-
-    expect(committed).toBe(true);
-    // wire는 bounds만 - 배율은 백엔드가 최신 base 기준으로 재적용
-    expect(api.commitSemanticOps).toHaveBeenCalledWith(
-      [
-        {
-          kind: 'resizeSprite',
-          id: ID_B,
-          bounds: { dx: 5, dy: 8, width: 400, height: 60 },
-        },
-      ],
-      expect.objectContaining({ gestureId: 'resize-gesture' }),
-    );
-    // eager: 200x120 → 400x60 (sx=2, sy=0.5)
-    const eager = useSpriteStore.getState().positions['4key'][0];
-    expect(eager).toMatchObject({ dx: 5, dy: 8, width: 400, height: 60 });
-    expect(eager.idleTransform).toEqual({
-      x: 24,
-      y: -3,
-      rotation: 15,
-      scale: 1.5,
-    });
-    expect(eager.poses[0].transform).toEqual({
-      x: -60,
-      y: 22,
-      rotation: -90,
-      scale: 0.5,
-    });
-    expect(eager.pivot).toBe(sprite.pivot);
-  });
-
   it('sprite bounds의 편입 전 실패는 콘텐츠 필드까지 CAS 복원한다', async () => {
     const sprite = {
       ...spriteAt(ID_B),
@@ -910,31 +625,6 @@ describe('elementOps', () => {
       },
     ]);
     expect(api.commitGeneratedPatch).not.toHaveBeenCalled();
-  });
-
-  it('그룹 bounds는 두 대상을 한 gesture 의도로 함께 정산한다', async () => {
-    const committed = await commitElementBoundsById(
-      new Map([
-        [
-          'key',
-          new Map([
-            [ID_A, { dx: 50, dy: 60, width: 90, height: 80 }],
-            [ID_B, { dx: 70, dy: 80, width: 100, height: 110 }],
-          ]),
-        ],
-      ]),
-      'group-resize-gesture',
-    );
-
-    expect(committed).toBe(true);
-    expect(api.commitSemanticOps).toHaveBeenCalledOnce();
-    expect(api.commitSemanticOps.mock.calls[0][1]).toMatchObject({
-      gestureId: 'group-resize-gesture',
-    });
-    expect(useKeyStore.getState().canonicalPositions['4key']).toEqual([
-      expect.objectContaining({ id: ID_A, dx: 50, width: 90 }),
-      expect.objectContaining({ id: ID_B, dx: 70, width: 100 }),
-    ]);
   });
 
   it('그룹 bounds의 편입 전 실패는 모든 eager 필드를 CAS 복원한다', async () => {
@@ -1033,26 +723,6 @@ describe('elementOps', () => {
     expect(useKeyStore.getState().canonicalPositions['4key']).toEqual([]);
   });
 
-  it('stable hidden literal은 patchElement op로만 전송한다', async () => {
-    await expect(patchElementHiddenById('key', ID_A, true)).resolves.toBe(true);
-
-    expect(useKeyStore.getState().canonicalPositions['4key'][0].hidden).toBe(
-      true,
-    );
-    expect(api.commitSemanticOps).toHaveBeenCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: { property: 'hidden', value: true },
-        },
-      ],
-      expect.objectContaining({ onEnrolled: expect.any(Function) }),
-    );
-    expect(api.commitGeneratedPatch).not.toHaveBeenCalled();
-  });
-
   it('hidden noChange는 성공으로, targetMissing은 미적용으로 반환한다', async () => {
     useKeyStore.setState({
       canonicalPositions: {
@@ -1105,53 +775,6 @@ describe('elementOps', () => {
     expect(
       useKeyStore.getState().canonicalPositions['4key'][0].hidden ?? false,
     ).toBe(false);
-  });
-
-  it('hidden patch 편입 후 실패는 caller receipt로 이중 복원하지 않는다', async () => {
-    api.commitSemanticOps.mockImplementationOnce(async (_ops, meta) => {
-      meta?.onEnrolled?.();
-      throw new Error('terminal failure');
-    });
-
-    await expect(patchElementHiddenById('key', ID_A, true)).rejects.toThrow(
-      'terminal failure',
-    );
-    expect(useKeyStore.getState().canonicalPositions['4key'][0].hidden).toBe(
-      true,
-    );
-  });
-
-  it('layerName literal과 clear는 좁은 patchElement op로 전송한다', async () => {
-    await expect(
-      patchElementLayerNameById('key', ID_A, 'Layer A'),
-    ).resolves.toBe(true);
-    expect(useKeyStore.getState().canonicalPositions['4key'][0].layerName).toBe(
-      'Layer A',
-    );
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: { property: 'layerName', value: 'Layer A' },
-        },
-      ],
-      expect.objectContaining({ onEnrolled: expect.any(Function) }),
-    );
-
-    await patchElementLayerNameById('key', ID_A, null);
-    expect(
-      useKeyStore.getState().canonicalPositions['4key'][0].layerName,
-    ).toBeUndefined();
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        expect.objectContaining({
-          patch: { property: 'layerName', value: null },
-        }),
-      ],
-      expect.anything(),
-    );
   });
 
   it('layerName 편입 전 실패는 자기 leaf만 CAS 복원한다', async () => {
@@ -1239,52 +862,6 @@ describe('elementOps', () => {
     );
 
     expect(api.commitSemanticOps).not.toHaveBeenCalled();
-  });
-
-  it('idle font paint는 키의 비어 있던 active 쌍을 pre-edit idle로 materialize한다', async () => {
-    const key = {
-      ...keyAt(ID_A),
-      fontColor: '#112233',
-      activeFontColor: '   ',
-      className: 'key-sibling',
-    };
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [key] },
-      positions: { '4key': [key] },
-    });
-
-    await patchPaintByTargets([{ elementType: 'key', id: ID_A }], {
-      property: 'fontPaint',
-      value: { color: '#445566', gradient: null },
-    });
-
-    expect(useKeyStore.getState().canonicalPositions['4key'][0]).toMatchObject({
-      fontColor: '#445566',
-      activeFontColor: '#112233',
-      className: 'key-sibling',
-    });
-  });
-
-  it('idle font paint gradient는 스탯에도 적용되고 대표색을 함께 쓴다', async () => {
-    const stat = { ...keyAt(ID_A), fontColor: '#111111' } as never;
-    useStatItemStore.setState({ positions: { '4key': [stat] } });
-
-    const spec = {
-      angle: 90,
-      stops: [
-        { color: '#FF0080', pos: 0 },
-        { color: '#001122', pos: 1 },
-      ],
-    };
-    await patchPaintByTargets([{ elementType: 'stat', id: ID_A }], {
-      property: 'fontPaint',
-      value: { color: '#FF0080', gradient: spec },
-    });
-
-    expect(useStatItemStore.getState().positions['4key'][0]).toMatchObject({
-      fontColor: '#FF0080',
-      fontGradient: spec,
-    });
   });
 
   it.each([
@@ -1452,7 +1029,6 @@ describe('elementOps', () => {
     expect(api.commitSemanticOps.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         gestureId: 'gesture-display',
-        onEnrolled: expect.any(Function),
       }),
     );
   });
@@ -1483,7 +1059,6 @@ describe('elementOps', () => {
     expect(api.commitSemanticOps.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         gestureId: 'gesture-class',
-        onEnrolled: expect.any(Function),
       }),
     );
   });
@@ -1512,51 +1087,10 @@ describe('elementOps', () => {
         ],
         expect.objectContaining({
           gestureId,
-          onEnrolled: expect.any(Function),
         }),
       );
     },
   );
-
-  it('noteGlowSize는 key-only exact leaf와 gesture로 sibling을 보존한다', async () => {
-    const before = {
-      ...keyAt(ID_A),
-      noteGlowSize: 20,
-      noteGlowEnabled: true,
-      noteGlowColor: '#sentinel',
-    };
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [before] },
-      positions: { '4key': [before] },
-    });
-    api.captureEditorDocument.mockImplementation(documentFromStores);
-
-    await patchStylePropertyByTargets(
-      [{ elementType: 'key', id: ID_A }],
-      { property: 'noteGlowSize', value: 20.5 },
-      { gestureId: 'gesture-note-glow' },
-    );
-
-    expect(api.commitSemanticOps).toHaveBeenCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: { property: 'noteGlowSize', value: 20.5 },
-        },
-      ],
-      expect.objectContaining({
-        gestureId: 'gesture-note-glow',
-        onEnrolled: expect.any(Function),
-      }),
-    );
-    expect(useKeyStore.getState().canonicalPositions['4key'][0]).toMatchObject({
-      noteGlowSize: 20.5,
-      noteGlowEnabled: true,
-      noteGlowColor: '#sentinel',
-    });
-  });
 
   it.each([
     ['wrong type', [{ elementType: 'stat' as const, id: ID_B }], 20],
@@ -1571,228 +1105,6 @@ describe('elementOps', () => {
       }),
     ).resolves.toBe(false);
     expect(api.commitSemanticOps).not.toHaveBeenCalled();
-  });
-
-  it('note numeric 5종은 nullable exact leaf와 key sibling을 보존한다', async () => {
-    const before = {
-      ...keyAt(ID_A),
-      noteOffsetX: 7.5,
-      noteOffsetY: -8.5,
-      noteWidth: 42.5,
-      noteBorderWidth: 2.5,
-      noteBorderRadius: 11.5,
-      noteColor: '#sentinel',
-      noteGlowSize: 17.5,
-    };
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [before] },
-      positions: { '4key': [before] },
-    });
-    api.captureEditorDocument.mockImplementation(documentFromStores);
-    const patches = [
-      { property: 'noteOffsetX', value: null },
-      { property: 'noteOffsetY', value: 0 },
-      { property: 'noteWidth', value: null },
-      { property: 'noteBorderWidth', value: 3.5 },
-      { property: 'noteBorderRadius', value: 12.5 },
-    ] as const;
-
-    for (const patch of patches) {
-      await patchStylePropertyByTargets(
-        [{ elementType: 'key', id: ID_A }],
-        patch,
-        { gestureId: 'gesture-note-numeric' },
-      );
-    }
-
-    expect(api.commitSemanticOps).toHaveBeenCalledTimes(5);
-    expect(
-      api.commitSemanticOps.mock.calls.map(([ops]) => ops[0]?.patch),
-    ).toEqual(patches);
-    expect(useKeyStore.getState().canonicalPositions['4key'][0]).toMatchObject({
-      noteOffsetX: undefined,
-      noteOffsetY: 0,
-      noteWidth: undefined,
-      noteBorderWidth: 3.5,
-      noteBorderRadius: 12.5,
-      noteColor: '#sentinel',
-      noteGlowSize: 17.5,
-    });
-  });
-
-  it.each(['stale', ''])(
-    'idle background paint는 idle 쌍을 있는 그대로 active fallback으로 materialize한다 (%j)',
-    async (idleColor) => {
-      const gradient = {
-        angle: 45,
-        stops: [
-          { color: '#first', pos: 0 },
-          { color: '#last', pos: 1 },
-        ],
-      };
-      const before = {
-        ...keyAt(ID_A),
-        backgroundColor: idleColor,
-        backgroundGradient: gradient,
-        activeBackgroundColor: undefined,
-        activeBackgroundGradient: undefined,
-        borderColor: '#border-sibling',
-      };
-      useKeyStore.setState({
-        canonicalPositions: { '4key': [before] },
-        positions: { '4key': [before] },
-      });
-      api.captureEditorDocument.mockReturnValue(documentFromStores());
-
-      await patchPaintByTargets(
-        [{ elementType: 'key', id: ID_A }],
-        {
-          property: 'backgroundPaint',
-          value: { color: '#next', gradient: null },
-        },
-        { gestureId: 'paint-gesture' },
-      );
-
-      expect(
-        useKeyStore.getState().canonicalPositions['4key'][0],
-      ).toMatchObject({
-        backgroundColor: '#next',
-        backgroundGradient: undefined,
-        // 백엔드 preserve와 동일 - 대표색 합성 없이 idle 색을 그대로 복제
-        activeBackgroundColor: idleColor,
-        activeBackgroundGradient: gradient,
-        borderColor: '#border-sibling',
-      });
-      expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-        [
-          {
-            kind: 'patchElement',
-            elementType: 'key',
-            id: ID_A,
-            patch: {
-              property: 'backgroundPaint',
-              value: { color: '#next', gradient: null },
-            },
-          },
-        ],
-        expect.objectContaining({ gestureId: 'paint-gesture' }),
-      );
-    },
-  );
-
-  it('shadow partial과 master는 fresh siblings와 stat active 부재를 보존한다', async () => {
-    const key = {
-      ...keyAt(ID_A),
-      inactiveImage: 'image.png',
-      shadow: undefined,
-      activeShadow: undefined,
-      borderColor: '#sibling',
-    };
-    const stat = {
-      ...keyAt(ID_B),
-      statType: 'kps' as const,
-      shadow: undefined,
-      activeShadow: undefined,
-      borderColor: '#stat-sibling',
-    };
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [key] },
-      positions: { '4key': [key] },
-    });
-    useStatItemStore.setState({ positions: { '4key': [stat] } });
-    api.captureEditorDocument.mockImplementation(documentFromStores);
-
-    await patchShadowByTargets([{ elementType: 'key', id: ID_A }], {
-      property: 'shadow',
-      value: { leaf: 'blur', value: 22 },
-    });
-    await patchShadowByTargets(
-      [
-        { elementType: 'key', id: ID_A },
-        { elementType: 'stat', id: ID_B },
-      ],
-      { property: 'shadowEnabled', value: false },
-    );
-
-    expect(useKeyStore.getState().canonicalPositions['4key'][0]).toMatchObject({
-      shadow: {
-        enabled: false,
-        color: 'rgba(0, 0, 0, 0.28)',
-        offsetX: 0,
-        offsetY: 4,
-        blur: 22,
-      },
-      activeShadow: {
-        enabled: false,
-        color: 'rgba(0, 0, 0, 0.32)',
-        offsetX: 0,
-        offsetY: 3,
-        blur: 8,
-      },
-      borderColor: '#sibling',
-    });
-    expect(useStatItemStore.getState().positions['4key'][0]).toMatchObject({
-      shadow: { enabled: false },
-      borderColor: '#stat-sibling',
-    });
-    expect(
-      useStatItemStore.getState().positions['4key'][0].activeShadow,
-    ).toBeUndefined();
-  });
-
-  it('counter fill은 state pair만 바꾸고 opposite와 raw counter siblings를 보존한다', async () => {
-    const gradient = {
-      angle: 45,
-      stops: [
-        { color: '#112233', pos: 0 },
-        { color: '#445566', pos: 1 },
-      ],
-    };
-    const key = {
-      ...keyAt(ID_A),
-      counter: {
-        ...keyAt(ID_A).counter,
-        fill: { idle: 'idle-before', active: 'active-before' },
-        fillIdleGradient: gradient,
-        fillActiveGradient: gradient,
-        customSibling: 'raw-sibling',
-      },
-    } as never;
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [key] },
-      positions: { '4key': [key] },
-    });
-
-    await patchCounterFillByTargets([{ elementType: 'key', id: ID_A }], {
-      property: 'counterFillIdle',
-      value: { color: ' solid final ' },
-    });
-
-    expect(
-      useKeyStore.getState().canonicalPositions['4key'][0].counter,
-    ).toMatchObject({
-      fill: { idle: ' solid final ', active: 'active-before' },
-      fillActiveGradient: gradient,
-      customSibling: 'raw-sibling',
-    });
-    expect(
-      useKeyStore.getState().canonicalPositions['4key'][0].counter
-        .fillIdleGradient,
-    ).toBeUndefined();
-    expect(api.commitSemanticOps).toHaveBeenCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: {
-            property: 'counterFillIdle',
-            value: { color: ' solid final ' },
-          },
-        },
-      ],
-      expect.anything(),
-    );
   });
 
   it.each([
@@ -1851,71 +1163,6 @@ describe('elementOps', () => {
       expect(api.commitSemanticOps).not.toHaveBeenCalled();
     },
   );
-
-  it('note paint exact mask는 요청 leaf만 eager 투영하고 gesture를 wire에 보존한다', async () => {
-    const key = {
-      ...keyAt(ID_A),
-      noteColor: 'idle-color',
-      noteOpacity: 80,
-      noteOpacityTop: 70,
-      noteOpacityBottom: 60,
-      noteGlowColor: 'glow-sibling',
-      noteGlowOpacity: 50,
-      noteGlowOpacityTop: 40,
-      noteGlowOpacityBottom: 30,
-      noteBorderColor: '#112233',
-      noteBorderOpacity: 20,
-      className: 'sibling',
-    };
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [key] },
-      positions: { '4key': [key] },
-    });
-
-    await patchNotePaintByIds(
-      [ID_A],
-      { property: 'noteGlowPaint', value: { opacity: 77 } },
-      { gestureId: '00000000-0000-4000-8000-000000000077' },
-    );
-
-    expect(useKeyStore.getState().canonicalPositions['4key'][0]).toMatchObject({
-      noteColor: 'idle-color',
-      noteOpacity: 80,
-      noteOpacityTop: 70,
-      noteOpacityBottom: 60,
-      noteGlowColor: 'glow-sibling',
-      noteGlowOpacity: 77,
-      noteGlowOpacityTop: 40,
-      noteGlowOpacityBottom: 30,
-      noteBorderColor: '#112233',
-      noteBorderOpacity: 20,
-      className: 'sibling',
-    });
-    expect(api.commitSemanticOps).toHaveBeenCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: { property: 'noteGlowPaint', value: { opacity: 77 } },
-        },
-      ],
-      expect.objectContaining({
-        gestureId: '00000000-0000-4000-8000-000000000077',
-      }),
-    );
-
-    await patchNotePaintById(ID_A, {
-      property: 'notePaint',
-      value: { opacity: 66, opacityTop: 55, opacityBottom: 44 },
-    });
-    expect(useKeyStore.getState().canonicalPositions['4key'][0]).toMatchObject({
-      noteOpacity: 66,
-      noteOpacityTop: 55,
-      noteOpacityBottom: 44,
-      noteGlowOpacity: 77,
-    });
-  });
 
   it.each([
     [
@@ -2043,158 +1290,6 @@ describe('elementOps', () => {
     expect(api.commitSemanticOps).not.toHaveBeenCalled();
   });
 
-  it('knob axisId는 raw absolute leaf만 한 semantic op로 보낸다', async () => {
-    useKnobItemStore.setState({
-      positions: {
-        '4key': [
-          {
-            ...keyAt(ID_A),
-            axisId: 'old',
-            sensitivity: 1,
-            reverse: false,
-          } as never,
-        ],
-      },
-    });
-
-    await patchKnobAxisIdById(ID_A, '  HIDA:raw  ');
-
-    expect(api.commitSemanticOps).toHaveBeenCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'knob',
-          id: ID_A,
-          patch: { property: 'axisId', value: '  HIDA:raw  ' },
-        },
-      ],
-      expect.anything(),
-    );
-    expect(useKnobItemStore.getState().positions['4key'][0]).toMatchObject({
-      axisId: '  HIDA:raw  ',
-      sensitivity: 1,
-      reverse: false,
-    });
-  });
-
-  it('soundPath는 key raw string을 single과 N ops 한 commit으로 보내고 형제를 보존한다', async () => {
-    const records = [
-      {
-        ...keyAt(ID_A),
-        soundPath: 'sounds/a.wav',
-        soundEnabled: true,
-        soundVolume: 137,
-      },
-      {
-        ...keyAt(ID_B),
-        soundPath: 'sounds/b.wav',
-        soundEnabled: false,
-        soundVolume: 54,
-      },
-    ];
-    useKeyStore.setState({
-      canonicalPositions: { '4key': records },
-      positions: { '4key': structuredClone(records) },
-    });
-
-    await patchSoundPathById(ID_A, '  sounds/raw.wav  ');
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: { property: 'soundPath', value: '  sounds/raw.wav  ' },
-        },
-      ],
-      expect.anything(),
-    );
-
-    await patchSoundPathByIds([ID_A, ID_B], '');
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [ID_A, ID_B].map((id) => ({
-        kind: 'patchElement',
-        elementType: 'key',
-        id,
-        patch: { property: 'soundPath', value: '' },
-      })),
-      expect.anything(),
-    );
-    expect(useKeyStore.getState().positions['4key']).toEqual([
-      expect.objectContaining({
-        id: ID_A,
-        soundPath: '',
-        soundEnabled: true,
-        soundVolume: 137,
-      }),
-      expect.objectContaining({
-        id: ID_B,
-        soundPath: '',
-        soundEnabled: false,
-        soundVolume: 54,
-      }),
-    ]);
-  });
-
-  it('soundEnabled는 key bool leaf만 single과 N ops 한 commit으로 보내고 사운드 형제를 보존한다', async () => {
-    const records = [
-      {
-        ...keyAt(ID_A),
-        soundPath: 'sounds/a.wav',
-        soundEnabled: false,
-        soundVolume: 137,
-      },
-      {
-        ...keyAt(ID_B),
-        soundPath: 'sounds/b.wav',
-        soundEnabled: false,
-        soundVolume: 54,
-      },
-    ];
-    useKeyStore.setState({
-      canonicalPositions: { '4key': records },
-      positions: { '4key': structuredClone(records) },
-    });
-
-    await patchSoundEnabledById(ID_A, true);
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: { property: 'soundEnabled', value: true },
-        },
-      ],
-      expect.anything(),
-    );
-
-    await patchSoundEnabledByIds([ID_A, ID_B], true);
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [ID_A, ID_B].map((id) => ({
-        kind: 'patchElement',
-        elementType: 'key',
-        id,
-        patch: { property: 'soundEnabled', value: true },
-      })),
-      expect.anything(),
-    );
-    expect(useKeyStore.getState().positions['4key']).toEqual([
-      expect.objectContaining({
-        id: ID_A,
-        soundPath: 'sounds/a.wav',
-        soundEnabled: true,
-        soundVolume: 137,
-      }),
-      expect.objectContaining({
-        id: ID_B,
-        soundPath: 'sounds/b.wav',
-        soundEnabled: true,
-        soundVolume: 54,
-      }),
-    ]);
-  });
-
   it('soundEnabled batch는 empty, duplicate, synthetic ID를 wire 전에 거절한다', async () => {
     await expect(patchSoundEnabledByIds([], true)).resolves.toBe(false);
     await expect(patchSoundEnabledByIds([ID_A, ID_A], true)).resolves.toBe(
@@ -2202,69 +1297,6 @@ describe('elementOps', () => {
     );
     await expect(patchSoundEnabledByIds(['key-0'], true)).resolves.toBe(false);
     expect(api.commitSemanticOps).not.toHaveBeenCalled();
-  });
-
-  it('soundVolume은 key finite 0..200 leaf와 gesture만 보내고 사운드 형제를 보존한다', async () => {
-    const records = [
-      {
-        ...keyAt(ID_A),
-        soundPath: 'sounds/a.wav',
-        soundEnabled: true,
-        soundVolume: 23,
-        inactiveImage: 'idle.png',
-      },
-      {
-        ...keyAt(ID_B),
-        soundPath: 'sounds/b.wav',
-        soundEnabled: false,
-        soundVolume: 54,
-      },
-    ];
-    useKeyStore.setState({
-      canonicalPositions: { '4key': records },
-      positions: { '4key': structuredClone(records) },
-    });
-
-    await patchSoundVolumeById(ID_A, 137.5, {
-      gestureId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-    });
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: { property: 'soundVolume', value: 137.5 },
-        },
-      ],
-      expect.objectContaining({
-        gestureId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-      }),
-    );
-
-    await patchSoundVolumeByIds([ID_A, ID_B], 200);
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [ID_A, ID_B].map((id) => ({
-        kind: 'patchElement',
-        elementType: 'key',
-        id,
-        patch: { property: 'soundVolume', value: 200 },
-      })),
-      expect.anything(),
-    );
-    expect(useKeyStore.getState().positions['4key']).toEqual([
-      expect.objectContaining({
-        soundVolume: 200,
-        soundPath: 'sounds/a.wav',
-        soundEnabled: true,
-        inactiveImage: 'idle.png',
-      }),
-      expect.objectContaining({
-        soundVolume: 200,
-        soundPath: 'sounds/b.wav',
-        soundEnabled: false,
-      }),
-    ]);
   });
 
   it('soundVolume은 invalid value와 empty, duplicate, synthetic ID를 wire 전에 거절한다', async () => {
@@ -2290,100 +1322,6 @@ describe('elementOps', () => {
     expect(api.commitSemanticOps).not.toHaveBeenCalled();
   });
 
-  it('counter animation preset은 지정 leaf만 eager/wire에 적용하고 raw counter sibling을 보존한다', async () => {
-    const rawCounter = {
-      ...createDefaultKeyPosition().counter,
-      fontFamily: null,
-      customSentinel: 'keep-raw',
-      animation: {
-        ...createDefaultKeyPosition().counter.animation,
-        enabled: false,
-        presetId: 'preset-old',
-        scale: 1.1,
-      },
-    };
-    useKeyStore.setState({
-      canonicalPositions: {
-        '4key': [{ ...keyAt(ID_A), counter: rawCounter }, keyAt(ID_B)],
-      },
-      positions: {
-        '4key': [{ ...keyAt(ID_A), counter: rawCounter }, keyAt(ID_B)],
-      },
-    });
-
-    await patchCounterAnimationPresetByTargets(
-      [{ elementType: 'key', id: ID_A }],
-      { presetId: 'preset-new', applyPresetId: true, durationMs: 450 },
-    );
-
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: {
-            property: 'counterAnimationPreset',
-            value: {
-              presetId: 'preset-new',
-              applyPresetId: true,
-              durationMs: 450,
-            },
-          },
-        },
-      ],
-      expect.anything(),
-    );
-    expect(
-      useKeyStore.getState().canonicalPositions['4key'][0].counter,
-    ).toMatchObject({
-      fontFamily: null,
-      customSentinel: 'keep-raw',
-      animation: {
-        enabled: false,
-        presetId: 'preset-new',
-        scale: 1.1,
-        durationMs: 450,
-      },
-    });
-  });
-
-  it('single edit preset intent는 외부가 바꾼 fresh presetId를 보존한다', async () => {
-    const current = keyAt(ID_A);
-    current.counter = {
-      ...current.counter,
-      animation: {
-        ...current.counter.animation,
-        presetId: 'preset-c',
-        scale: 2,
-      },
-    };
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [current, keyAt(ID_B)] },
-      positions: { '4key': [current, keyAt(ID_B)] },
-    });
-
-    await patchCounterAnimationPresetByTargets(
-      [{ elementType: 'key', id: ID_A }],
-      { presetId: 'preset-a', scale: 1.4 },
-    );
-
-    expect(
-      useKeyStore.getState().canonicalPositions['4key'][0].counter.animation,
-    ).toMatchObject({ presetId: 'preset-c', scale: 1.4 });
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        expect.objectContaining({
-          patch: {
-            property: 'counterAnimationPreset',
-            value: { presetId: 'preset-a', scale: 1.4 },
-          },
-        }),
-      ],
-      expect.anything(),
-    );
-  });
-
   it('counter animation batch는 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
     const intent = { presetId: 'preset-a' };
     await expect(
@@ -2406,80 +1344,6 @@ describe('elementOps', () => {
     ).resolves.toBe(false);
   });
 
-  it('counter bool 두 leaf는 raw counter와 preset sibling을 보존해 key/stat 한 commit으로 보낸다', async () => {
-    const statId = '33333333-3333-4333-8333-333333333333';
-    const rawCounter = {
-      ...createDefaultKeyPosition().counter,
-      enabled: false,
-      customSentinel: 'keep-raw',
-      animation: {
-        ...createDefaultKeyPosition().counter.animation,
-        enabled: false,
-        presetId: 'preset-keep',
-        scale: 1.7,
-      },
-    };
-    useKeyStore.setState({
-      canonicalPositions: {
-        '4key': [{ ...keyAt(ID_A), counter: rawCounter }],
-      },
-      positions: { '4key': [{ ...keyAt(ID_A), counter: rawCounter }] },
-    });
-    useStatItemStore.setState({
-      positions: {
-        '4key': [
-          {
-            ...keyAt(statId),
-            statType: 'kps',
-            counter: structuredClone(rawCounter),
-          },
-        ],
-      },
-    });
-    api.captureEditorDocument.mockReturnValue(documentFromStores());
-    const targets = [
-      { elementType: 'key' as const, id: ID_A },
-      { elementType: 'stat' as const, id: statId },
-    ];
-
-    await patchCounterEnabledByTargets(targets, true);
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      targets.map(({ elementType, id }) => ({
-        kind: 'patchElement',
-        elementType,
-        id,
-        patch: { property: 'counterEnabled', value: true },
-      })),
-      expect.anything(),
-    );
-    expect(
-      useKeyStore.getState().canonicalPositions['4key'][0].counter,
-    ).toMatchObject({
-      enabled: true,
-      customSentinel: 'keep-raw',
-      animation: { enabled: false, presetId: 'preset-keep', scale: 1.7 },
-    });
-
-    api.captureEditorDocument.mockReturnValue(documentFromStores());
-    await patchCounterAnimationEnabledByTargets(targets, true);
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      targets.map(({ elementType, id }) => ({
-        kind: 'patchElement',
-        elementType,
-        id,
-        patch: { property: 'counterAnimationEnabled', value: true },
-      })),
-      expect.anything(),
-    );
-    expect(
-      useKeyStore.getState().canonicalPositions['4key'][0].counter,
-    ).toMatchObject({
-      enabled: true,
-      customSentinel: 'keep-raw',
-      animation: { enabled: true, presetId: 'preset-keep', scale: 1.7 },
-    });
-  });
-
   it('counter bool batch는 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
     await expect(patchCounterEnabledByTargets([], true)).resolves.toBe(false);
     await expect(
@@ -2494,83 +1358,6 @@ describe('elementOps', () => {
     await expect(
       patchCounterEnabledByTargets([{ elementType: 'key', id: 'key-0' }], true),
     ).resolves.toBe(false);
-  });
-
-  it('counter layout 4 leaf는 raw counter sibling을 보존해 key/stat N ops 한 commit으로 보낸다', async () => {
-    const statId = '33333333-3333-4333-8333-333333333333';
-    const rawCounter = {
-      ...createDefaultKeyPosition().counter,
-      placement: 'inside' as const,
-      align: 'top' as const,
-      alignMode: 'between' as const,
-      gap: 3,
-      customSentinel: 'keep-raw',
-    };
-    useKeyStore.setState({
-      canonicalPositions: {
-        '4key': [
-          {
-            ...keyAt(ID_A),
-            fontFamily: 'Top Level Family',
-            counter: rawCounter,
-          },
-        ],
-      },
-      positions: {
-        '4key': [
-          {
-            ...keyAt(ID_A),
-            fontFamily: 'Top Level Family',
-            counter: rawCounter,
-          },
-        ],
-      },
-    });
-    useStatItemStore.setState({
-      positions: {
-        '4key': [
-          {
-            ...keyAt(statId),
-            statType: 'kps',
-            counter: structuredClone(rawCounter),
-          },
-        ],
-      },
-    });
-    api.captureEditorDocument.mockReturnValue(documentFromStores());
-    const targets = [
-      { elementType: 'key' as const, id: ID_A },
-      { elementType: 'stat' as const, id: statId },
-    ];
-
-    const patches: EditorCounterLayoutPropertyPatchV1[] = [
-      { property: 'counterPlacement', value: 'outside' as const },
-      { property: 'counterAlign', value: 'right' as const },
-      { property: 'counterAlignMode', value: 'center' as const },
-      { property: 'counterGap', value: 4_294_967_295 },
-    ];
-    for (const patch of patches) {
-      api.captureEditorDocument.mockReturnValue(documentFromStores());
-      await patchCounterLayoutByTargets(targets, patch);
-      expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-        targets.map(({ elementType, id }) => ({
-          kind: 'patchElement',
-          elementType,
-          id,
-          patch,
-        })),
-        expect.anything(),
-      );
-    }
-    expect(
-      useKeyStore.getState().canonicalPositions['4key'][0].counter,
-    ).toMatchObject({
-      placement: 'outside',
-      align: 'right',
-      alignMode: 'center',
-      gap: 4_294_967_295,
-      customSentinel: 'keep-raw',
-    });
   });
 
   it('counter layout batch는 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
@@ -2592,156 +1379,6 @@ describe('elementOps', () => {
         value: 'inside',
       }),
     ).resolves.toBe(false);
-  });
-
-  it('fontWeight 패치는 Bold 미확정 요소의 암묵 Bold를 함께 고정하고 gestureId를 전파한다', async () => {
-    // (700, 미확정) 키 - 레거시 Bold. 굵기를 바꾸면 Bold true로 고정 (editor_ops와 동일 규칙)
-    const legacyBold = { ...keyAt(ID_A), fontWeight: 700, fontBold: undefined };
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [legacyBold] },
-      positions: { '4key': [legacyBold] },
-    });
-    api.captureEditorDocument.mockReturnValue(documentFromStores());
-    await patchElementPropertyById(
-      'key',
-      ID_A,
-      { property: 'fontWeight', value: 500 },
-      { gestureId: 'font-gesture' },
-    );
-    expect(useKeyStore.getState().canonicalPositions['4key'][0]).toMatchObject({
-      fontWeight: 500,
-      fontBold: true,
-    });
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: { property: 'fontWeight', value: 500 },
-        },
-      ],
-      expect.objectContaining({ gestureId: 'font-gesture' }),
-    );
-
-    // Bold가 확정된 요소는 건드리지 않는다
-    const explicit = { ...keyAt(ID_A), fontWeight: 700, fontBold: false };
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [explicit] },
-      positions: { '4key': [explicit] },
-    });
-    api.captureEditorDocument.mockReturnValue(documentFromStores());
-    await patchElementPropertyById('key', ID_A, {
-      property: 'fontWeight',
-      value: 600,
-    });
-    expect(useKeyStore.getState().canonicalPositions['4key'][0]).toMatchObject({
-      fontWeight: 600,
-      fontBold: false,
-    });
-
-    // 카운터 (400, 미확정) → non-bold 고정: (700, false)라 재시작 시 레거시로 오인되지 않는다
-    const counterKey = {
-      ...keyAt(ID_A),
-      counter: {
-        ...createDefaultKeyPosition().counter,
-        fontWeight: 400,
-        fontBold: undefined,
-      },
-    };
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [counterKey] },
-      positions: { '4key': [counterKey] },
-    });
-    api.captureEditorDocument.mockReturnValue(documentFromStores());
-    await patchCounterTypographyByTargets(
-      [{ elementType: 'key', id: ID_A }],
-      { property: 'counterFontWeight', value: 700 },
-      { gestureId: 'counter-gesture' },
-    );
-    expect(
-      useKeyStore.getState().canonicalPositions['4key'][0].counter,
-    ).toMatchObject({ fontWeight: 700, fontBold: false });
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({ gestureId: 'counter-gesture' }),
-    );
-  });
-
-  it('counter typography 6 leaf는 raw counter sibling을 보존해 key/stat N ops 한 commit으로 보낸다', async () => {
-    const statId = '33333333-3333-4333-8333-333333333333';
-    const rawCounter = {
-      ...createDefaultKeyPosition().counter,
-      customSentinel: 'keep-raw',
-    };
-    useKeyStore.setState({
-      canonicalPositions: {
-        '4key': [
-          {
-            ...keyAt(ID_A),
-            fontFamily: 'Top Level Family',
-            counter: rawCounter,
-          },
-        ],
-      },
-      positions: {
-        '4key': [
-          {
-            ...keyAt(ID_A),
-            fontFamily: 'Top Level Family',
-            counter: rawCounter,
-          },
-        ],
-      },
-    });
-    useStatItemStore.setState({
-      positions: {
-        '4key': [
-          {
-            ...keyAt(statId),
-            statType: 'kps',
-            counter: structuredClone(rawCounter),
-          },
-        ],
-      },
-    });
-    const targets = [
-      { elementType: 'key' as const, id: ID_A },
-      { elementType: 'stat' as const, id: statId },
-    ];
-    const patches: EditorCounterTypographyPropertyPatchV1[] = [
-      { property: 'counterFontSize', value: 72 },
-      { property: 'counterFontWeight', value: 900 },
-      { property: 'counterFontBold', value: true },
-      { property: 'counterFontItalic', value: true },
-      { property: 'counterFontUnderline', value: true },
-      { property: 'counterFontStrikethrough', value: true },
-    ];
-
-    for (const patch of patches) {
-      api.captureEditorDocument.mockReturnValue(documentFromStores());
-      await patchCounterTypographyByTargets(targets, patch);
-      expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-        targets.map(({ elementType, id }) => ({
-          kind: 'patchElement',
-          elementType,
-          id,
-          patch,
-        })),
-        expect.anything(),
-      );
-    }
-    expect(
-      useKeyStore.getState().canonicalPositions['4key'][0].counter,
-    ).toMatchObject({
-      fontSize: 72,
-      fontWeight: 900,
-      fontBold: true,
-      fontItalic: true,
-      fontUnderline: true,
-      fontStrikethrough: true,
-      customSentinel: 'keep-raw',
-    });
   });
 
   it('counter typography는 invalid leaf와 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
@@ -2781,76 +1418,6 @@ describe('elementOps', () => {
     expect(api.commitSemanticOps).not.toHaveBeenCalled();
   });
 
-  it('counter fontFamily raw string은 siblings를 보존해 key/stat N ops 한 commit으로 보낸다', async () => {
-    const statId = '33333333-3333-4333-8333-333333333333';
-    const rawCounter = {
-      ...createDefaultKeyPosition().counter,
-      fontFamily: 'Before',
-      customSentinel: 'keep-raw',
-    };
-    useKeyStore.setState({
-      canonicalPositions: {
-        '4key': [
-          {
-            ...keyAt(ID_A),
-            fontFamily: 'Top Level Family',
-            counter: rawCounter,
-          },
-        ],
-      },
-      positions: {
-        '4key': [
-          {
-            ...keyAt(ID_A),
-            fontFamily: 'Top Level Family',
-            counter: rawCounter,
-          },
-        ],
-      },
-    });
-    useStatItemStore.setState({
-      positions: {
-        '4key': [
-          {
-            ...keyAt(statId),
-            statType: 'kps',
-            counter: structuredClone(rawCounter),
-          },
-        ],
-      },
-    });
-    const targets = [
-      { elementType: 'key' as const, id: ID_A },
-      { elementType: 'stat' as const, id: statId },
-    ];
-    api.captureEditorDocument.mockReturnValue(documentFromStores());
-
-    await patchCounterTypographyByTargets(targets, {
-      property: 'counterFontFamily',
-      value: '  Raw Counter Family  ',
-    });
-
-    expect(api.commitSemanticOps).toHaveBeenCalledWith(
-      targets.map(({ elementType, id }) => ({
-        kind: 'patchElement',
-        elementType,
-        id,
-        patch: {
-          property: 'counterFontFamily',
-          value: '  Raw Counter Family  ',
-        },
-      })),
-      expect.anything(),
-    );
-    expect(useKeyStore.getState().canonicalPositions['4key'][0]).toMatchObject({
-      fontFamily: 'Top Level Family',
-      counter: {
-        fontFamily: '  Raw Counter Family  ',
-        customSentinel: 'keep-raw',
-      },
-    });
-  });
-
   it('counter fontFamily는 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
     await expect(
       patchCounterTypographyByTargets([], {
@@ -2876,60 +1443,6 @@ describe('elementOps', () => {
     expect(api.commitSemanticOps).not.toHaveBeenCalled();
   });
 
-  it('inactiveImage는 raw string을 single과 혼합 4타입 한 commit으로 보낸다', async () => {
-    const statId = '33333333-3333-4333-8333-333333333333';
-    const graphId = '44444444-4444-4444-8444-444444444444';
-    const knobId = '55555555-5555-4555-8555-555555555555';
-    const stat = { ...keyAt(statId), statType: 'kps' } as never;
-    const graph = graphAt(graphId, {
-      inactiveImage: 'graph-before.png',
-      activeImage: 'graph-active.png',
-    });
-    const knob = {
-      ...keyAt(knobId),
-      axisId: '',
-      sensitivity: 1,
-      reverse: false,
-    } as never;
-    useStatItemStore.setState({ positions: { '4key': [stat] } });
-    useGraphItemStore.setState({ positions: { '4key': [graph] } });
-    useKnobItemStore.setState({ positions: { '4key': [knob] } });
-
-    await patchInactiveImageById('key', ID_A, '  /tmp/raw.png  ');
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: { property: 'inactiveImage', value: '  /tmp/raw.png  ' },
-        },
-      ],
-      expect.anything(),
-    );
-
-    const targets = [
-      { elementType: 'key' as const, id: ID_A },
-      { elementType: 'stat' as const, id: statId },
-      { elementType: 'graph' as const, id: graphId },
-      { elementType: 'knob' as const, id: knobId },
-    ];
-    await patchInactiveImageByTargets(targets, 'picked.png');
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      targets.map(({ elementType, id }) => ({
-        kind: 'patchElement',
-        elementType,
-        id,
-        patch: { property: 'inactiveImage', value: 'picked.png' },
-      })),
-      expect.anything(),
-    );
-    expect(useGraphItemStore.getState().positions['4key'][0]).toMatchObject({
-      inactiveImage: 'picked.png',
-      activeImage: graph.activeImage,
-    });
-  });
-
   it('inactiveImage batch는 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
     await expect(patchInactiveImageByTargets([], 'picked.png')).resolves.toBe(
       false,
@@ -2950,52 +1463,6 @@ describe('elementOps', () => {
       ),
     ).resolves.toBe(false);
     expect(api.commitSemanticOps).not.toHaveBeenCalled();
-  });
-
-  it('activeImage는 key/knob raw string을 한 commit으로 보내고 형제를 보존한다', async () => {
-    const knobId = '66666666-6666-4666-8666-666666666666';
-    const knob = {
-      ...keyAt(knobId),
-      axisId: '',
-      sensitivity: 1,
-      reverse: false,
-      inactiveImage: 'idle.png',
-      activeImage: 'before.png',
-    } as never;
-    useKnobItemStore.setState({ positions: { '4key': [knob] } });
-
-    await patchActiveImageById('key', ID_A, '  /tmp/raw active.png  ');
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: { property: 'activeImage', value: '  /tmp/raw active.png  ' },
-        },
-      ],
-      expect.anything(),
-    );
-
-    const targets = [
-      { elementType: 'key' as const, id: ID_A },
-      { elementType: 'knob' as const, id: knobId },
-    ];
-    await patchActiveImageByTargets(targets, '');
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      targets.map(({ elementType, id }) => ({
-        kind: 'patchElement',
-        elementType,
-        id,
-        patch: { property: 'activeImage', value: '' },
-      })),
-      expect.anything(),
-    );
-    expect(useKnobItemStore.getState().positions['4key'][0]).toMatchObject({
-      inactiveImage: 'idle.png',
-      activeImage: '',
-      sensitivity: 1,
-    });
   });
 
   it('activeImage batch는 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
@@ -3020,75 +1487,6 @@ describe('elementOps', () => {
     expect(api.commitSemanticOps).not.toHaveBeenCalled();
   });
 
-  it('image transparency는 exact bool leaf만 타입별 N ops로 보내고 이미지 형제를 보존한다', async () => {
-    const graphId = '77777777-7777-4777-8777-777777777777';
-    const knobId = '88888888-8888-4888-8888-888888888888';
-    const graph = graphAt(graphId, {
-      inactiveImage: 'idle.png',
-      activeImage: 'active.png',
-      idleImageFit: 'contain',
-      idleTransparent: false,
-    });
-    const knob = {
-      ...keyAt(knobId),
-      axisId: '',
-      sensitivity: 1,
-      reverse: false,
-      activeImageFit: 'cover',
-      activeTransparent: false,
-    } as never;
-    useGraphItemStore.setState({ positions: { '4key': [graph] } });
-    useKnobItemStore.setState({ positions: { '4key': [knob] } });
-
-    await patchIdleTransparentById('graph', graphId, true);
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'graph',
-          id: graphId,
-          patch: { property: 'idleTransparent', value: true },
-        },
-      ],
-      expect.anything(),
-    );
-    expect(useGraphItemStore.getState().positions['4key'][0]).toMatchObject({
-      inactiveImage: 'idle.png',
-      activeImage: 'active.png',
-      idleImageFit: 'contain',
-      idleTransparent: true,
-    });
-
-    await patchActiveTransparentByTargets(
-      [
-        { elementType: 'key', id: ID_A },
-        { elementType: 'knob', id: knobId },
-      ],
-      true,
-    );
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: { property: 'activeTransparent', value: true },
-        },
-        {
-          kind: 'patchElement',
-          elementType: 'knob',
-          id: knobId,
-          patch: { property: 'activeTransparent', value: true },
-        },
-      ],
-      expect.anything(),
-    );
-    expect(useKnobItemStore.getState().positions['4key'][0]).toMatchObject({
-      activeImageFit: 'cover',
-      activeTransparent: true,
-    });
-  });
-
   it('image transparency batch는 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
     await expect(patchIdleTransparentByTargets([], true)).resolves.toBe(false);
     await expect(
@@ -3110,100 +1508,6 @@ describe('elementOps', () => {
       patchActiveTransparentById('key', 'key-0', true),
     ).resolves.toBe(false);
     expect(api.commitSemanticOps).not.toHaveBeenCalled();
-  });
-
-  it('image mode·transform은 key 전용 leaf patch로 보내고 즉시 스토어에 반영한다', async () => {
-    await patchImageModeById(ID_A, 'overlay');
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: { property: 'imageMode', value: 'overlay' },
-        },
-      ],
-      expect.anything(),
-    );
-    expect(useKeyStore.getState().positions['4key'][0].imageMode).toBe(
-      'overlay',
-    );
-
-    await patchImageTransformById(ID_A, 'idle', { leaf: 'offsetX', value: 10 });
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'key',
-          id: ID_A,
-          patch: {
-            property: 'idleImageTransform',
-            value: { leaf: 'offsetX', value: 10 },
-          },
-        },
-      ],
-      expect.anything(),
-    );
-    expect(
-      useKeyStore.getState().positions['4key'][0].idleImageTransform,
-    ).toEqual({ offsetX: 10, offsetY: 0, rotation: 0, scale: 1 });
-
-    await patchImageTransformById(ID_A, 'idle', null);
-    expect(
-      useKeyStore.getState().positions['4key'][0].idleImageTransform,
-    ).toBeUndefined();
-  });
-
-  it('single image fit은 state별 exact enum leaf만 보내고 이미지 형제를 보존한다', async () => {
-    const knobId = '99999999-9999-4999-8999-999999999999';
-    const knob = {
-      ...keyAt(knobId),
-      axisId: '',
-      sensitivity: 1,
-      reverse: false,
-      imageFit: 'none',
-      idleImageFit: 'cover',
-      activeImageFit: 'contain',
-      idleTransparent: true,
-      activeTransparent: false,
-      inactiveImage: 'idle.png',
-      activeImage: 'active.png',
-    } as never;
-    useKnobItemStore.setState({ positions: { '4key': [knob] } });
-
-    await patchIdleImageFitById('knob', knobId, 'fill');
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'knob',
-          id: knobId,
-          patch: { property: 'idleImageFit', value: 'fill' },
-        },
-      ],
-      expect.anything(),
-    );
-    await patchActiveImageFitById('knob', knobId, 'none');
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'knob',
-          id: knobId,
-          patch: { property: 'activeImageFit', value: 'none' },
-        },
-      ],
-      expect.anything(),
-    );
-    expect(useKnobItemStore.getState().positions['4key'][0]).toMatchObject({
-      imageFit: 'none',
-      idleImageFit: 'fill',
-      activeImageFit: 'none',
-      idleTransparent: true,
-      activeTransparent: false,
-      inactiveImage: 'idle.png',
-      activeImage: 'active.png',
-    });
   });
 
   it('single image fit은 synthetic target을 wire 전에 거절한다', async () => {

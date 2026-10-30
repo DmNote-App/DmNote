@@ -199,42 +199,18 @@ export const commitBatchGeometryByIds = (
   if (!initialPlan || initialPlan.updates.length === 0) {
     return Promise.resolve(false);
   }
-  const targetById = new Map(
-    frozenDescriptor.targets.map((target) => [target.id, target] as const),
-  );
-  const fullBoundsByKey = new Map(
-    initialPlan.bounds.map(({ key, bounds }) => [key, bounds] as const),
-  );
-  const intents = buildNativeBoundsIntents(
-    initialPlan.updates,
-    (key) => targetById.get(key),
-    (_target, key) => fullBoundsByKey.get(key),
-  );
-  const receipt = intents.size > 0 ? applyBoundsIntentsEagerly(intents) : null;
-  let enrolled = false;
   return commitGeneratedSemanticOps(
     (base) => planBatchGeometry(base, frozenDescriptor)?.ops ?? null,
     {
       ...(options.gestureId ? { gestureId: options.gestureId } : {}),
       ...(options.preflight ? { preflight: options.preflight } : {}),
-      onEnrolled: () => {
-        enrolled = true;
-      },
     },
-  )
-    .then((outcome) => {
-      if (!outcome) {
-        if (!enrolled) receipt?.rollback();
-        return false;
-      }
-      return outcome.opResults.every(
-        ({ status }) => status !== 'targetMissing',
-      );
-    })
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
+  ).then((outcome) => {
+    if (!outcome) {
+      return false;
+    }
+    return outcome.opResults.every(({ status }) => status !== 'targetMissing');
+  });
 };
 
 export const commitElementGeometryById = (
@@ -258,12 +234,6 @@ export const commitElementGeometryById = (
   }
 
   const frozenPatch = Object.fromEntries(entries) as GeometryPatch;
-  const intents: PropertyIntents = new Map([
-    [type, new Map([[id, frozenPatch as Record<string, unknown>]])],
-  ]);
-  const receipt = applyPropertyIntentsEagerly(intents);
-  let enrolled = false;
-
   return commitGeneratedSemanticOps(
     (base) => {
       const record = base[
@@ -285,27 +255,16 @@ export const commitElementGeometryById = (
     {
       ...(options.gestureId ? { gestureId: options.gestureId } : {}),
       ...(options.preflight ? { preflight: options.preflight } : {}),
-      onEnrolled: () => {
-        enrolled = true;
-      },
     },
-  )
-    .then((outcome) => {
-      if (!outcome) {
-        if (!enrolled) receipt?.rollback();
-        return false;
-      }
-      return outcome.opResults[0]?.status !== 'targetMissing';
-    })
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
+  ).then((outcome) => {
+    if (!outcome) {
+      return false;
+    }
+    return outcome.opResults[0]?.status !== 'targetMissing';
+  });
 };
 
-// 리사이즈 완료 전용: 시작 시 동결한 대상 id들에 최종 bounds를 하나의
-// intent로 - eager와 wire, receipt를 같은 의도가 소유한다. 대상 소실은
-// targetLost로 eager 복원, 오류는 전파
+// 리사이즈 완료 전용: 시작 시 동결한 대상 id들에 최종 bounds를 한 커밋으로 (트리가 낙관 반영, 오류는 전파)
 export const commitElementBoundsById = (
   intents: PropertyIntents,
   gestureId?: string,
@@ -345,21 +304,11 @@ export const commitElementBoundsById = (
   }
   if (ops.length === 0) return Promise.resolve(false);
 
-  const receipt = applyBoundsIntentsEagerly(intents);
-  let enrolled = false;
   return commitSemanticOps(ops, {
     ...(gestureId ? { gestureId } : {}),
-    onEnrolled: () => {
-      enrolled = true;
-    },
-  })
-    .then(({ opResults }) =>
-      opResults.some(({ status }) => status !== 'targetMissing'),
-    )
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
+  }).then(({ opResults }) =>
+    opResults.some(({ status }) => status !== 'targetMissing'),
+  );
 };
 
 export const commitSingleElementBoundsById = (
@@ -379,21 +328,7 @@ export const commitSingleElementBoundsById = (
   ) {
     return Promise.resolve(false);
   }
-  const intents: PropertyIntents = new Map([
-    [type, new Map([[id, { ...bounds }]])],
-  ]);
-  const receipt = applyBoundsIntentsEagerly(intents);
-  let enrolled = false;
-
   return commitSemanticOps([elementBoundsOp(type, id, bounds)], {
     ...(gestureId ? { gestureId } : {}),
-    onEnrolled: () => {
-      enrolled = true;
-    },
-  })
-    .then(({ opResults }) => opResults[0]?.status !== 'targetMissing')
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
+  }).then(({ opResults }) => opResults[0]?.status !== 'targetMissing');
 };

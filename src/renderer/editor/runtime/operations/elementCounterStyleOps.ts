@@ -1,14 +1,6 @@
 import { isNativeElementId } from '../../model/elementId';
 import type { NativeElementType } from '../../model/elementIdMap';
-import {
-  applyPropertyIntentsEagerly,
-  type PropertyIntents,
-} from '../intent/elementIntent';
-import {
-  commitSemanticOps,
-  withoutTreeRoutedIntents,
-} from './editorSemanticOps';
-import { captureEditorDocument } from '../coordinator/editorStateCoordinator';
+import { commitSemanticOps } from './editorSemanticOps';
 import type {
   EditorCounterAnimationPresetIntentV1,
   EditorCounterBooleanPropertyPatchV1,
@@ -17,7 +9,6 @@ import type {
   EditorFontFamilyPropertyPatchV1,
   EditorFontStylePropertyPatchV1,
 } from '@src/types/editor';
-import { implicitCounterFontBold } from '@utils/typography/fontWeights';
 import {
   patchElementPropertyByTargets,
   type PropertyCommitOptions,
@@ -26,55 +17,6 @@ import {
 type CounterAnimationTarget = {
   elementType: 'key' | 'stat';
   id: string;
-};
-
-const counterBooleanPropertyIntents = (
-  targets: readonly CounterAnimationTarget[],
-  patch: EditorCounterBooleanPropertyPatchV1,
-): PropertyIntents => {
-  const document = captureEditorDocument();
-  const propertyIntents = new Map<
-    NativeElementType,
-    Map<string, Record<string, unknown>>
-  >();
-  for (const { elementType, id } of targets) {
-    const field = elementType === 'key' ? 'keyPositions' : 'statPositions';
-    const record = document[field] as Record<
-      string,
-      Array<Record<string, unknown> & { id: string }>
-    >;
-    const current = Object.values(record)
-      .flat()
-      .find((position) => position.id === id);
-    if (
-      !current ||
-      current.counter === null ||
-      typeof current.counter !== 'object' ||
-      Array.isArray(current.counter)
-    ) {
-      continue;
-    }
-    const counter = current.counter as Record<string, unknown>;
-    const nextCounter =
-      patch.property === 'counterEnabled'
-        ? { ...counter, enabled: patch.value }
-        : counter.animation !== null &&
-          typeof counter.animation === 'object' &&
-          !Array.isArray(counter.animation)
-        ? {
-            ...counter,
-            animation: {
-              ...(counter.animation as Record<string, unknown>),
-              enabled: patch.value,
-            },
-          }
-        : null;
-    if (!nextCounter) continue;
-    const byId = propertyIntents.get(elementType) ?? new Map();
-    byId.set(id, { counter: nextCounter });
-    propertyIntents.set(elementType, byId);
-  }
-  return propertyIntents;
 };
 
 const patchCounterBooleanByTargets = (
@@ -95,68 +37,11 @@ const patchCounterBooleanByTargets = (
     id,
     patch,
   }));
-  const receipt = applyPropertyIntentsEagerly(
-    withoutTreeRoutedIntents(
-      counterBooleanPropertyIntents(targets, patch),
-      ops,
-    ),
-  );
-  let enrolled = false;
   return commitSemanticOps(ops, {
     preflight: options.preflight,
-    onEnrolled: () => {
-      enrolled = true;
-    },
-  })
-    .then((outcome) =>
-      outcome.opResults.some((result) => result.status !== 'targetMissing'),
-    )
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
-};
-
-const counterLayoutPropertyIntents = (
-  targets: readonly CounterAnimationTarget[],
-  patch: EditorCounterLayoutPropertyPatchV1,
-): PropertyIntents => {
-  const document = captureEditorDocument();
-  const propertyIntents = new Map<
-    NativeElementType,
-    Map<string, Record<string, unknown>>
-  >();
-  for (const { elementType, id } of targets) {
-    const field = elementType === 'key' ? 'keyPositions' : 'statPositions';
-    const record = document[field] as Record<
-      string,
-      Array<Record<string, unknown> & { id: string }>
-    >;
-    const current = Object.values(record)
-      .flat()
-      .find((position) => position.id === id);
-    if (
-      !current ||
-      current.counter === null ||
-      typeof current.counter !== 'object' ||
-      Array.isArray(current.counter)
-    ) {
-      continue;
-    }
-    const counter = current.counter as Record<string, unknown>;
-    const nextCounter =
-      patch.property === 'counterPlacement'
-        ? { ...counter, placement: patch.value }
-        : patch.property === 'counterAlign'
-        ? { ...counter, align: patch.value }
-        : patch.property === 'counterAlignMode'
-        ? { ...counter, alignMode: patch.value }
-        : { ...counter, gap: patch.value };
-    const byId = propertyIntents.get(elementType) ?? new Map();
-    byId.set(id, { counter: nextCounter });
-    propertyIntents.set(elementType, byId);
-  }
-  return propertyIntents;
+  }).then((outcome) =>
+    outcome.opResults.some((result) => result.status !== 'targetMissing'),
+  );
 };
 
 export const patchCounterLayoutByTargets = (
@@ -177,23 +62,11 @@ export const patchCounterLayoutByTargets = (
     id,
     patch,
   }));
-  const receipt = applyPropertyIntentsEagerly(
-    withoutTreeRoutedIntents(counterLayoutPropertyIntents(targets, patch), ops),
-  );
-  let enrolled = false;
   return commitSemanticOps(ops, {
     preflight: options.preflight,
-    onEnrolled: () => {
-      enrolled = true;
-    },
-  })
-    .then((outcome) =>
-      outcome.opResults.some((result) => result.status !== 'targetMissing'),
-    )
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
+  }).then((outcome) =>
+    outcome.opResults.some((result) => result.status !== 'targetMissing'),
+  );
 };
 
 export const patchCounterLayoutById = (
@@ -203,60 +76,6 @@ export const patchCounterLayoutById = (
   options: { preflight?: () => void } = {},
 ): Promise<boolean> =>
   patchCounterLayoutByTargets([{ elementType, id }], patch, options);
-
-const counterTypographyPropertyIntents = (
-  targets: readonly CounterAnimationTarget[],
-  patch: EditorCounterTypographyPropertyPatchV1,
-): PropertyIntents => {
-  const document = captureEditorDocument();
-  const propertyIntents = new Map<
-    NativeElementType,
-    Map<string, Record<string, unknown>>
-  >();
-  for (const { elementType, id } of targets) {
-    const field = elementType === 'key' ? 'keyPositions' : 'statPositions';
-    const record = document[field] as Record<
-      string,
-      Array<Record<string, unknown> & { id: string }>
-    >;
-    const current = Object.values(record)
-      .flat()
-      .find((position) => position.id === id);
-    if (
-      !current ||
-      current.counter === null ||
-      typeof current.counter !== 'object' ||
-      Array.isArray(current.counter)
-    ) {
-      continue;
-    }
-    const counter = current.counter as Record<string, unknown>;
-    const nextCounter =
-      patch.property === 'counterFontSize'
-        ? { ...counter, fontSize: patch.value }
-        : patch.property === 'counterFontWeight'
-        ? {
-            ...counter,
-            fontWeight: patch.value,
-            ...(typeof counter.fontBold !== 'boolean'
-              ? { fontBold: implicitCounterFontBold(counter.fontWeight) }
-              : {}),
-          }
-        : patch.property === 'counterFontBold'
-        ? { ...counter, fontBold: patch.value }
-        : patch.property === 'counterFontItalic'
-        ? { ...counter, fontItalic: patch.value }
-        : patch.property === 'counterFontUnderline'
-        ? { ...counter, fontUnderline: patch.value }
-        : patch.property === 'counterFontStrikethrough'
-        ? { ...counter, fontStrikethrough: patch.value }
-        : { ...counter, fontFamily: patch.value };
-    const byId = propertyIntents.get(elementType) ?? new Map();
-    byId.set(id, { counter: nextCounter });
-    propertyIntents.set(elementType, byId);
-  }
-  return propertyIntents;
-};
 
 const isCounterTypographyPatch = (
   patch: EditorCounterTypographyPropertyPatchV1,
@@ -309,27 +128,12 @@ export const patchCounterTypographyByTargets = (
     id,
     patch,
   }));
-  const receipt = applyPropertyIntentsEagerly(
-    withoutTreeRoutedIntents(
-      counterTypographyPropertyIntents(targets, patch),
-      ops,
-    ),
-  );
-  let enrolled = false;
   return commitSemanticOps(ops, {
     ...(options.gestureId ? { gestureId: options.gestureId } : {}),
     preflight: options.preflight,
-    onEnrolled: () => {
-      enrolled = true;
-    },
-  })
-    .then((outcome) =>
-      outcome.opResults.some((result) => result.status !== 'targetMissing'),
-    )
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
+  }).then((outcome) =>
+    outcome.opResults.some((result) => result.status !== 'targetMissing'),
+  );
 };
 
 export const patchCounterTypographyById = (
@@ -382,59 +186,6 @@ export const patchCounterAnimationEnabledById = (
     options,
   );
 
-const counterAnimationPropertyIntents = (
-  targets: readonly CounterAnimationTarget[],
-  intent: EditorCounterAnimationPresetIntentV1,
-): PropertyIntents => {
-  const document = captureEditorDocument();
-  const propertyIntents = new Map<
-    NativeElementType,
-    Map<string, Record<string, unknown>>
-  >();
-  for (const { elementType, id } of targets) {
-    const field = elementType === 'key' ? 'keyPositions' : 'statPositions';
-    const record = document[field] as Record<
-      string,
-      Array<Record<string, unknown> & { id: string }>
-    >;
-    const current = Object.values(record)
-      .flat()
-      .find((position) => position.id === id);
-    if (!current) continue;
-    if (
-      current.counter === null ||
-      typeof current.counter !== 'object' ||
-      Array.isArray(current.counter)
-    ) {
-      continue;
-    }
-    const counter = current.counter as Record<string, unknown>;
-    if (
-      counter.animation === null ||
-      typeof counter.animation !== 'object' ||
-      Array.isArray(counter.animation)
-    ) {
-      continue;
-    }
-    const animation = counter.animation as Record<string, unknown>;
-    const byId = propertyIntents.get(elementType) ?? new Map();
-    byId.set(id, {
-      counter: {
-        ...counter,
-        animation: {
-          ...animation,
-          ...('applyPresetId' in intent ? { presetId: intent.presetId } : {}),
-          ...('bezier' in intent ? { bezier: [...intent.bezier] } : {}),
-          ...('scale' in intent ? { scale: intent.scale } : {}),
-          ...('durationMs' in intent ? { durationMs: intent.durationMs } : {}),
-        },
-      },
-    });
-    propertyIntents.set(elementType, byId);
-  }
-  return propertyIntents;
-};
-
 export const patchCounterAnimationPresetByTargets = (
   targets: readonly CounterAnimationTarget[],
   intent: EditorCounterAnimationPresetIntentV1,
@@ -456,26 +207,11 @@ export const patchCounterAnimationPresetByTargets = (
       value: structuredClone(intent),
     },
   }));
-  const receipt = applyPropertyIntentsEagerly(
-    withoutTreeRoutedIntents(
-      counterAnimationPropertyIntents(targets, intent),
-      ops,
-    ),
-  );
-  let enrolled = false;
   return commitSemanticOps(ops, {
     preflight: options.preflight,
-    onEnrolled: () => {
-      enrolled = true;
-    },
-  })
-    .then((outcome) =>
-      outcome.opResults.some((result) => result.status !== 'targetMissing'),
-    )
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
+  }).then((outcome) =>
+    outcome.opResults.some((result) => result.status !== 'targetMissing'),
+  );
 };
 
 export const patchCounterAnimationPresetById = (

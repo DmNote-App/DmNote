@@ -10,7 +10,6 @@ import {
   previewOverlay,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
-import { runExclusiveLegacyMutation } from '@src/renderer/editor/runtime/lifecycle/legacyEditorMutation';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { previewApi } from '@api/modules/editor/previewApi';
 
@@ -19,7 +18,6 @@ import type { PreviewEnvelope } from '@src/types/preview';
 
 const KEY_ID_A = '00000000-0000-4000-8000-000000000101';
 const KEY_ID_B = '00000000-0000-4000-8000-000000000102';
-const KEY_ID_C = '00000000-0000-4000-8000-000000000103';
 const STAT_ID_A = '00000000-0000-4000-8000-000000000201';
 const GRAPH_ID_A = '00000000-0000-4000-8000-000000000301';
 const KNOB_ID_A = '00000000-0000-4000-8000-000000000401';
@@ -30,6 +28,20 @@ const { commitPatchMock, commitGeneratedPatchMock, generatedPatches } =
     commitGeneratedPatchMock: vi.fn(),
     generatedPatches: [] as Array<unknown>,
   }));
+
+// 트리 문서 - 미리보기 확정은 트리 커밋 하나로 간다
+const tree = vi.hoisted(() => ({
+  elements: new Map<string, unknown>(),
+  edit: vi.fn(),
+}));
+vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
+  getElementDocumentStore: () => ({
+    getElement: (_scene: string, id: string) => tree.elements.get(id),
+    getRevision: () => 1,
+    subscribe: () => () => {},
+    edit: tree.edit,
+  }),
+}));
 
 vi.mock('@api/modules/editor/previewApi', () => ({
   previewApi: {
@@ -96,6 +108,26 @@ const knobFixture = (): CanonicalEditorDocumentV1['knobPositions'] =>
       },
     ],
   } as CanonicalEditorDocumentV1['knobPositions']);
+
+const treeElement = (id: string, kind: string, x: number) => ({
+  type: 'element',
+  id,
+  kind,
+  frame: { x, y: 0, width: 60, height: 60, rotation: 0 },
+  legacy: {},
+});
+
+const resetTree = () => {
+  tree.elements = new Map([
+    [KEY_ID_A, treeElement(KEY_ID_A, 'key', 0)],
+    [KEY_ID_B, treeElement(KEY_ID_B, 'key', 70)],
+    [STAT_ID_A, treeElement(STAT_ID_A, 'stat', 0)],
+    [GRAPH_ID_A, treeElement(GRAPH_ID_A, 'graph', 0)],
+    [KNOB_ID_A, treeElement(KNOB_ID_A, 'knob', 0)],
+  ]);
+  tree.edit.mockReset();
+  tree.edit.mockResolvedValue({ status: 'committed', revision: 1 });
+};
 
 const resetPositionStores = () => {
   useKeyStore.setState({
@@ -314,12 +346,65 @@ describe('editGestureController', () => {
       return 0;
     });
     resetPositionStores();
+    resetTree();
   });
 
   afterEach(() => {
     editGestureController.cancel();
     previewOverlay.clearAll();
     vi.unstubAllGlobals();
+  });
+
+  it('commitPending은 네 도메인 누적 patch를 동작 id 하나의 트리 커밋으로 승격', async () => {
+    editGestureController.preview('4key', [
+      { id: KEY_ID_A, patch: { width: 90 } },
+    ]);
+    editGestureController.preview(
+      '4key',
+      [{ id: STAT_ID_A, patch: { width: 100 } }],
+      { domain: 'statPosition' },
+    );
+    editGestureController.preview(
+      '4key',
+      [{ id: GRAPH_ID_A, patch: { width: 110 } }],
+      { domain: 'graphPosition' },
+    );
+    editGestureController.preview(
+      '4key',
+      [{ id: KNOB_ID_A, patch: { width: 120 } }],
+      { domain: 'knobPosition' },
+    );
+    const sessionId = editGestureController.activeGestureId();
+
+    await expect(editGestureController.commitPendingAsync()).resolves.toBe(
+      true,
+    );
+
+    expect(tree.edit).toHaveBeenCalledOnce();
+    const [ops, options] = tree.edit.mock.calls[0];
+    expect(options).toEqual({ gestureId: sessionId });
+    expect(
+      (ops as Array<{ op: string; id: string; frame?: { width?: number } }>)
+        .filter(({ op }) => op === 'setFrame')
+        .map(({ id, frame }) => [id, frame?.width]),
+    ).toEqual([
+      [KEY_ID_A, 90],
+      [STAT_ID_A, 100],
+      [GRAPH_ID_A, 110],
+      [KNOB_ID_A, 120],
+    ]);
+    expect(editGestureController.hasActiveGesture()).toBe(false);
+  });
+
+  it('정산 전에 대상이 트리에서 사라지면 커밋하지 않는다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    editGestureController.preview('4key', [
+      { id: KEY_ID_A, patch: { width: 90 } },
+    ]);
+    tree.elements.delete(KEY_ID_A);
+    await editGestureController.commitPendingAsync();
+    expect(tree.edit).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('첫 preview에서 게스처 시작', () => {
@@ -588,288 +673,6 @@ describe('editGestureController', () => {
     ).toEqual(['keyPosition', 'statPosition']);
   });
 
-  it('commitPending은 네 도메인 누적 patch를 한 editor commit으로 승격', async () => {
-    editGestureController.preview('4key', [
-      { id: KEY_ID_A, patch: { width: 90 } },
-    ]);
-    editGestureController.preview(
-      '4key',
-      [{ id: STAT_ID_A, patch: { width: 100 } }],
-      { domain: 'statPosition' },
-    );
-    editGestureController.preview(
-      '4key',
-      [{ id: GRAPH_ID_A, patch: { width: 110 } }],
-      { domain: 'graphPosition' },
-    );
-    editGestureController.preview(
-      '4key',
-      [{ id: KNOB_ID_A, patch: { width: 120 } }],
-      { domain: 'knobPosition' },
-    );
-    const sessionId = editGestureController.activeGestureId();
-
-    await expect(editGestureController.commitPendingAsync()).resolves.toBe(
-      true,
-    );
-
-    // wire는 슬롯 안에서 최신 base로 재생성 - 호출 시점 full-record 금지
-    expect(commitPatchMock).not.toHaveBeenCalled();
-    expect(commitGeneratedPatchMock).toHaveBeenCalledOnce();
-    expect(commitGeneratedPatchMock.mock.calls[0][1]).toMatchObject({
-      gestureId: sessionId,
-    });
-    const patch = generatedPatches[0] as {
-      keyPositions?: Record<string, Array<Record<string, unknown>>>;
-      statPositions?: Record<string, Array<Record<string, unknown>>>;
-      graphPositions?: Record<string, Array<Record<string, unknown>>>;
-      knobPositions?: Record<string, Array<Record<string, unknown>>>;
-    };
-    expect(patch.keyPositions?.['4key'][0]).toMatchObject({
-      id: KEY_ID_A,
-      width: 90,
-    });
-    expect(patch.statPositions?.['4key'][0]).toMatchObject({ width: 100 });
-    expect(patch.graphPositions?.['4key'][0]).toMatchObject({ width: 110 });
-    expect(patch.knobPositions?.['4key'][0]).toMatchObject({ width: 120 });
-    expect(editGestureController.hasActiveGesture()).toBe(false);
-  });
-
-  it('정산은 스토어에 즉시 반영된다 - 후행 full-record 캡처 자가 치유', () => {
-    editGestureController.preview('4key', [
-      { id: KEY_ID_A, patch: { width: 90 } },
-    ]);
-
-    void editGestureController.commitPendingAsync();
-
-    expect(useKeyStore.getState().canonicalPositions['4key'][0].width).toBe(90);
-  });
-
-  it('정산 대기 중 재정렬돼도 생성 patch가 같은 id를 따라간다', async () => {
-    editGestureController.preview('4key', [
-      { id: KEY_ID_A, patch: { width: 90 } },
-    ]);
-
-    // 슬롯 진입 전 재정렬 시뮬레이션: base가 뒤집힌 상태로 생성됨
-    const [a, b] = useKeyStore.getState().canonicalPositions['4key'];
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [b, a] } as never,
-      positions: { '4key': [b, a] } as never,
-    });
-
-    await expect(editGestureController.commitPendingAsync()).resolves.toBe(
-      true,
-    );
-
-    const patch = generatedPatches[0] as {
-      keyPositions?: Record<string, Array<Record<string, unknown>>>;
-    };
-    // 시작 시점 index 0 = key-id-a, 재정렬 후에는 index 1
-    expect(patch.keyPositions?.['4key'][1]).toMatchObject({
-      id: KEY_ID_A,
-      width: 90,
-    });
-    expect(patch.keyPositions?.['4key'][0].width).toBe(60);
-  });
-
-  it('활성 gesture 중 reorder돼도 preview와 commit이 시작 ID를 따라간다', async () => {
-    editGestureController.preview('4key', [
-      { id: KEY_ID_A, patch: { width: 80 } },
-    ]);
-
-    const [a, b] = useKeyStore.getState().canonicalPositions['4key'];
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [b, a] } as never,
-      positions: { '4key': [b, a] } as never,
-    });
-    // 재정렬로 live index가 밀려도 신원은 id가 결정한다
-    editGestureController.preview('4key', [
-      { id: KEY_ID_A, patch: { width: 95 } },
-    ]);
-    await flushPromises();
-
-    expect(useKeyStore.getState().positions['4key'][0]).toMatchObject({
-      id: KEY_ID_B,
-      width: 60,
-    });
-    expect(useKeyStore.getState().positions['4key'][1]).toMatchObject({
-      id: KEY_ID_A,
-      width: 95,
-    });
-    expect(
-      vi.mocked(previewApi.publish).mock.calls.at(-1)?.[0].targets,
-    ).toEqual([KEY_ID_A]);
-
-    await editGestureController.commitPendingAsync();
-    const patch = generatedPatches[0] as {
-      keyPositions?: Record<string, Array<Record<string, unknown>>>;
-    };
-    expect(patch.keyPositions?.['4key'][0]).toMatchObject({
-      id: KEY_ID_B,
-      width: 60,
-    });
-    expect(patch.keyPositions?.['4key'][1]).toMatchObject({
-      id: KEY_ID_A,
-      width: 95,
-    });
-  });
-
-  // [C, A, B] 배치 - A·B만 선택된 게스처 중 비선택 C가 삭제되는 오염 사슬 재현용
-  const setThreeKeyState = () => {
-    useKeyStore.setState({
-      canonicalPositions: {
-        '4key': [
-          basePosition(0, KEY_ID_C),
-          basePosition(70, KEY_ID_A),
-          basePosition(140, KEY_ID_B),
-        ],
-      } as never,
-      positions: {
-        '4key': [
-          basePosition(0, KEY_ID_C),
-          basePosition(70, KEY_ID_A),
-          basePosition(140, KEY_ID_B),
-        ],
-      } as never,
-    });
-  };
-
-  // 격리 커밋의 canonical 적용 시뮬레이션 - setPositions가 rendered 재합성까지 수행
-  const dropFirstKey = () => {
-    const [, ...rest] = useKeyStore.getState().canonicalPositions['4key'];
-    useKeyStore.getState().setPositions({ '4key': rest } as never);
-  };
-
-  it('게스처 중 비대상 삭제로 index가 밀려도 id 전달 patch는 제 요소에 누적·커밋된다', async () => {
-    setThreeKeyState();
-
-    // A·B 배치 프리뷰: 요소별 상이 patch
-    editGestureController.preview('4key', [
-      { id: KEY_ID_A, patch: { fontColor: '#aa0000' } },
-      { id: KEY_ID_B, patch: { fontColor: '#bb0000' } },
-    ]);
-
-    // 게스처와 미배타인 격리 커밋이 비선택 C를 삭제 - A·B index가 당겨진다
-    dropFirstKey();
-
-    // 드래그 계속 - 밀린 index와 무관하게 id가 제 요소를 가리킨다
-    editGestureController.preview('4key', [
-      { id: KEY_ID_A, patch: { fontColor: '#aa1111' } },
-      { id: KEY_ID_B, patch: { fontColor: '#bb1111' } },
-    ]);
-
-    const rendered = useKeyStore.getState().positions['4key'];
-    expect(rendered[0]).toMatchObject({
-      id: KEY_ID_A,
-      fontColor: '#aa1111',
-    });
-    expect(rendered[1]).toMatchObject({
-      id: KEY_ID_B,
-      fontColor: '#bb1111',
-    });
-
-    await expect(editGestureController.commitPendingAsync()).resolves.toBe(
-      true,
-    );
-    const patch = generatedPatches[0] as {
-      keyPositions?: Record<string, Array<Record<string, unknown>>>;
-    };
-    expect(patch.keyPositions?.['4key'][0]).toMatchObject({
-      id: KEY_ID_A,
-      fontColor: '#aa1111',
-    });
-    expect(patch.keyPositions?.['4key'][1]).toMatchObject({
-      id: KEY_ID_B,
-      fontColor: '#bb1111',
-    });
-  });
-
-  it('정산 실패로 부활한 세션도 id 기준으로 제 요소에 patch를 잇는다', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    setThreeKeyState();
-    // 부활 판정은 편집 대상 지문 - 게스처 동안 선택 불변 전제를 고정
-    useGridSelectionStore.setState({
-      selectedElements: [
-        { type: 'key', id: KEY_ID_A, index: 1 },
-        { type: 'key', id: KEY_ID_B, index: 2 },
-      ],
-    });
-
-    editGestureController.preview('4key', [
-      { id: KEY_ID_A, patch: { fontColor: '#aa0000' } },
-      { id: KEY_ID_B, patch: { fontColor: '#bb0000' } },
-    ]);
-    editGestureController.settleCommit(Promise.reject(new Error('io')));
-    await flushPromises();
-    expect(editGestureController.hasActiveGesture()).toBe(true);
-
-    // 부활한 세션에서 C 삭제로 index가 밀려도 id가 신원을 유지한다
-    dropFirstKey();
-    editGestureController.preview('4key', [
-      { id: KEY_ID_B, patch: { fontColor: '#bb1111' } },
-    ]);
-
-    const rendered = useKeyStore.getState().positions['4key'];
-    expect(rendered[0]).toMatchObject({
-      id: KEY_ID_A,
-      fontColor: '#aa0000',
-    });
-    expect(rendered[1]).toMatchObject({
-      id: KEY_ID_B,
-      fontColor: '#bb1111',
-    });
-
-    await expect(editGestureController.commitPendingAsync()).resolves.toBe(
-      true,
-    );
-    const patch = generatedPatches[0] as {
-      keyPositions?: Record<string, Array<Record<string, unknown>>>;
-    };
-    expect(patch.keyPositions?.['4key'][0]).toMatchObject({
-      id: KEY_ID_A,
-      fontColor: '#aa0000',
-    });
-    expect(patch.keyPositions?.['4key'][1]).toMatchObject({
-      id: KEY_ID_B,
-      fontColor: '#bb1111',
-    });
-  });
-
-  it('비 native id 항목은 스토어에 점유자가 있어도 fail-closed로 무시된다', async () => {
-    // 손상·레거시 상태로 비 native id가 스토어에 남아 있어도 신원으로 승격 금지
-    useKeyStore.setState({
-      canonicalPositions: {
-        '4key': [basePosition(0, 'legacy-key'), basePosition(70, KEY_ID_A)],
-      } as never,
-      positions: {
-        '4key': [basePosition(0, 'legacy-key'), basePosition(70, KEY_ID_A)],
-      } as never,
-    });
-
-    editGestureController.preview('4key', [
-      { id: 'legacy-key', patch: { fontColor: '#poison' } },
-      { id: KEY_ID_A, patch: { fontColor: '#aa0000' } },
-    ]);
-
-    const rendered = useKeyStore.getState().positions['4key'];
-    expect((rendered[0] as Record<string, unknown>).fontColor).toBeUndefined();
-    expect(rendered[1]).toMatchObject({ id: KEY_ID_A, fontColor: '#aa0000' });
-
-    // skip은 정산까지 이어진다 - wire patch에 legacy 점유자 변경이 실리지 않는다
-    await expect(editGestureController.commitPendingAsync()).resolves.toBe(
-      true,
-    );
-    const patch = generatedPatches[0] as {
-      keyPositions?: Record<string, Array<Record<string, unknown>>>;
-    };
-    expect(patch.keyPositions?.['4key'][0].id).toBe('legacy-key');
-    expect(patch.keyPositions?.['4key'][0].fontColor).toBeUndefined();
-    expect(patch.keyPositions?.['4key'][1]).toMatchObject({
-      id: KEY_ID_A,
-      fontColor: '#aa0000',
-    });
-  });
-
   it('비 native 전용 preview는 게스처 세션을 만들지 않는다', async () => {
     editGestureController.preview('4key', [
       { id: 'legacy-key', patch: { fontColor: '#poison' } },
@@ -897,58 +700,6 @@ describe('editGestureController', () => {
       id: KEY_ID_A,
       fontColor: '#aa0000',
     });
-  });
-
-  it('정산 대기 중 대상이 삭제되면 커밋하지 않는다', async () => {
-    editGestureController.preview('4key', [
-      { id: KEY_ID_B, patch: { width: 90 } },
-    ]);
-
-    const [a] = useKeyStore.getState().canonicalPositions['4key'];
-    useKeyStore.setState({
-      canonicalPositions: { '4key': [a] } as never,
-      positions: { '4key': [a] } as never,
-    });
-
-    await expect(editGestureController.commitPendingAsync()).resolves.toBe(
-      true,
-    );
-
-    // generator가 null을 반환해 무커밋 (mock이 null patch를 기록)
-    expect(generatedPatches[0]).toBeNull();
-  });
-
-  it('배타 mutation은 정산 실패한 A만 폐기하고 대기 중 시작된 B는 유지한다', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    // A의 정산 커밋을 지연시켜 실패 예약
-    let rejectSettle!: (reason: Error) => void;
-    commitGeneratedPatchMock.mockImplementationOnce(
-      () =>
-        new Promise((_resolve, reject) => {
-          rejectSettle = reject;
-        }),
-    );
-
-    editGestureController.preview('4key', [
-      { id: KEY_ID_A, patch: { width: 90 } },
-    ]);
-    const gestureA = editGestureController.activeGestureId();
-
-    const run = runExclusiveLegacyMutation(async () => 'done');
-    // 정산 enqueue가 A를 비운 뒤 사용자가 새 게스처 B 시작
-    await Promise.resolve();
-    await Promise.resolve();
-    editGestureController.preview('4key', [
-      { id: KEY_ID_B, patch: { width: 120 } },
-    ]);
-    const gestureB = editGestureController.activeGestureId();
-    expect(gestureB).not.toBe(gestureA);
-
-    rejectSettle(new Error('settle failed'));
-    await run;
-
-    // A는 복원되지 않고(B가 활성), B는 폐기되지 않는다
-    expect(editGestureController.activeGestureId()).toBe(gestureB);
   });
 
   it('모드가 바뀌면 이전 게스처를 취소하고 새로 시작', () => {
