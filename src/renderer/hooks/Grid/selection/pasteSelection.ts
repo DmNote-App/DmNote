@@ -77,6 +77,8 @@ export const pasteSelection = async ({
 }: PasteSelectionOptions) => {
   const currentClipboard = useGridSelectionStore.getState().clipboard;
   if (currentClipboard.length === 0) return;
+  // 이 붙여넣기가 키를 만들기 전까지는 함께 붙이는 트리 붙여넣기에 넘길 사본 키가 없다 (지난 동작 것을 비운다)
+  recordPastedKeyIds(new Map());
   const gestureId = crypto.randomUUID();
   const clipboardGroups = useGridSelectionStore.getState().clipboardGroups;
   const clipboardMode = useGridSelectionStore.getState().clipboardMode;
@@ -231,9 +233,6 @@ export const pasteSelection = async ({
       });
     }
   }
-  // 함께 붙이는 트리 클립보드의 스프라이트 트리거도 사본 키를 가리키게 알린다
-  recordPastedKeyIds(keyIdMap);
-
   // maxInstances 사전 검증 - add 경로(생성 메뉴)와 동일하게 상한 도달 시
   // 거부·경고. 혼합 선택도 destructive 관례(부분 성공 금지)에 따라 전체 중단
   const frozenInstanceCaps: Array<{
@@ -348,6 +347,8 @@ export const pasteSelection = async ({
       frozenAnchor,
     });
 
+  // 동기 검사(플러그인 상한 등)를 통과했다 - 함께 붙이는 트리 클립보드의 스프라이트 트리거도 사본 키를 가리키게 알린다
+  recordPastedKeyIds(keyIdMap);
   try {
     await pasteWithFrozenPlan();
   } finally {

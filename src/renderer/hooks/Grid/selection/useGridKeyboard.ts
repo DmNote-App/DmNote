@@ -279,7 +279,6 @@ export function useGridKeyboard({
         clearSelection();
         return;
       }
-
     };
 
     // 리스너 순서와 무관하게 옛 종류가 먼저, 트리 요소가 다음
