@@ -12,6 +12,7 @@ import {
 } from '@stores/grid/useGridSelectionStore';
 import { readAuthorityPositions } from '@src/renderer/editor/model/elementStores';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
+import { openPropertiesPanelForSelection } from '@stores/grid/usePanelHostStore';
 import {
   getElementDocumentStore,
   loadElementDocumentStore,
@@ -270,6 +271,12 @@ const DocumentGridElement = ({
       // 끌기·크기 조절·회전 미리보기 중 - 전환 효과를 끈다 (옛 요소와 같은 규칙)
       data-editing={preview ? 'true' : undefined}
       onPointerDown={handlePointerDown}
+      // 더블클릭은 속성 패널을 연다 (옛 종류 요소와 같다 - 고르기는 누를 때 끝났다)
+      onDoubleClick={(event) => {
+        if (eraser || event.button !== 0) return;
+        event.stopPropagation();
+        openPropertiesPanelForSelection();
+      }}
       onContextMenu={(event) => onContextMenu(event, element)}
       style={{
         position: 'absolute',

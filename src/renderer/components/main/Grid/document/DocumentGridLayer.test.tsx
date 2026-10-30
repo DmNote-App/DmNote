@@ -42,6 +42,7 @@ vi.mock('./documentEditActions', () => ({
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
+import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import DocumentGridLayer from './DocumentGridLayer';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
@@ -148,6 +149,22 @@ describe('트리 요소에서 시작한 끌기', () => {
     expect(box.getAttribute('data-editing')).toBe('true');
     act(() => {
       box.dispatchEvent(pointer('pointerup', 10, 0));
+    });
+    unmount();
+  });
+
+  it('더블클릭은 속성 패널을 속성 모드로 연다', () => {
+    usePropertiesPanelStore.getState().setCanvasPanelOpen(false);
+    usePropertiesPanelStore.getState().setCanvasPanelMode('layer');
+    const { box, unmount } = render();
+    act(() => {
+      box.dispatchEvent(
+        new MouseEvent('dblclick', { bubbles: true, button: 0 }),
+      );
+    });
+    expect(usePropertiesPanelStore.getState()).toMatchObject({
+      isCanvasPanelOpen: true,
+      canvasPanelMode: 'property',
     });
     unmount();
   });
