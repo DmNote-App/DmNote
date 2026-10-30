@@ -205,14 +205,17 @@ describe('NativeGridElements', () => {
     host.remove();
   });
 
-  it('키만 그리고 트리로 옮긴 스탯·그래프·노브·스프라이트는 그리지 않는다', () => {
+  it('키·스프라이트만 그리고 트리로 옮긴 스탯·그래프·노브는 그리지 않는다', () => {
     renderScene();
 
     const elements = [...host.querySelectorAll('[data-native-kind]')];
-    expect(elements.map((element) => element.textContent)).toEqual(['KeyA']);
+    expect(elements.map((element) => element.textContent)).toEqual([
+      'KeyA',
+      'sprite',
+    ]);
     expect(
       elements.map((element) => element.getAttribute('data-selected')),
-    ).toEqual(['true']);
+    ).toEqual(['true', 'false']);
   });
 
   it('키 선택·위치 커밋·지우개·컨텍스트 메뉴를 공통 핸들러로 라우팅한다', () => {
