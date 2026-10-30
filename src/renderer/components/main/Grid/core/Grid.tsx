@@ -1157,15 +1157,19 @@ const Grid = ({
                 useDocumentSelectionStore.getState().clear();
                 await deleting.catch(reportElementOpError);
               } else if (id === 'duplicate') {
-                // 트리 선택을 먼저 복사한다 - 옛 붙여넣기가 바꿔 고르며 트리 선택을 비운다
-                copySelectedElements();
+                // 트리 선택을 먼저 복사한다 - 옛 붙여넣기가 바꿔 고르며 트리 선택을 비운다.
+                // 옛 선택이 없으면 옛 클립보드를 쓰지 않는다 (지난 복사분이 붙지 않게)
+                const hasLegacy = selectedElements.length > 0;
+                if (hasLegacy) copySelectedElements();
                 const copiedDocument = copyDocumentSelection({
-                  keepLegacyClipboard: true,
+                  keepLegacyClipboard: hasLegacy,
                 });
-                await pasteElements().catch(reportElementOpError);
+                if (hasLegacy) {
+                  await pasteElements().catch(reportElementOpError);
+                }
                 if (copiedDocument) {
                   await pasteDocumentClipboard(selectedKeyType, {
-                    keepOther: true,
+                    keepOther: hasLegacy,
                   });
                 }
               } else if (id === 'bringToFront' || id === 'sendToBack') {
