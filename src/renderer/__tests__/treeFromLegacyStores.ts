@@ -34,12 +34,22 @@ export const treeFromStores = async (
 ): Promise<RuntimeModule> => {
   const actual = await importOriginal();
   const { useSyncExternalStore } = await import('react');
-  const [{ useKeyStore }, stat, graph, knob, sprite] = await Promise.all([
+  const [
+    { useKeyStore },
+    stat,
+    graph,
+    knob,
+    sprite,
+    { useLayerGroupStore },
+    { usePluginDisplayElementStore },
+  ] = await Promise.all([
     import('@stores/data/useKeyStore'),
     import('@stores/data/useStatItemStore'),
     import('@stores/data/useGraphItemStore'),
     import('@stores/data/useKnobItemStore'),
     import('@stores/data/useSpriteStore'),
+    import('@stores/data/useLayerGroupStore'),
+    import('@stores/plugin/usePluginDisplayElementStore'),
   ]);
   const itemStores = [
     stat.useStatItemStore,
@@ -59,6 +69,14 @@ export const treeFromStores = async (
       keys.keyMappings[sceneId],
       keyPositions,
       ...itemStores.map((store) => store.getState().positions[sceneId]),
+      useLayerGroupStore.getState().layerGroups[sceneId],
+      // 그룹에 든 플러그인 요소만 (값 비교 - 상태·html 갱신은 장면을 바꾸지 않는다)
+      JSON.stringify(
+        usePluginDisplayElementStore
+          .getState()
+          .elements.filter((plugin) => plugin.groupId)
+          .map(({ fullId, pluginId, groupId }) => [fullId, pluginId, groupId]),
+      ),
     ];
     // 같은 입력이면 같은 장면 (구독 스냅샷)
     const last = lastByScene.get(sceneId);
@@ -80,18 +98,62 @@ export const treeFromStores = async (
         nodes.push(elementOf(kind, position, index)),
       );
     });
-    const scene: Scene = { nodes };
+    // 그룹에 든 플러그인 요소 - 그룹 계산(패널 그룹 정보 등)용. 나머지 플러그인은 트리 밖으로 둔다
+    (JSON.parse(inputs[7] as string) as [string, string, string][]).forEach(
+      ([fullId, pluginId, groupId], index) =>
+        nodes.push({
+          ...(elementOf(`plugin:${pluginId}`, {}, index) as object),
+          id: fullId,
+          legacy: { index, fields: { groupId } },
+        } as unknown as Node),
+    );
+    // 옛 그룹(groupId)은 그룹 노드로 - 그룹 정의가 있는 것만
+    const groups = (inputs[6] ?? []) as Array<{ id: string; name: string }>;
+    const groupOf = (node: Node) =>
+      (
+        (node as { legacy?: { fields?: Loose } }).legacy?.fields as
+          | { groupId?: string }
+          | undefined
+      )?.groupId;
+    const grouped = nodes.filter((node) =>
+      groups.some(({ id }) => id === groupOf(node)),
+    );
+    const roots = nodes.filter((node) => !grouped.includes(node));
+    for (const group of groups) {
+      const children = grouped.filter((node) => groupOf(node) === group.id);
+      if (children.length > 0) {
+        roots.push({
+          type: 'group',
+          id: group.id,
+          name: group.name,
+          children,
+        } as Node);
+      }
+    }
+    const scene: Scene = { nodes: roots };
     lastByScene.set(sceneId, { inputs, scene });
     return scene;
   };
 
+  const find = (nodes: readonly Node[], id: string): Node | undefined => {
+    for (const node of nodes) {
+      if (node.id === id) return node;
+      if (node.type === 'group') {
+        const inner = find(node.children, id);
+        if (inner) return inner;
+      }
+    }
+    return undefined;
+  };
   const elementIn = (sceneId: string, id: string) =>
-    sceneFor(sceneId).nodes.find((node) => node.id === id) as never;
+    find(sceneFor(sceneId).nodes, id) as never;
 
   const subscribeAll = (listener: () => void) => {
     const unsubscribes = [
       useKeyStore.subscribe(listener),
       ...itemStores.map((store) => store.subscribe(listener)),
+      useLayerGroupStore.subscribe(listener),
+      usePluginDisplayElementStore.subscribe(listener),
     ];
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
   };

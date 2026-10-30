@@ -82,6 +82,25 @@ export const documentGroupsOf = (
   return groups;
 };
 
+/** 고른 것(둘 이상)이 가장 바깥 그룹 하나의 요소 전체면 그 그룹 - 패널 그룹 이름 표시·바꾸기용 */
+export const wholeGroupOf = (
+  scene: Scene | undefined,
+  ids: readonly string[],
+) => {
+  if (!scene || ids.length < 2) return null;
+  const group = outermostGroup(scene, ids[0]);
+  if (!group) return null;
+  const members = group.children.flatMap(elementIds);
+  const picked = new Set(ids);
+  if (
+    members.length !== picked.size ||
+    !members.every((id) => picked.has(id))
+  ) {
+    return null;
+  }
+  return { id: group.id, name: group.name, memberCount: members.length };
+};
+
 /** 장면 안 모든 그룹 이름 - 새 그룹 이름 번호 매기기용 */
 export const documentGroupNames = (scene: Scene | undefined) => {
   const names: { id: string; name: string }[] = [];

@@ -14,6 +14,7 @@ import {
   documentGroupRoots,
   documentGroupsOf,
   groupSelectionOf,
+  wholeGroupOf,
 } from './documentGroups';
 import { isTreeOnlyGroup } from '@src/renderer/editor/document/documentPatch';
 
@@ -175,5 +176,23 @@ describe('옛 모양과 맞는 묶기', () => {
     expect(
       documentGroupOps(treeOnlyScene, 's', ['a', 'b', 'c'], group),
     ).toEqual([{ op: 'group', scene: 's', ...group, ids: ['outer', 'c'] }]);
+  });
+});
+
+describe('고른 것이 그룹 하나 전체', () => {
+  it('가장 바깥 그룹의 요소를 다 고르면 그 그룹', () => {
+    expect(wholeGroupOf(scene, ['b', 'a'])).toEqual({
+      id: 'outer',
+      name: 'O',
+      memberCount: 2,
+    });
+  });
+
+  it('일부만, 그룹 밖 요소가 섞이거나, 하나뿐이면 없다', () => {
+    expect(wholeGroupOf(scene, ['a'])).toBeNull();
+    expect(wholeGroupOf(scene, ['a', 'b', 'c'])).toBeNull();
+    expect(wholeGroupOf(scene, ['d'])).toBeNull();
+    expect(wholeGroupOf(scene, ['c', 'd'])).toBeNull();
+    expect(wholeGroupOf(undefined, ['a', 'b'])).toBeNull();
   });
 });

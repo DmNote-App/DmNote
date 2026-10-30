@@ -2,10 +2,10 @@
 // 트리 스토어·프리뷰 오버레이(모듈 상태)를 렌더 중에 읽어서 컴파일러 메모 제외
 import { useSyncExternalStore } from 'react';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
 import { panelSelectionOf } from '../../document/treeEditedSelection';
+import { wholeGroupOf } from '../../document/documentGroups';
 import {
   getElementDocumentStore,
   useElementDocumentScene,
@@ -315,89 +315,11 @@ export const usePropertiesPanelSelection = () => {
       ? treeView(singleSpriteId, legacySingleSpritePosition)
       : null;
 
-  const allLayerGroups = useLayerGroupStore((state) => state.layerGroups);
-  const layerGroupsForMode = allLayerGroups[selectedKeyType] || [];
-  const selectedGroupInfo = (() => {
-    if (selectedElements.length < 2) return null;
-
-    const keyModePositions = positions[selectedKeyType] || [];
-    const statModePositions = statItemPositions[selectedKeyType] || [];
-    const graphModePositions = graphItemPositions[selectedKeyType] || [];
-    const knobModePositions = knobItemPositions[selectedKeyType] || [];
-    const spriteModePositions = spriteItemPositions[selectedKeyType] || [];
-    const modeGroupIds = new Set(layerGroupsForMode.map((group) => group.id));
-    let groupId: string | undefined;
-
-    for (const element of selectedElements) {
-      let currentGroupId: string | undefined;
-      if (element.type === 'key') {
-        currentGroupId = keyModePositions.find(
-          (position) => position.id === element.id,
-        )?.groupId;
-      } else if (element.type === 'stat') {
-        currentGroupId = statModePositions.find(
-          (position) => position.id === element.id,
-        )?.groupId;
-      } else if (element.type === 'graph') {
-        currentGroupId = graphModePositions.find(
-          (position) => position.id === element.id,
-        )?.groupId;
-      } else if (element.type === 'knob') {
-        currentGroupId = knobModePositions.find(
-          (position) => position.id === element.id,
-        )?.groupId;
-      } else if (element.type === 'sprite') {
-        currentGroupId =
-          spriteModePositions.find((position) => position.id === element.id)
-            ?.groupId ?? undefined;
-      } else if (element.type === 'plugin') {
-        const pluginGroupId = pluginElements.find(
-          (candidate) => candidate.fullId === element.id,
-        )?.groupId;
-        currentGroupId =
-          pluginGroupId && modeGroupIds.has(pluginGroupId)
-            ? pluginGroupId
-            : undefined;
-      } else {
-        return null;
-      }
-
-      if (!currentGroupId) return null;
-      if (!groupId) groupId = currentGroupId;
-      else if (groupId !== currentGroupId) return null;
-    }
-    if (!groupId) return null;
-
-    const totalMembers =
-      keyModePositions.filter((position) => position?.groupId === groupId)
-        .length +
-      statModePositions.filter((position) => position?.groupId === groupId)
-        .length +
-      graphModePositions.filter((position) => position?.groupId === groupId)
-        .length +
-      knobModePositions.filter((position) => position?.groupId === groupId)
-        .length +
-      spriteModePositions.filter((position) => position?.groupId === groupId)
-        .length +
-      pluginElements.filter(
-        (element) =>
-          isPluginVisibleInMode(element, selectedKeyType) &&
-          element.groupId === groupId,
-      ).length;
-    if (totalMembers < 2 || totalMembers !== selectedElements.length) {
-      return null;
-    }
-
-    const groupDefinition = layerGroupsForMode.find(
-      (group) => group.id === groupId,
-    );
-    if (!groupDefinition) return null;
-    return {
-      id: groupDefinition.id,
-      name: groupDefinition.name,
-      memberCount: totalMembers,
-    };
-  })();
+  // 고른 것이 그룹 하나 전체면 그 그룹 (트리 그룹 - 옛·트리 전용 구분 없음)
+  const selectedGroupInfo = wholeGroupOf(
+    scene,
+    selectedElements.map(({ id }) => id),
+  );
 
   return {
     selectedElements,
