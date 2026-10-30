@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
 import type { KeyPosition } from '@src/types/key/keys';
 
 import { useBatchHandlers } from './useBatchHandlers';
 
-vi.mock('@src/renderer/editor/model/elementIdMap', () => ({
-  resolveElementById: vi.fn(),
+// 지금 탭 요소의 보이는 값 - 트리에서 읽는다
+const tree = vi.hoisted(() => ({
+  positions: new Map<string, unknown>(),
+}));
+vi.mock('@src/renderer/elementKinds/runtime/treeElementPosition', () => ({
+  viewTreePosition: (_scene: string, id: string) => tree.positions.get(id),
 }));
 
 const IDS = {
@@ -29,14 +32,6 @@ const createHandlers = () => {
       { type: 'key', id: IDS.second },
       { type: 'key', id: IDS.third },
     ],
-    keyPositions: {
-      '4key': [
-        position(IDS.second, 30),
-        position(IDS.first, 0),
-        position(IDS.third, 60),
-      ],
-    },
-    statPositions: {},
     selectedKeyType: '4key',
     onStableGeometryCommit,
     onStableGeometryPreview,
@@ -46,15 +41,11 @@ const createHandlers = () => {
 
 describe('useBatchHandlers stable geometry', () => {
   beforeEach(() => {
-    vi.mocked(resolveElementById).mockImplementation((_type, id) =>
-      id === IDS.first
-        ? { type: 'key', mode: '4key', index: 1 }
-        : id === IDS.second
-        ? { type: 'key', mode: '4key', index: 0 }
-        : id === IDS.third
-        ? { type: 'key', mode: '4key', index: 2 }
-        : null,
-    );
+    tree.positions = new Map<string, unknown>([
+      [IDS.second, position(IDS.second, 30)],
+      [IDS.first, position(IDS.first, 0)],
+      [IDS.third, position(IDS.third, 60)],
+    ]);
   });
 
   it('현재 ID 위치로 geometry operation만 위임한다', () => {
@@ -90,13 +81,10 @@ describe('useBatchHandlers stable geometry', () => {
   });
 
   it('sprite 대상도 기하 조작에 참여한다', () => {
-    vi.mocked(resolveElementById).mockImplementation((type, id) =>
-      type === 'key' && id === IDS.first
-        ? { type: 'key', mode: '4key', index: 0 }
-        : type === 'sprite' && id === IDS.second
-        ? { type: 'sprite', mode: '4key', index: 0 }
-        : null,
-    );
+    tree.positions = new Map<string, unknown>([
+      [IDS.first, position(IDS.first, 0)],
+      [IDS.second, { id: IDS.second, dx: 40, dy: 0, width: 20, height: 10 }],
+    ]);
     const onStableGeometryCommit = vi.fn();
     const onStableGeometryPreview = vi.fn();
     const handlers = useBatchHandlers({
@@ -104,13 +92,6 @@ describe('useBatchHandlers stable geometry', () => {
         { type: 'key', id: IDS.first },
         { type: 'sprite', id: IDS.second },
       ],
-      keyPositions: { '4key': [position(IDS.first, 0)] },
-      statPositions: {},
-      spritePositions: {
-        '4key': [
-          { id: IDS.second, dx: 40, dy: 0, width: 20, height: 10 } as never,
-        ],
-      },
       selectedKeyType: '4key',
       onStableGeometryCommit,
       onStableGeometryPreview,
@@ -135,9 +116,9 @@ describe('useBatchHandlers stable geometry', () => {
   });
 
   it('대상 ID를 현재 문서에서 모두 찾지 못하면 preview와 commit을 막는다', () => {
-    vi.mocked(resolveElementById).mockImplementation((_type, id) =>
-      id === IDS.first ? { type: 'key', mode: '4key', index: 1 } : null,
-    );
+    tree.positions = new Map<string, unknown>([
+      [IDS.first, position(IDS.first, 0)],
+    ]);
     const { handlers, onStableGeometryCommit, onStableGeometryPreview } =
       createHandlers();
 

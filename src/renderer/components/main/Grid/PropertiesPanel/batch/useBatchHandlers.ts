@@ -1,4 +1,4 @@
-import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
+import { viewTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import {
   computeBatchGeometryPlan,
   computeBatchSpacingValue,
@@ -6,11 +6,6 @@ import {
 } from '@src/renderer/editor/runtime/geometry/batchGeometryPlan';
 
 import type { EditorElementTypeV1 } from '@src/types/editor';
-import type { KeyPosition } from '@src/types/key/keys';
-import type { StatItemPosition } from '@src/types/key/statItems';
-import type { GraphItemPosition } from '@src/types/key/graphItems';
-import type { KnobItemPosition } from '@src/types/key/knobs';
-import type { ReactiveSpritePosition } from '@src/types/key/sprites';
 
 type KeyLikeType = EditorElementTypeV1;
 
@@ -33,11 +28,6 @@ export interface PluginLayoutElement {
 
 interface UseBatchHandlersProps {
   selectedKeyLikeElements: SelectedElement[];
-  keyPositions: Record<string, KeyPosition[] | undefined>;
-  statPositions: Record<string, StatItemPosition[] | undefined>;
-  graphPositions?: Record<string, GraphItemPosition[] | undefined>;
-  knobPositions?: Record<string, KnobItemPosition[] | undefined>;
-  spritePositions?: Record<string, ReactiveSpritePosition[] | undefined>;
   selectedKeyType: string;
   // 혼합 선택의 plugin 대상 bounds - null은 대상 미해결이라 기하 조작 전체 차단
   pluginLayoutElements?: PluginLayoutElement[] | null;
@@ -56,29 +46,16 @@ const getPluginLayoutElementKey = (fullId: string): string =>
 
 export function useBatchHandlers({
   selectedKeyLikeElements,
-  keyPositions,
-  statPositions,
-  graphPositions,
-  knobPositions,
-  spritePositions,
   selectedKeyType,
   pluginLayoutElements = [],
   onStableGeometryCommit,
   onStableGeometryPreview,
 }: UseBatchHandlersProps) {
-  const getPosition = (type: KeyLikeType, id: string) => {
-    const locator = resolveElementById(type, id);
-    if (!locator || locator.mode !== selectedKeyType) return null;
-    const record = {
-      key: keyPositions,
-      stat: statPositions,
-      graph: graphPositions,
-      knob: knobPositions,
-      sprite: spritePositions,
-    }[type];
-    const position = record?.[selectedKeyType]?.[locator.index];
-    return position?.id === id ? position : null;
-  };
+  // 보이는 값(트리 값 + 편집 미리보기) - 지금 탭의 요소만
+  const getPosition = (_type: KeyLikeType, id: string) =>
+    (viewTreePosition(selectedKeyType, id) as
+      | { dx: number; dy: number; width: number; height: number }
+      | undefined) ?? null;
 
   const getSelectedLayoutElements = (
     options: { includePlugins?: boolean } = {},

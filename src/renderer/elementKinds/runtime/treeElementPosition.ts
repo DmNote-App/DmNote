@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import {
   getPreviewOverlayVersion,
   previewPatchOf,
@@ -51,4 +52,22 @@ export const useTreeElementPosition = (
 ): Record<string, unknown> => {
   useSyncExternalStore(subscribePreviewOverlay, getPreviewOverlayVersion);
   return treeElementPositionOf(element, sceneId);
+};
+
+/** 장면의 요소 지금 값(옛 칸 모양) - 트리 값(낙관 적용 포함), 미리보기 없음. 요소가 없으면 undefined */
+export const currentTreePosition = (
+  sceneId: string,
+  id: string,
+): Record<string, unknown> | undefined => {
+  const element = getElementDocumentStore()?.getElement(sceneId, id);
+  return element ? legacyPositionOf(element) : undefined;
+};
+
+/** 장면의 요소 보이는 값 - 지금 값에 편집 미리보기를 얹는다. 요소가 없으면 undefined */
+export const viewTreePosition = (
+  sceneId: string,
+  id: string,
+): Record<string, unknown> | undefined => {
+  const element = getElementDocumentStore()?.getElement(sceneId, id);
+  return element ? treeElementPositionOf(element, sceneId) : undefined;
 };

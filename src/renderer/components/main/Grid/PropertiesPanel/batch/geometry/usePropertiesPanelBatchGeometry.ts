@@ -5,7 +5,10 @@ import {
   commitBatchGeometryByIds,
   type BatchGeometryDescriptor,
 } from '@src/renderer/editor/runtime/operations/elementOps';
-import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
+import {
+  currentTreePosition,
+  viewTreePosition,
+} from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import { computeBatchGeometryPlan } from '@src/renderer/editor/runtime/geometry/batchGeometryPlan';
 import { commitMixedBatchGeometry } from '@src/renderer/editor/runtime/geometry/mixedBatchGeometry';
 import { spriteResizePatch } from '@utils/sprite/resizeProjection';
@@ -18,12 +21,6 @@ type PropertiesPanelSelection = ReturnType<typeof usePropertiesPanelSelection>;
 type UsePropertiesPanelBatchGeometryProps = Pick<
   PropertiesPanelSelection,
   | 'selectedKeyType'
-  | 'positions'
-  | 'statItemPositions'
-  | 'graphItemPositions'
-  | 'knobItemPositions'
-  | 'canonicalSpritePositions'
-  | 'spriteItemPositions'
   | 'selectedBatchGeometryElements'
   | 'stableBatchGeometryTargets'
   | 'stablePluginGeometryElements'
@@ -32,12 +29,6 @@ type UsePropertiesPanelBatchGeometryProps = Pick<
 
 export const usePropertiesPanelBatchGeometry = ({
   selectedKeyType,
-  positions,
-  statItemPositions,
-  graphItemPositions,
-  knobItemPositions,
-  canonicalSpritePositions,
-  spriteItemPositions,
   selectedBatchGeometryElements,
   stableBatchGeometryTargets,
   stablePluginGeometryElements,
@@ -49,12 +40,7 @@ export const usePropertiesPanelBatchGeometry = ({
       id: string;
       index?: number;
     }[],
-    keyPositions: positions,
-    statPositions: statItemPositions,
-    graphPositions: graphItemPositions,
     selectedKeyType,
-    knobPositions: knobItemPositions,
-    spritePositions: spriteItemPositions,
     pluginLayoutElements: stablePluginGeometryElements,
     onStableGeometryPreview: (operation) => {
       if (!stableBatchGeometryTargets) return;
@@ -66,19 +52,12 @@ export const usePropertiesPanelBatchGeometry = ({
           position: Pick<KeyPosition, 'id' | 'dx' | 'dy' | 'width' | 'height'>;
         }
       >();
-      const recordsByType = {
-        key: positions,
-        stat: statItemPositions,
-        graph: graphItemPositions,
-        knob: knobItemPositions,
-        sprite: spriteItemPositions,
-      } satisfies Record<EditorElementTypeV1, unknown>;
       for (const target of stableBatchGeometryTargets) {
-        const locator = resolveElementById(target.type, target.id);
-        if (!locator || locator.mode !== selectedKeyType) return;
-        const position =
-          recordsByType[target.type][selectedKeyType]?.[locator.index];
-        if (!position || position.id !== target.id) return;
+        // 보이는 값(트리 값 + 편집 미리보기)
+        const position = viewTreePosition(selectedKeyType, target.id) as
+          | Pick<KeyPosition, 'id' | 'dx' | 'dy' | 'width' | 'height'>
+          | undefined;
+        if (!position) return;
         targetsByKey.set(`${target.type}:${target.id}`, {
           type: target.type,
           position,
@@ -123,9 +102,11 @@ export const usePropertiesPanelBatchGeometry = ({
       ): Record<string, unknown> | null => {
         const bounds = spriteBoundsByKey.get(key);
         if (!bounds) return null;
-        const canonical = (
-          canonicalSpritePositions[selectedKeyType] ?? []
-        ).find((position) => position.id === id);
+        // 지금 값(미리보기 없음)
+        const canonical = currentTreePosition(
+          selectedKeyType,
+          id,
+        ) as unknown as Parameters<typeof spriteResizePatch>[0] | undefined;
         return canonical
           ? (spriteResizePatch(canonical, bounds) as Record<string, unknown>)
           : null;

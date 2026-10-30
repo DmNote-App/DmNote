@@ -1,6 +1,6 @@
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
-import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
-import { captureEditorView } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
+import { useKeyStore } from '@stores/data/useKeyStore';
+import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import { reportElementOpSkipped } from '@src/renderer/editor/runtime/intent/elementIntent';
 import {
@@ -81,10 +81,10 @@ const stableGeometryPreviewHandler = (
   // 스프라이트 geometry는 전용 패널 경로만 쓴다 - knob 도메인으로 새지 않게 차단
   id && isNativeElementId(id) && type !== 'sprite'
     ? (field: GeometryField, value: number) => {
-        const locator = resolveElementById(type, id);
-        if (!locator) return;
+        const mode = useKeyStore.getState().selectedKeyType;
+        if (!currentTreePosition(mode, id)) return;
         editGestureController.preview(
-          locator.mode,
+          mode,
           [
             {
               id,
@@ -343,20 +343,16 @@ const stableNotePaintCommitHandler = (id: string | undefined) =>
 const stableNotePaintPreviewHandler = (id: string | undefined) =>
   id && isNativeElementId(id)
     ? (patch: EditorNotePaintPropertyPatchV1) => {
-        const locator = resolveElementById('key', id);
-        if (!locator) return;
-        // 지금 값(대기 중인 트리 편집 포함) 전달 - 동기화 켜진 키의 글로우 미러가 낙관 적용과 같은 규칙
-        const current =
-          captureEditorView().keyPositions[locator.mode]?.[locator.index];
+        const mode = useKeyStore.getState().selectedKeyType;
+        // 지금 값(트리 낙관 적용 포함) 전달 - 동기화 켜진 키의 글로우 미러가 낙관 적용과 같은 규칙
+        const current = currentTreePosition(mode, id);
+        if (!current) return;
         editGestureController.preview(
-          locator.mode,
+          mode,
           [
             {
               id,
-              patch: projectNotePaintPatch(
-                patch,
-                current?.id === id ? current : undefined,
-              ),
+              patch: projectNotePaintPatch(patch, current as never),
             },
           ],
           { domain: 'keyPosition' },

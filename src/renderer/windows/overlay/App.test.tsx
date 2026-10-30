@@ -41,7 +41,7 @@ vi.mock(
   '@src/renderer/editor/document/elementDocumentRuntime',
   async (importOriginal) =>
     (
-      await import('@src/renderer/__tests__/overlayTreeFromStores')
+      await import('@src/renderer/__tests__/treeFromLegacyStores')
     ).treeFromStores(importOriginal as never),
 );
 vi.mock('@tauri-apps/api/window', () => ({

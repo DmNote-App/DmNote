@@ -141,6 +141,14 @@ const errors = vi.hoisted(() => ({
   reportElementOpError: vi.fn(),
 }));
 
+// 속성 패널은 지금 값을 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
+vi.mock(
+  '@src/renderer/editor/document/elementDocumentRuntime',
+  async (importOriginal) =>
+    (
+      await import('@src/renderer/__tests__/treeFromLegacyStores')
+    ).treeFromStores(importOriginal as never),
+);
 vi.mock('@src/renderer/editor/runtime/operations/elementOps', () => ({
   patchElementPropertyByTargetsViaAuthority:
     patches.patchElementPropertyByTargetsViaAuthority,

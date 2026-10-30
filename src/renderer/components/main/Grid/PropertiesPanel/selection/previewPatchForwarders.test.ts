@@ -26,6 +26,14 @@ const KEY_ID_A = '00000000-0000-4000-8000-000000000511';
 const KEY_ID_B = '00000000-0000-4000-8000-000000000512';
 const KEY_ID_C = '00000000-0000-4000-8000-000000000513';
 
+// 속성 패널은 지금 값을 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
+vi.mock(
+  '@src/renderer/editor/document/elementDocumentRuntime',
+  async (importOriginal) =>
+    (
+      await import('@src/renderer/__tests__/treeFromLegacyStores')
+    ).treeFromStores(importOriginal as never),
+);
 vi.mock('@api/modules/editor/previewApi', () => ({
   previewApi: {
     subscribe: vi.fn().mockResolvedValue(1),

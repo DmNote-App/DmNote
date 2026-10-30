@@ -18,9 +18,8 @@ import {
   useBatchElementBinding,
 } from '@hooks/pickers/useBatchElementBinding';
 import { BATCH_STYLE_SOUND_PAGE_KEY } from './style/BatchStyleTabContent';
-import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
-import { captureEditorView } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
+import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import type {
   EditorNotePaintPropertyPatchV1,
   EditorCounterFillPropertyPatchV1,
@@ -117,14 +116,10 @@ export const useBatchKeyLikeCommitRuntime = ({
     patch: EditorNotePaintPropertyPatchV1,
   ): boolean => {
     if (patch.property !== 'noteGlowPaint' || !stableNotePaintIds) return false;
-    const document = captureEditorView();
-    return stableNotePaintIds.some((id) => {
-      const locator = resolveElementById('key', id);
-      const current = locator
-        ? document.keyPositions[locator.mode]?.[locator.index]
-        : undefined;
-      return current?.id === id && current.noteGlowSyncPaint === true;
-    });
+    return stableNotePaintIds.some(
+      (id) =>
+        currentTreePosition(selectedKeyType, id)?.noteGlowSyncPaint === true,
+    );
   };
   // 영구 실패 시 로컬 대표값 복원 - 피커 로컬 상태(useBatchNotePaint)가 아래에서
   // 만들어지므로 실패 콜백 시점에 읽도록 늦게 묶는다
@@ -162,18 +157,13 @@ export const useBatchKeyLikeCommitRuntime = ({
           id: string;
           patch: Partial<KeyPosition>;
         }> = [];
-        // 지금 값(대기 중인 트리 편집 포함) 전달 - 동기화 켜진 키의 글로우 미러가 낙관 적용과 같은 규칙
-        const document = captureEditorView();
+        // 지금 값(트리 낙관 적용 포함) 전달 - 동기화 켜진 키의 글로우 미러가 낙관 적용과 같은 규칙
         for (const id of stableNotePaintIds) {
-          const locator = resolveElementById('key', id);
-          if (!locator || locator.mode !== selectedKeyType) return;
-          const current = document.keyPositions[locator.mode]?.[locator.index];
+          const current = currentTreePosition(selectedKeyType, id);
+          if (!current) return;
           entries.push({
             id,
-            patch: projectNotePaintPatch(
-              patch,
-              current?.id === id ? current : undefined,
-            ),
+            patch: projectNotePaintPatch(patch, current as never),
           });
         }
         editGestureController.preview(selectedKeyType, entries, {
