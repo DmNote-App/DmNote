@@ -779,7 +779,7 @@ impl AppStore {
         &self,
         ops: &[Op],
     ) -> Result<ElementDocumentCommitResult> {
-        self.commit_element_document_checked(ops, true)
+        self.commit_element_document_checked(ops, true, None)
     }
 
     /// `check_legacy`가 false면 옛 종류 요소를 건드리는 연산도 받는다 - 옛 모양이 그대로인지는
@@ -788,6 +788,7 @@ impl AppStore {
         &self,
         ops: &[Op],
         check_legacy: bool,
+        gesture_id: Option<String>,
     ) -> Result<ElementDocumentCommitResult> {
         let revision = self.element_document_revision();
         let in_progress = ElementDocumentCommitResult::Rejected {
@@ -852,7 +853,7 @@ impl AppStore {
         let before = element_tree_snapshot(&guard.data.element_document, changes.scenes.keys());
         let plan = guard
             .history
-            .prepare_element_tree_entry(before)
+            .prepare_element_tree_entry(before, gesture_id)
             .map_err(anyhow::Error::msg)?;
         let state = &mut *guard;
         self.commit_locked(state, scratch, ())?;

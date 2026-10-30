@@ -108,7 +108,11 @@ pub async fn element_document_commit(
                         let check_legacy = matches!(plan, ElementDocumentCommitPlan::TreeOnly);
                         let result = state
                             .store
-                            .commit_element_document_checked(&request.ops, check_legacy)
+                            .commit_element_document_checked(
+                                &request.ops,
+                                check_legacy,
+                                request.gesture_id.clone(),
+                            )
                             .map_err(|error| CommandError::msg(format!("{error:#}")))?;
                         if matches!(result, ElementDocumentCommitResult::Committed { .. }) {
                             publish_element_document_changes(app);

@@ -220,7 +220,9 @@ impl AppStore {
                         return Err(HISTORY_TARGET_ALREADY_APPLIED.to_string());
                     }
                     let opposite = require_history_entry(
-                        guard.history.prepare_element_tree_entry(current_snapshot)?,
+                        guard
+                            .history
+                            .prepare_element_tree_entry(current_snapshot, None)?,
                     )?;
                     let mut scratch = current_store;
                     scratch.element_document =
@@ -250,6 +252,14 @@ impl AppStore {
                             HistorySnapshot::PluginElements(before) => {
                                 opposite_snapshots.push(HistorySnapshot::PluginElements(
                                     plugin_elements_snapshot(&current_store, &before.plugin_id)?,
+                                ));
+                            }
+                            HistorySnapshot::ElementTree(before) => {
+                                opposite_snapshots.push(HistorySnapshot::ElementTree(
+                                    super::element_tree::element_tree_snapshot(
+                                        &current_store.element_document,
+                                        before.scenes.keys(),
+                                    ),
                                 ));
                             }
                             _ => {
@@ -315,6 +325,7 @@ impl AppStore {
         let mut editor_target = None;
         let mut plugin_targets = Vec::new();
         let mut seen_plugin_ids = HashSet::new();
+        let mut element_tree_target = None;
         let mut restores_keys = false;
 
         for snapshot in snapshots {
@@ -341,6 +352,14 @@ impl AppStore {
                         ));
                     }
                     plugin_targets.push(target);
+                }
+                HistorySnapshot::ElementTree(target) => {
+                    if element_tree_target.replace(target).is_some() {
+                        return Err(EditorCommitError::validation(
+                            "HISTORY_COMPOUND_INVALID",
+                            "compound history contains duplicate element tree snapshots",
+                        ));
+                    }
                 }
                 _ => {
                     return Err(EditorCommitError::validation(
@@ -390,10 +409,28 @@ impl AppStore {
             plugin_ids.push(target.plugin_id.clone());
         }
 
+        // 트리에만 있는 요소 - 옛 종류 요소를 되돌린(맞춘) 트리 위에 기록 시점 자리로 끼운다
+        let mut element_tree_changed = false;
+        if let Some(target) = element_tree_target {
+            let current = super::element_tree::element_tree_snapshot(
+                &scratch.element_document,
+                target.scenes.keys(),
+            );
+            if current != *target {
+                scratch.element_document =
+                    std::sync::Arc::new(super::element_tree::restore_element_tree(
+                        &scratch.element_document,
+                        target,
+                        false,
+                    ));
+                element_tree_changed = true;
+            }
+        }
+
         let editor_changed = editor_restore
             .as_ref()
             .is_some_and(|(_, changed_fields, _)| !changed_fields.is_empty());
-        if !editor_changed && plugin_ids.is_empty() {
+        if !editor_changed && plugin_ids.is_empty() && !element_tree_changed {
             return Err(EditorCommitError::validation(
                 "HISTORY_TARGET_ALREADY_APPLIED",
                 "history target is already applied",

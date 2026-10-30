@@ -677,7 +677,7 @@ fn commit_planned(store: &crate::state::AppStore, ops: serde_json::Value) {
             let check_legacy = matches!(plan, ElementDocumentCommitPlan::TreeOnly);
             assert!(matches!(
                 store
-                    .commit_element_document_checked(&ops, check_legacy)
+                    .commit_element_document_checked(&ops, check_legacy, None)
                     .unwrap(),
                 ElementDocumentCommitResult::Committed { .. }
             ));
@@ -1357,7 +1357,9 @@ fn 무작위_트리_쓰기로_옛_요소를_옮겨도_놓은_자리와_나머지
                 }
             }
             ElementDocumentCommitPlan::TreeOrderOnly => {
-                store.commit_element_document_checked(&ops, false).unwrap();
+                store
+                    .commit_element_document_checked(&ops, false, None)
+                    .unwrap();
             }
             ElementDocumentCommitPlan::TreeOnly | ElementDocumentCommitPlan::Rejected(_) => {
                 continue;
@@ -1409,4 +1411,137 @@ fn 무작위_트리_쓰기로_옛_요소를_옮겨도_놓은_자리와_나머지
     assert!(checked > rounds / 3, "checked {checked}");
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+// 섞인 선택 끌기 - 옛 종류 요소(옛 편집 커밋)와 트리 요소(트리 커밋)를 같은 동작 id로 옮긴다
+fn mixed_gesture_move(store: &crate::state::AppStore, key: &str, legacy_first: bool) {
+    let gesture = Some(uuid::Uuid::new_v4().to_string());
+    let legacy_ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "setFrame", "scene": "4key", "id": key, "frame": { "x": 321 } }
+    ]))
+    .unwrap();
+    let tree_ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "setFrame", "scene": "4key", "id": "tracker-1", "frame": { "x": 77 } }
+    ]))
+    .unwrap();
+    let commit_legacy = || match store
+        .plan_element_document_commit(&legacy_ops, gesture.clone())
+        .unwrap()
+    {
+        ElementDocumentCommitPlan::Legacy { request, .. } => {
+            store.commit_editor_document(*request).unwrap();
+        }
+        other => panic!(
+            "옛 편집 커밋이어야 한다: {}",
+            matches!(other, ElementDocumentCommitPlan::TreeOnly)
+        ),
+    };
+    let commit_tree = || {
+        assert!(matches!(
+            store
+                .commit_element_document_checked(&tree_ops, true, gesture.clone())
+                .unwrap(),
+            ElementDocumentCommitResult::Committed { .. }
+        ));
+    };
+    if legacy_first {
+        commit_legacy();
+        commit_tree();
+    } else {
+        commit_tree();
+        commit_legacy();
+    }
+}
+
+fn insert_tracker(store: &crate::state::AppStore) {
+    let insert: Op = serde_json::from_value(serde_json::json!({
+        "op": "insert", "scene": "4key", "parent": null, "index": null,
+        "node": { "type": "element", "id": "tracker-1", "kind": "cursorTracker",
+                  "frame": { "x": 5, "y": 5, "width": 120, "height": 120 } }
+    }))
+    .unwrap();
+    assert!(matches!(
+        store.commit_element_document(&[insert]).unwrap(),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+}
+
+#[test]
+fn 같은_동작의_옛_편집과_트리_편집은_한_번에_되돌리고_다시_한다() {
+    use crate::state::history::HistoryDirection;
+    for legacy_first in [true, false] {
+        let (dir, store) = open_store();
+        insert_tracker(&store);
+        let key = store.snapshot().key_positions["4key"][1].id.clone();
+        let key_x = store.snapshot().key_positions["4key"][1].dx;
+        mixed_gesture_move(&store, &key, legacy_first);
+        let positions = |store: &crate::state::AppStore| {
+            let document = store.element_document_snapshot().1;
+            (
+                store.snapshot().key_positions["4key"][1].dx,
+                document.scenes["4key"]
+                    .element("tracker-1")
+                    .unwrap()
+                    .frame
+                    .x,
+            )
+        };
+        assert_eq!(positions(&store), (321.0, 77.0));
+
+        let counters = Default::default();
+        store
+            .apply_history_operation(
+                HistoryDirection::Undo,
+                &uuid::Uuid::new_v4().to_string(),
+                &counters,
+                || {},
+            )
+            .unwrap();
+        assert_eq!(
+            positions(&store),
+            (key_x, 5.0),
+            "legacy_first={legacy_first}"
+        );
+        assert_eq!(
+            project_document(&store.element_document_snapshot().1).unwrap(),
+            crate::models::EditorDocumentV1::from_store(&store.snapshot())
+        );
+
+        store
+            .apply_history_operation(
+                HistoryDirection::Redo,
+                &uuid::Uuid::new_v4().to_string(),
+                &counters,
+                || {},
+            )
+            .unwrap();
+        assert_eq!(
+            positions(&store),
+            (321.0, 77.0),
+            "legacy_first={legacy_first}"
+        );
+
+        // 한 번 더 되돌리면 넣기까지 되돌아간다 - 동작이 한 단계였다
+        store
+            .apply_history_operation(
+                HistoryDirection::Undo,
+                &uuid::Uuid::new_v4().to_string(),
+                &counters,
+                || {},
+            )
+            .unwrap();
+        store
+            .apply_history_operation(
+                HistoryDirection::Undo,
+                &uuid::Uuid::new_v4().to_string(),
+                &counters,
+                || {},
+            )
+            .unwrap();
+        assert!(store.element_document_snapshot().1.scenes["4key"]
+            .element("tracker-1")
+            .is_none());
+        store.flush_and_shutdown().unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

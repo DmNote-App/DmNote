@@ -407,16 +407,18 @@ pub(super) fn merge_editor_snapshot(
             before,
             key_counters,
         )),
-        HistorySnapshot::PluginElements(_) => Ok(HistorySnapshot::Compound {
-            snapshots: vec![
-                existing.clone(),
-                HistorySnapshot::Editor {
-                    changed_fields,
-                    before: Box::new(before),
-                    key_counters,
-                },
-            ],
-        }),
+        HistorySnapshot::PluginElements(_) | HistorySnapshot::ElementTree(_) => {
+            Ok(HistorySnapshot::Compound {
+                snapshots: vec![
+                    existing.clone(),
+                    HistorySnapshot::Editor {
+                        changed_fields,
+                        before: Box::new(before),
+                        key_counters,
+                    },
+                ],
+            })
+        }
         HistorySnapshot::Compound { snapshots } => {
             validate_compound_snapshots(snapshots)?;
             let mut merged = snapshots.clone();
@@ -458,9 +460,11 @@ pub(super) fn merge_plugin_elements_snapshot(
     before: PluginElementsHistorySnapshot,
 ) -> Result<HistorySnapshot, String> {
     match existing {
-        HistorySnapshot::Editor { .. } => Ok(HistorySnapshot::Compound {
-            snapshots: vec![existing.clone(), HistorySnapshot::PluginElements(before)],
-        }),
+        HistorySnapshot::Editor { .. } | HistorySnapshot::ElementTree(_) => {
+            Ok(HistorySnapshot::Compound {
+                snapshots: vec![existing.clone(), HistorySnapshot::PluginElements(before)],
+            })
+        }
         HistorySnapshot::PluginElements(first_before) => {
             if first_before.plugin_id == before.plugin_id {
                 Ok(existing.clone())
@@ -486,6 +490,50 @@ pub(super) fn merge_plugin_elements_snapshot(
             Ok(HistorySnapshot::Compound { snapshots: merged })
         }
         _ => Err("gesture history cannot merge plugin elements with this scope".to_string()),
+    }
+}
+
+// 장면마다 먼저 기록한 뼈대가 동작 전 모습이다
+fn merged_element_tree(
+    first: &ElementTreeHistorySnapshot,
+    later: ElementTreeHistorySnapshot,
+) -> ElementTreeHistorySnapshot {
+    let mut scenes = first.scenes.clone();
+    for (scene_id, scene) in later.scenes {
+        scenes.entry(scene_id).or_insert(scene);
+    }
+    ElementTreeHistorySnapshot { scenes }
+}
+
+/// 같은 동작의 앞선 기록에 트리 편집 전 모습을 합친다
+pub(super) fn merge_element_tree_snapshot(
+    existing: &HistorySnapshot,
+    before: ElementTreeHistorySnapshot,
+) -> Result<HistorySnapshot, String> {
+    match existing {
+        HistorySnapshot::ElementTree(first) => Ok(HistorySnapshot::ElementTree(
+            merged_element_tree(first, before),
+        )),
+        HistorySnapshot::Editor { .. } | HistorySnapshot::PluginElements(_) => {
+            Ok(HistorySnapshot::Compound {
+                snapshots: vec![existing.clone(), HistorySnapshot::ElementTree(before)],
+            })
+        }
+        HistorySnapshot::Compound { snapshots } => {
+            validate_compound_snapshots(snapshots)?;
+            let mut merged = snapshots.clone();
+            match merged
+                .iter_mut()
+                .find(|snapshot| matches!(snapshot, HistorySnapshot::ElementTree(_)))
+            {
+                Some(HistorySnapshot::ElementTree(first)) => {
+                    *first = merged_element_tree(first, before);
+                }
+                _ => merged.push(HistorySnapshot::ElementTree(before)),
+            }
+            Ok(HistorySnapshot::Compound { snapshots: merged })
+        }
+        _ => Err("gesture history cannot merge element tree with this scope".to_string()),
     }
 }
 
@@ -517,10 +565,15 @@ pub(super) fn merge_gesture_snapshots(
 
 pub(super) fn validate_compound_snapshots(snapshots: &[HistorySnapshot]) -> Result<(), String> {
     let mut has_editor = false;
+    let mut has_element_tree = false;
     let mut plugin_ids = HashSet::new();
     for snapshot in snapshots {
         match snapshot {
             HistorySnapshot::Editor { .. } if !has_editor => has_editor = true,
+            HistorySnapshot::ElementTree(_) if !has_element_tree => has_element_tree = true,
+            HistorySnapshot::ElementTree(_) => {
+                return Err("compound history contains duplicate element tree snapshots".to_string())
+            }
             HistorySnapshot::PluginElements(before)
                 if plugin_ids.insert(before.plugin_id.as_str()) => {}
             HistorySnapshot::Editor { .. } => {

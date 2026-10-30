@@ -8,9 +8,10 @@ pub(crate) use admission::{
     HistoryBarrierWaiter,
 };
 use snapshot::{
-    merge_editor_snapshot, merge_gesture_snapshots, merge_plugin_elements_snapshot,
-    normalize_gesture_ids, remove_net_zero_editor_snapshot, remove_net_zero_plugin_snapshot,
-    snapshot_contains_plugin_elements, validate_compound_snapshots, HistoryEntryPayload,
+    merge_editor_snapshot, merge_element_tree_snapshot, merge_gesture_snapshots,
+    merge_plugin_elements_snapshot, normalize_gesture_ids, remove_net_zero_editor_snapshot,
+    remove_net_zero_plugin_snapshot, snapshot_contains_plugin_elements,
+    validate_compound_snapshots, HistoryEntryPayload,
 };
 pub(crate) use snapshot::{
     CustomTabsHistorySnapshot, ElementTreeHistorySnapshot, HistoryDirection, HistoryEntry,
@@ -276,15 +277,35 @@ impl HistoryService {
         )
     }
 
+    /// 트리 편집 기록 - 같은 동작(gesture)의 옛 편집·트리 편집과 한 되돌리기 단계로 합친다
     pub(crate) fn prepare_element_tree_entry(
         &self,
         before: ElementTreeHistorySnapshot,
+        gesture_id: Option<String>,
     ) -> Result<HistoryRecordPlan, String> {
-        self.prepare_snapshot(
+        let gesture_ids = gesture_id.into_iter().collect::<Vec<_>>();
+        if let Some(target) = self.past.iter().rev().find(|entry| {
+            self.future.is_empty()
+                && !gesture_ids.is_empty()
+                && entry.matches_any_gesture(&gesture_ids)
+        }) {
+            let merged = merge_element_tree_snapshot(&target.before, before)?;
+            let mut merged_gesture_ids = target.gesture_ids.clone();
+            merged_gesture_ids.extend(gesture_ids);
+            return self.prepare_snapshot_with_gesture_ids(
+                merged.scope(),
+                merged,
+                normalize_gesture_ids(merged_gesture_ids),
+                Some(target.access_sequence),
+                Vec::new(),
+            );
+        }
+        self.prepare_snapshot_with_gesture_ids(
             HistoryScope::ElementTree,
             HistorySnapshot::ElementTree(before),
+            gesture_ids,
             None,
-            None,
+            Vec::new(),
         )
     }
 
