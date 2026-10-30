@@ -55,7 +55,8 @@ use super::plugin::{
     encode_plugin_instance_entries, encode_plugin_instances, for_each_stored_plugin_instances,
     is_plugin_instances_storage_key, normalize_plugin_instance_tab_id,
     plugin_group_refs_from_store, plugin_id_from_instances_storage_key,
-    plugin_instances_storage_key, validate_plugin_id, validate_plugin_instances_reconcile_request,
+    plugin_instance_bucket_ids, plugin_instances_storage_key, read_plugin_instance_bucket,
+    validate_plugin_id, validate_plugin_instances_reconcile_request, write_plugin_instance_bucket,
     validate_plugin_instances_request, validate_plugin_instances_transition, PluginGroupRefs,
     StoredPluginInstanceEntry, PLUGIN_DATA_KEY_PREFIX,
 };
@@ -716,7 +717,10 @@ fn plugin_elements_snapshot(
     let key = plugin_instances_storage_key(plugin_id);
     Ok(PluginElementsHistorySnapshot {
         plugin_id: plugin_id.to_string(),
-        instances: decode_plugin_instances_lenient(store.plugin_data.get(&key), &key),
+        instances: decode_plugin_instances_lenient(
+            read_plugin_instance_bucket(store, plugin_id).as_ref(),
+            &key,
+        ),
     })
 }
 
@@ -741,29 +745,20 @@ fn reset_plugin_instances_for_scope(
     store: &mut AppStoreData,
     scope: &PluginInstancesResetScope,
 ) -> std::result::Result<Vec<String>, EditorCommitError> {
-    let mut keys = store
-        .plugin_data
-        .keys()
-        .filter(|key| is_plugin_instances_storage_key(key))
-        .cloned()
-        .collect::<Vec<_>>();
-    keys.sort_unstable();
     let mut affected_plugin_ids = Vec::new();
 
-    for key in keys {
-        let Some(plugin_id) = plugin_id_from_instances_storage_key(&key).map(str::to_string) else {
-            continue;
-        };
+    for plugin_id in plugin_instance_bucket_ids(store) {
+        let key = plugin_instances_storage_key(&plugin_id);
         match scope {
             PluginInstancesResetScope::All => {
-                store.plugin_data.remove(&key);
+                write_plugin_instance_bucket(store, &plugin_id, None);
                 affected_plugin_ids.push(plugin_id);
             }
             PluginInstancesResetScope::Mode(mode) => {
-                let Some(value) = store.plugin_data.get(&key) else {
+                let Some(value) = read_plugin_instance_bucket(store, &plugin_id) else {
                     continue;
                 };
-                let Some(mut entries) = decode_plugin_instance_entries(value, &key) else {
+                let Some(mut entries) = decode_plugin_instance_entries(&value, &key) else {
                     continue;
                 };
                 let mut removed = false;
@@ -779,12 +774,9 @@ fn reset_plugin_instances_for_scope(
                 if !removed {
                     continue;
                 }
-                if entries.is_empty() {
-                    store.plugin_data.remove(&key);
-                } else {
-                    let value = encode_plugin_instance_entries(entries, &key);
-                    store.plugin_data.insert(key, value);
-                }
+                let value = (!entries.is_empty())
+                    .then(|| encode_plugin_instance_entries(entries, &key));
+                write_plugin_instance_bucket(store, &plugin_id, value);
                 affected_plugin_ids.push(plugin_id);
             }
         }
@@ -808,20 +800,13 @@ fn apply_plugin_elements_snapshot(
     snapshot: &PluginElementsHistorySnapshot,
 ) -> Result<(), String> {
     validate_plugin_id(&snapshot.plugin_id)?;
-    let key = plugin_instances_storage_key(&snapshot.plugin_id);
-    match snapshot
+    let value = snapshot
         .instances
         .as_deref()
         .map(encode_plugin_instances)
         .transpose()?
-    {
-        Some(Some(value)) => {
-            store.plugin_data.insert(key, value);
-        }
-        Some(None) | None => {
-            store.plugin_data.remove(&key);
-        }
-    }
+        .flatten();
+    write_plugin_instance_bucket(store, &snapshot.plugin_id, value);
     Ok(())
 }
 

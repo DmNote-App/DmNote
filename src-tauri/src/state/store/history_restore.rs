@@ -567,8 +567,8 @@ impl AppStore {
             .changed_plugin_ids()
             .into_iter()
             .filter(|plugin_id| {
-                let key = plugin_instances_storage_key(plugin_id);
-                current_store.plugin_data.get(&key) != scratch.plugin_data.get(&key)
+                read_plugin_instance_bucket(&current_store, plugin_id)
+                    != read_plugin_instance_bucket(&scratch, plugin_id)
             })
             .collect::<Vec<_>>();
         let plugin_model_revision = if plugin_ids.is_empty() {

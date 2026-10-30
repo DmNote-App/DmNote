@@ -370,12 +370,12 @@ pub(crate) fn for_each_stored_plugin_instances(
     data: &AppStoreData,
     mut visit: impl FnMut(&str, Vec<SavedPluginInstance>),
 ) {
-    for (key, value) in &data.plugin_data {
-        let Some(plugin_id) = plugin_id_from_instances_storage_key(key) else {
-            continue;
-        };
-        let instances = decode_plugin_instances_lenient(Some(value), key).unwrap_or_default();
-        visit(plugin_id, instances);
+    for plugin_id in plugin_instance_bucket_ids(data) {
+        let key = plugin_instances_storage_key(&plugin_id);
+        let instances =
+            decode_plugin_instances_lenient(read_plugin_instance_bucket(data, &plugin_id).as_ref(), &key)
+                .unwrap_or_default();
+        visit(&plugin_id, instances);
     }
 }
 
@@ -393,6 +393,41 @@ pub(crate) fn plugin_group_refs_from_store(
         add_plugin_group_refs(&mut refs, &instances);
     });
     refs
+}
+
+// 플러그인 인스턴스 버킷 - 인스턴스 목록(저장 모양 배열)을 읽고 쓰는 단일 입구.
+// 저장 위치를 바꿀 때 여기만 고친다 (지금은 plugin_data의 인스턴스 키)
+pub(crate) fn plugin_instance_bucket_ids(data: &AppStoreData) -> Vec<String> {
+    let mut plugin_ids = data
+        .plugin_data
+        .keys()
+        .filter_map(|key| plugin_id_from_instances_storage_key(key))
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    plugin_ids.sort_unstable();
+    plugin_ids
+}
+
+pub(crate) fn read_plugin_instance_bucket(data: &AppStoreData, plugin_id: &str) -> Option<Value> {
+    data.plugin_data
+        .get(&plugin_instances_storage_key(plugin_id))
+        .cloned()
+}
+
+pub(crate) fn write_plugin_instance_bucket(
+    data: &mut AppStoreData,
+    plugin_id: &str,
+    value: Option<Value>,
+) {
+    let key = plugin_instances_storage_key(plugin_id);
+    match value {
+        Some(value) => {
+            data.plugin_data.insert(key, value);
+        }
+        None => {
+            data.plugin_data.remove(&key);
+        }
+    }
 }
 
 pub(crate) fn plugin_instances_storage_key(plugin_id: &str) -> String {
@@ -478,22 +513,17 @@ pub(crate) fn encode_plugin_instance_entries(
 pub(crate) fn backfill_plugin_instance_ids(data: &mut AppStoreData) -> BackfillOutcome {
     let mut outcome = BackfillOutcome::default();
     // 정렬 순회로 HashMap 비결정성 제거 - 첫 출현 보존이 결정적이게
-    let mut keys = data
-        .plugin_data
-        .keys()
-        .filter(|key| is_plugin_instances_storage_key(key))
-        .cloned()
-        .collect::<Vec<_>>();
-    keys.sort_unstable();
+    let plugin_ids = plugin_instance_bucket_ids(data);
 
     // 1차 패스: 전 플러그인의 유효 기존 instanceId 수집 (재발급 충돌 예약)
     let mut reserved = HashSet::new();
-    let mut decoded = Vec::with_capacity(keys.len());
-    for key in keys {
-        let Some(value) = data.plugin_data.get(&key) else {
+    let mut decoded = Vec::with_capacity(plugin_ids.len());
+    for plugin_id in plugin_ids {
+        let key = plugin_instances_storage_key(&plugin_id);
+        let Some(value) = read_plugin_instance_bucket(data, &plugin_id) else {
             continue;
         };
-        let Some(entries) = decode_plugin_instance_entries(value, &key) else {
+        let Some(entries) = decode_plugin_instance_entries(&value, &key) else {
             continue;
         };
         if entries.is_empty() {
@@ -509,14 +539,14 @@ pub(crate) fn backfill_plugin_instance_ids(data: &mut AppStoreData) -> BackfillO
                 }
             }
         }
-        decoded.push((key, entries));
+        decoded.push((plugin_id, key, entries));
     }
 
     // 2차 패스: 유효하고 플러그인 내 최초 출현인 ID만 보존, 나머지 재발급.
     // 유일성 판정은 커밋 검증과 동일하게 플러그인 키 단위 - 교차 플러그인
     // 중복은 합법이라 무변경 (fullId가 pluginId 접두 네임스페이스라 충돌 없음).
     // reserved는 전역 유지 - 신규 발급이 기존 어떤 ID와도 겹치지 않게
-    for (key, mut entries) in decoded {
+    for (plugin_id, key, mut entries) in decoded {
         let mut seen = HashSet::new();
         let mut changed = false;
         for entry in &mut entries {
@@ -542,7 +572,7 @@ pub(crate) fn backfill_plugin_instance_ids(data: &mut AppStoreData) -> BackfillO
             continue;
         }
         let value = encode_plugin_instance_entries(entries, &key);
-        data.plugin_data.insert(key, value);
+        write_plugin_instance_bucket(data, &plugin_id, Some(value));
         outcome.changed = true;
     }
     outcome

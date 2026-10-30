@@ -8,8 +8,11 @@ impl AppStore {
         validate_plugin_id(plugin_id)?;
         let guard = self.state.read();
         let key = plugin_instances_storage_key(plugin_id);
-        let instances = decode_plugin_instances_lenient(guard.data.plugin_data.get(&key), &key)
-            .unwrap_or_default();
+        let instances = decode_plugin_instances_lenient(
+            read_plugin_instance_bucket(&guard.data, plugin_id).as_ref(),
+            &key,
+        )
+        .unwrap_or_default();
         Ok((instances, guard.plugin_model_revision))
     }
 
