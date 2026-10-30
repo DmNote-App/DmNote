@@ -3,22 +3,7 @@
  * canonical 위에 세션별 patch를 렌더 시점에만 합성, canonical은 불가침
  */
 
-import {
-  composeRenderedPositions,
-  registerRenderedPositionsComposer,
-  useKeyStore,
-} from '@stores/data/useKeyStore';
-
-import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
-  ITEM_ELEMENT_TYPES,
-} from '@src/types/editor';
-import {
-  PREVIEW_DOMAIN_BY_ELEMENT_TYPE,
-  type PreviewEnvelope,
-  type PreviewDomain,
-} from '@src/types/preview';
-import type { ItemElementCollections } from '../../model/elementStores';
+import { type PreviewEnvelope, type PreviewDomain } from '@src/types/preview';
 
 interface PreviewSession {
   mode: string;
@@ -103,33 +88,7 @@ export const previewPatchOf = (
 };
 
 // 키 외 종류 컬렉션에 활성 프리뷰 합성 - 키는 키 스토어가 렌더 positions로 합성한다
-export const composeItemPreviewCollections = (
-  collections: ItemElementCollections,
-): ItemElementCollections =>
-  Object.fromEntries(
-    ITEM_ELEMENT_TYPES.map((type) => {
-      const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
-      return [
-        field,
-        composePreviewPositions(
-          PREVIEW_DOMAIN_BY_ELEMENT_TYPE[type],
-          collections[field] as Record<string, { id: string }[]>,
-        ),
-      ];
-    }),
-  ) as unknown as ItemElementCollections;
-
-registerRenderedPositionsComposer((canonical) =>
-  composePreviewPositions('keyPosition', canonical),
-);
-
-const recompose = () => {
-  const canonical = useKeyStore.getState().canonicalPositions;
-  useKeyStore.setState({ positions: composeRenderedPositions(canonical) });
-};
-
 const refreshRenderedState = () => {
-  recompose();
   overlayVersion += 1;
   overlayListeners.forEach((listener) => listener());
 };
@@ -266,7 +225,7 @@ export const previewOverlay = {
   },
 };
 
-// 개발 중 모듈 교체에서도 이전 합성기와 프리뷰를 남기지 않음
+// 개발 중 모듈 교체에서도 이전 프리뷰를 남기지 않음
 const hotModule = (
   import.meta as ImportMeta & {
     hot?: { dispose: (callback: () => void) => void };
@@ -275,6 +234,5 @@ const hotModule = (
 if (hotModule) {
   hotModule.dispose(() => {
     previewOverlay.clearAll();
-    registerRenderedPositionsComposer(null);
   });
 }

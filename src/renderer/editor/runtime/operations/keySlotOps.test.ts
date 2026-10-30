@@ -11,13 +11,11 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   getElementDocumentStore: () => ({
     getElement: (scene: string, id: string) =>
       mocks.elements.get(`${scene}/${id}`),
+    getSceneIds: () => [
+      ...new Set([...mocks.elements.keys()].map((key) => key.split('/')[0])),
+    ],
     edit: mocks.edit,
   }),
-}));
-
-vi.mock('../../model/elementIdMap', () => ({
-  resolveElementById: (_type: string, id: string) =>
-    id === 'other-mode' ? { mode: '8key', index: 0 } : null,
 }));
 
 const { rebindKeySlotById, treeKeySlot } = await import('./keySlotOps');

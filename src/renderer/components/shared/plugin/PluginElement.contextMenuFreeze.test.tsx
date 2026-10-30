@@ -4,16 +4,17 @@
  * 열림 시점 배열을 유지하는지 검증
  */
 import React, { act } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { I18nContext } from '@contexts/I18nContextDef';
 import { PluginElement } from '@components/shared/plugin/PluginElement';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
+import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
+import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
+import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
+import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
@@ -65,8 +66,8 @@ const makeElement = (customItems: CustomItem[]): PluginDisplayElementInternal =>
   } as unknown as PluginDisplayElementInternal);
 
 const seedStores = () => {
-  useKeyStore.setState({
-    selectedKeyType: '4key',
+  useKeyStore.setState({ selectedKeyType: '4key' });
+  useLegacyKeyArrays.setState({
     positions: { '4key': [] },
     canonicalPositions: { '4key': [] },
   });

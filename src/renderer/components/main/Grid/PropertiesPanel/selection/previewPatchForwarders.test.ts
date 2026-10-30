@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
+import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
+import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
+import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import {
   composePreviewPositions,
   previewOverlay,
@@ -73,7 +74,7 @@ const knobFixture = (): CanonicalEditorDocumentV1['knobPositions'] =>
 const composedKey = () =>
   composePreviewPositions(
     'keyPosition',
-    useKeyStore.getState().canonicalPositions,
+    useLegacyKeyArrays.getState().canonicalPositions,
   )['4key'][0] as Record<string, unknown>;
 
 const composedKnob = () =>
@@ -99,8 +100,8 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     previewOverlay.clearAll();
-    useKeyStore.setState({
-      selectedKeyType: '4key',
+    useKeyStore.setState({ selectedKeyType: '4key' });
+    useLegacyKeyArrays.setState({
       canonicalPositions: keyFixture(),
       positions: keyFixture(),
     });
@@ -125,7 +126,7 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
     expectNoWirePollution(composed);
     // canonical은 불가침
     expect(
-      (useKeyStore.getState().canonicalPositions['4key'][0] as KeyRecord)
+      (useLegacyKeyArrays.getState().canonicalPositions['4key'][0] as KeyRecord)
         .borderWidth,
     ).toBe(1);
   });
@@ -168,7 +169,10 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
       offsetY: 2,
       blur: 3,
     };
-    useKeyStore.setState({ canonicalPositions: seeded, positions: seeded });
+    useLegacyKeyArrays.setState({
+      canonicalPositions: seeded,
+      positions: seeded,
+    });
 
     previewBatchStyleProperty(
       [
@@ -282,8 +286,8 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
 
   it('배치 프리뷰 중 비대상 삭제로 index가 밀려도 요소별 patch가 제 요소에 누적된다', () => {
     // [C, A, B] - A·B만 선택, idle 색이 달라 active fallback이 요소별 상이값
-    useKeyStore.setState({
-      selectedKeyType: '4key',
+    useKeyStore.setState({ selectedKeyType: '4key' });
+    useLegacyKeyArrays.setState({
       canonicalPositions: {
         '4key': [
           { ...createDefaultKeyPosition(), id: KEY_ID_C, fontColor: '#c-idle' },
@@ -310,8 +314,9 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
     });
 
     // 게스처와 미배타인 격리 커밋이 비선택 C를 삭제 - A·B live index가 당겨진다
-    const [, ...rest] = useKeyStore.getState().canonicalPositions['4key'];
-    useKeyStore.getState().setPositions({
+    const [, ...rest] =
+      useLegacyKeyArrays.getState().canonicalPositions['4key'];
+    useLegacyKeyArrays.getState().setPositions({
       '4key': rest,
     } as CanonicalEditorDocumentV1['keyPositions']);
 
@@ -323,7 +328,7 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
 
     const rendered = composePreviewPositions(
       'keyPosition',
-      useKeyStore.getState().canonicalPositions,
+      useLegacyKeyArrays.getState().canonicalPositions,
     )['4key'] as Array<Record<string, unknown>>;
     // 요소별 상이값(active fallback)이 제 요소에 유지 - B의 patch가 A를 덮지 않는다
     expect(rendered[0]).toMatchObject({

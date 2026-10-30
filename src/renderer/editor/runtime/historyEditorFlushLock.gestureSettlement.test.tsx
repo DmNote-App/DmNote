@@ -1,9 +1,9 @@
 import { act, useState } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import { useSelectionDrag } from '@hooks/Grid/drag/useSelectionDrag';
 import { useDraggable } from '@hooks/Grid/drag/useDraggable';
 import { useGridResize } from '@hooks/Grid/resize/useGridResize';
@@ -165,7 +165,7 @@ describe('history handshake settles active mixed selection drag', () => {
     releaseDragSession();
     useGridSelectionStore.setState({ selectedElements: [] });
     usePluginDisplayElementStore.setState({ elements: [] });
-    useKeyStore.getState().setKeyMappingsAndPositions({}, {});
+    useLegacyKeyArrays.getState().setKeyMappingsAndPositions({}, {});
     useSpriteStore.getState().setPositions({});
     vi.restoreAllMocks();
     vi.useRealTimers();

@@ -3,7 +3,6 @@ import { getElementDocumentStore } from '@src/renderer/editor/document/elementDo
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import type { JsonValue } from '@src/types/generated/elementDocument';
 import type { KeySlot } from '@src/types/key/keys';
-import { resolveElementById } from '../../model/elementIdMap';
 
 /** 트리 키 요소의 입력 슬롯 - 키 입력이 아니면 null */
 export const treeKeySlot = (element: ElementNode | undefined): KeySlot | null =>
@@ -20,7 +19,7 @@ export const rebindKeySlotById = async (
   const current = useKeyStore.getState().selectedKeyType;
   const sceneId = store.getElement(current, positionId)
     ? current
-    : resolveElementById('key', positionId)?.mode;
+    : store.getSceneIds().find((scene) => store.getElement(scene, positionId));
   if (!sceneId || store.getElement(sceneId, positionId)?.kind !== 'key') {
     return false;
   }

@@ -2,10 +2,11 @@
 // 오버레이는 방송 화면이라 스크럽 프리뷰 봉투를 반영하지 않고
 // 커밋 정산된 canonical만 레이아웃·씬 입력으로 쓴다
 import React, { act } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import { resetAllKeySignals } from '@stores/signals/keySignals';
 import { previewOverlay } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 
@@ -200,11 +201,13 @@ describe('overlay sprite preview composition', () => {
     useKeyStore.setState({
       selectedKeyType: '4key',
       customTabs: [],
+      isBootstrapped: true,
+      isLocalUpdateInProgress: false,
+    });
+    useLegacyKeyArrays.setState({
       keyMappings: { '4key': ['KeyK'] },
       positions: { '4key': [] },
       canonicalPositions: { '4key': [] },
-      isBootstrapped: true,
-      isLocalUpdateInProgress: false,
     });
     useSpriteStore.setState({ positions: { '4key': [spritePosition(15)] } });
     resetAllKeySignals();

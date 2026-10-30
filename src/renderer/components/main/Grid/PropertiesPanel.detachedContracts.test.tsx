@@ -1,18 +1,19 @@
 import React, { act } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
+import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
+import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
+import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
+import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useKeySlotCapture } from '@hooks/useKeySlotCapture';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import {
   cancelPluginSettingsSessionForPlugin,
   openPluginSettingsSession,
@@ -548,8 +549,8 @@ const resetStores = () => {
   singleKnobPropsMock.mockClear();
   reportElementOpSkippedMock.mockClear();
   statUpdatePositionsMock.mockClear();
-  useKeyStore.setState({
-    selectedKeyType: '4key',
+  useKeyStore.setState({ selectedKeyType: '4key' });
+  useLegacyKeyArrays.setState({
     keyMappings: { '4key': [] },
     positions: { '4key': [] },
     canonicalPositions: { '4key': [] },
@@ -632,7 +633,7 @@ describe('PropertiesPanel canonical native contract', () => {
         { ...base, id: otherId },
         { ...base, id },
       ];
-      useKeyStore.setState({
+      useLegacyKeyArrays.setState({
         keyMappings: { '4key': ['B', 'A'] },
         positions: { '4key': items },
         canonicalPositions: { '4key': items },
@@ -992,7 +993,7 @@ describe('PropertiesPanel canonical native contract', () => {
     const secondId = '72222222-2222-4222-8222-222222222222';
     const first = { ...createDefaultKeyPosition(), id: firstId };
     const second = { ...createDefaultKeyPosition(), id: secondId, dx: 80 };
-    useKeyStore.setState({
+    useLegacyKeyArrays.setState({
       keyMappings: { '4key': ['A', 'B'] },
       positions: { '4key': [first, second] },
       canonicalPositions: { '4key': [first, second] },
@@ -1036,7 +1037,7 @@ describe('PropertiesPanel canonical native contract', () => {
     const stableId = '81111111-1111-4111-8111-111111111111';
     const stable = { ...createDefaultKeyPosition(), id: stableId };
     const invalid = { ...createDefaultKeyPosition(), id: 'key-1' };
-    useKeyStore.setState({
+    useLegacyKeyArrays.setState({
       keyMappings: { '4key': ['A', 'B'] },
       positions: { '4key': [stable, invalid] },
       canonicalPositions: { '4key': [stable, invalid] },
@@ -1065,7 +1066,7 @@ describe('PropertiesPanel canonical native contract', () => {
     // 그 값을 확정하면 스프라이트의 모든 자세 오프셋까지 배율이 먹는다
     it('키와 스프라이트를 함께 고르면 크기 getter가 Mixed를 낸다', () => {
       const key = { ...createDefaultKeyPosition(), id: MIXED_KEY_ID };
-      useKeyStore.setState({
+      useLegacyKeyArrays.setState({
         keyMappings: { '4key': ['A'] },
         positions: { '4key': [key] },
         canonicalPositions: { '4key': [key] },
@@ -1113,7 +1114,7 @@ describe('PropertiesPanel canonical native contract', () => {
     // bounds만 얹으면 드래그 중엔 활동 영역만 줄다가 놓는 순간 튄다
     it('스프라이트 크기 미리보기는 이미지와 자세까지 커밋과 같게 투영한다', () => {
       const key = { ...createDefaultKeyPosition(), id: MIXED_KEY_ID };
-      useKeyStore.setState({
+      useLegacyKeyArrays.setState({
         keyMappings: { '4key': ['A'] },
         positions: { '4key': [key] },
         canonicalPositions: { '4key': [key] },
@@ -1197,7 +1198,7 @@ describe('PropertiesPanel canonical native contract', () => {
         id: SECOND_KEY_ID,
         dx: 80,
       };
-      useKeyStore.setState({
+      useLegacyKeyArrays.setState({
         keyMappings: { '4key': ['A', 'B'] },
         positions: { '4key': [first, second] },
         canonicalPositions: { '4key': [first, second] },
@@ -1304,7 +1305,7 @@ describe('PropertiesPanel canonical native contract', () => {
         dx: 80,
         groupId: 'group-a',
       };
-      useKeyStore.setState({
+      useLegacyKeyArrays.setState({
         keyMappings: { '4key': ['A', 'B'] },
         positions: { '4key': [first, second] },
         canonicalPositions: { '4key': [first, second] },
@@ -1513,8 +1514,8 @@ describe('PropertiesPanel 배치 색상 피커 대상 결합', () => {
 
   beforeEach(() => {
     resetStores();
-    useKeyStore.setState({
-      selectedKeyType: '4key',
+    useKeyStore.setState({ selectedKeyType: '4key' });
+    useLegacyKeyArrays.setState({
       keyMappings: { '4key': ['KeyA', 'KeyS', 'KeyD'] as never },
       positions: {
         '4key': [

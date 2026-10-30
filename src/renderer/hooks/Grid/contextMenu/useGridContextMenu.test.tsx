@@ -3,6 +3,7 @@
  * 열림 시점 index가 아니라 요소 id로 현재 배열에서 재해석하는지 검증
  */
 import React, { act, useEffect } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -89,8 +90,8 @@ describe('키 메뉴 예측자 context 재해석', () => {
 
   const renderProbe = ({ positions, keyMappings }: ProbeProps) => {
     act(() => {
-      useKeyStore.setState({
-        selectedKeyType: '4key',
+      useKeyStore.setState({ selectedKeyType: '4key' });
+      useLegacyKeyArrays.setState({
         canonicalPositions: positions as never,
         positions: positions as never,
         keyMappings,

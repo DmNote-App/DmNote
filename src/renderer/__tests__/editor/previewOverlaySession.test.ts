@@ -1,19 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
 import {
-  composePreviewPositions,
   previewOverlay,
+  previewPatchOf,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
-import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { previewApi } from '@api/modules/editor/previewApi';
 
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
 import type { PreviewEnvelope } from '@src/types/preview';
 
 const KEY_ID_A = '00000000-0000-4000-8000-000000000101';
@@ -45,50 +40,6 @@ vi.mock('@api/modules/editor/previewApi', () => ({
   },
 }));
 
-const basePosition = (dx: number, id: string) => ({
-  ...createDefaultKeyPosition(),
-  id,
-  dx,
-  dy: 0,
-  width: 60,
-  height: 60,
-});
-
-const canonicalFixture = (): CanonicalEditorDocumentV1['keyPositions'] =>
-  ({
-    '4key': [basePosition(0, KEY_ID_A), basePosition(70, KEY_ID_B)],
-  } as CanonicalEditorDocumentV1['keyPositions']);
-
-const statFixture = (): CanonicalEditorDocumentV1['statPositions'] =>
-  ({
-    '4key': [{ ...basePosition(0, STAT_ID_A), statType: 'kps' }],
-  } as CanonicalEditorDocumentV1['statPositions']);
-
-const graphFixture = (): CanonicalEditorDocumentV1['graphPositions'] =>
-  ({
-    '4key': [
-      {
-        ...basePosition(0, GRAPH_ID_A),
-        statType: 'kps',
-        graphType: 'line',
-        graphSpeed: 1,
-        graphColor: '#ffffff',
-      },
-    ],
-  } as CanonicalEditorDocumentV1['graphPositions']);
-
-const knobFixture = (): CanonicalEditorDocumentV1['knobPositions'] =>
-  ({
-    '4key': [
-      {
-        ...basePosition(0, KNOB_ID_A),
-        axisId: 'HIDA:test',
-        sensitivity: 1,
-        reverse: false,
-      },
-    ],
-  } as CanonicalEditorDocumentV1['knobPositions']);
-
 const treeElement = (id: string, kind: string, x: number) => ({
   type: 'element',
   id,
@@ -110,14 +61,8 @@ const resetTree = () => {
 };
 
 const resetPositionStores = () => {
-  useKeyStore.setState({
-    selectedKeyType: '4key',
-    canonicalPositions: canonicalFixture(),
-    positions: canonicalFixture(),
-  });
-  useStatItemStore.setState({ positions: statFixture() });
-  useGraphItemStore.setState({ positions: graphFixture() });
-  useKnobItemStore.setState({ positions: knobFixture() });
+  useKeyStore.setState({ selectedKeyType: '4key' });
+  resetTree();
 };
 
 const remoteEnvelope = (
@@ -154,12 +99,10 @@ describe('previewOverlay', () => {
       backgroundColor: '#123456',
     });
 
-    const state = useKeyStore.getState();
-    expect(state.positions['4key'][0].backgroundColor).toBe('#123456');
-    expect(state.canonicalPositions['4key'][0].backgroundColor).toBeUndefined();
-    expect(state.positions['4key'][1]).toEqual(
-      state.canonicalPositions['4key'][1],
-    );
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)).toEqual({
+      backgroundColor: '#123456',
+    });
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_B)).toBeNull();
   });
 
   it('세션 종료 시 오버레이만 제거되고 rendered가 canonical로 복귀', () => {
@@ -168,9 +111,7 @@ describe('previewOverlay', () => {
     });
     previewOverlay.endSession('s1');
 
-    const state = useKeyStore.getState();
-    expect(state.positions['4key'][0].width).toBe(60);
-    expect(state.canonicalPositions['4key'][0].width).toBe(60);
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)).toBeNull();
   });
 
   it('원격 envelope는 세션 내 stale seq를 폐기', () => {
@@ -179,9 +120,9 @@ describe('previewOverlay', () => {
       remoteEnvelope({ seq: 1, patch: { backgroundColor: '#00ff00' } }),
     );
 
-    expect(useKeyStore.getState().positions['4key'][0].backgroundColor).toBe(
-      '#ff0000',
-    );
+    expect(
+      previewPatchOf('keyPosition', '4key', KEY_ID_A)?.backgroundColor,
+    ).toBe('#ff0000');
   });
 
   it('종료된 세션의 늦은 patch는 tombstone으로 차단', () => {
@@ -189,9 +130,7 @@ describe('previewOverlay', () => {
     previewOverlay.endSession('remote-session');
     previewOverlay.applyRemoteEnvelope(remoteEnvelope({ seq: 2 }));
 
-    expect(
-      useKeyStore.getState().positions['4key'][0].backgroundColor,
-    ).toBeUndefined();
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)).toBeNull();
   });
 
   it('cancel envelope는 세션 오버레이를 제거', () => {
@@ -200,9 +139,7 @@ describe('previewOverlay', () => {
       remoteEnvelope({ seq: 2, kind: 'cancel', targets: [], patch: {} }),
     );
 
-    expect(
-      useKeyStore.getState().positions['4key'][0].backgroundColor,
-    ).toBeUndefined();
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)).toBeNull();
   });
 
   it('병합 커밋은 두 창의 세션을 함께 끝내고 늦은 patch를 차단', () => {
@@ -219,8 +156,8 @@ describe('previewOverlay', () => {
 
     previewOverlay.endSessions(['main-session', 'panel-session']);
 
-    expect(useKeyStore.getState().positions['4key'][0].width).toBe(60);
-    expect(useKeyStore.getState().positions['4key'][1].width).toBe(60);
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)).toBeNull();
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_B)).toBeNull();
 
     previewOverlay.applyLocalPatchByIds('main-session', '4key', [KEY_ID_A], {
       width: 100,
@@ -233,8 +170,8 @@ describe('previewOverlay', () => {
         patch: { width: 105 },
       }),
     );
-    expect(useKeyStore.getState().positions['4key'][0].width).toBe(60);
-    expect(useKeyStore.getState().positions['4key'][1].width).toBe(60);
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)).toBeNull();
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_B)).toBeNull();
   });
 
   it('프리뷰 활성 중 canonical 편집이 들어와도 오버레이가 재합성됨', () => {
@@ -242,14 +179,15 @@ describe('previewOverlay', () => {
       backgroundColor: '#123456',
     });
 
-    const next = canonicalFixture();
-    next['4key'][1] = { ...next['4key'][1], width: 200 };
-    useKeyStore.getState().setPositions(next);
+    tree.elements.set(KEY_ID_B, {
+      ...treeElement(KEY_ID_B, 'key', 70),
+      frame: { x: 70, y: 0, width: 200, height: 60, rotation: 0 },
+    });
 
-    const state = useKeyStore.getState();
-    expect(state.positions['4key'][0].backgroundColor).toBe('#123456');
-    expect(state.positions['4key'][1].width).toBe(200);
-    expect(state.canonicalPositions['4key'][0].backgroundColor).toBeUndefined();
+    // 지금 값이 바뀌어도 미리보기는 그 요소에 그대로 남는다
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)).toEqual({
+      backgroundColor: '#123456',
+    });
   });
 
   it('stat patch는 canonical을 바꾸지 않고 도메인 렌더 결과에만 합성', () => {
@@ -261,15 +199,13 @@ describe('previewOverlay', () => {
       'statPosition',
     );
 
-    const canonical = useStatItemStore.getState().positions;
-    const rendered = composePreviewPositions('statPosition', canonical);
-    expect(canonical['4key'][0].width).toBe(60);
-    expect(rendered['4key'][0].width).toBe(120);
+    expect(previewPatchOf('statPosition', '4key', STAT_ID_A)).toEqual({
+      width: 120,
+    });
+    expect(previewPatchOf('keyPosition', '4key', STAT_ID_A)).toBeNull();
 
     previewOverlay.endSession('stat-session');
-    expect(
-      composePreviewPositions('statPosition', canonical)['4key'][0].width,
-    ).toBe(60);
+    expect(previewPatchOf('statPosition', '4key', STAT_ID_A)).toBeNull();
   });
 
   it('같은 세션과 대상의 서로 다른 도메인 patch를 독립 보관', () => {
@@ -284,13 +220,8 @@ describe('previewOverlay', () => {
       'statPosition',
     );
 
-    expect(useKeyStore.getState().positions['4key'][0].width).toBe(90);
-    expect(
-      composePreviewPositions(
-        'statPosition',
-        useStatItemStore.getState().positions,
-      )['4key'][0].width,
-    ).toBe(130);
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)?.width).toBe(90);
+    expect(previewPatchOf('statPosition', '4key', STAT_ID_A)?.width).toBe(130);
   });
 });
 
@@ -371,9 +302,9 @@ describe('editGestureController', () => {
     ]);
 
     expect(editGestureController.hasActiveGesture()).toBe(true);
-    expect(useKeyStore.getState().positions['4key'][0].backgroundColor).toBe(
-      '#abcdef',
-    );
+    expect(
+      previewPatchOf('keyPosition', '4key', KEY_ID_A)?.backgroundColor,
+    ).toBe('#abcdef');
   });
 
   it('새 게스처는 남은 로컬 프리뷰를 교체하고 브로커에도 종료를 알린다', () => {
@@ -387,15 +318,13 @@ describe('editGestureController', () => {
     ]);
 
     expect(previewApi.cancel).toHaveBeenCalledWith(staleSessionId);
-    expect(useKeyStore.getState().positions['4key'][0].backgroundColor).toBe(
-      '#abcdef',
-    );
+    expect(
+      previewPatchOf('keyPosition', '4key', KEY_ID_A)?.backgroundColor,
+    ).toBe('#abcdef');
   });
 
   it('활성 게스처가 없어도 cancel은 남은 로컬 프리뷰를 회수한다', () => {
     const staleSessionId = '11111111-1111-4111-8111-111111111111';
-    const canonicalColor =
-      useKeyStore.getState().positions['4key'][0].backgroundColor;
     previewOverlay.applyLocalPatchByIds(staleSessionId, '4key', [KEY_ID_A], {
       backgroundColor: '#111111',
     });
@@ -403,9 +332,7 @@ describe('editGestureController', () => {
     editGestureController.cancel();
 
     expect(previewApi.cancel).toHaveBeenCalledWith(staleSessionId);
-    expect(useKeyStore.getState().positions['4key'][0].backgroundColor).toBe(
-      canonicalColor,
-    );
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)).toBeNull();
   });
 
   it('preview는 coalescing 후 채널로 발행됨', async () => {
@@ -515,7 +442,7 @@ describe('editGestureController', () => {
     // 원격 창 세션이 잔존하므로 성공 경로에도 보조 cancel이 나가야 함
     expect(previewApi.cancel).toHaveBeenCalledTimes(1);
     expect(previewApi.cancel).toHaveBeenCalledWith(sessionId);
-    expect(useKeyStore.getState().positions['4key'][0].width).toBe(60);
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)).toBeNull();
   });
 
   it('settleCommit 실패 시 세션 유지', async () => {
@@ -528,7 +455,7 @@ describe('editGestureController', () => {
     await flushPromises();
 
     expect(editGestureController.hasActiveGesture()).toBe(true);
-    expect(useKeyStore.getState().positions['4key'][0].width).toBe(100);
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)?.width).toBe(100);
   });
 
   it('새 조작이 교체한 정산 대기 세션은 늦게 실패해도 되살아나지 않는다', async () => {
@@ -551,7 +478,7 @@ describe('editGestureController', () => {
     await flushPromises();
 
     expect(editGestureController.hasActiveGesture()).toBe(false);
-    expect(useKeyStore.getState().positions['4key'][0].width).toBe(60);
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)).toBeNull();
   });
 
   it('settleCommit 실패 뒤 편집 대상이 갈렸으면 세션을 되살리지 않는다', async () => {
@@ -580,9 +507,7 @@ describe('editGestureController', () => {
     ]);
     editGestureController.cancel();
 
-    const state = useKeyStore.getState();
-    expect(state.positions['4key'][0].width).toBe(60);
-    expect(state.canonicalPositions['4key'][0].width).toBe(60);
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)).toBeNull();
     expect(editGestureController.hasActiveGesture()).toBe(false);
   });
 
@@ -593,22 +518,11 @@ describe('editGestureController', () => {
       { domain: 'statPosition' },
     );
 
-    expect(
-      composePreviewPositions(
-        'statPosition',
-        useStatItemStore.getState().positions,
-      )['4key'][0].width,
-    ).toBe(150);
+    expect(previewPatchOf('statPosition', '4key', STAT_ID_A)?.width).toBe(150);
 
     editGestureController.cancel();
 
-    expect(useStatItemStore.getState().positions['4key'][0].width).toBe(60);
-    expect(
-      composePreviewPositions(
-        'statPosition',
-        useStatItemStore.getState().positions,
-      )['4key'][0].width,
-    ).toBe(60);
+    expect(previewPatchOf('statPosition', '4key', STAT_ID_A)).toBeNull();
   });
 
   it('서로 다른 도메인의 같은 patch를 별도 채널 메시지로 발행', async () => {
@@ -654,8 +568,7 @@ describe('editGestureController', () => {
     ]);
 
     expect(editGestureController.activeGestureId()).toBe(sessionId);
-    expect(useKeyStore.getState().positions['4key'][0]).toMatchObject({
-      id: KEY_ID_A,
+    expect(previewPatchOf('keyPosition', '4key', KEY_ID_A)).toEqual({
       fontColor: '#aa0000',
     });
   });

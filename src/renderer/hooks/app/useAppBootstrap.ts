@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useFontStore, syncFontCSS } from '@stores/useFontStore';
-import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import {
   useSettingsStore,
   type SettingsStateSnapshot,
@@ -58,11 +57,6 @@ import {
   resolveCounterDelayMs,
   type CounterResyncContext,
 } from './appCounterRuntime';
-import { replaceItemStorePositions } from '@src/renderer/editor/model/elementStores';
-import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
-  ITEM_ELEMENT_TYPES,
-} from '@src/types/editor';
 
 function clonePlugins(source?: CustomJs | null): JsPlugin[] {
   if (!source) return [];
@@ -355,24 +349,11 @@ export function useAppBootstrap() {
         syncFontCSS();
         useKeyStore.setState((state) => ({
           ...state,
-          keyMappings: bootstrap.keys,
-          positions: bootstrap.positions,
-          canonicalPositions: bootstrap.positions,
           customTabs: bootstrap.customTabs,
           tabOrder: bootstrap.tabOrder,
           barCount: bootstrap.barCount,
           selectedKeyType: bootstrap.selectedKeyType,
         }));
-        for (const type of ITEM_ELEMENT_TYPES) {
-          replaceItemStorePositions(
-            type,
-            bootstrap[EDITOR_ELEMENT_POSITION_FIELDS[type]] ?? {},
-          );
-        }
-        useLayerGroupStore
-          .getState()
-          .setLayerGroups(bootstrap.layerGroups ?? {});
-
         // 탭별 노트 트랙 설정 오버라이드 로드
         window.api.noteTab
           .getAll()

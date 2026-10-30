@@ -90,16 +90,16 @@ vi.mock('@stores/grid/useGridSelectionStore', () => ({
     getState: () => ({ clearSelection: obsHarness.clearSelection }),
   },
 }));
-vi.mock('@stores/data/useStatItemStore', () => ({
+vi.mock('@src/renderer/__tests__/legacyStores/useStatItemStore', () => ({
   useStatItemStore: { getState: () => ({ positions: {} }) },
 }));
-vi.mock('@stores/data/useGraphItemStore', () => ({
+vi.mock('@src/renderer/__tests__/legacyStores/useGraphItemStore', () => ({
   useGraphItemStore: { getState: () => ({ positions: {} }) },
 }));
-vi.mock('@stores/data/useKnobItemStore', () => ({
+vi.mock('@src/renderer/__tests__/legacyStores/useKnobItemStore', () => ({
   useKnobItemStore: { getState: () => ({ positions: {} }) },
 }));
-vi.mock('@stores/data/useLayerGroupStore', () => ({
+vi.mock('@src/renderer/__tests__/legacyStores/useLayerGroupStore', () => ({
   useLayerGroupStore: { getState: () => ({ layerGroups: {} }) },
 }));
 vi.mock('@components/main/common/dropdown/Dropdown', () => ({

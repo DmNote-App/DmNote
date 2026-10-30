@@ -1,4 +1,5 @@
 import React, { act, useLayoutEffect } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,12 +21,11 @@ import {
   useGridCanvasActions,
   type CanvasActions,
 } from './useGridCanvasActions';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
+import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
+import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
+import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import {
   CENTER_SPRITE_ANCHOR,
   DEFAULT_SPRITE_TRANSITION_EASING,
@@ -49,7 +49,7 @@ describe('useGridCanvasActions create', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    useKeyStore.setState({
+    useLegacyKeyArrays.setState({
       canonicalPositions: {
         '4key': [{ ...createDefaultKeyPosition(), zIndex: 30 }],
       },

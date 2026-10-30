@@ -1,4 +1,5 @@
 import React, { act } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
@@ -147,13 +148,15 @@ describe('키 표시 지연 타이머', () => {
     useKeyStore.setState({
       selectedKeyType: '4key',
       customTabs: [],
+      isBootstrapped: true,
+      isLocalUpdateInProgress: false,
+    });
+    useLegacyKeyArrays.setState({
       keyMappings: { '4key': ['KeyK'] },
       positions: {
         '4key': [createDefaultKeyPosition(0, 0)],
       },
       canonicalPositions: { '4key': [] },
-      isBootstrapped: true,
-      isLocalUpdateInProgress: false,
     });
     useSettingsStore.setState((state) => ({
       noteEffect: false,
@@ -225,8 +228,8 @@ describe('키 표시 지연 타이머', () => {
   it('탭 전환 직후 도착한 이전 모드 이벤트는 새 탭 신호를 켜지 않는다', async () => {
     // 백엔드 확인 전에 화면 모드만 먼저 바뀐 구간을 재현
     await act(async () => {
-      useKeyStore.setState({
-        selectedKeyType: '8key',
+      useKeyStore.setState({ selectedKeyType: '8key' });
+      useLegacyKeyArrays.setState({
         keyMappings: { '4key': ['KeyK'], '8key': ['KeyK'] },
         positions: {
           '4key': [createDefaultKeyPosition(0, 0)],

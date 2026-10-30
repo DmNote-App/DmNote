@@ -1,9 +1,10 @@
 import React, { act, createRef, useEffect } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SingleSpritePanel } from './SingleSpritePanel';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useSpriteEditPreviewStore } from '@stores/grid/useSpriteEditPreviewStore';
 import {
@@ -287,8 +288,8 @@ describe('SingleSpritePanel 자세 편집', () => {
     mocks.imageLoad.mockResolvedValue({ success: false });
     mocks.canDecodeImage.mockResolvedValue(true);
     mocks.probeImageSize.mockResolvedValue({ width: 64, height: 32 });
-    useKeyStore.setState({
-      selectedKeyType: '4key',
+    useKeyStore.setState({ selectedKeyType: '4key' });
+    useLegacyKeyArrays.setState({
       keyMappings: { '4key': ['A', 'S'] },
       canonicalPositions: {
         '4key': [{ id: KEY_ID_A }, { id: KEY_ID_B }],
@@ -560,8 +561,8 @@ describe('SingleSpritePanel 자세 편집', () => {
 
   it('행 메뉴의 복제는 트리거만 비운 사본을 원본 아래에 추가하고 편집 팝업을 연다', async () => {
     const KEY_ID_C = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
-    useKeyStore.setState({
-      selectedKeyType: '4key',
+    useKeyStore.setState({ selectedKeyType: '4key' });
+    useLegacyKeyArrays.setState({
       keyMappings: { '4key': ['A', 'S', 'D'] },
       canonicalPositions: {
         '4key': [{ id: KEY_ID_A }, { id: KEY_ID_B }, { id: KEY_ID_C }],

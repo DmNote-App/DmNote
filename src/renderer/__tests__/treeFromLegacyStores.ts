@@ -35,22 +35,27 @@ export const treeFromStores = async (
   const actual = await importOriginal();
   const { useSyncExternalStore } = await import('react');
   const [
-    { useKeyStore },
+    { useLegacyKeyArrays },
     stat,
     graph,
     knob,
     sprite,
     { useLayerGroupStore },
-    { usePluginDisplayElementStore },
   ] = await Promise.all([
-    import('@stores/data/useKeyStore'),
-    import('@stores/data/useStatItemStore'),
-    import('@stores/data/useGraphItemStore'),
-    import('@stores/data/useKnobItemStore'),
-    import('@stores/data/useSpriteStore'),
-    import('@stores/data/useLayerGroupStore'),
-    import('@stores/plugin/usePluginDisplayElementStore'),
+    import('@src/renderer/__tests__/legacyStores/useLegacyKeyArrays'),
+    import('@src/renderer/__tests__/legacyStores/useStatItemStore'),
+    import('@src/renderer/__tests__/legacyStores/useGraphItemStore'),
+    import('@src/renderer/__tests__/legacyStores/useKnobItemStore'),
+    import('@src/renderer/__tests__/legacyStores/useSpriteStore'),
+    import('@src/renderer/__tests__/legacyStores/useLayerGroupStore'),
   ]);
+  // 플러그인 스토어는 이 목 모듈을 불러온다 - 기다리면 목 생성이 서로 막히므로 다 올라온 뒤에 읽는다
+  let pluginStore:
+    | typeof import('@stores/plugin/usePluginDisplayElementStore').usePluginDisplayElementStore
+    | null = null;
+  void import('@stores/plugin/usePluginDisplayElementStore').then((module) => {
+    pluginStore = module.usePluginDisplayElementStore;
+  });
   const itemStores = [
     stat.useStatItemStore,
     graph.useGraphItemStore,
@@ -60,7 +65,7 @@ export const treeFromStores = async (
   const lastByScene = new Map<string, { inputs: unknown[]; scene: Scene }>();
 
   const sceneFor = (sceneId: string): Scene => {
-    const keys = useKeyStore.getState();
+    const keys = useLegacyKeyArrays.getState();
     // 키 위치 - canonical을 채운 테스트(패널)는 그것, 아니면 보이는 위치(오버레이)
     const keyPositions = keys.canonicalPositions[sceneId]?.length
       ? keys.canonicalPositions[sceneId]
@@ -72,9 +77,8 @@ export const treeFromStores = async (
       useLayerGroupStore.getState().layerGroups[sceneId],
       // 그룹에 든 플러그인 요소만 (값 비교 - 상태·html 갱신은 장면을 바꾸지 않는다)
       JSON.stringify(
-        usePluginDisplayElementStore
-          .getState()
-          .elements.filter((plugin) => plugin.groupId)
+        (pluginStore?.getState().elements ?? [])
+          .filter((plugin) => plugin.groupId)
           .map(({ fullId, pluginId, groupId }) => [fullId, pluginId, groupId]),
       ),
     ];
@@ -150,10 +154,10 @@ export const treeFromStores = async (
 
   const subscribeAll = (listener: () => void) => {
     const unsubscribes = [
-      useKeyStore.subscribe(listener),
+      useLegacyKeyArrays.subscribe(listener),
       ...itemStores.map((store) => store.subscribe(listener)),
       useLayerGroupStore.subscribe(listener),
-      usePluginDisplayElementStore.subscribe(listener),
+      pluginStore?.subscribe(listener) ?? (() => undefined),
     ];
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
   };
@@ -165,6 +169,19 @@ export const treeFromStores = async (
       ({
         getRevision: () => 1,
         getScene: sceneFor,
+        getSceneIds: () => {
+          const keys = useLegacyKeyArrays.getState();
+          return [
+            ...new Set([
+              ...Object.keys(keys.keyMappings),
+              ...Object.keys(keys.canonicalPositions),
+              ...Object.keys(keys.positions),
+              ...itemStores.flatMap((store) =>
+                Object.keys(store.getState().positions),
+              ),
+            ]),
+          ];
+        },
         getElement: elementIn,
         subscribe: subscribeAll,
         dispose: () => {},

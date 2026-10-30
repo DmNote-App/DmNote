@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EDITOR_OPS_VERSION } from '@src/types/editor';
 import type { CanonicalReactiveSpritePosition } from '@src/types/editor';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import type { ElementBounds } from '@utils/grid/smartGuides';
 import { aspectScaleRange } from '@components/main/Grid/handles/aspectResize';
 import { useGridResize } from './useGridResize';
@@ -158,17 +158,17 @@ vi.mock('@stores/data/useKeyStore', () => ({
   // 공통 커밋 경로가 종류 정의(편집 화면 얼굴)를 불러올 때 프리뷰 오버레이가 등록한다
   registerRenderedPositionsComposer: vi.fn(),
 }));
-vi.mock('@stores/data/useStatItemStore', () => ({
+vi.mock('@src/renderer/__tests__/legacyStores/useStatItemStore', () => ({
   useStatItemStore: {
     getState: () => ({ positions: { '4key': [] }, setPositions: vi.fn() }),
   },
 }));
-vi.mock('@stores/data/useGraphItemStore', () => ({
+vi.mock('@src/renderer/__tests__/legacyStores/useGraphItemStore', () => ({
   useGraphItemStore: {
     getState: () => ({ positions: { '4key': [] }, setPositions: vi.fn() }),
   },
 }));
-vi.mock('@stores/data/useKnobItemStore', () => ({
+vi.mock('@src/renderer/__tests__/legacyStores/useKnobItemStore', () => ({
   useKnobItemStore: {
     getState: () => ({ positions: { '4key': [] }, setPositions: vi.fn() }),
   },

@@ -5,7 +5,6 @@
  */
 
 import { previewApi } from '@api/modules/editor/previewApi';
-import { readAuthorityPositions } from '../../model/elementStores';
 import { getElementDocumentStore } from '../../document/elementDocumentRuntime';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import {
@@ -60,16 +59,6 @@ interface ActiveGesture {
   flushScheduled: boolean;
   publishInFlight: boolean;
 }
-
-type PositionsRecordLike = Record<
-  string,
-  Array<{ id: string } & Record<string, unknown>>
->;
-
-const authorityRecordFor = (domain: PreviewDomain): PositionsRecordLike =>
-  readAuthorityPositions(
-    ELEMENT_TYPE_BY_PREVIEW_DOMAIN[domain],
-  ) as PositionsRecordLike;
 
 let active: ActiveGesture | null = null;
 
@@ -189,13 +178,9 @@ export const editGestureController = {
       domainPatches = new Map();
       active.appliedPatches.set(domain, domainPatches);
     }
-    const presentIds = new Set(
-      (authorityRecordFor(domain)[mode] ?? []).map(({ id }) => id),
-    );
-    // 트리에 먼저 들어온 요소(막 만들거나 복제한 것)도 - 옛 스토어는 백엔드 왕복 뒤에 채워진다
+    // 그 장면 트리에 그 종류로 있는 요소만 (트리 낙관 반영 포함)
     const elementType = ELEMENT_TYPE_BY_PREVIEW_DOMAIN[domain];
     const isPresent = (id: string) =>
-      presentIds.has(id) ||
       getElementDocumentStore()?.getElement(mode, id)?.kind === elementType;
     const localEntries: PreviewEntry[] = [];
     for (const entry of validEntries) {

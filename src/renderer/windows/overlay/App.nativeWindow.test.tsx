@@ -1,4 +1,5 @@
 import React, { act } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
@@ -200,12 +201,14 @@ const setupOverlay = () => {
   useKeyStore.setState({
     selectedKeyType: '4key',
     customTabs: [],
-    keyMappings: { '4key': ['KeyK'] },
-    positions: { '4key': [createDefaultKeyPosition(0, 0)] },
-    canonicalPositions: { '4key': [] },
     isBootstrapped: true,
     isLocalUpdateInProgress: false,
     setSelectedKeyType: mocks.setSelectedKeyType,
+  });
+  useLegacyKeyArrays.setState({
+    keyMappings: { '4key': ['KeyK'] },
+    positions: { '4key': [createDefaultKeyPosition(0, 0)] },
+    canonicalPositions: { '4key': [] },
   });
   useSettingsStore.setState({ alwaysOnTop: false, trayEnabled: true });
   resetAllKeySignals();

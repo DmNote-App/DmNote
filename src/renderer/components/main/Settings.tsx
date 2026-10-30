@@ -5,7 +5,6 @@ import { useTranslation } from '@contexts/useTranslation';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import Dropdown from '@components/main/common/dropdown/Dropdown';
 import ReloadButton from '@components/main/common/ReloadButton';
 import {
@@ -50,8 +49,6 @@ import { cssApi } from '@api/modules/resources/cssApi';
 import { jsApi } from '@api/modules/plugin/jsApi';
 import { keysApi } from '@api/modules/editor/keysApi';
 import { appApi, windowApi } from '@api/modules/app/appApi';
-import { assertCanonicalEditorDocument } from '@src/types/editor';
-import { captureElementCollections } from '@src/renderer/editor/model/elementStores';
 
 interface SettingsProps {
   showAlert: (msg: string, confirmText?: string) => void;
@@ -431,20 +428,7 @@ const Settings = ({
       try {
         const result: KeysResetAllResponse = await keysApi.resetAll();
         if (result) {
-          const candidate = {
-            schemaVersion: 1 as const,
-            keys: result.keys,
-            ...captureElementCollections(),
-            keyPositions: result.positions,
-            layerGroups: useLayerGroupStore.getState().layerGroups,
-          };
-          assertCanonicalEditorDocument(candidate, 'keys_reset_all response');
-          // 리셋 직후 메모리 상태도 바로 초기값으로 변경
-          useKeyStore.setState({
-            keyMappings: result.keys,
-            positions: candidate.keyPositions,
-            canonicalPositions: candidate.keyPositions,
-          });
+          // 편집 화면은 트리 변경 이벤트로 따라간다.
           // 탭 메타데이터는 세대 계약을 탄다. 응답에 tabOrder·barCount가 실려 오는데
           // 안 읽으면 tabOrder에 방금 지워진 커스텀 id가 남는다
           useKeyStore.getState().setTabMetadata(

@@ -1,10 +1,7 @@
 import { create } from 'zustand';
-import type { CustomTab, KeyMappings } from '@src/types/key/keys';
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
+import type { CustomTab } from '@src/types/key/keys';
 import { setKeyMode } from '@api/modules/editor/keyModeApi';
 import { clampBarCount, MAX_BAR_SLOTS } from '@utils/tabOrder';
-
-type CanonicalKeyPositions = CanonicalEditorDocumentV1['keyPositions'];
 
 interface KeyStoreState {
   selectedKeyType: string;
@@ -32,11 +29,6 @@ interface KeyStoreState {
    * 보정까지 버려진다
    */
   selectionGeneration: number;
-  keyMappings: KeyMappings;
-  // 렌더 상태 = canonical + 활성 프리뷰 합성
-  positions: CanonicalKeyPositions;
-  // 권위 상태, 프리뷰 불가침 (커밋·flush·히스토리 캡처 기준)
-  canonicalPositions: CanonicalKeyPositions;
   isBootstrapped: boolean;
   // 삭제 작업 중 백엔드 이벤트 무시용 플래그
   isLocalUpdateInProgress: boolean;
@@ -78,30 +70,9 @@ interface KeyStoreState {
     metadata: { customTabs: CustomTab[]; tabOrder: string[]; barCount: number },
     observedGeneration: number,
   ) => void;
-  setKeyMappings: (mappings: KeyMappings) => void;
-  setPositions: (positions: CanonicalKeyPositions) => void;
   setBootstrapped: (value: boolean) => void;
-  setKeyMappingsAndPositions: (
-    mappings: KeyMappings,
-    positions: CanonicalKeyPositions,
-  ) => void;
   setLocalUpdateInProgress: (value: boolean) => void;
 }
-
-// 프리뷰 오버레이 모듈이 등록하는 rendered 합성기, 없으면 canonical 그대로
-type RenderedPositionsComposer = (
-  canonical: CanonicalKeyPositions,
-) => CanonicalKeyPositions;
-let renderedComposer: RenderedPositionsComposer | null = null;
-
-export const registerRenderedPositionsComposer = (
-  composer: RenderedPositionsComposer | null,
-) => {
-  renderedComposer = composer;
-};
-
-export const composeRenderedPositions = (canonical: CanonicalKeyPositions) =>
-  renderedComposer ? renderedComposer(canonical) : canonical;
 
 let modeRequestGeneration = 0;
 
@@ -114,9 +85,6 @@ export const useKeyStore = create<KeyStoreState>((set, get) => ({
   deferredTabPlacement: null,
   tabMetadataGeneration: 0,
   selectionGeneration: 0,
-  keyMappings: {} as KeyMappings,
-  positions: {},
-  canonicalPositions: {},
   isBootstrapped: false,
   isLocalUpdateInProgress: false,
   setSelectedKeyType: (mode) => {
@@ -234,20 +202,6 @@ export const useKeyStore = create<KeyStoreState>((set, get) => ({
         deferredTabPlacement: null,
       };
     }),
-  setKeyMappings: (mappings) => set({ keyMappings: mappings }),
-  // canonical 편집 경로, 활성 프리뷰가 있으면 rendered에 재합성
-  setPositions: (positions) =>
-    set({
-      canonicalPositions: positions,
-      positions: composeRenderedPositions(positions),
-    }),
   setBootstrapped: (value) => set({ isBootstrapped: value }),
-  // 일괄 업데이트 (키 삭제 등에서 atomic 업데이트 필요)
-  setKeyMappingsAndPositions: (mappings, positions) =>
-    set({
-      keyMappings: mappings,
-      canonicalPositions: positions,
-      positions: composeRenderedPositions(positions),
-    }),
   setLocalUpdateInProgress: (value) => set({ isLocalUpdateInProgress: value }),
 }));

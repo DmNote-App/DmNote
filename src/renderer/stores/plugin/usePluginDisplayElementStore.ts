@@ -11,6 +11,8 @@ import {
   registerPluginGroupMemberProvider,
 } from '@src/renderer/editor/runtime/intent/pluginGroupMembers';
 import { useKeyStore } from '../data/useKeyStore';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { treeModeArrays } from '@src/renderer/elementKinds/runtime/treeModeArrays';
 
 // syncToOverlay 쓰로틀링을 위한 변수
 let syncScheduled = false;
@@ -69,6 +71,12 @@ interface PluginDisplayElementStore {
   bringForward: (fullId: string) => void;
   sendBackward: (fullId: string) => void;
 }
+
+// 지금 탭 키의 겹침 순서 - 트리 순번 (트리에 없는 플러그인 요소의 zIndex를 키 사이에 정할 때)
+const currentTreeKeyPositions = () =>
+  treeModeArrays(
+    getElementDocumentStore()?.getScene(useKeyStore.getState().selectedKeyType),
+  ).keyPositions;
 
 export const usePluginDisplayElementStore = create<PluginDisplayElementStore>(
   (set) => ({
@@ -186,8 +194,7 @@ export const usePluginDisplayElementStore = create<PluginDisplayElementStore>(
         if (!element) return state;
 
         // 현재 탭의 키들과 플러그인 요소들의 zIndex 수집
-        const { selectedKeyType, canonicalPositions } = useKeyStore.getState();
-        const keyPositions = canonicalPositions[selectedKeyType] || [];
+        const keyPositions = currentTreeKeyPositions();
         const keyZIndexes = keyPositions.map((p, i) => p.zIndex ?? i);
         const pluginZIndexes = state.elements.map((el) => el.zIndex ?? 0);
         const maxZIndex = Math.max(0, ...keyZIndexes, ...pluginZIndexes);
@@ -209,8 +216,7 @@ export const usePluginDisplayElementStore = create<PluginDisplayElementStore>(
         if (!element) return state;
 
         // 현재 탭의 키들과 플러그인 요소들의 zIndex 수집
-        const { selectedKeyType, canonicalPositions } = useKeyStore.getState();
-        const keyPositions = canonicalPositions[selectedKeyType] || [];
+        const keyPositions = currentTreeKeyPositions();
         const keyZIndexes = keyPositions.map((p, i) => p.zIndex ?? i);
         const pluginZIndexes = state.elements.map((el) => el.zIndex ?? 0);
         const minZIndex = Math.min(0, ...keyZIndexes, ...pluginZIndexes);
@@ -232,8 +238,7 @@ export const usePluginDisplayElementStore = create<PluginDisplayElementStore>(
         if (!element) return state;
 
         const currentZIndex = element.zIndex ?? 0;
-        const { selectedKeyType, canonicalPositions } = useKeyStore.getState();
-        const keyPositions = canonicalPositions[selectedKeyType] || [];
+        const keyPositions = currentTreeKeyPositions();
 
         // 대상 요소의 바운딩 박스
         const targetBox = {
@@ -304,8 +309,7 @@ export const usePluginDisplayElementStore = create<PluginDisplayElementStore>(
         if (!element) return state;
 
         const currentZIndex = element.zIndex ?? 0;
-        const { selectedKeyType, canonicalPositions } = useKeyStore.getState();
-        const keyPositions = canonicalPositions[selectedKeyType] || [];
+        const keyPositions = currentTreeKeyPositions();
 
         // 대상 요소의 바운딩 박스
         const targetBox = {

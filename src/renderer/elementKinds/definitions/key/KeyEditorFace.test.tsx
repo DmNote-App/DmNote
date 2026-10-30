@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -18,8 +19,8 @@ vi.mock('@components/main/Grid/document/treeEditedSelection', () => ({
 
 describe('편집 화면 키 얼굴', () => {
   it('옛 모양 보기에 아직 없는 키(트리로 막 붙여넣음)는 트리 입력의 슬롯으로 이름을 그린다', () => {
-    useKeyStore.setState({
-      selectedKeyType: '4key',
+    useKeyStore.setState({ selectedKeyType: '4key' });
+    useLegacyKeyArrays.setState({
       canonicalPositions: { '4key': [] },
       keyMappings: { '4key': [] },
     });

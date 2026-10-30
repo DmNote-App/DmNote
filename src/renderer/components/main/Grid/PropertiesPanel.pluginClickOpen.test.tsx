@@ -4,14 +4,15 @@
  * 함께 마운트해 선택 전이와 isCanvasPanelOpen을 관찰한다
  */
 import React, { act } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
+import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
+import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
+import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
+import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
@@ -294,8 +295,8 @@ const Harness = () => (
 );
 
 const seedStores = (target: Target) => {
-  useKeyStore.setState({
-    selectedKeyType: '4key',
+  useKeyStore.setState({ selectedKeyType: '4key' });
+  useLegacyKeyArrays.setState({
     keyMappings: { '4key': [] },
     positions: { '4key': [] },
     canonicalPositions: { '4key': [] },

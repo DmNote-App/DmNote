@@ -1,4 +1,5 @@
 import React, { act } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
@@ -303,14 +304,16 @@ describe('overlay active key reconciliation', () => {
     useKeyStore.setState({
       selectedKeyType: '4key',
       customTabs: [],
+      isBootstrapped: true,
+      isLocalUpdateInProgress: false,
+    });
+    useLegacyKeyArrays.setState({
       keyMappings: {
         '4key': ['KeyK', 'KeyJ'],
         '8key': ['KeyQ'],
       },
       positions: { '4key': [], '8key': [] },
       canonicalPositions: { '4key': [], '8key': [] },
-      isBootstrapped: true,
-      isLocalUpdateInProgress: false,
     });
     resetAllKeySignals();
     container = document.createElement('div');
@@ -349,7 +352,7 @@ describe('overlay active key reconciliation', () => {
     );
 
     await act(async () => {
-      useKeyStore.setState({
+      useLegacyKeyArrays.setState({
         positions: {
           '4key': [createDefaultKeyPosition(10, 20)],
           '8key': [],
@@ -415,7 +418,7 @@ describe('overlay active key reconciliation', () => {
     setKeyActive('KeyK', true);
 
     await act(async () => {
-      useKeyStore.setState({
+      useLegacyKeyArrays.setState({
         positions: {
           '4key': [createDefaultKeyPosition(10, 20)],
           '8key': [],
@@ -434,7 +437,7 @@ describe('overlay active key reconciliation', () => {
     mocks.bootstrap.mockResolvedValue({ activeKeys: ['KeyK', 'KeyJ'] });
 
     await act(async () => {
-      useKeyStore.setState((state) => ({
+      useLegacyKeyArrays.setState((state) => ({
         keyMappings: { ...state.keyMappings, '4key': ['KeyJ'] },
       }));
     });
@@ -449,7 +452,7 @@ describe('overlay active key reconciliation', () => {
     setKeyActive('KeyK', true);
 
     await act(async () => {
-      useKeyStore.setState((state) => ({
+      useLegacyKeyArrays.setState((state) => ({
         keyMappings: { ...state.keyMappings, '8key': ['KeyW'] },
       }));
     });
@@ -463,7 +466,7 @@ describe('overlay active key reconciliation', () => {
     setKeyActive('KeyK', true);
 
     await act(async () => {
-      useKeyStore.setState((state) => ({
+      useLegacyKeyArrays.setState((state) => ({
         keyMappings: {
           ...state.keyMappings,
           '4key': ['', 'KeyJ', 'KeyK', 'KeyK'],
@@ -484,13 +487,13 @@ describe('overlay active key reconciliation', () => {
       .mockReturnValueOnce(second.promise);
 
     await act(async () => {
-      useKeyStore.setState((state) => ({
+      useLegacyKeyArrays.setState((state) => ({
         keyMappings: { ...state.keyMappings, '4key': ['KeyJ'] },
       }));
     });
     await flushAsync();
     await act(async () => {
-      useKeyStore.setState((state) => ({
+      useLegacyKeyArrays.setState((state) => ({
         keyMappings: { ...state.keyMappings, '4key': ['KeyL'] },
       }));
     });
@@ -521,6 +524,10 @@ describe('note timing payload and loss recovery', () => {
     useKeyStore.setState({
       selectedKeyType: '4key',
       customTabs: [],
+      isBootstrapped: true,
+      isLocalUpdateInProgress: false,
+    });
+    useLegacyKeyArrays.setState({
       keyMappings: {
         '4key': ['KeyK', 'KeyJ'],
         '8key': ['KeyQ'],
@@ -533,8 +540,6 @@ describe('note timing payload and loss recovery', () => {
         '8key': [],
       },
       canonicalPositions: { '4key': [], '8key': [] },
-      isBootstrapped: true,
-      isLocalUpdateInProgress: false,
     });
     resetAllKeySignals();
     container = document.createElement('div');
@@ -771,14 +776,16 @@ describe('plugin element 갱신 격리 (#111)', () => {
     useKeyStore.setState({
       selectedKeyType: '4key',
       customTabs: [],
+      isBootstrapped: true,
+      isLocalUpdateInProgress: false,
+    });
+    useLegacyKeyArrays.setState({
       keyMappings: {
         '4key': ['KeyK', 'KeyJ'],
         '8key': ['KeyQ'],
       },
       positions: { '4key': [], '8key': [] },
       canonicalPositions: { '4key': [], '8key': [] },
-      isBootstrapped: true,
-      isLocalUpdateInProgress: false,
     });
     resetAllKeySignals();
     container = document.createElement('div');
@@ -864,14 +871,16 @@ describe('computeLayout 메모이제이션', () => {
     useKeyStore.setState({
       selectedKeyType: '4key',
       customTabs: [],
+      isBootstrapped: true,
+      isLocalUpdateInProgress: false,
+    });
+    useLegacyKeyArrays.setState({
       keyMappings: {
         '4key': ['KeyK', 'KeyJ'],
         '8key': ['KeyQ'],
       },
       positions: { '4key': [createDefaultKeyPosition(0, 0)], '8key': [] },
       canonicalPositions: { '4key': [], '8key': [] },
-      isBootstrapped: true,
-      isLocalUpdateInProgress: false,
     });
     resetAllKeySignals();
     container = document.createElement('div');
@@ -905,7 +914,7 @@ describe('computeLayout 메모이제이션', () => {
 
     // positive control - 레이아웃 입력(positions) 변경은 재호출되어야 함
     await act(async () => {
-      useKeyStore.setState({
+      useLegacyKeyArrays.setState({
         positions: { '4key': [createDefaultKeyPosition(10, 20)], '8key': [] },
       });
     });

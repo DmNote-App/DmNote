@@ -12,7 +12,9 @@ import {
   type CanonicalPositionOf,
   type ItemElementType,
 } from '@src/types/editor';
-import type { ItemElementCollections } from '@src/renderer/editor/model/elementStores';
+import type { ElementCollections } from '@src/types/editor';
+
+type ItemElementCollections = Omit<ElementCollections, 'keyPositions'>;
 import { getStatTypeLabel } from '@utils/grid/statTypeLabel';
 import type { PluginPanelElementView } from '@src/types/plugin/api';
 import { isPluginVisibleInMode } from '@utils/layerGroupUtils';

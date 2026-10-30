@@ -13,7 +13,7 @@ import {
   useSpritePoseHandleStore,
   type SpritePoseHandleSession,
 } from '@stores/grid/useSpritePoseHandleStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import { releaseDragSession } from '@hooks/Grid/drag/dragSession';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React, { act, useEffect } from 'react';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useKeyManager } from '@hooks/useKeyManager';
@@ -89,6 +90,10 @@ describe('키 삭제 선택 정리', () => {
     manager = null;
     useKeyStore.setState({
       selectedKeyType: '4key',
+      isBootstrapped: false,
+      isLocalUpdateInProgress: false,
+    });
+    useLegacyKeyArrays.setState({
       keyMappings: { '4key': ['A', 'B', 'C'] },
       positions: {
         '4key': [
@@ -104,8 +109,6 @@ describe('키 삭제 선택 정리', () => {
           { ...createDefaultKeyPosition(), id: keyIds[2] },
         ],
       },
-      isBootstrapped: false,
-      isLocalUpdateInProgress: false,
     });
     useGridSelectionStore.getState().clearSelection();
     vi.clearAllMocks();

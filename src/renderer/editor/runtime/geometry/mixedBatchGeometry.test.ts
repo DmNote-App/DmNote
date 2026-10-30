@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
+import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
-import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
+import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
+import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
+import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import { makeCanonicalSpritePosition } from '@utils/sprite/spriteFixtures';
 import type { CanonicalReactiveSpritePosition } from '@src/types/editor';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
+import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { EDITOR_OPS_VERSION } from '@src/types/editor';
@@ -63,17 +64,17 @@ const { documentFromStores } = vi.hoisted(() => ({
       spriteStore,
       groupStore,
     ] = await Promise.all([
-      import('@stores/data/useKeyStore'),
-      import('@stores/data/useStatItemStore'),
-      import('@stores/data/useGraphItemStore'),
-      import('@stores/data/useKnobItemStore'),
-      import('@stores/data/useSpriteStore'),
-      import('@stores/data/useLayerGroupStore'),
+      import('@src/renderer/__tests__/legacyStores/useLegacyKeyArrays'),
+      import('@src/renderer/__tests__/legacyStores/useStatItemStore'),
+      import('@src/renderer/__tests__/legacyStores/useGraphItemStore'),
+      import('@src/renderer/__tests__/legacyStores/useKnobItemStore'),
+      import('@src/renderer/__tests__/legacyStores/useSpriteStore'),
+      import('@src/renderer/__tests__/legacyStores/useLayerGroupStore'),
     ]);
     return () => ({
       schemaVersion: 1,
-      keys: keyStore.useKeyStore.getState().keyMappings,
-      keyPositions: keyStore.useKeyStore.getState().canonicalPositions,
+      keys: keyStore.useLegacyKeyArrays.getState().keyMappings,
+      keyPositions: keyStore.useLegacyKeyArrays.getState().canonicalPositions,
       statPositions: statStore.useStatItemStore.getState().positions,
       graphPositions: graphStore.useGraphItemStore.getState().positions,
       knobPositions: knobStore.useKnobItemStore.getState().positions,
@@ -248,7 +249,8 @@ const seedStores = (
     id: KEY_ID,
     ...overrides.keyPosition,
   };
-  useKeyStore.setState({
+  useKeyStore.setState({ selectedKeyType: '4key' });
+  useLegacyKeyArrays.setState({
     keyMappings: { '4key': [''] },
     canonicalPositions: { '4key': [position] },
     positions: { '4key': [position] },
@@ -324,7 +326,9 @@ describe('commitMixedBatchGeometry', () => {
     expect(
       usePluginDisplayElementStore.getState().elements[0].position,
     ).toEqual({ x: 0, y: 0 });
-    expect(useKeyStore.getState().canonicalPositions['4key'][0].dx).toBe(0);
+    expect(useLegacyKeyArrays.getState().canonicalPositions['4key'][0].dx).toBe(
+      0,
+    );
     expect(mocks.commitBatchGeometryByIds).not.toHaveBeenCalled();
   });
 
@@ -422,7 +426,9 @@ describe('commitMixedBatchGeometry', () => {
     expect(
       usePluginDisplayElementStore.getState().elements[0].position,
     ).toEqual({ x: 100, y: 0 });
-    expect(useKeyStore.getState().canonicalPositions['4key'][0].width).toBe(60);
+    expect(
+      useLegacyKeyArrays.getState().canonicalPositions['4key'][0].width,
+    ).toBe(60);
   });
 
   it('plugin 대상 소실은 fail-closed로 커밋하지 않는다', async () => {
@@ -464,7 +470,9 @@ describe('commitMixedBatchGeometry', () => {
 
     expect(mocks.gestureCommit).not.toHaveBeenCalled();
     // native·plugin eager 모두 CAS 복원
-    expect(useKeyStore.getState().canonicalPositions['4key'][0].dx).toBe(100);
+    expect(useLegacyKeyArrays.getState().canonicalPositions['4key'][0].dx).toBe(
+      100,
+    );
     expect(
       usePluginDisplayElementStore.getState().elements[0].position,
     ).toEqual({ x: 0, y: 0 });
@@ -482,7 +490,9 @@ describe('commitMixedBatchGeometry', () => {
     ).rejects.toThrow('drain failed');
 
     expect(mocks.gestureCommit).not.toHaveBeenCalled();
-    expect(useKeyStore.getState().canonicalPositions['4key'][0].dx).toBe(100);
+    expect(useLegacyKeyArrays.getState().canonicalPositions['4key'][0].dx).toBe(
+      100,
+    );
     expect(
       usePluginDisplayElementStore.getState().elements[0].position,
     ).toEqual({ x: 0, y: 0 });
