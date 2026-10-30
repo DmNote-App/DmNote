@@ -1,3 +1,5 @@
+'use no memo';
+// 프리뷰 오버레이(모듈 상태)를 previewVersion으로 다시 읽어야 해서 컴파일러 메모 제외
 import { useSyncExternalStore } from 'react';
 
 import GraphFaceView, {

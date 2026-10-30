@@ -1,3 +1,5 @@
+'use no memo';
+// 트리 스토어·옛 위치(모듈 상태)를 렌더 중에 읽어 손잡이 틀을 만든다 - 컴파일러 메모 제외
 import React, { useEffect, useRef, useState } from 'react';
 
 import { getOtherElementBounds } from '@hooks/Grid/drag/useSmartGuidesElements';
