@@ -35,3 +35,22 @@ describe('트리 요소의 옛 모양 + 편집 미리보기', () => {
     expect(treeElementPositionOf(knob, '5key').backgroundColor).toBe('#111');
   });
 });
+
+describe('트리 요소 옛 모양의 참조 안정성', () => {
+  afterEach(() => previewOverlay.clearAll());
+
+  it('같은 요소·같은 미리보기면 같은 객체, 미리보기가 바뀌면 새 객체', () => {
+    const first = treeElementPositionOf(knob, '4key');
+    expect(treeElementPositionOf(knob, '4key')).toBe(first);
+    previewOverlay.applyLocalPatchByIds(
+      '22222222-2222-4222-8222-222222222222',
+      '4key',
+      ['n1'],
+      { sensitivity: 9 },
+      'knobPosition',
+    );
+    const previewed = treeElementPositionOf(knob, '4key');
+    expect(previewed).not.toBe(first);
+    expect(treeElementPositionOf(knob, '4key')).toBe(previewed);
+  });
+});

@@ -12,19 +12,36 @@ import { isEditorElementType } from '@src/types/editor';
 import { PREVIEW_DOMAIN_BY_ELEMENT_TYPE } from '@src/types/preview';
 import { legacyPositionOf } from './legacyPosition';
 
+// 같은 요소·같은 미리보기면 같은 객체 - 패널 effect·메모가 참조로 비교한다(새 객체면 렌더마다 다시 돈다)
+const cache = new WeakMap<
+  ElementNode,
+  Map<string, { version: number; result: Record<string, unknown> }>
+>();
+
 /** 트리로 옮긴 옛 종류 요소의 옛 모양 - 트리 값(낙관 반영 포함)에 편집 미리보기를 얹는다 */
 export const treeElementPositionOf = (
   element: ElementNode,
   sceneId: string,
 ): Record<string, unknown> => {
+  const version = getPreviewOverlayVersion();
+  let byScene = cache.get(element);
+  const cached = byScene?.get(sceneId);
+  if (cached?.version === version) return cached.result;
   const position = legacyPositionOf(element);
-  if (!isEditorElementType(element.kind)) return position;
-  const patch = previewPatchOf(
-    PREVIEW_DOMAIN_BY_ELEMENT_TYPE[element.kind],
-    sceneId,
-    element.id,
-  );
-  return patch ? { ...position, ...patch } : position;
+  const patch = isEditorElementType(element.kind)
+    ? previewPatchOf(
+        PREVIEW_DOMAIN_BY_ELEMENT_TYPE[element.kind],
+        sceneId,
+        element.id,
+      )
+    : null;
+  const result = patch ? { ...position, ...patch } : position;
+  if (!byScene) {
+    byScene = new Map();
+    cache.set(element, byScene);
+  }
+  byScene.set(sceneId, { version, result });
+  return result;
 };
 
 /** treeElementPositionOf 구독 - 미리보기가 바뀌면 다시 그린다 */

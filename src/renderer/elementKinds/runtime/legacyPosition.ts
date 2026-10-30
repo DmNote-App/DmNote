@@ -24,8 +24,19 @@ interface LegacyInfo {
   fields?: LegacyObject;
 }
 
+// 같은 요소면 같은 객체 - 읽는 쪽 effect·메모가 참조로 비교한다 (트리 스토어는 바뀐 요소만 새 객체)
+const positionCache = new WeakMap<ElementNode, LegacyObject>();
+
 /** 트리 요소 → 옛 위치 객체 (칸 이름은 옛 위치와 같다) */
 export const legacyPositionOf = (element: ElementNode): LegacyObject => {
+  const cached = positionCache.get(element);
+  if (cached) return cached;
+  const position = buildLegacyPosition(element);
+  positionCache.set(element, position);
+  return position;
+};
+
+const buildLegacyPosition = (element: ElementNode): LegacyObject => {
   const info = (element.legacy ?? {}) as LegacyInfo;
   // 정의에 있는 묶음만 - 백엔드 옛 모양 보기와 같게 (정의 밖 묶음은 보존만 된다)
   const owned = elementKindDefinition(element.kind)?.bundles ?? [];
