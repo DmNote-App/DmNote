@@ -6,6 +6,7 @@
 
 import { previewApi } from '@api/modules/editor/previewApi';
 import { readAuthorityPositions } from '../../model/elementStores';
+import { getElementDocumentStore } from '../../document/elementDocumentRuntime';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import {
   readOtherSelectionIds,
@@ -196,10 +197,15 @@ export const editGestureController = {
     const presentIds = new Set(
       (authorityRecordFor(domain)[mode] ?? []).map(({ id }) => id),
     );
+    // 트리에 먼저 들어온 요소(막 만들거나 복제한 것)도 - 옛 스토어는 백엔드 왕복 뒤에 채워진다
+    const elementType = ELEMENT_TYPE_BY_PREVIEW_DOMAIN[domain];
+    const isPresent = (id: string) =>
+      presentIds.has(id) ||
+      getElementDocumentStore()?.getElement(mode, id)?.kind === elementType;
     const localEntries: PreviewEntry[] = [];
     for (const entry of validEntries) {
       const intentKey = entry.id;
-      if (!presentIds.has(intentKey)) continue;
+      if (!isPresent(intentKey)) continue;
       const applied = domainPatches.get(intentKey);
       domainPatches.set(
         intentKey,
