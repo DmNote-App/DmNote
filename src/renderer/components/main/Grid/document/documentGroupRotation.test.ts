@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Frame } from '@src/types/generated/elementDocument';
 
 const mocks = vi.hoisted(() => ({
-  edit: vi.fn((_ops: unknown[]) => Promise.resolve(null)),
+  edit: vi.fn((_ops: unknown[], _options?: unknown) => Promise.resolve(null)),
 }));
 
 vi.mock('./documentEditActions', () => ({ editDocument: mocks.edit }));
@@ -50,8 +50,11 @@ describe('트리 요소 묶음 회전', () => {
     expect(frames.a.x).toBeCloseTo(80);
     expect(frames.b.x).toBeCloseTo(0);
     expect(frames.a.rotation).toBe(180);
-    await session.commit(frame.rotation + 90);
+    await session.commit(frame.rotation + 90, 'rotate-gesture');
     expect(mocks.edit).toHaveBeenCalledTimes(1);
+    expect(mocks.edit.mock.calls[0][1]).toEqual({
+      gestureId: 'rotate-gesture',
+    });
     const ops = mocks.edit.mock.calls[0][0] as Array<{
       id: string;
       frame: Frame;

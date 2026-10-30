@@ -113,6 +113,7 @@ import DocumentContextMenu from '../document/DocumentContextMenu';
 import { useDocumentContextMenuStore } from '../document/useDocumentContextMenuStore';
 import DocumentGridLayer from '../document/DocumentGridLayer';
 import DocumentSelectionOverlay from '../document/DocumentSelectionOverlay';
+import MixedSelectionRotateHandle from '../document/MixedSelectionRotateHandle';
 import { documentKindForAddMenuItem } from '../document/documentAddMenu';
 import { insertDocumentElement } from '../document/documentEditActions';
 import { useDocumentKeyboard } from '../document/useDocumentKeyboard';
@@ -1050,6 +1051,12 @@ const Grid = ({
         getOtherElements={getOtherElements}
       />
       <DocumentSelectionOverlay
+        sceneId={selectedKeyType}
+        zoom={zoom}
+        panX={panX}
+        panY={panY}
+      />
+      <MixedSelectionRotateHandle
         sceneId={selectedKeyType}
         zoom={zoom}
         panX={panX}

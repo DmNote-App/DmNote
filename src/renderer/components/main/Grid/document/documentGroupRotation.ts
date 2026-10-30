@@ -98,7 +98,8 @@ export const startDocumentGroupRotation = (
       }
       return true;
     },
-    commit: async (rotation: number) => {
+    // gestureId - 섞인 선택에서 옛 종류 회전과 한 되돌리기 단계로
+    commit: async (rotation: number, gestureId?: string) => {
       try {
         await editDocument(
           rotated(entries, center, rotation - selection.rotation).map(
@@ -109,6 +110,7 @@ export const startDocumentGroupRotation = (
               frame: { x: frame.x, y: frame.y, rotation: frame.rotation },
             }),
           ),
+          { gestureId },
         );
       } finally {
         clear();
