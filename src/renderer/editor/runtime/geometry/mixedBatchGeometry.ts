@@ -340,7 +340,7 @@ export const commitMixedBatchGeometry = (
         rotatePluginInstancesEditSession(pluginId, gestureId),
       );
 
-      // eager: 플러그인 position CAS (옛 종류 몫은 트리 커밋이 낙관 반영한다)
+      // eager: 플러그인 position CAS (옛 종류 몫은 트리에 먼저 얹고 커밋의 트리 리비전에서 확정)
       receipt = applyPluginPositionsEagerly(initialPlanned.pluginPositions);
 
       runnerStarted = true;
@@ -349,6 +349,7 @@ export const commitMixedBatchGeometry = (
         initialPluginIds: pluginIds,
         pluginScope: () => pluginIds,
         receipt,
+        optimisticOps: initialPlanned.nativeOps,
         generate: ({ base, pluginProjection }) => {
           options.preflight?.();
           // 슬롯 재계획: native는 base, plugin은 projection에서 bounds를

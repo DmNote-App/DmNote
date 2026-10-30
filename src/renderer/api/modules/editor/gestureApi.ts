@@ -54,6 +54,8 @@ export interface GestureCommitResult {
   changedPluginIds: string[];
   authorityGeneration: number;
   editorOpResults?: EditorOpResultV1[];
+  // 커밋 뒤 트리 문서 리비전
+  elementDocumentRevision?: number;
 }
 
 const assertGestureCommitResult = (

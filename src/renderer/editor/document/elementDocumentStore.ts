@@ -35,9 +35,17 @@ export interface ElementDocumentStore {
     ops: Op[],
     options?: { gestureId?: string },
   ) => Promise<ElementDocumentCommitResult>;
+  // 편집 창만 - 다른 통로(제스처 커밋)로 보내는 편집을 화면에 먼저 얹는다.
+  // 그 커밋의 트리 리비전으로 확정하고(settle), 실패하면 뺀다(drop)
+  stage?: (ops: Op[]) => StagedEdit;
   // 오버레이·OBS만 - 문서를 통째로 다시 받아 온다 (OBS 재연결·놓친 패치)
   resync?: () => Promise<void>;
   dispose(): void;
+}
+
+export interface StagedEdit {
+  settle(revision: number): void;
+  drop(): void;
 }
 
 // 백엔드와 주고받는 통로 - 테스트에서 바꿔 끼운다
@@ -290,6 +298,25 @@ export const createEditorDocumentStore = (
         listeners.emit(localChanges([edit]));
       }
       return result;
+    },
+    stage: (ops) => {
+      const edit: PendingEdit = { ops, acknowledged: null };
+      pending = [...pending, edit];
+      rebuild();
+      listeners.emit(localChanges([edit]));
+      return {
+        settle: (acknowledged) => {
+          if (!pending.includes(edit)) return;
+          edit.acknowledged = acknowledged;
+          if (settle()) {
+            rebuild();
+            listeners.emit(localChanges([edit]));
+          }
+        },
+        drop: () => {
+          if (pending.includes(edit)) drop(edit);
+        },
+      };
     },
     dispose: unsubscribe,
   };

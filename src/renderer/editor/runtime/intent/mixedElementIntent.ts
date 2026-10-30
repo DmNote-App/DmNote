@@ -65,6 +65,7 @@ export const runMixedGestureElementIntent = async (options: {
   }) => MixedIntentGeneration;
   skipContext: string;
   expectedAuthorityGeneration?: number;
+  optimisticOps?: readonly EditorOpV1[];
 }): Promise<{ committed: boolean; satisfied: boolean }> => {
   let enrolled = false;
   let lastKind: MixedIntentGeneration['kind'] | null = null;
@@ -93,6 +94,7 @@ export const runMixedGestureElementIntent = async (options: {
         if (!enrolled || isElementIntentAbort(error)) rollbackOnce();
       },
       expectedAuthorityGeneration: options.expectedAuthorityGeneration,
+      optimisticOps: options.optimisticOps,
     });
     if (lastKind === 'satisfied') {
       return { committed: false, satisfied: true };

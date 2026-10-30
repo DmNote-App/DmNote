@@ -50,6 +50,9 @@ pub struct GestureCommitResult {
     pub plugin_model_revision: u64,
     pub changed_plugin_ids: Vec<String>,
     pub authority_generation: u64,
+    // 커밋 뒤 트리 문서 리비전 - 창이 먼저 얹어 둔 트리 편집을 이 리비전에서 확정한다
+    #[serde(default)]
+    pub element_document_revision: u64,
 }
 
 #[cfg(test)]
@@ -99,6 +102,7 @@ mod tests {
             plugin_model_revision: 1,
             changed_plugin_ids: vec!["plugin-a".to_string()],
             authority_generation: 1,
+            element_document_revision: 0,
         };
         let wire = serde_json::to_value(result).unwrap();
         assert_eq!(wire["editorOpResults"][0]["status"], "applied");
@@ -111,6 +115,7 @@ mod tests {
             plugin_model_revision: 1,
             changed_plugin_ids: Vec::new(),
             authority_generation: 1,
+            element_document_revision: 0,
         };
         assert!(serde_json::to_value(patch_result)
             .unwrap()

@@ -201,6 +201,45 @@ describe('편집 창 요소 문서 스토어', () => {
     });
   });
 
+  it('다른 통로로 보낼 편집은 먼저 얹고, 그 리비전의 패치가 오면 확정한다', () => {
+    const commit = vi.fn();
+    const { store, emit } = harness(commit);
+    const staged = store.stage!(nudge('k1', 40));
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(40);
+    expect(commit).not.toHaveBeenCalled();
+
+    // 확정 리비전을 알기 전 다른 창 패치 - 그 위에 다시 얹는다
+    emit(nudgedPatch(2, 15));
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(40);
+
+    staged.settle(3);
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(40);
+    emit(nudgedPatch(3, 40));
+    // 확정 뒤 다른 창 패치는 그대로 보인다
+    emit(nudgedPatch(4, 55));
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(55);
+  });
+
+  it('먼저 얹은 편집은 이미 받은 리비전으로 확정하면 바로 빠지고, 버리면 원래대로', () => {
+    const { store, emit } = harness(vi.fn());
+    const settled = store.stage!(nudge('k1', 40));
+    emit(nudgedPatch(2, 40));
+    settled.settle(2);
+    emit(nudgedPatch(3, 10));
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(10);
+
+    const dropped = store.stage!(nudge('k2', 99));
+    const listener = vi.fn();
+    store.subscribe(listener);
+    dropped.drop();
+    expect(store.getElement('4key', 'k2')?.frame.x).toBe(70);
+    expect(listener).toHaveBeenCalledTimes(1);
+    // 두 번 버려도 알림은 한 번
+    dropped.drop();
+    dropped.settle(9);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
   it('앞 커밋의 응답이 오기 전에는 다음 커밋을 보내지 않는다', async () => {
     const sent: number[] = [];
     const resolvers: Array<(result: ElementDocumentCommitResult) => void> = [];

@@ -108,6 +108,7 @@ pub async fn commit_gesture(
 
             let mut result = outcome.result.clone();
             result.authority_generation = authority.generation();
+            result.element_document_revision = state.store.element_document_revision();
             Ok(result)
         })
     })

@@ -218,6 +218,7 @@ impl AppStore {
             plugin_model_revision,
             changed_plugin_ids: changed_plugin_ids.clone(),
             authority_generation: request.authority_generation,
+            element_document_revision: 0,
         };
 
         if history_snapshots.is_empty() {

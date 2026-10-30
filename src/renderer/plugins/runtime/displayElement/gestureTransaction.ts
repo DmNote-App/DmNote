@@ -160,6 +160,8 @@ export const commitMixedGestureIntent = (options: {
   // 복원의 소유 지점 (해제 후 복원은 stagedSavePending 재저장과 경합)
   onFailureBeforeSettle?: (error: unknown) => void;
   expectedAuthorityGeneration?: number;
+  // 옛 종류 몫 낙관 반영 - 시작 시점 계획의 연산
+  optimisticOps?: readonly EditorOpV1[];
 }): Promise<void> => {
   const assertAuthorityGeneration = () => {
     if (
@@ -307,6 +309,7 @@ export const commitMixedGestureIntent = (options: {
         return {
           revision: result.editorRevision,
           changedFields: result.changedFields,
+          treeRevision: result.elementDocumentRevision,
           ...('editorOps' in context
             ? { opResults: result.editorOpResults }
             : {}),
@@ -315,6 +318,7 @@ export const commitMixedGestureIntent = (options: {
       {
         onEnrolled: options.onEnrolled,
         prepare,
+        optimisticOps: options.optimisticOps,
       },
     ).then(() => {
       assertAuthorityGeneration();
@@ -487,6 +491,7 @@ export const commitMixedGestureTransaction = (
         return {
           revision: result.editorRevision,
           changedFields: result.changedFields,
+          treeRevision: result.elementDocumentRevision,
           ...('editorOps' in context
             ? { opResults: result.editorOpResults }
             : {}),
