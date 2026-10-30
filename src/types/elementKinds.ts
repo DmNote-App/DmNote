@@ -77,8 +77,7 @@ export const fallbackElementSize = (type: EditorElementTypeV1) =>
 
 // 편집 화면에서 트리 편집기(트리 요소 가족)가 맡는 옛 종류 - 옛 편집 화면·레이어 목록·선택에서
 // 빠지고 트리 레이어가 그리며, 고치기는 트리 연산(백엔드가 옛 편집 커밋으로)으로 한다
-// 섞인 묶음 회전·크기 조절이 생기면 노브부터 켠다 (옛 그룹에 키와 함께 있으면 묶음 손잡이가 닫힌다)
-export const TREE_EDITED_KINDS: ReadonlySet<string> = new Set<string>([]);
+export const TREE_EDITED_KINDS: ReadonlySet<string> = new Set(['knob']);
 
 /** 트리 편집기가 맡는 종류 - 트리에만 있는 종류와 트리로 옮긴 옛 종류 */
 export const isTreeEditedKind = (kind: string) =>
