@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
 
+import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import {
   getElementDocumentStore,
   loadElementDocumentStore,
@@ -38,6 +40,7 @@ interface DocumentGridElementProps {
   zIndex: number;
   zoom: number;
   onContextMenu: (event: React.MouseEvent, element: ElementNode) => void;
+  mixedDrag?: MixedDragLifecycle;
 }
 
 const DocumentGridElement = ({
@@ -47,6 +50,7 @@ const DocumentGridElement = ({
   zIndex,
   zoom,
   onContextMenu,
+  mixedDrag,
 }: DocumentGridElementProps) => {
   const { t } = useTranslation();
   const preview = useDocumentFramePreviewStore(
@@ -78,7 +82,10 @@ const DocumentGridElement = ({
     // 보조키 클릭 - 넣고 빼기 (옛 종류 선택과 같은 키)
     const primaryModifier = isMac() ? event.metaKey : event.ctrlKey;
     if (primaryModifier) {
-      selection.setSelection(sceneId, toggleDocumentId(current, element.id));
+      // 넣고 빼기 - 옛 종류 선택을 지킨다
+      keepOtherSelection(() =>
+        selection.setSelection(sceneId, toggleDocumentId(current, element.id)),
+      );
       return;
     }
     // Shift 클릭 - 기준 요소와 누른 요소 사이 범위
@@ -98,6 +105,13 @@ const DocumentGridElement = ({
       const frame = store?.getElement(sceneId, id)?.frame;
       return frame ? [{ id, frame }] : [];
     });
+    // 옛 종류 요소도 함께 골랐으면 옛 끌기 수명 주기로 둘 다 옮긴다 (트리 요소는 그 안의 영수증이)
+    const legacySelected = useGridSelectionStore
+      .getState()
+      .selectedElements.map(({ id }) => id);
+    const mixed = legacySelected.length > 0 ? mixedDrag : undefined;
+    let endMixed: ((commit?: boolean) => void) | null = null;
+    let lastOffset = { x: 0, y: 0 };
     const start = { x: event.clientX, y: event.clientY };
     let moved = false;
     const target = event.currentTarget;
@@ -107,11 +121,19 @@ const DocumentGridElement = ({
       useSettingsStore.getState().gridSettings?.gridSnapSize ?? 5,
     );
     // 옛 종류 다중 끌기와 같은 맞추기 - 다른 요소 가장자리, 안 붙는 축은 격자
-    const others = getOtherElementBounds(origins.map(({ id }) => id));
+    const others = getOtherElementBounds([
+      ...origins.map(({ id }) => id),
+      ...(mixed ? legacySelected : []),
+    ]);
     const handleMove = (move: PointerEvent) => {
       const dx = move.clientX - start.x;
       const dy = move.clientY - start.y;
       if (!moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      if (!moved && mixed) {
+        const end = mixed.begin();
+        endMixed = typeof end === 'function' ? end : null;
+        useGridSelectionStore.getState().setDraggingOrResizing(true);
+      }
       moved = true;
       const settings = useSettingsStore.getState().gridSettings;
       // 플랫폼 보조키로 스마트 맞추기 잠시 끄기 (격자 맞추기는 그대로)
@@ -134,6 +156,11 @@ const DocumentGridElement = ({
       } else {
         guides.clearGuides();
       }
+      if (mixed) {
+        mixed.move(snap.offsetX - lastOffset.x, snap.offsetY - lastOffset.y);
+        lastOffset = { x: snap.offsetX, y: snap.offsetY };
+        return;
+      }
       const preview = useDocumentFramePreviewStore.getState();
       for (const { id, frame } of origins) {
         preview.set(id, {
@@ -148,6 +175,16 @@ const DocumentGridElement = ({
       target.removeEventListener('pointermove', handleMove);
       target.removeEventListener('pointerup', handleUp);
       target.removeEventListener('pointercancel', handleUp);
+      if (mixed) {
+        if (!moved) return;
+        useGridSelectionStore.getState().setDraggingOrResizing(false);
+        try {
+          mixed.commit();
+        } finally {
+          endMixed?.(true);
+        }
+        return;
+      }
       const frames = useDocumentFramePreviewStore.getState().frames;
       const moves = moved
         ? origins.flatMap(({ id }) =>
@@ -214,6 +251,14 @@ interface DocumentGridLayerProps {
   placement: 'bottom' | 'stacked';
   zoom: number;
   onElementContextMenu: (event: React.MouseEvent, element: ElementNode) => void;
+  // 옛 종류 요소와 섞인 선택 끌기 - Grid의 선택 끌기 수명 주기
+  mixedDrag?: MixedDragLifecycle;
+}
+
+export interface MixedDragLifecycle {
+  begin: () => void | ((commit?: boolean) => void);
+  move: (deltaX: number, deltaY: number) => void;
+  commit: () => void;
 }
 
 /** 편집 화면 - 트리 문서에만 있는 종류를 미리보기 상태로 그리고 고르고 옮긴다 */
@@ -223,6 +268,7 @@ const DocumentGridLayer = ({
   placement,
   zoom,
   onElementContextMenu,
+  mixedDrag,
 }: DocumentGridLayerProps) => {
   useEffect(() => {
     void loadElementDocumentStore().catch((error) =>
@@ -243,6 +289,7 @@ const DocumentGridLayer = ({
             zIndex={zIndex}
             zoom={zoom}
             onContextMenu={onElementContextMenu}
+            mixedDrag={mixedDrag}
           />
         ))}
     </>

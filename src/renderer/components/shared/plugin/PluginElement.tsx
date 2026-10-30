@@ -14,6 +14,7 @@ import {
   SelectedElement,
   isElementInMarquee,
 } from '@stores/grid/useGridSelectionStore';
+import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { openPropertiesPanelForSelection } from '@stores/grid/usePanelHostStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
@@ -420,10 +421,13 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
 
     if (isPrimaryModifierPressed && windowType === 'main') {
       e.stopPropagation();
-      useGridSelectionStore.getState().toggleSelection({
-        type: 'plugin',
-        id: element.fullId,
-      });
+      // 넣고 빼기 - 트리 요소 선택을 지킨다
+      keepOtherSelection(() =>
+        useGridSelectionStore.getState().toggleSelection({
+          type: 'plugin',
+          id: element.fullId,
+        }),
+      );
       // 마지막 선택 요소 좌표 저장
       if (element.measuredSize) {
         useGridSelectionStore.getState().setLastSelectedKeyBounds({

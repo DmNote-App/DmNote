@@ -1158,6 +1158,22 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
+    // 옛 종류 요소와 섞인 선택 - 함께 편집하는 패널이 생기기 전까지 레이어 패널로 둘 다 보인다
+    if (
+      documentSceneId &&
+      documentSelectedIds.length > 0 &&
+      selectedElements.length > 0
+    ) {
+      return (
+        <LayerPanel
+          onSwitchToProperty={handleToggleMode}
+          onSelectionFromPanel={() => {
+            selectionFromLayerPanelRef.current = true;
+          }}
+        />
+      );
+    }
+
     if (documentSceneId && documentSelectedIds.length > 1) {
       return (
         <EditSessionScope>

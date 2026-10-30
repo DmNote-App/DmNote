@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { createPortal } from 'react-dom';
 import { useTranslation } from '@contexts/useTranslation';
 import { usePopupPresence } from '@hooks/ui/usePopupPresence';
@@ -361,7 +362,12 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
       selectedGroupIds,
     });
 
-    applySelectionIntent(resolution.intent);
+    // 보조키 넣고 빼기는 트리 요소 선택을 지킨다
+    if (isPrimaryModifierPressed) {
+      keepOtherSelection(() => applySelectionIntent(resolution.intent));
+    } else {
+      applySelectionIntent(resolution.intent);
+    }
     if (resolution.anchor) {
       setLastClickedIndex(resolution.anchor.index);
       setLastClickedDisplayIndex(resolution.anchor.displayIndex);
@@ -399,7 +405,11 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
       selectedGroupIds,
     });
 
-    applySelectionIntent(resolution.intent);
+    if (isPrimaryModifierPressed) {
+      keepOtherSelection(() => applySelectionIntent(resolution.intent));
+    } else {
+      applySelectionIntent(resolution.intent);
+    }
     if (resolution.anchor) {
       setLastClickedDisplayIndex(resolution.anchor.displayIndex);
       setLastClickedIndex(resolution.anchor.index);

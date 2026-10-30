@@ -12,16 +12,25 @@ import {
 import { createPluginPositionDragReceipt } from '@plugins/runtime/displayElement/pluginElementActions';
 import { createNativePositionDragReceipt } from '@src/renderer/editor/runtime/intent/elementIntent';
 
+// 함께 고른 다른 선택(트리 요소)의 끌기 - 증분 이동, 끝낼 때 커밋, 취소 때 되돌리기
+export interface CompanionDragReceipt {
+  move: (deltaX: number, deltaY: number) => void;
+  commit: () => unknown;
+  rollback: () => void;
+}
+
 interface UseSelectedElementDragLifecycleOptions {
   freezeSelectionForGesture: () => void;
   syncSelectedElementsToOverlay: (gestureId?: string) => void;
   moveSelectedElements: (deltaX: number, deltaY: number) => void;
+  createCompanionReceipt?: () => CompanionDragReceipt;
 }
 
 export const useSelectedElementDragLifecycle = ({
   freezeSelectionForGesture,
   syncSelectedElementsToOverlay,
   moveSelectedElements,
+  createCompanionReceipt,
 }: UseSelectedElementDragLifecycleOptions) => {
   const gestureIdRef = useRef<string | null>(null);
   // 드래그 시작값 영수증 - 취소된 제스처는 네이티브·플러그인 위치를 되돌린다
@@ -31,8 +40,10 @@ export const useSelectedElementDragLifecycle = ({
   const pluginReceiptRef = useRef<ReturnType<
     typeof createPluginPositionDragReceipt
   > | null>(null);
+  const companionReceiptRef = useRef<CompanionDragReceipt | null>(null);
 
   const moveSelectedElementsDrag = (deltaX: number, deltaY: number) => {
+    companionReceiptRef.current?.move(deltaX, deltaY);
     const move = () => moveSelectedElements(deltaX, deltaY);
     const pluginReceipt = pluginReceiptRef.current;
     const movePlugins = () => {
@@ -64,6 +75,8 @@ export const useSelectedElementDragLifecycle = ({
       selectedPluginElementIds,
     );
     pluginReceiptRef.current = pluginReceipt;
+    const companionReceipt = createCompanionReceipt?.() ?? null;
+    companionReceiptRef.current = companionReceipt;
     const tokens = new Map<string, string>();
     usePluginDisplayElementStore
       .getState()
@@ -83,6 +96,7 @@ export const useSelectedElementDragLifecycle = ({
     }
     return (commit = true) => {
       if (!commit) {
+        companionReceipt?.rollback();
         nativeReceipt.rollback();
         cancelUncommittedMixedGestureTransaction(gestureId, {
           discardPendingSave: true,
@@ -97,11 +111,13 @@ export const useSelectedElementDragLifecycle = ({
         gestureIdRef.current = null;
         nativeReceiptRef.current = null;
         pluginReceiptRef.current = null;
+        companionReceiptRef.current = null;
       }
     };
   };
 
   const commitSelectedElementsDrag = () => {
+    void companionReceiptRef.current?.commit();
     syncSelectedElementsToOverlay(gestureIdRef.current ?? undefined);
   };
 

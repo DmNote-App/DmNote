@@ -36,12 +36,14 @@ describe('useSelectedElementDragLifecycle', () => {
   const freezeSelection = vi.fn();
   const syncSelection = vi.fn();
   const moveSelection = vi.fn();
+  const companion = { move: vi.fn(), commit: vi.fn(), rollback: vi.fn() };
 
   const Harness = () => {
     const value = useSelectedElementDragLifecycle({
       freezeSelectionForGesture: freezeSelection,
       syncSelectedElementsToOverlay: syncSelection,
       moveSelectedElements: moveSelection,
+      createCompanionReceipt: () => companion,
     });
     useEffect(() => {
       controller = value;
@@ -132,5 +134,24 @@ describe('useSelectedElementDragLifecycle', () => {
       'example',
       'token:example',
     );
+  });
+
+  it('함께 고른 트리 요소 영수증도 옮기고 커밋하며, 취소하면 되돌린다', () => {
+    let cleanup: ((commit?: boolean) => void) | undefined;
+    act(() => {
+      cleanup = controller.beginSelectedElementsDrag();
+    });
+    controller.moveSelectedElementsDrag(3, 4);
+    expect(companion.move).toHaveBeenCalledWith(3, 4);
+    controller.commitSelectedElementsDrag();
+    expect(companion.commit).toHaveBeenCalledTimes(1);
+    cleanup?.(true);
+    expect(companion.rollback).not.toHaveBeenCalled();
+
+    act(() => {
+      cleanup = controller.beginSelectedElementsDrag();
+    });
+    cleanup?.(false);
+    expect(companion.rollback).toHaveBeenCalledTimes(1);
   });
 });

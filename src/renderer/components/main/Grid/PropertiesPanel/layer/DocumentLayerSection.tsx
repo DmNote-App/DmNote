@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 
+import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
 import type { Group, Node } from '@src/types/generated/elementDocument';
 import { isMac } from '@utils/core/platform';
@@ -156,7 +157,8 @@ const DocumentLayerSection = ({ sceneId, t }: DocumentLayerSectionProps) => {
             ? selectedIds.filter((id) => !ids.includes(id))
             : [...selectedIds, ...ids.filter((id) => !selectedIds.includes(id))]
           : toggleDocumentId(selectedIds, row.node.id);
-      selection.setSelection(sceneId, next);
+      // 넣고 빼기 - 옛 종류 선택을 지킨다
+      keepOtherSelection(() => selection.setSelection(sceneId, next));
       return;
     }
     // Shift - 기준 행과 누른 행 사이 요소 행 전체

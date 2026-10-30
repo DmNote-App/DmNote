@@ -1,0 +1,138 @@
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { Scene } from '@src/types/generated/elementDocument';
+
+const mocks = vi.hoisted(() => ({
+  move: vi.fn(() => Promise.resolve(null)),
+  others: vi.fn((_exclude: string[]) => []),
+}));
+
+const scene: Scene = {
+  nodes: [
+    {
+      type: 'element',
+      id: 't1',
+      kind: 'cursorTracker',
+      frame: { x: 0, y: 0, width: 40, height: 40, rotation: 0 },
+    },
+  ],
+};
+
+vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
+  loadElementDocumentStore: () => Promise.resolve(),
+  useElementDocumentScene: () => scene,
+  getElementDocumentStore: () => ({
+    getScene: () => scene,
+    getElement: () => scene.nodes[0],
+  }),
+}));
+vi.mock('@contexts/useTranslation', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+vi.mock('@hooks/Grid/drag/useSmartGuidesElements', () => ({
+  getOtherElementBounds: mocks.others,
+}));
+vi.mock('./documentEditActions', () => ({
+  moveDocumentElements: mocks.move,
+  removeDocumentElements: vi.fn(),
+}));
+
+import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
+import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import DocumentGridLayer from './DocumentGridLayer';
+import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+
+const pointer = (type: string, x: number, y: number) =>
+  new PointerEvent(type, {
+    bubbles: true,
+    button: 0,
+    clientX: x,
+    clientY: y,
+    pointerId: 1,
+  });
+
+const render = (
+  mixedDrag?: Parameters<typeof DocumentGridLayer>[0]['mixedDrag'],
+) => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(
+      <DocumentGridLayer
+        sceneId="4key"
+        activeTool="move"
+        placement="bottom"
+        zoom={1}
+        onElementContextMenu={() => undefined}
+        mixedDrag={mixedDrag}
+      />,
+    );
+  });
+  const box = container.querySelector<HTMLElement>('[data-element-id="t1"]')!;
+  box.setPointerCapture = () => undefined;
+  box.hasPointerCapture = () => false;
+  box.releasePointerCapture = () => undefined;
+  return { box, unmount: () => act(() => root.unmount()) };
+};
+
+describe('트리 요소에서 시작한 끌기', () => {
+  beforeEach(() => {
+    mocks.move.mockClear();
+    mocks.others.mockClear();
+    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clear();
+  });
+
+  it('옛 종류 요소와 함께 골랐으면 옛 끌기 수명 주기로 증분 이동하고 커밋한다', () => {
+    useDocumentSelectionStore.getState().setSelection('4key', ['t1']);
+    // 보조키로 함께 고른 상태
+    keepOtherSelection(() =>
+      useGridSelectionStore.setState({
+        selectedElements: [{ type: 'key', id: 'k1', index: 0 }],
+      }),
+    );
+    const end = vi.fn();
+    const mixedDrag = {
+      begin: vi.fn(() => end),
+      move: vi.fn(),
+      commit: vi.fn(),
+    };
+    const { box, unmount } = render(mixedDrag);
+    act(() => {
+      box.dispatchEvent(pointer('pointerdown', 0, 0));
+      box.dispatchEvent(pointer('pointermove', 10, 0));
+      box.dispatchEvent(pointer('pointermove', 15, 5));
+      box.dispatchEvent(pointer('pointerup', 15, 5));
+    });
+    expect(mixedDrag.begin).toHaveBeenCalledTimes(1);
+    const total = mixedDrag.move.mock.calls.reduce(
+      (sum, [dx, dy]) => ({ x: sum.x + dx, y: sum.y + dy }),
+      { x: 0, y: 0 },
+    );
+    expect(total).toEqual({ x: 15, y: 5 });
+    expect(mixedDrag.commit).toHaveBeenCalledTimes(1);
+    expect(end).toHaveBeenCalledWith(true);
+    // 함께 움직이는 옛 요소에는 맞추지 않는다
+    expect(mocks.others).toHaveBeenCalledWith(['t1', 'k1']);
+    expect(mocks.move).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('트리 요소만 골랐으면 트리 미리보기로 옮기고 직접 커밋한다', async () => {
+    const mixedDrag = { begin: vi.fn(), move: vi.fn(), commit: vi.fn() };
+    const { box, unmount } = render(mixedDrag);
+    act(() => {
+      box.dispatchEvent(pointer('pointerdown', 0, 0));
+      box.dispatchEvent(pointer('pointermove', 10, 0));
+      box.dispatchEvent(pointer('pointerup', 10, 0));
+    });
+    expect(mixedDrag.begin).not.toHaveBeenCalled();
+    expect(mocks.move).toHaveBeenCalledWith('4key', [
+      { id: 't1', x: 10, y: 0 },
+    ]);
+    unmount();
+  });
+});

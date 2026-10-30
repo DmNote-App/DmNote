@@ -117,6 +117,8 @@ import { getElementDocumentStore } from '@src/renderer/editor/document/elementDo
 import { expandDocumentGroup } from '../document/documentGroups';
 import { documentIdsInRect } from '../document/documentSelection';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
+import { createDocumentDragReceipt } from '../document/documentDragReceipt';
+import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { executeNativeContextMenuAction } from './nativeContextMenuActions';
 import { useSelectedElementDragLifecycle } from '@hooks/Grid/drag/useSelectedElementDragLifecycle';
 
@@ -305,7 +307,16 @@ const Grid = ({
     syncSelectedElementsToOverlay,
     moveSelectedElements: (deltaX, deltaY) =>
       moveSelectedElements(deltaX, deltaY, undefined, false),
+    // 함께 고른 트리 요소(커서 트래커 등)도 같이 옮긴다
+    createCompanionReceipt: () => createDocumentDragReceipt(selectedKeyType),
   });
+
+  // 트리 요소에서 시작한 섞인 선택 끌기 - 옛 선택 끌기 수명 주기를 그대로 쓴다
+  const documentMixedDrag = {
+    begin: beginSelectedPluginInstancesDrag,
+    move: moveSelectedElementsDrag,
+    commit: commitSelectedElementsDrag,
+  };
 
   // 마퀴 선택 훅 사용
   const { isMarqueeSelecting: _isMarqueeSelecting, startMarqueeSelection } =
@@ -314,15 +325,17 @@ const Grid = ({
       selectedKeyType,
       pluginElements,
       clientToGridCoords,
-      // 옛 종류 요소가 없으면 트리 요소(커서 트래커 등)를 고른다 - 두 선택은 함께 서지 않는다
-      selectOthersInRect: (rect) => {
-        const ids = documentIdsInRect(
-          getElementDocumentStore()?.getScene(selectedKeyType),
-          rect,
-        );
-        if (ids.length === 0) return false;
-        useDocumentSelectionStore.getState().setSelection(selectedKeyType, ids);
-        return true;
+      // 트리 요소(커서 트래커 등)도 같은 마퀴로 함께 고른다
+      selectDocumentInRect: (rect) => {
+        useDocumentSelectionStore
+          .getState()
+          .setSelection(
+            selectedKeyType,
+            documentIdsInRect(
+              getElementDocumentStore()?.getScene(selectedKeyType),
+              rect,
+            ),
+          );
       },
     });
 
@@ -694,7 +707,8 @@ const Grid = ({
         ? positions[selectedKeyType]
         : getItemStoreState(type).positions[selectedKeyType]
     )[index].id;
-    toggleSelection({ type, id: elementId, index });
+    // 넣고 빼기 - 트리 요소 선택을 지킨다
+    keepOtherSelection(() => toggleSelection({ type, id: elementId, index }));
   };
 
   // 더블클릭 편집 진입 — 대상이 다중 선택의 멤버면 선택을 보존해 배치 편집으로,
@@ -896,6 +910,7 @@ const Grid = ({
             placement="bottom"
             zoom={zoom}
             onElementContextMenu={openDocumentElementContextMenu}
+            mixedDrag={documentMixedDrag}
           />
           <NativeGridElements
             mode={selectedKeyType}
@@ -975,6 +990,7 @@ const Grid = ({
             placement="stacked"
             zoom={zoom}
             onElementContextMenu={openDocumentElementContextMenu}
+            mixedDrag={documentMixedDrag}
           />
         </div>
       </div>
