@@ -38,6 +38,18 @@ const splitForTree = (ops: readonly EditorOpV1[]) => {
   };
 };
 
+/** 트리로 보내지 못하는 옛 섞인 경로(플러그인 거래)용 - 트리로 옮긴 옛 종류 몫을 먼저 트리에 쓰고
+ * 나머지 연산을 돌려준다 (같은 동작 id - 되돌리기 한 번) */
+export const sendTreeEditedOps = (
+  ops: readonly EditorOpV1[],
+  gestureId: string,
+): readonly EditorOpV1[] => {
+  const split = splitForTree(ops);
+  if (!split) return ops;
+  split.send(gestureId);
+  return split.legacyOps;
+};
+
 const treeRoutedOutcome = (
   ops: readonly EditorOpV1[],
   legacyIndexes: ReadonlySet<number>,

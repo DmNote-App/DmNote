@@ -184,7 +184,7 @@ describe('트리 요소 키보드', () => {
     expect(mocks.group).not.toHaveBeenCalled();
   });
 
-  it('옛 종류 키보드가 지웠으면 트리에만 있는 종류만 지운다', () => {
+  it('옛 종류 키보드가 지웠으면(트리 요소 포함) 선택만 푼다', () => {
     useDocumentSelectionStore.getState().setSelection('4key', ['n1', 't1']);
     act(() => {
       const event = new KeyboardEvent('keydown', {
@@ -195,8 +195,23 @@ describe('트리 요소 키보드', () => {
       markGridKeyHandled(event);
       window.dispatchEvent(event);
     });
-    expect(mocks.remove).toHaveBeenCalledWith('4key', ['t1']);
+    expect(mocks.remove).not.toHaveBeenCalled();
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
+  });
+
+  it('노브와 트리에만 있는 종류는 트리에서 묶고 푼다', () => {
+    mocks.group.mockClear();
+    mocks.ungroup.mockClear();
+    useDocumentSelectionStore.getState().setSelection('4key', ['n1', 't1']);
+    press('g', { metaKey: true, code: 'KeyG' });
+    expect(mocks.group).toHaveBeenCalledWith(
+      '4key',
+      ['n1', 't1'],
+      'layerGroup.newGroup',
+    );
+    useDocumentSelectionStore.getState().setSelection('4key', ['n1']);
+    press('G', { metaKey: true, shiftKey: true, code: 'KeyG' });
+    expect(mocks.ungroup).not.toHaveBeenCalled();
   });
 
   it('Delete는 지우고 선택을 푼다', () => {
@@ -226,7 +241,7 @@ describe('트리 요소 키보드', () => {
     useDocumentSelectionStore.getState().select('4key', 't1');
     act(() => {
       const event = new KeyboardEvent('keydown', {
-        key: 'Delete',
+        key: ']',
         cancelable: true,
       });
       // 옛 종류 키보드가 먼저 처리한 상황
@@ -234,7 +249,7 @@ describe('트리 요소 키보드', () => {
       markGridKeyHandled(event);
       window.dispatchEvent(event);
     });
-    expect(mocks.remove).toHaveBeenCalledWith('4key', ['t1']);
+    expect(mocks.step).toHaveBeenCalledWith('4key', ['t1'], 'forward');
   });
 
   it('다른 층이 소비한 키는 양보한다', () => {

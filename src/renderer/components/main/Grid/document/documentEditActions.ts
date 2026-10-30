@@ -82,14 +82,19 @@ export const insertDocumentElement = (
 };
 
 /** 지우기 - 다 고른 트리 그룹은 그룹째 지운다 */
-export const removeDocumentElements = (sceneId: string, ids: string[]) => {
+export const removeDocumentElements = (
+  sceneId: string,
+  ids: string[],
+  options?: { gestureId?: string },
+) => {
   const roots = documentGroupRoots(
     getElementDocumentStore()?.getScene(sceneId),
     ids,
   );
-  return editDocument([
-    { op: 'remove', scene: sceneId, ids: roots.length > 0 ? roots : ids },
-  ]);
+  return editDocument(
+    [{ op: 'remove', scene: sceneId, ids: roots.length > 0 ? roots : ids }],
+    options,
+  );
 };
 
 export const setDocumentFrame = (
@@ -145,6 +150,7 @@ export const moveDocumentElementTo = (
   sceneId: string,
   ids: string[],
   place: 'front' | 'back',
+  options?: { gestureId?: string },
 ) => {
   const scene = getElementDocumentStore()?.getScene(sceneId);
   const roots = documentGroupRoots(scene, ids);
@@ -163,6 +169,7 @@ export const moveDocumentElementTo = (
       parent,
       index: place === 'front' ? null : 0,
     })),
+    options,
   );
 };
 

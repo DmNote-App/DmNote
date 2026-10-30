@@ -288,9 +288,11 @@ export const commitStableLayerZOrder = async (options: {
   mode: string;
   targets: readonly StableLayerTarget[];
   action: ZOrderAction;
+  // 함께 옮기는 트리 요소와 한 되돌리기로 묶을 때
+  gestureId?: string;
 }): Promise<boolean> => {
   if (options.targets.length === 0) return false;
-  const gestureId = crypto.randomUUID();
+  const gestureId = options.gestureId ?? crypto.randomUUID();
   const initialPlugins = usePluginDisplayElementStore.getState().elements;
   const initialPlan = resolvePlan(
     options.mode,

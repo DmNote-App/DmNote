@@ -64,10 +64,7 @@ import { useSpritePoseHandleStore } from '@stores/grid/useSpritePoseHandleStore'
 import { getGridViewportLayerStyles } from '@utils/grid/gridViewportStyles';
 import KeyCounterPreviewLayer from '../layers/KeyCounterPreviewLayer';
 import StatCounterLayer from '../layers/StatCounterLayer';
-import {
-  useGridSelectionStore,
-  type SelectedElement,
-} from '@stores/grid/useGridSelectionStore';
+import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { openPropertiesPanelForSelection } from '@stores/grid/usePanelHostStore';
 import { useUIStore } from '@stores/useUIStore';
 import { useSmartGuidesStore } from '@stores/grid/useSmartGuidesStore';
@@ -420,9 +417,15 @@ const Grid = ({
   // 트리에만 있는 종류(커서 트래커 등)를 함께 골랐는지
   const hasTreeOnlySelection = () =>
     treeOnlySelectedIds(selectedKeyType).length > 0;
-  // 지우기는 트리로 옮긴 옛 종류도 옛 지우기에 함께 (트리 몫은 같은 동작 id로 트리에 쓴다)
-  const deleteSelectedElements = () =>
-    deleteFrozenSelection(combinedSelection());
+  // 지우기 - 트리로 옮긴 옛 종류는 옛 지우기에 함께, 트리에만 있는 종류는 트리에서 (같은 동작 id - 되돌리기 한 번)
+  const deleteSelectedElements = () => {
+    const gestureId = crypto.randomUUID();
+    const treeOnlyIds = treeOnlySelectedIds(selectedKeyType);
+    if (treeOnlyIds.length > 0) {
+      void removeDocumentElements(selectedKeyType, treeOnlyIds, { gestureId });
+    }
+    return deleteFrozenSelection(combinedSelection(), { gestureId });
+  };
 
   // 트리 요소 키보드 - 옛 종류 키보드가 처리한 뒤 같은 이벤트로 부른다 (섞인 선택)
   const handleDocumentKeyDown = useDocumentKeyboard();
@@ -559,11 +562,12 @@ const Grid = ({
     setDuplicateCursor(null);
   };
 
-  // 섞인 메뉴의 맨 앞·맨 뒤 - 트리로 옮긴 옛 종류도 함께 넘긴다 (한 커밋)
+  // 섞인 메뉴의 맨 앞·맨 뒤 - 트리 요소와 같은 동작 id (되돌리기 한 번)
   const moveSelectedTo = async (
     action: 'front' | 'back',
-    elements: readonly SelectedElement[],
+    gestureId: string,
   ) => {
+    const elements = selectedElements;
     if (elements.length === 0) return;
 
     if (
@@ -581,6 +585,7 @@ const Grid = ({
           })),
         ),
         action,
+        gestureId,
       }).catch(reportElementOpError);
       syncSelectedElementsToOverlay();
       return;
@@ -1093,13 +1098,13 @@ const Grid = ({
           }
           onSelect={async (id: string) => {
             if (contextType === 'mixed') {
-              // 트리로 옮긴 옛 종류는 옛 동작에 함께 넘기고(한 커밋), 트리에만 있는 종류는 트리에 쓴다
-              const treeOnlyIds = treeOnlySelectedIds(selectedKeyType);
+              const documentSelection = useDocumentSelectionStore.getState();
+              const documentIds =
+                documentSelection.sceneId === selectedKeyType
+                  ? documentSelection.selectedIds
+                  : [];
               if (id === 'delete') {
-                if (treeOnlyIds.length > 0) {
-                  void removeDocumentElements(selectedKeyType, treeOnlyIds);
-                }
-                // 지울 대상(트리로 옮긴 옛 종류 포함)을 읽은 뒤 트리 선택을 비운다
+                // 지울 대상(트리 요소 포함)을 읽은 뒤 트리 선택을 비운다
                 const deleting = deleteSelectedElements();
                 useDocumentSelectionStore.getState().clear();
                 await deleting.catch(reportElementOpError);
@@ -1116,15 +1121,18 @@ const Grid = ({
                   });
                 }
               } else if (id === 'bringToFront' || id === 'sendToBack') {
+                // 트리 요소(노브 포함)는 트리에서 옮겨 바로 보인다
                 const action = id === 'bringToFront' ? 'front' : 'back';
-                await moveSelectedTo(action, combinedSelection());
-                if (treeOnlyIds.length > 0) {
-                  await moveDocumentElementTo(
+                const gestureId = crypto.randomUUID();
+                if (documentIds.length > 0) {
+                  void moveDocumentElementTo(
                     selectedKeyType,
-                    treeOnlyIds,
+                    [...documentIds],
                     action,
+                    { gestureId },
                   );
                 }
+                await moveSelectedTo(action, gestureId);
               } else if (id === 'groupSelected') {
                 await groupSelectedElements(
                   selectedKeyType,
