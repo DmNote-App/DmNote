@@ -1,16 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-// 노브를 트리 편집기로 옮긴 상태를 가정한다
-vi.mock('@src/types/elementKinds', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('@src/types/elementKinds')
-  >();
-  return {
-    ...actual,
-    isTreeEditedKind: (kind: string) =>
-      kind === 'knob' || actual.isTreeEditedKind(kind),
-  };
-});
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
 
 import type { Scene } from '@src/types/generated/elementDocument';
 import {

@@ -5,6 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EDITOR_OPS_VERSION } from '@src/types/editor';
 import type { EditorDocumentV1, EditorOpV1 } from '@src/types/editor';
 
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
+
 // 실제 드래그 제스처(pointer 이벤트)부터 IPC 경계까지 한 번에 태운다.
 // 대역은 invoke와 preview뿐이고 드래그 훅·선택 스토어·정산·러너·transaction·
 // coordinator는 전부 프로덕션 코드를 그대로 쓴다

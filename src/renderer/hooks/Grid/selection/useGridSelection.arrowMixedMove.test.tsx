@@ -21,6 +21,13 @@ import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
 import { useGridSelection } from './useGridSelection';
 
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
+
 const mocks = vi.hoisted(() => ({
   order: [] as string[],
   lastAck: null as unknown,

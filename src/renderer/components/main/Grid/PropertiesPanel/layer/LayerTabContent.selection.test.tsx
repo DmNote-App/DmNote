@@ -3,6 +3,13 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
+
 const mocks = vi.hoisted(() => ({
   didDrag: false,
   isDragging: false,

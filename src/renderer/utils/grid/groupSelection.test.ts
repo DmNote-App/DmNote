@@ -2,7 +2,7 @@
  * 캔버스 클릭 그룹 확장 선택 테스트
  * 혼합 그룹(native+플러그인)에서 어느 멤버를 클릭해도 전체가 선택되어야 한다
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useStatItemStore } from '@stores/data/useStatItemStore';
@@ -19,6 +19,13 @@ import {
   expandGroupSelectionFromStores,
   type GroupSelectionSource,
 } from './groupSelection';
+
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
 
 const GROUP_ID = 'group-1';
 const KEY_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';

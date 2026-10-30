@@ -1,10 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Node, Scene } from '@src/types/generated/elementDocument';
 import {
   documentElementSlots,
   documentLayoutElements,
 } from './documentElementOrder';
+
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
 
 const frame = { x: 0, y: 0, width: 10, height: 10, rotation: 0 };
 

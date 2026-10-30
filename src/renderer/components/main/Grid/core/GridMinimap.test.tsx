@@ -6,6 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import GridMinimap from './GridMinimap';
 import { useGridViewStore } from '@stores/grid/useGridViewStore';
 
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
+
 describe('GridMinimap 연속 드래그', () => {
   let host: HTMLDivElement;
   let root: Root;

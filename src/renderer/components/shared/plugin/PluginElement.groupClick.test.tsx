@@ -4,7 +4,7 @@
  */
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { I18nContext } from '@contexts/I18nContextDef';
 import { PluginElement } from '@components/shared/plugin/PluginElement';
@@ -18,6 +18,13 @@ import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
+
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

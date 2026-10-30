@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyEditorDocument } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { useKeyStore } from '@stores/data/useKeyStore';
@@ -12,6 +12,13 @@ import type {
   CanonicalEditorDocumentV1,
   CanonicalStatItemPosition,
 } from '@src/types/editor';
+
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
 
 const KEY_A = '11111111-1111-4111-8111-111111111111';
 const KEY_B = '22222222-2222-4222-8222-222222222222';

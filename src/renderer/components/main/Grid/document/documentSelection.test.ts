@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Scene } from '@src/types/generated/elementDocument';
 import {
@@ -6,6 +6,13 @@ import {
   documentIdsInRect,
   toggleDocumentId,
 } from './documentSelection';
+
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
 
 const tracker = (id: string, x: number, y: number, hidden = false) => ({
   type: 'element' as const,

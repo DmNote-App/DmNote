@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   invalidateSelectionForChangedIndexedElementArrays,
@@ -8,6 +8,13 @@ import {
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 
 import type { CanonicalKeyPosition } from '@src/types/editor';
+
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
 
 const arraysOf = (
   keyPositions: CanonicalKeyPosition[],

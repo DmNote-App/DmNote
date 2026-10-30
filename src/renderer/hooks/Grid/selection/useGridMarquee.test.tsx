@@ -6,6 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useGridMarquee } from './useGridMarquee';
 
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
+
 // (0,0)→(200,200) 마퀴가 감싸는 키 하나 - 잘못된 확정이 선택으로 드러나게
 const Harness = () => {
   useGridMarquee({

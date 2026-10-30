@@ -8,6 +8,13 @@ import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useDocumentKeyboard } from './useDocumentKeyboard';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
+// 키를 옛 종류 대표로 쓴다
+vi.mock('@src/types/elementKinds', async (importOriginal) =>
+  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
+    importOriginal,
+  ),
+);
+
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const mocks = vi.hoisted(() => ({
