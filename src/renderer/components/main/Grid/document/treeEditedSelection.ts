@@ -18,9 +18,11 @@ const selectedDocumentIds = (sceneId: string) => {
 const kindOf = (sceneId: string, id: string) =>
   getElementDocumentStore()?.getElement(sceneId, id)?.kind;
 
-/** 트리 선택 중 트리로 옮긴 옛 종류를 옛 선택 모양으로 */
-export const treeEditedSelection = (sceneId: string): SelectedElement[] =>
-  selectedDocumentIds(sceneId).flatMap((id) => {
+const treeEditedOf = (
+  sceneId: string,
+  ids: readonly string[],
+): SelectedElement[] =>
+  ids.flatMap((id) => {
     const kind = kindOf(sceneId, id);
     if (!kind || !isEditorElementType(kind) || !TREE_EDITED_KINDS.has(kind)) {
       return [];
@@ -30,6 +32,10 @@ export const treeEditedSelection = (sceneId: string): SelectedElement[] =>
     ).findIndex((position) => position.id === id);
     return index >= 0 ? [{ type: kind, id, index } as SelectedElement] : [];
   });
+
+/** 트리 선택 중 트리로 옮긴 옛 종류를 옛 선택 모양으로 */
+export const treeEditedSelection = (sceneId: string) =>
+  treeEditedOf(sceneId, selectedDocumentIds(sceneId));
 
 /** 옛 선택 + 트리로 옮긴 옛 종류 선택 */
 export const combinedSelection = (sceneId: string): SelectedElement[] => [
@@ -43,3 +49,17 @@ export const treeOnlySelectedIds = (sceneId: string) =>
     const kind = kindOf(sceneId, id);
     return !!kind && !isEditorElementType(kind);
   });
+
+const EMPTY_IDS: string[] = [];
+
+/** 합친 선택 구독 - 일괄 패널처럼 옛 선택 모양으로 노브까지 다루는 곳 */
+export const useCombinedSelection = (sceneId: string): SelectedElement[] => {
+  const legacy = useGridSelectionStore((state) => state.selectedElements);
+  const documentIds = useDocumentSelectionStore((state) =>
+    state.sceneId === sceneId ? state.selectedIds : EMPTY_IDS,
+  );
+  if (documentIds.length === 0) return legacy;
+  // 고른 id를 넘겨 의존성을 드러낸다 (컴파일러 메모)
+  const treeEdited = treeEditedOf(sceneId, documentIds);
+  return treeEdited.length > 0 ? [...legacy, ...treeEdited] : legacy;
+};

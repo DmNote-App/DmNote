@@ -69,8 +69,11 @@ export const usePropertiesPanelSelection = () => {
             : [];
         })
       : [];
+  // 플러그인이 섞이면 잇지 않는다 - 플러그인 섞인 일괄 커밋은 트리로 보내지 못한다
   const bridgedDocumentSelection =
-    bridgedElements.length > 0 && bridgedElements.length === documentIds.length;
+    bridgedElements.length > 0 &&
+    bridgedElements.length === documentIds.length &&
+    legacySelection.every((element) => element.type !== 'plugin');
   const selectedElements = bridgedDocumentSelection
     ? [...legacySelection, ...bridgedElements]
     : legacySelection;

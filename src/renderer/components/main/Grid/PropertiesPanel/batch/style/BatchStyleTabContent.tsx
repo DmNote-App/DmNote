@@ -11,7 +11,7 @@ import {
 } from '../../index';
 import Checkbox from '@components/main/common/checkbox/Checkbox';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useCombinedSelection } from '../../../document/treeEditedSelection';
 import {
   DEFAULT_ELEMENT_BG,
   DEFAULT_ELEMENT_ACTIVE_BG,
@@ -182,9 +182,8 @@ const BatchStyleTabContent: React.FC<BatchStyleTabContentProps> = ({
   const activeMixedValue =
     getActiveCapableMixedValue ?? getKeyOnlyMixedValue ?? getMixedValue;
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
-  const selectedElements = useGridSelectionStore(
-    (state) => state.selectedElements,
-  );
+  // 트리로 옮긴 옛 종류(노브 등)까지 - 패널이 함께 보는 선택
+  const selectedElements = useCombinedSelection(selectedKeyType);
   // 선택 구성 시그니처 — 형식 왕복 기억·드래그 소유권이 다른 배치 선택과
   // 교차하지 않게 keyType + 정렬된 대상 목록을 키에 포함
   const batchSelectionKey = useMemo(
