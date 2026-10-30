@@ -1,64 +1,18 @@
-import { newElementId } from '@src/renderer/editor/model/elementId';
-import {
-  captureElementCollections,
-  getItemStoreState,
-  readAuthorityPositions,
-} from '@src/renderer/editor/model/elementStores';
-import {
-  applySealedSliceMutation,
-  combineReceipts,
-  reportElementOpSkipped,
-  type ElementIntentReceipt,
-} from '@src/renderer/editor/runtime/intent/elementIntent';
-import {
-  applyPluginAdditionEagerly,
-  runMixedGestureElementIntent,
-} from '@src/renderer/editor/runtime/intent/mixedElementIntent';
-import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
-  EDITOR_ELEMENT_TYPES,
-  EDITOR_FIELDS,
-  ITEM_ELEMENT_TYPES,
-} from '@src/types/editor';
-import type {
-  CanonicalKeyPosition,
-  CanonicalReactiveSpritePosition,
-  EditorElementTypeV1,
-  ItemElementType,
-} from '@src/types/editor';
-import type { KeySlot } from '@src/types/key/keys';
+import { reportElementOpSkipped } from '@src/renderer/editor/runtime/intent/elementIntent';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
-import {
-  beginMixedGestureTransaction,
-  cancelUncommittedMixedGestureTransaction,
-} from '@plugins/runtime/displayElement/gestureTransaction';
 import { reissueDisplayElementHandlers } from '@plugins/runtime/displayElement/displayElementApi';
-import { rotatePluginInstancesEditSession } from '@plugins/runtime/displayElement/instancesCommitQueue';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import {
-  CLIPBOARD_POSITION_TYPES,
+  flushPluginInstancesEditSession,
+  rotatePluginInstancesEditSession,
+} from '@plugins/runtime/displayElement/instancesCommitQueue';
+import {
   useGridSelectionStore,
   type SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { cloneSlot } from '@utils/keySlot';
-import {
-  pastedPoseTriggers,
-  reissueSpritePoseIds,
-} from '@utils/sprite/poseIdentity';
-import { keyIdsByCanonical } from '@utils/sprite/spriteKeyBinding';
+import { documentGroupNames } from '@src/renderer/components/main/Grid/document/documentGroups';
 import { recordPastedKeyIds } from '@stores/grid/pastedKeyIds';
-import { toSpriteWireShape } from '@utils/sprite/spriteWireShape';
-import {
-  buildLayerItemsForMode,
-  buildNextLayerGroupName,
-} from '@utils/layerGroupUtils';
-import { sendBridgeMessageBestEffort } from '@utils/plugin/bridgeMessages';
-import {
-  createFrozenPasteModel,
-  type ItemPasteEntries,
-} from '@utils/grid/selectionPasteModel';
 import { PASTE_OFFSET } from '../constants';
 
 interface PasteSelectionOptions {
@@ -66,538 +20,82 @@ interface PasteSelectionOptions {
   setSelectedElements: (elements: SelectedElement[]) => void;
 }
 
-// 클립보드에서 붙여넣기: 계획(신규 id·payload·그룹·plugin fullId·앵커)을
-// 호출 시점에 동결하고, eager는 결합 봉인 receipt, wire는 슬롯 base와
-// 봉인 plugin projection의 결합 순서에서 재생성한다. 초기 plugin이 없어도
-// 항상 mixed-capable primitive를 탄다 - 슬롯 대기 중 추가된 plugin이
-// z 재부여에서 빠지는 TOCTOU를 막는다
+// 클립보드의 플러그인 요소 붙여넣기 - 새 인스턴스(id·핸들러 재발급)를 조금 비켜 지금 탭에 넣는다.
+// 겹침값은 원본 그대로라 원본 바로 위에 놓이고, 그룹은 지금 장면에 그 그룹이 있을 때만 지킨다.
+// 같은 동작 id로 플러그인 기록 한 단계 (트리 요소는 트리 클립보드가 붙인다)
 export const pasteSelection = async ({
   selectedKeyType,
   setSelectedElements,
 }: PasteSelectionOptions) => {
-  const currentClipboard = useGridSelectionStore.getState().clipboard;
-  if (currentClipboard.length === 0) return;
-  // 이 붙여넣기가 키를 만들기 전까지는 함께 붙이는 트리 붙여넣기에 넘길 사본 키가 없다 (지난 동작 것을 비운다)
+  const clipboard = useGridSelectionStore.getState().clipboard;
+  if (clipboard.length === 0) return;
+  // 지난 붙여넣기 기록을 비운다 - 이번 것이 상한에 걸리면 함께 붙이는 트리 붙여넣기가 옛 동작 id를 쓰지 않게
   recordPastedKeyIds(new Map());
-  const gestureId = crypto.randomUUID();
-  const clipboardGroups = useGridSelectionStore.getState().clipboardGroups;
-  const clipboardMode = useGridSelectionStore.getState().clipboardMode;
-  const currentLayerGroups = useLayerGroupStore.getState().layerGroups;
-  const currentSelectedElements =
-    useGridSelectionStore.getState().selectedElements;
-  const currentSelectedGroupIds =
-    useGridSelectionStore.getState().selectedGroupIds;
+  const { definitions, elements } = usePluginDisplayElementStore.getState();
 
-  // 신규 그룹 동결 (스토어 쓰기는 eager 봉인 안에서)
-  const groupIdMap = new Map<string, string>();
-  const frozenNewGroups: Array<{
-    id: string;
-    name: string;
-    collapsed: boolean;
-  }> = [];
-  if (clipboardGroups.length > 0) {
-    const modeGroups = [...(currentLayerGroups[selectedKeyType] || [])];
-    for (const clipboardGroup of clipboardGroups) {
-      const newGroupId = crypto.randomUUID();
-      const newGroupName = buildNextLayerGroupName(
-        clipboardGroup.name,
-        modeGroups,
-      );
-      groupIdMap.set(clipboardGroup.id, newGroupId);
-      const frozen = {
-        id: newGroupId,
-        name: newGroupName,
-        collapsed: Boolean(clipboardGroup.collapsed),
-      };
-      frozenNewGroups.push(frozen);
-      modeGroups.push({ id: newGroupId, name: newGroupName });
-    }
-  }
-  const callModeGroups = currentLayerGroups[selectedKeyType] || [];
-  const remapGroupId = (groupId: string | undefined) => {
-    if (!groupId) return groupId;
-    if (groupIdMap.has(groupId)) return groupIdMap.get(groupId);
-    return callModeGroups.some((group) => group.id === groupId)
-      ? groupId
-      : undefined;
-  };
-
-  // 배치 내 키 구id -> 신id 수집 - 함께 붙여넣는 스프라이트 트리거가
-  // 원본 키 대신 사본 키를 가리키게 한다 (groupIdMap과 같은 패턴)
-  const keyIdMap = new Map<string, string>();
-
-  // 신규 native payload 동결
-  const keysToAdd: {
-    keyCode: KeySlot;
-    position: CanonicalKeyPosition;
-  }[] = [];
-  const positionItemsToAdd = Object.fromEntries(
-    CLIPBOARD_POSITION_TYPES.map((type) => [type, []]),
-  ) as unknown as Omit<ItemPasteEntries, 'sprite'>;
-  const spritesToAdd: {
-    position: CanonicalReactiveSpritePosition;
-    triggerCanonicals?: Record<string, string>;
-  }[] = [];
-  const pluginPayloads: Omit<PluginDisplayElementInternal, 'fullId'>[] = [];
-  for (const item of currentClipboard) {
-    if (item.type === 'key') {
-      const newKeyId = newElementId();
-      if (item.position.id) keyIdMap.set(item.position.id, newKeyId);
-      keysToAdd.push({
-        keyCode: cloneSlot(item.keyCode),
-        position: {
-          ...item.position,
-          id: newKeyId,
-          groupId: remapGroupId(item.position.groupId),
-          dx: (item.position.dx || 0) + PASTE_OFFSET,
-          dy: (item.position.dy || 0) + PASTE_OFFSET,
-        },
-      });
-    } else if (item.type === 'sprite') {
-      spritesToAdd.push({
-        triggerCanonicals: item.triggerCanonicals,
-        // wire 정규화: nullish layerName·groupId는 키 부재로 맞춰 ack와 일치
-        position: toSpriteWireShape({
-          ...item.position,
-          id: newElementId(),
-          // 사본 poseId 재발급 - 원본과 공유하면 백엔드가 중복으로 거부
-          poses: reissueSpritePoseIds(item.position.poses),
-          groupId: remapGroupId(item.position.groupId ?? undefined),
-          dx: (item.position.dx || 0) + PASTE_OFFSET,
-          dy: (item.position.dy || 0) + PASTE_OFFSET,
-        }),
-      });
-    } else if (item.type === 'plugin') {
-      pluginPayloads.push({
-        ...item.element,
-        groupId: remapGroupId(item.element.groupId),
-        position: {
-          x: (item.element.position?.x || 0) + PASTE_OFFSET,
-          y: (item.element.position?.y || 0) + PASTE_OFFSET,
-        },
-        tabId: selectedKeyType,
-      });
-    } else {
-      // 위치만 담는 종류
-      positionItemsToAdd[item.type].push({
-        position: {
-          ...item.position,
-          id: newElementId(),
-          groupId: remapGroupId(item.position.groupId),
-          dx: (item.position.dx || 0) + PASTE_OFFSET,
-          dy: (item.position.dy || 0) + PASTE_OFFSET,
-        },
-      } as never);
-    }
-  }
-  const itemsToAdd: ItemPasteEntries = {
-    ...positionItemsToAdd,
-    sprite: spritesToAdd,
-  };
-  const itemIdsToAdd = (type: ItemElementType) =>
-    (itemsToAdd[type] as Array<{ position: { id: string } }>).map(
-      (entry) => entry.position.id,
+  // 정의별 상한 - 넘으면 전체 중단 (부분 붙여넣기 없음)
+  const pastedByDefinition = new Map<string, number>();
+  for (const { element } of clipboard) {
+    if (!element.definitionId) continue;
+    pastedByDefinition.set(
+      element.definitionId,
+      (pastedByDefinition.get(element.definitionId) ?? 0) + 1,
     );
-
-  // 스프라이트 트리거를 같은 배치 키의 신 id로 재결합, 배치 밖 키 참조는
-  // 유지. 키가 스프라이트 뒤에 올 수 있어 payload 동결 후 일괄 치환한다.
-  // 치환된 id가 정렬 순서를 깨뜨릴 수 있어 wire 정규화를 다시 적용한다.
-  // 다른 탭으로 옮겨 붙이면 함께 복사된 키로 재결합되지 못한 트리거는 원본 탭
-  // 키를 계속 가리킨다. 요소 id는 문서 전역 유일이라 대상 탭에서 절대 해석되지
-  // 않아 눌러도 반응하지 않는 자세가 조용히 남는다. 트리거만 비우면 백엔드가
-  // EMPTY_SPRITE_POSE_TRIGGERS로 커밋을 막으므로 복사 시 얼려둔 canonical 키로
-  // 다시 결합한다. 같은 탭이면 배치 밖 키 참조를 그대로 두는 기존 계약을 유지한다
-  const isCrossModePaste =
-    clipboardMode !== null && clipboardMode !== selectedKeyType;
-  if (spritesToAdd.length > 0) {
-    const { keyMappings, canonicalPositions } = useKeyStore.getState();
-    const targetKeyIdsByCanonical = isCrossModePaste
-      ? keyIdsByCanonical(
-          keyMappings[selectedKeyType] ?? [],
-          canonicalPositions[selectedKeyType] ?? [],
-        )
-      : null;
-    for (const sprite of spritesToAdd) {
-      sprite.position = toSpriteWireShape({
-        ...sprite.position,
-        poses: pastedPoseTriggers(
-          sprite.position.poses,
-          keyIdMap,
-          targetKeyIdsByCanonical
-            ? {
-                triggerCanonicals: sprite.triggerCanonicals ?? {},
-                targetKeyIdsByCanonical,
-              }
-            : null,
-        ),
-      });
-    }
   }
-  // maxInstances 사전 검증 - add 경로(생성 메뉴)와 동일하게 상한 도달 시
-  // 거부·경고. 혼합 선택도 destructive 관례(부분 성공 금지)에 따라 전체 중단
-  const frozenInstanceCaps: Array<{
-    definitionId: string;
-    pluginId: string;
-    maxInstances: number;
-    pastedCount: number;
-  }> = [];
-  if (pluginPayloads.length > 0) {
-    const pastedCountByDefinition = new Map<string, number>();
-    for (const element of pluginPayloads) {
-      if (!element.definitionId) continue;
-      pastedCountByDefinition.set(
-        element.definitionId,
-        (pastedCountByDefinition.get(element.definitionId) ?? 0) + 1,
+  for (const [definitionId, pastedCount] of pastedByDefinition) {
+    const definition = definitions.get(definitionId);
+    const maxInstances = definition?.maxInstances;
+    if (!definition || !maxInstances || maxInstances <= 0) continue;
+    const currentCount = elements.filter(
+      (element) =>
+        element.definitionId === definitionId &&
+        element.tabId === selectedKeyType,
+    ).length;
+    if (currentCount + pastedCount > maxInstances) {
+      console.warn(
+        `[Plugin ${definition.pluginId}] Max instances (${maxInstances}) reached for ${definitionId} in tab ${selectedKeyType}`,
       );
-    }
-    const { definitions, elements: currentElements } =
-      usePluginDisplayElementStore.getState();
-    for (const [definitionId, pastedCount] of pastedCountByDefinition) {
-      const definition = definitions.get(definitionId);
-      const maxInstances = definition?.maxInstances;
-      if (!definition || !maxInstances || maxInstances <= 0) continue;
-      frozenInstanceCaps.push({
-        definitionId,
-        pluginId: definition.pluginId,
-        maxInstances,
-        pastedCount,
-      });
-      const currentCount = currentElements.filter(
-        (element) =>
-          element.definitionId === definitionId &&
-          element.tabId === selectedKeyType,
-      ).length;
-      if (currentCount + pastedCount > maxInstances) {
-        console.warn(
-          `[Plugin ${definition.pluginId}] Max instances (${maxInstances}) reached for ${definitionId} in tab ${selectedKeyType}`,
-        );
-        reportElementOpSkipped('paste max instances');
-        return;
-      }
+      reportElementOpSkipped('paste max instances');
+      return;
     }
   }
 
-  // plugin id·fullId 사전 동결 - eager 루프 생성은 retry·receipt를 비결정적으로
-  // 만든다. 붙여넣기는 새 인스턴스이므로 id 재발급 - 복사 원본 id를 유지하면
-  // 영구 instanceId가 중복되어 백엔드 커밋이 거절된다. 핸들러 등록도 원본과
-  // 공유하지 않도록 재발급 - _onXxxId 공유는 한쪽 제거가 다른 쪽을 죽인다
-  const frozenPluginElements: PluginDisplayElementInternal[] =
-    pluginPayloads.map((element) => {
+  const sceneGroups = new Set(
+    documentGroupNames(
+      getElementDocumentStore()?.getScene(selectedKeyType),
+    ).map(({ id }) => id),
+  );
+  const pasted: PluginDisplayElementInternal[] = clipboard.map(
+    ({ element }) => {
       const id = crypto.randomUUID();
       return {
         ...reissueDisplayElementHandlers(element),
         id,
         fullId: `${element.pluginId}::${id}`,
-      };
-    });
-  const pluginIdsToAdd = [
-    ...new Set(frozenPluginElements.map((element) => element.pluginId)),
-  ];
-  const hasEditorPaste =
-    keysToAdd.length > 0 ||
-    ITEM_ELEMENT_TYPES.some((type) => itemsToAdd[type].length > 0) ||
-    clipboardGroups.length > 0;
-  if (!hasEditorPaste && frozenPluginElements.length === 0) return;
-
-  // 앵커 동결: 호출 시점 결합 순서에서 삽입 위치의 기존 아이템 id
-  const callOrderItems = buildLayerItemsForMode(
-    selectedKeyType,
-    captureElementCollections(),
-    usePluginDisplayElementStore.getState().elements,
-  );
-  // 앵커 descriptor: 선택 요소와 선택 그룹 최상단 중 더 위를 동결하되,
-  // 그룹이 이기면 groupId로 동결한다 - 당시 최상단 자식이 삭제돼도 살아
-  // 있는 그룹 경계를 재해석할 수 있다
-  let anchorElementIdx = Number.POSITIVE_INFINITY;
-  let anchorElementId: string | null = null;
-  for (const element of currentSelectedElements) {
-    const index = callOrderItems.findIndex((item) => item.id === element.id);
-    if (index !== -1 && index < anchorElementIdx) {
-      anchorElementIdx = index;
-      anchorElementId = element.id;
-    }
-  }
-  let anchorGroupIdx = Number.POSITIVE_INFINITY;
-  let anchorGroupId: string | null = null;
-  for (const groupId of currentSelectedGroupIds) {
-    const index = callOrderItems.findIndex((item) => item.groupId === groupId);
-    if (index !== -1 && index < anchorGroupIdx) {
-      anchorGroupIdx = index;
-      anchorGroupId = groupId;
-    }
-  }
-  // tie는 그룹 우선 - 그룹 클릭은 자식 전체와 groupId를 함께 선택하므로
-  // 최상단 자식 index와 그룹 index가 같다
-  const frozenAnchor: { elementId?: string; groupId?: string } | null =
-    anchorGroupIdx <= anchorElementIdx && anchorGroupId
-      ? { groupId: anchorGroupId }
-      : anchorElementId
-      ? { elementId: anchorElementId }
-      : null;
-
-  const { pluginScope, computePaste, buildFrozenInsertOp } =
-    createFrozenPasteModel({
-      selectedKeyType,
-      keysToAdd,
-      itemsToAdd,
-      frozenPluginElements,
-      pluginIdsToAdd,
-      frozenNewGroups,
-      frozenInstanceCaps,
-      frozenAnchor,
-    });
-
-  // 동기 검사(플러그인 상한 등)를 통과했다 - 함께 붙이는 트리 클립보드의 스프라이트 트리거도 사본 키를 가리키게 알린다
-  recordPastedKeyIds(keyIdMap, gestureId);
-  try {
-    await pasteWithFrozenPlan();
-  } finally {
-    cancelUncommittedMixedGestureTransaction(gestureId);
-  }
-
-  async function pasteWithFrozenPlan(): Promise<void> {
-    // eager 전에 초기 scope를 stage - staging 전 스토어 변이는 200ms
-    // debounce 저장이 abort보다 먼저 영속시킬 수 있다
-    const initialScope = pluginScope(
-      usePluginDisplayElementStore.getState().elements,
-    );
-    if (initialScope.length > 0) {
-      beginMixedGestureTransaction(gestureId, initialScope);
-    }
-    // 기존 plugin의 zIndex eager도 이 게스처 세션으로 - 별도 세션이 생기면
-    // 편입 후 실패의 canonical pull이 외부 충돌로 오판해 건너뛴다
-    initialScope.forEach((pluginId) => {
-      rotatePluginInstancesEditSession(pluginId, gestureId);
-    });
-
-    // eager 계획을 쓰기 전에 확정 (충돌 abort가 쓰기 전에 발생)
-    const eagerElementsBefore =
-      usePluginDisplayElementStore.getState().elements;
-    const eagerPlan = computePaste(
-      {
-        keys: useKeyStore.getState().keyMappings as never,
-        ...captureElementCollections(),
-        layerGroups: useLayerGroupStore.getState().layerGroups as never,
-      },
-      eagerElementsBefore,
-    );
-    // editor와 plugin은 독립 소유권 - 결합 봉인은 무관한 plugin 변경
-    // 하나로 editor 복원까지 거부한다
-    const editorReceipt = applySealedSliceMutation({
-      modes: [selectedKeyType],
-      fields: [...EDITOR_FIELDS],
-      mutate: () => {
-        useKeyStore
-          .getState()
-          .setKeyMappingsAndPositions(
-            eagerPlan.keys as never,
-            eagerPlan.zPatch.keyPositions as never,
-          );
-        for (const type of ITEM_ELEMENT_TYPES) {
-          getItemStoreState(type).setPositions(
-            eagerPlan.zPatch[EDITOR_ELEMENT_POSITION_FIELDS[type]] as never,
-          );
-        }
-        if (eagerPlan.groupsChanged) {
-          useLayerGroupStore
-            .getState()
-            .setLayerGroups(eagerPlan.layerGroups as never);
-        }
-      },
-    });
-    // plugin semantic receipt: 신규 fullId membership + 기존 zIndex CAS
-    const beforeZByFullId = new Map(
-      eagerElementsBefore.map((element) => [element.fullId, element.zIndex]),
-    );
-    // 멱등 skip된 동결 id를 receipt가 소유하면 실패 rollback이 기존
-    // 요소를 삭제한다 - eager 전에 없던 id만 membership 대상
-    const eagerBeforeIds = new Set(
-      eagerElementsBefore.map((element) => element.fullId),
-    );
-    const addedFullIds = frozenPluginElements
-      .map((element) => element.fullId)
-      .filter((fullId) => !eagerBeforeIds.has(fullId));
-    const addedSet = new Set(addedFullIds);
-    const zChanges = eagerPlan.desiredProjection
-      .filter((element) => !addedSet.has(element.fullId))
-      .filter(
-        (element) => beforeZByFullId.get(element.fullId) !== element.zIndex,
-      )
-      .map((element) => ({
-        fullId: element.fullId,
-        before: beforeZByFullId.get(element.fullId),
-        expected: element.zIndex as number,
-      }));
-    let pluginReceipt: ElementIntentReceipt | null = null;
-    try {
-      pluginReceipt = applyPluginAdditionEagerly(addedFullIds, zChanges, () => {
-        usePluginDisplayElementStore
-          .getState()
-          .setElements(eagerPlan.desiredProjection, { skipSync: true });
-      });
-    } catch (error) {
-      // plugin eager 실패 시 editor eager 잔존 방지
-      editorReceipt.rollback();
-      throw error;
-    }
-    const receipt = combineReceipts(editorReceipt, pluginReceipt);
-
-    // 접힘 상태는 문서 밖 UI - 즉시 적용, 실패 미복원(기록된 정책)
-    for (const group of frozenNewGroups) {
-      if (group.collapsed) {
-        useLayerGroupStore.getState().setCollapsed(group.id, true);
-      }
-    }
-
-    // 선택 이동은 eager 직후 동기 구간에서 - await 뒤로 미루면 라운드트립
-    // 동안 선택이 원본에 남아 Delete 같은 후속 조작이 원본을 지운다.
-    // 편입 전 abort로 롤백되면 정산 뒤 pruneRolledBackPasteSelection이 정리한다
-    const newSelectedElements: SelectedElement[] = [];
-    const collect = (
-      type: EditorElementTypeV1,
-      record: Record<string, Array<{ id: string }>>,
-      ids: readonly string[],
-    ) => {
-      const list = record[selectedKeyType] ?? [];
-      for (const id of ids) {
-        const index = list.findIndex((position) => position.id === id);
-        if (index !== -1) {
-          newSelectedElements.push({ type, id, index });
-        }
-      }
-    };
-    collect(
-      'key',
-      useKeyStore.getState().canonicalPositions as never,
-      keysToAdd.map((entry) => entry.position.id),
-    );
-    for (const type of ITEM_ELEMENT_TYPES) {
-      collect(type, readAuthorityPositions(type) as never, itemIdsToAdd(type));
-    }
-    const presentPluginIds = new Set(
-      usePluginDisplayElementStore
-        .getState()
-        .elements.map((element) => element.fullId),
-    );
-    for (const element of frozenPluginElements) {
-      if (presentPluginIds.has(element.fullId)) {
-        newSelectedElements.push({ type: 'plugin', id: element.fullId });
-      }
-    }
-    if (newSelectedElements.length > 0) {
-      if (groupIdMap.size > 0) {
-        useGridSelectionStore
-          .getState()
-          .setFullSelection(newSelectedElements, [...groupIdMap.values()]);
-      } else {
-        setSelectedElements(newSelectedElements);
-      }
-    }
-
-    // 편입 전 abort는 문서 적용 없이 eager만 되돌아가 선택 재조정이 없다 -
-    // 이번 paste가 발급한 id 중 스토어에서 사라진 것만 선택에서 걷어낸다
-    // (편입 후 실패의 eager 유지분은 스토어에 살아 있으므로 그대로 유지)
-    const pruneRolledBackPasteSelection = () => {
-      const newElementIds = new Set([
-        ...keysToAdd.map((entry) => entry.position.id),
-        ...ITEM_ELEMENT_TYPES.flatMap(itemIdsToAdd),
-        ...frozenPluginElements.map((element) => element.fullId),
-      ]);
-      const presentIds = new Set<string>([
-        ...EDITOR_ELEMENT_TYPES.flatMap((type) =>
-          (
-            (readAuthorityPositions(type)[selectedKeyType] ?? []) as Array<{
-              id: string;
-            }>
-          ).map((position) => position.id),
-        ),
-        ...usePluginDisplayElementStore
-          .getState()
-          .elements.map((element) => element.fullId),
-      ]);
-      const selection = useGridSelectionStore.getState();
-      const keptElements = selection.selectedElements.filter(
-        (element) =>
-          !newElementIds.has(element.id) || presentIds.has(element.id),
-      );
-      const newGroupIds = new Set(groupIdMap.values());
-      const presentGroupIds = new Set(
-        (useLayerGroupStore.getState().layerGroups[selectedKeyType] ?? []).map(
-          (group) => group.id,
-        ),
-      );
-      const keptGroupIds = selection.selectedGroupIds.filter(
-        (groupId) => !newGroupIds.has(groupId) || presentGroupIds.has(groupId),
-      );
-      if (
-        keptElements.length !== selection.selectedElements.length ||
-        keptGroupIds.length !== selection.selectedGroupIds.length
-      ) {
-        selection.setFullSelection(keptElements, keptGroupIds);
-      }
-    };
-
-    try {
-      const result = await runMixedGestureElementIntent({
-        gestureId,
-        initialPluginIds: pluginScope(
-          usePluginDisplayElementStore.getState().elements,
-        ),
-        pluginScope,
-        receipt,
-        generate: ({ base, pluginProjection }) => {
-          const plan = computePaste(
-            {
-              keys: base.keys as never,
-              keyPositions: base.keyPositions as never,
-              statPositions: base.statPositions as never,
-              graphPositions: base.graphPositions as never,
-              knobPositions: base.knobPositions as never,
-              spritePositions: base.spritePositions as never,
-              layerGroups: base.layerGroups as never,
-            },
-            pluginProjection,
-          );
-          const insert = buildFrozenInsertOp(
-            {
-              keys: base.keys as never,
-              keyPositions: base.keyPositions as never,
-              statPositions: base.statPositions as never,
-              graphPositions: base.graphPositions as never,
-              knobPositions: base.knobPositions as never,
-              spritePositions: base.spritePositions as never,
-              layerGroups: base.layerGroups as never,
-            },
-            plan,
-          );
-          if (insert.op) {
-            return {
-              kind: 'ops',
-              ops: [insert.op],
-              desiredPluginProjection: plan.desiredProjection,
-            };
-          }
-          if (!plan.appended) return { kind: 'satisfied' };
-          return {
-            kind: 'patch',
-            patch: null,
-            desiredPluginProjection: plan.desiredProjection,
-          };
+        tabId: selectedKeyType,
+        groupId:
+          element.groupId && sceneGroups.has(element.groupId)
+            ? element.groupId
+            : undefined,
+        position: {
+          x: (element.position?.x || 0) + PASTE_OFFSET,
+          y: (element.position?.y || 0) + PASTE_OFFSET,
         },
-        skipContext: 'paste settlement',
-      });
-      if (!result.committed && !result.satisfied) {
-        pruneRolledBackPasteSelection();
-      }
-    } catch (error) {
-      // 편입 후 실패의 상태 정합은 projection·canonical pull이 소유 -
-      // 호출부 경계에서는 기록만 (삭제 경로와 대칭)
-      console.error('Failed to persist pasted elements', error);
-      pruneRolledBackPasteSelection();
-    }
+      };
+    },
+  );
 
-    sendBridgeMessageBestEffort('overlay', 'plugin:displayElements:sync', {
-      elements: usePluginDisplayElementStore.getState().elements,
-    });
-  }
+  const gestureId = crypto.randomUUID();
+  // 함께 붙이는 트리 붙여넣기가 같은 동작 id로 - 되돌리기 한 번
+  recordPastedKeyIds(new Map(), gestureId);
+  const pluginIds = [...new Set(pasted.map(({ pluginId }) => pluginId))];
+  pluginIds.forEach((pluginId) =>
+    rotatePluginInstancesEditSession(pluginId, gestureId),
+  );
+  usePluginDisplayElementStore.getState().setElements([...elements, ...pasted]);
+  // 붙여넣기는 한 번에 끝나는 편집 - 기다리지 않고 바로 저장
+  pluginIds.forEach((pluginId) => flushPluginInstancesEditSession(pluginId));
+  setSelectedElements(
+    pasted.map(({ fullId }) => ({ type: 'plugin' as const, id: fullId })),
+  );
 };

@@ -146,8 +146,6 @@ const Harness = ({ expose }: HarnessProps) => {
   const api = useGridSelection({
     selectedElements,
     selectedKeyType: '4key',
-    keyMappings: useKeyStore.getState().keyMappings,
-    positions: useKeyStore.getState().canonicalPositions,
   });
   useEffect(() => expose(api), [api, expose]);
   return null;
@@ -179,8 +177,6 @@ describe('useGridSelection 화살표 혼합 이동 staging 순서', () => {
 
     useKeyStore.setState({
       selectedKeyType: '4key',
-      keyMappings: { '4key': ['KeyA'] },
-      positions: { '4key': [keyPosition] },
       canonicalPositions: { '4key': [keyPosition] },
     });
     useStatItemStore.setState({ positions: {} });
@@ -231,61 +227,6 @@ describe('useGridSelection 화살표 혼합 이동 staging 순서', () => {
       ]);
     });
   };
-
-  it('혼합 이동은 staging이 plugin eager 쓰기보다 선행한다', async () => {
-    await selectMixed();
-
-    await act(async () => api.moveSelectedElements(5, 7, gestureId));
-
-    expect(mocks.beginMixedGesture).toHaveBeenCalledWith(gestureId, [
-      'plugin-a',
-    ]);
-    const stageIndex = mocks.order.indexOf('stage');
-    const eagerWriteIndex = mocks.order.indexOf('eagerWrite');
-    const settleIndex = mocks.order.indexOf('settle');
-    expect(stageIndex).toBeGreaterThanOrEqual(0);
-    expect(eagerWriteIndex).toBeGreaterThan(stageIndex);
-    expect(settleIndex).toBeGreaterThan(eagerWriteIndex);
-    // 이동 자체는 그대로 적용
-    expect(
-      usePluginDisplayElementStore.getState().elements[0].position,
-    ).toEqual({ x: 35, y: 47 });
-  });
-
-  it('settle의 mixed 커밋 시작 이후에만 미커밋 staging 정산을 요청한다', async () => {
-    await selectMixed();
-
-    await act(async () => api.moveSelectedElements(1, 0, gestureId));
-
-    expect(mocks.runMixedGestureIntent).toHaveBeenCalledTimes(1);
-    expect(mocks.cancelUncommittedMixedGesture).toHaveBeenCalledWith(gestureId);
-    const settleIndex = mocks.order.indexOf('settle');
-    const cancelIndex = mocks.order.indexOf('cancel');
-    expect(cancelIndex).toBeGreaterThan(settleIndex);
-  });
-
-  it('settle이 mixed 커밋을 못 타면 사전 staging을 정산한다', async () => {
-    // synthetic id는 wire 커밋이 스킵되는 선택
-    const syntheticPosition = { ...keyPosition, id: 'key-0' };
-    useKeyStore.setState({
-      positions: { '4key': [syntheticPosition] },
-      canonicalPositions: { '4key': [syntheticPosition] },
-    });
-    await act(async () => {
-      useGridSelectionStore.getState().setSelectedElements([
-        { type: 'key', id: 'key-0', index: 0 },
-        { type: 'plugin', id: 'plugin-a:element' },
-      ]);
-    });
-
-    await act(async () => api.moveSelectedElements(1, 0, gestureId));
-
-    expect(mocks.beginMixedGesture).toHaveBeenCalledWith(gestureId, [
-      'plugin-a',
-    ]);
-    expect(mocks.runMixedGestureIntent).not.toHaveBeenCalled();
-    expect(mocks.cancelUncommittedMixedGesture).toHaveBeenCalledWith(gestureId);
-  });
 
   it('plugin 전용 이동도 staging 뒤 plugin-only transaction으로 정산한다', async () => {
     await act(async () => {

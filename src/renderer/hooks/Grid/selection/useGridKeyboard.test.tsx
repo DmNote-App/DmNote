@@ -61,9 +61,10 @@ vi.mock('@src/renderer/editor/runtime/operations/editorSemanticOps', () => ({
 }));
 
 vi.mock('@src/renderer/editor/runtime/intent/mixedElementIntent', () => ({
-  runMixedGestureElementIntent: vi.fn((options: { gestureId: string }) => {
+  // 옛 선택(플러그인 요소) 정산 - 동작 id 운반을 같은 recorder로 기록
+  runMixedElementOpsIntent: vi.fn((options: { gestureId: string }) => {
     commitPatchMock({ schemaVersion: 1 }, { gestureId: options.gestureId });
-    return Promise.resolve({ committed: true, satisfied: true });
+    return Promise.resolve();
   }),
 }));
 
@@ -99,35 +100,35 @@ const position = (index = 0): CanonicalKeyPosition =>
   } as CanonicalKeyPosition);
 
 interface HarnessProps {
-  includePlugin?: boolean;
   selectedIndex?: number;
-  locatorIndex?: number;
   continuousInputStrategy?: 'sync' | 'frame';
 }
 
+const PLUGIN_IDS = ['plugin-a::p0', 'plugin-a::p1'];
+
+const pluginAt = (index: number) =>
+  ({
+    id: `p${index}`,
+    fullId: PLUGIN_IDS[index],
+    pluginId: 'plugin-a',
+    html: '<div />',
+    position: { x: 0, y: 0 },
+    tabId: '4key',
+  } as never);
+
+// 옛 선택은 플러그인 요소만 담는다 (옛 종류는 트리 선택)
 const Harness = ({
-  includePlugin = false,
   selectedIndex = 0,
-  locatorIndex = selectedIndex,
   continuousInputStrategy = 'sync',
 }: HarnessProps) => {
   const selectedElements: SelectedElement[] = [
-    {
-      type: 'key' as const,
-      id: STABLE_IDS[selectedIndex],
-      index: locatorIndex,
-    },
-    ...(includePlugin
-      ? [{ type: 'plugin' as const, id: 'plugin-a:element' }]
-      : []),
+    { type: 'plugin' as const, id: PLUGIN_IDS[selectedIndex] },
   ];
   // 정산 라우팅은 선택 스토어를 읽는다 - 하네스 선택과 동기화
   useGridSelectionStore.setState({ selectedElements });
   const { moveSelectedElements } = useGridSelection({
     selectedElements,
     selectedKeyType: '4key',
-    keyMappings: { '4key': ['KeyA', 'KeyB'] },
-    positions: { '4key': [position(0), position(1)] },
   });
 
   useGridKeyboard({
@@ -197,14 +198,14 @@ describe('useGridKeyboard arrow history burst', () => {
 
     useKeyStore.setState({
       selectedKeyType: '4key',
-      keyMappings: { '4key': ['KeyA', 'KeyB'] },
-      positions: { '4key': [position(0), position(1)] },
       canonicalPositions: { '4key': [position(0), position(1)] },
     });
     useStatItemStore.setState({ positions: {} });
     useGraphItemStore.setState({ positions: {} });
     useKnobItemStore.setState({ positions: {} });
-    usePluginDisplayElementStore.setState({ elements: [] });
+    usePluginDisplayElementStore.setState({
+      elements: [pluginAt(0), pluginAt(1)],
+    });
     useGridSelectionStore.setState({ clipboard: [{} as never] });
 
     host = document.createElement('div');
@@ -246,6 +247,12 @@ describe('useGridKeyboard arrow history burst', () => {
       );
     });
   };
+
+  const pluginPosition = (index: number) =>
+    usePluginDisplayElementStore
+      .getState()
+      .elements.find((element) => element.fullId === PLUGIN_IDS[index])!
+      .position;
 
   const committedGestureIds = () =>
     commitPatchMock.mock.calls.map((call) => call[1]?.gestureId);
@@ -295,34 +302,7 @@ describe('useGridKeyboard arrow history burst', () => {
     expect(randomUUIDMock).toHaveBeenCalledTimes(2);
   });
 
-  it('같은 ID의 locator index만 바뀌면 기존 gesture를 유지한다', async () => {
-    pressArrow('ArrowRight');
-    vi.advanceTimersByTime(100);
-    await act(async () => {
-      root.render(<Harness locatorIndex={1} />);
-    });
-    pressArrow('ArrowRight');
-
-    expect(committedGestureIds()).toEqual([firstGestureId, firstGestureId]);
-    expect(randomUUIDMock).toHaveBeenCalledOnce();
-  });
-
-  it('혼합 선택 방향키 이동은 editor와 plugin에 같은 gesture를 전달한다', async () => {
-    usePluginDisplayElementStore.setState({
-      elements: [
-        {
-          id: 'element',
-          fullId: 'plugin-a:element',
-          pluginId: 'plugin-a',
-          html: '<div />',
-          position: { x: 0, y: 0 },
-        },
-      ],
-    });
-    await act(async () => {
-      root.render(<Harness includePlugin />);
-    });
-
+  it('플러그인 방향키 이동은 플러그인 세션에 같은 gesture를 전달한다', () => {
     pressArrow('ArrowRight');
 
     expect(committedGestureIds()).toEqual([firstGestureId]);
@@ -354,10 +334,7 @@ describe('useGridKeyboard arrow history burst', () => {
       callback(performance.now());
     });
     expect(commitPatchMock).toHaveBeenCalledOnce();
-    expect(useKeyStore.getState().positions['4key']?.[0]).toMatchObject({
-      dx: 2,
-      dy: 1,
-    });
+    expect(pluginPosition(0)).toEqual({ x: 2, y: 1 });
     vi.unstubAllGlobals();
   });
 
@@ -386,25 +363,9 @@ describe('useGridKeyboard arrow history burst', () => {
 
     expect(commitPatchMock).toHaveBeenCalledOnce();
     expect(committedGestureIds()).toEqual([firstGestureId]);
-    // 정산 커밋은 eager를 적용한 옛 대상(A)의 이동을 실어야 한다 -
-    // 현재 선택(B)을 재독하면 A의 이동이 wire에 실리지 않아 소실된다
-    const ops = recordedGenerates.at(-1)?.({
-      schemaVersion: 1,
-      keys: {},
-      keyPositions: structuredClone(useKeyStore.getState().canonicalPositions),
-      statPositions: {},
-      graphPositions: {},
-      knobPositions: {},
-      layerGroups: {},
-    });
-    expect(ops).toEqual([
-      {
-        kind: 'setBounds',
-        elementType: 'key',
-        id: STABLE_IDS[0],
-        bounds: { dx: 1, dy: 0, width: 40, height: 40 },
-      },
-    ]);
+    // 정산은 이동을 적용한 옛 대상(A) - 현재 선택(B)은 움직이지 않는다
+    expect(pluginPosition(0)).toEqual({ x: 1, y: 0 });
+    expect(pluginPosition(1)).toEqual({ x: 0, y: 0 });
     vi.unstubAllGlobals();
   });
 
@@ -440,12 +401,12 @@ describe('useGridKeyboard arrow history burst', () => {
       });
       const commitsAtAck = commitPatchMock.mock.calls.length;
       const framesAtAck = callbacks.size;
-      const positionAtAck = useKeyStore.getState().positions['4key'][0].dx;
+      const positionAtAck = pluginPosition(0).x;
       if (boundary === '히스토리 후 늦은 프레임') {
         act(() => {
-          useKeyStore.getState().setPositions({
-            '4key': [{ ...position(0), dx: 40 }, position(1)],
-          });
+          usePluginDisplayElementStore
+            .getState()
+            .updateElement(PLUGIN_IDS[0], { position: { x: 40, y: 0 } });
           delayedCallbacks.forEach((callback) => callback(performance.now()));
         });
       } else {
@@ -456,7 +417,7 @@ describe('useGridKeyboard arrow history burst', () => {
         framesAtAck,
         positionAtAck,
         commitsAfterBoundary: commitPatchMock.mock.calls.length,
-        positionAfterBoundary: useKeyStore.getState().positions['4key'][0].dx,
+        positionAfterBoundary: pluginPosition(0).x,
       }).toEqual({
         commitsAtAck: 1,
         framesAtAck: 0,

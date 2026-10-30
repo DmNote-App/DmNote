@@ -58,7 +58,6 @@ import {
   useGridResize,
   useSmartGuidesElements,
 } from '@hooks/Grid';
-import type { KeyMappings } from '@src/types/key/keys';
 import { slotCanonical, slotDisplayName } from '@utils/keySlot';
 import { overlayApi } from '@api/modules/window/overlayApi';
 import { panelWindowApi } from '@api/modules/window/panelWindowApi';
@@ -264,7 +263,6 @@ const Grid = ({
     [records, previewVersion],
   );
   const { statPositions, keyPositions: positions } = collections;
-  const keyMappings = records.keyMappings as unknown as KeyMappings;
 
   const panelSelection = usePanelSelection(selectedKeyType);
   // 트리에서 그리는 키의 바깥 카운터는 트리 틀을 따라간다
@@ -290,8 +288,6 @@ const Grid = ({
   } = useGridSelection({
     selectedElements,
     selectedKeyType,
-    keyMappings,
-    positions,
   });
   const {
     beginSelectedElementsDrag: beginSelectedPluginInstancesDrag,
