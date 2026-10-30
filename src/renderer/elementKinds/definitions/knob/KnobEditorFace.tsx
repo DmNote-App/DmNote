@@ -13,8 +13,8 @@ import {
 import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
 import type { ElementRenderProps } from '@src/renderer/elementKinds/runtime/renderTypes';
 
-// 편집 화면 노브 - 트리 요소를 옛 겉모습으로 그린다.
-// 패널 입력 중 값은 옛 미리보기(편집 제스처)를 그대로 쓴다 - 옛 모양 보기 위에서 바뀐 칸만 얹는다
+// 편집 화면 노브 - 위치·크기는 트리(감싸는 상자), 겉모습 칸은 옛 패널이 낙관 반영하는
+// 옛 모양 보기와 그 미리보기에서 그린다 (스타일 칸 쓰기는 아직 옛 경로 - 4단계에서 트리로)
 const KnobEditorFace = ({
   element,
   selected,
@@ -22,22 +22,12 @@ const KnobEditorFace = ({
   useSyncExternalStore(subscribePreviewOverlay, getPreviewOverlayVersion);
   const mode = useKeyStore((state) => state.selectedKeyType);
   const positions = useKnobItemStore((state) => state.positions);
-  const base = positions[mode]?.find(({ id }) => id === element.id);
   const composed = composePreviewPositions('knobPosition', positions)[
     mode
   ]?.find(({ id }) => id === element.id);
-  const preview: Record<string, unknown> = {};
-  if (base && composed && composed !== base) {
-    for (const [name, value] of Object.entries(composed)) {
-      if (value !== (base as Record<string, unknown>)[name]) {
-        preview[name] = value;
-      }
-    }
-  }
-  const position = { ...legacyPositionOf(element), ...preview };
   return (
     <KnobFaceView
-      position={position as KnobPosition}
+      position={(composed ?? legacyPositionOf(element)) as KnobPosition}
       elementId={element.id}
       isSelected={selected === true}
     />

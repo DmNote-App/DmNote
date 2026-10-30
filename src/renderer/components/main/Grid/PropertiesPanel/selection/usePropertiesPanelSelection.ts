@@ -5,7 +5,16 @@ import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { useStatItemStore } from '@stores/data/useStatItemStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import {
+  useGridSelectionStore,
+  type SelectedElement,
+} from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
+import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { sceneElements } from '@src/renderer/editor/document/documentPatch';
+import { readAuthorityPositions } from '@src/renderer/editor/model/elementStores';
+import { isEditorElementType } from '@src/types/editor';
+import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import {
   selectPropertyPanelPluginElements,
   usePluginDisplayElementStore,
@@ -30,9 +39,40 @@ import { isPluginVisibleInMode } from '@utils/layerGroupUtils';
 import { resolveResizablePluginElementSize } from '@utils/plugin/layout/pluginElementMeasurement';
 
 export const usePropertiesPanelSelection = () => {
-  const selectedElements = useGridSelectionStore(
+  const legacySelection = useGridSelectionStore(
     (state) => state.selectedElements,
   );
+  const documentSceneId = useDocumentSelectionStore((state) => state.sceneId);
+  const documentIds = useDocumentSelectionStore((state) => state.selectedIds);
+  const documentScene = useElementDocumentScene(documentSceneId ?? '');
+  // 트리 선택이 모두 트리로 옮긴 옛 종류면 옛 패널이 그 요소들을 고른 것처럼 본다
+  // (겉모습 칸은 옛 처리기로 쓴다 - 위치·크기는 패널이 트리 처리기로 바꿔 끼운다)
+  const bridgedElements =
+    legacySelection.length === 0 && documentSceneId && documentScene
+      ? documentIds.flatMap((id) => {
+          const element = sceneElements(documentScene).find(
+            (node) => node.id === id,
+          );
+          if (
+            !element ||
+            !isEditorElementType(element.kind) ||
+            !TREE_EDITED_KINDS.has(element.kind)
+          ) {
+            return [];
+          }
+          const index = (
+            (readAuthorityPositions(element.kind)[documentSceneId] ??
+              []) as Array<{ id: string }>
+          ).findIndex((position) => position.id === id);
+          return index >= 0
+            ? [{ type: element.kind, id, index } as SelectedElement]
+            : [];
+        })
+      : [];
+  const selectedElements =
+    bridgedElements.length > 0 && bridgedElements.length === documentIds.length
+      ? bridgedElements
+      : legacySelection;
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   const positions = useKeyStore((state) => state.positions);
   const canonicalPositions = useKeyStore((state) => state.canonicalPositions);
@@ -344,6 +384,8 @@ export const usePropertiesPanelSelection = () => {
 
   return {
     selectedElements,
+    // 실제 옛 선택 수 - 트리 선택을 옛 패널로 본 경우와 섞인 선택을 가린다
+    legacySelectionCount: legacySelection.length,
     selectedKeyType,
     positions,
     canonicalPositions,

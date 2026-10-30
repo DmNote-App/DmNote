@@ -43,8 +43,12 @@ import { EditSessionScope } from '@src/renderer/contexts/EditSessionScope';
 import DocumentElementPanel from './PropertiesPanel/document/DocumentElementPanel';
 import DocumentBatchPanel from './PropertiesPanel/document/DocumentBatchPanel';
 import TreeKnobPanel from './PropertiesPanel/document/TreeKnobPanel';
+import { documentBatchGeometry } from './document/documentBatchGeometry';
 import { useDocumentSelectionStore } from './document/useDocumentSelectionStore';
-import { useDocumentElement } from '@src/renderer/editor/document/elementDocumentRuntime';
+import {
+  getElementDocumentStore,
+  useDocumentElement,
+} from '@src/renderer/editor/document/elementDocumentRuntime';
 import { previewSingleGraphColor } from './PropertiesPanel/selection/previewPatchForwarders';
 import PluginSettingsForm from './PropertiesPanel/plugin/PluginSettingsForm';
 import { usePropertiesPanelSelection } from './PropertiesPanel/selection/usePropertiesPanelSelection';
@@ -87,6 +91,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const { document: hostDocument } = usePanelHost();
   const {
     selectedElements,
+    legacySelectionCount,
     selectedKeyType,
     positions,
     canonicalPositions,
@@ -641,14 +646,34 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           handleRenameCommit={handleRenameCommit}
           handleRenameCancel={handleRenameCancel}
           handleRenameStart={handleRenameStart}
-          handleBatchAlign={handleBatchAlign}
-          handleBatchDistribute={handleBatchDistribute}
-          handleBatchSpacing={handleBatchSpacing}
-          handleBatchSpacingPreview={handleBatchSpacingPreview}
-          handleBatchSpacingCommit={handleBatchSpacingCommit}
-          getBatchSpacingValue={getBatchSpacingValue}
-          handleBatchResize={handleBatchResize}
-          handleBatchResizePreview={handleBatchResizePreview}
+          {...(bridgedGeometry
+            ? {
+                handleBatchAlign: (direction) =>
+                  bridgedGeometry.commit({ kind: 'align', direction }),
+                handleBatchDistribute: (direction) =>
+                  bridgedGeometry.commit({ kind: 'distribute', direction }),
+                handleBatchSpacing: (spacing, options) =>
+                  bridgedGeometry.commit({ kind: 'spacing', spacing }, options),
+                handleBatchSpacingPreview: (spacing) =>
+                  bridgedGeometry.preview({ kind: 'spacing', spacing }),
+                handleBatchSpacingCommit: (spacing, options) =>
+                  bridgedGeometry.commit({ kind: 'spacing', spacing }, options),
+                getBatchSpacingValue: bridgedGeometry.spacingValue,
+                handleBatchResize: (dimension, value) =>
+                  bridgedGeometry.commit({ kind: 'resize', dimension, value }),
+                handleBatchResizePreview: (dimension, value) =>
+                  bridgedGeometry.preview({ kind: 'resize', dimension, value }),
+              }
+            : {
+                handleBatchAlign,
+                handleBatchDistribute,
+                handleBatchSpacing,
+                handleBatchSpacingPreview,
+                handleBatchSpacingCommit,
+                getBatchSpacingValue,
+                handleBatchResize,
+                handleBatchResizePreview,
+              })}
           onElementPropertyCommit={handleBatchElementPropertyCommit}
           handleKnobBatchSharedSetting={handleKnobBatchSharedSetting}
           getMixedValueGeometry={getMixedValueGeometry}
@@ -1134,6 +1159,26 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   // 캔버스 선택에 묶이지 않는 뷰는 EditSessionScope 밖에 둔다.
   // 플러그인 설정 세션의 색상 피커까지 대상 전환 억제를 걸면, 무관한 캔버스 선택
   // 변경 뒤에 피커가 닫힐 때 멀쩡한 색 편집이 폐기된다
+  // 트리 선택이 모두 트리로 옮긴 옛 종류라 옛 패널로 보는 경우 (여러 개 - 하나는 전용 패널)
+  const bridgedDocumentSelection =
+    legacySelectionCount === 0 &&
+    selectedElements.length > 1 &&
+    selectedElements.length === documentSelectedIds.length;
+  // 그때 정렬·분배·간격·크기는 트리에 쓴다 (편집 화면이 감싸는 상자를 트리에서 그린다)
+  const bridgedGeometry =
+    bridgedDocumentSelection && documentSceneId
+      ? documentBatchGeometry(
+          documentSceneId,
+          documentSelectedIds.flatMap((id) => {
+            const element = getElementDocumentStore()?.getElement(
+              documentSceneId,
+              id,
+            );
+            return element ? [element] : [];
+          }),
+        )
+      : null;
+
   const renderPanelBody = () => {
     if (pluginSettingsPanel) {
       return (
@@ -1169,7 +1214,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     if (
       documentSceneId &&
       documentSelectedIds.length > 0 &&
-      selectedElements.length > 0
+      legacySelectionCount > 0
     ) {
       return (
         <LayerPanel
@@ -1181,7 +1226,11 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    if (documentSceneId && documentSelectedIds.length > 1) {
+    if (
+      documentSceneId &&
+      documentSelectedIds.length > 1 &&
+      !bridgedDocumentSelection
+    ) {
       return (
         <EditSessionScope>
           <DocumentBatchPanel
@@ -1199,6 +1248,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     if (
       documentSceneId &&
       documentElementId &&
+      documentSelectedIds.length === 1 &&
       documentElementKind === 'knob'
     ) {
       return (
@@ -1211,11 +1261,48 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             panelElement={panelElement}
             singleScrollRefFor={singleScrollRefFor}
             useCustomCSS={useCustomCSS}
+            onElementPropertyCommit={stableElementPropertyCommitHandler(
+              'knob',
+              documentElementId,
+            )}
+            onInactiveImageCommit={stableInactiveImageHandler(
+              'knob',
+              documentElementId,
+            )}
+            onActiveImageCommit={stableActiveImageHandler(
+              'knob',
+              documentElementId,
+            )}
+            onIdleTransparentCommit={stableIdleTransparentHandler(
+              'knob',
+              documentElementId,
+            )}
+            onActiveTransparentCommit={stableActiveTransparentHandler(
+              'knob',
+              documentElementId,
+            )}
+            onIdleImageFitCommit={stableIdleImageFitHandler(
+              'knob',
+              documentElementId,
+            )}
+            onActiveImageFitCommit={stableActiveImageFitHandler(
+              'knob',
+              documentElementId,
+            )}
             onStylePropertyPreview={stableStylePropertyPreviewHandler(
               'knob',
               documentElementId,
             )}
+            onStylePropertyCommit={stableStylePropertyCommitHandler(
+              'knob',
+              documentElementId,
+            )}
             onPaintPreview={stablePaintPreviewHandler(
+              'knob',
+              documentElementId,
+            )}
+            onPaintCommit={stablePaintCommitHandler('knob', documentElementId)}
+            onShadowCommit={stableShadowCommitHandler(
               'knob',
               documentElementId,
             )}
@@ -1225,7 +1312,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    if (documentSceneId && documentElementId) {
+    if (documentSceneId && documentElementId && !bridgedDocumentSelection) {
       return (
         <EditSessionScope>
           <DocumentElementPanel
@@ -1277,7 +1364,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     documentElementId !== null;
   // 트리 요소와 섞인 선택은 레이어 패널을 보이므로 머리도 레이어로
   const mixedSelection =
-    documentSelectedIds.length > 0 && selectedElements.length > 0;
+    documentSelectedIds.length > 0 && legacySelectionCount > 0;
   const displayedPanelMode =
     panelMode === 'layer' || !hasAnySelection || mixedSelection
       ? 'layer'

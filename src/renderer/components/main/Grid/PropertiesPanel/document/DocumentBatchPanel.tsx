@@ -5,21 +5,13 @@ import {
   sceneElements,
   type ElementNode,
 } from '@src/renderer/editor/document/documentPatch';
-import {
-  computeBatchGeometryPlan,
-  computeBatchSpacingValue,
-  type BatchGeometryOperation,
-} from '@src/renderer/editor/runtime/geometry/batchGeometryPlan';
+import type { BatchGeometryOperation } from '@src/renderer/editor/runtime/geometry/batchGeometryPlan';
+import { documentBatchGeometry } from '../../document/documentBatchGeometry';
 import type { PanelSectionDecl } from '@src/renderer/elementKinds/defineElementKind';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
-import type {
-  Frame,
-  FramePatch,
-  Op,
-} from '@src/types/generated/elementDocument';
+import type { Op } from '@src/types/generated/elementDocument';
 import { AXIS_FIELD_WIDTH } from '@utils/cardRecipes';
 import { editDocument } from '../../document/documentEditActions';
-import { useDocumentFramePreviewStore } from '../../document/useDocumentFramePreviewStore';
 import { aggregateMixedValue } from '../batch/mixedValue';
 import BatchPanelHeader from '../batch/BatchPanelHeader';
 import BatchGeometrySection from '../batch/geometry/BatchGeometrySection';
@@ -37,41 +29,6 @@ import { FieldRow, SurfaceSection } from './documentPanelRows';
 const noop = () => undefined;
 
 const valuesOf = (element: ElementNode) => (element.values ?? {}) as Values;
-
-// 비율을 잠근 종류는 크기 일괄에서도 지금 비율을 지킨다
-const keepAspect = (element: ElementNode, patch: FramePatch): FramePatch => {
-  const definition = elementKindDefinition(element.kind);
-  if (definition?.lockAspect?.(valuesOf(element) as never) !== true) {
-    return patch;
-  }
-  const { width, height } = element.frame;
-  if (width <= 0 || height <= 0) return patch;
-  if (typeof patch.width === 'number' && patch.height == null) {
-    return {
-      ...patch,
-      height: Math.max(1, Math.round((patch.width * height) / width)),
-    };
-  }
-  if (typeof patch.height === 'number' && patch.width == null) {
-    return {
-      ...patch,
-      width: Math.max(1, Math.round((patch.height * width) / height)),
-    };
-  }
-  return patch;
-};
-
-// 실제로 바뀌는 칸만 - 하나도 없으면 null
-const changedFrame = (element: ElementNode, patch: FramePatch) => {
-  const frame: FramePatch = {};
-  for (const key of ['x', 'y', 'width', 'height'] as const) {
-    const value = patch[key];
-    if (typeof value === 'number' && value !== element.frame[key]) {
-      frame[key] = value;
-    }
-  }
-  return Object.keys(frame).length > 0 ? frame : null;
-};
 
 interface DocumentBatchPanelProps {
   sceneId: string;
@@ -99,51 +56,11 @@ const DocumentBatchPanel = ({
   });
   if (elements.length === 0) return null;
 
-  const layout = elements.map((element) => ({
-    key: element.id,
-    x: element.frame.x,
-    y: element.frame.y,
-    width: element.frame.width,
-    height: element.frame.height,
-  }));
-  const planFrames = (operation: BatchGeometryOperation) => {
-    const plan = computeBatchGeometryPlan(layout, operation);
-    if (!plan) return [];
-    return plan.updates.flatMap(({ key, patch }) => {
-      const element = elements.find((node) => node.id === key);
-      if (!element) return [];
-      const frame = changedFrame(
-        element,
-        keepAspect(element, {
-          x: patch.dx,
-          y: patch.dy,
-          width: patch.width,
-          height: patch.height,
-        }),
-      );
-      return frame ? [{ element, frame }] : [];
-    });
-  };
-  const commitGeometry = (operation: BatchGeometryOperation) => {
-    const ops: Op[] = planFrames(operation).map(({ element, frame }) => ({
-      op: 'setFrame',
-      scene: sceneId,
-      id: element.id,
-      frame,
-    }));
-    if (ops.length > 0) void editDocument(ops);
-  };
-  // 크기 입력 중 미리보기 - 확정하거나 취소하면 걷는다
-  const previewGeometry = (operation: BatchGeometryOperation) => {
-    const preview = useDocumentFramePreviewStore.getState();
-    for (const { element, frame } of planFrames(operation)) {
-      preview.set(element.id, { ...element.frame, ...frame } as Frame);
-    }
-  };
-  const clearPreview = () => {
-    const preview = useDocumentFramePreviewStore.getState();
-    for (const element of elements) preview.clear(element.id);
-  };
+  const geometry = documentBatchGeometry(sceneId, elements);
+  const commitGeometry = (operation: BatchGeometryOperation) =>
+    geometry.commit(operation);
+  const previewGeometry = geometry.preview;
+  const clearPreview = geometry.clearPreview;
   const width = aggregateMixedValue(elements, (node) => node.frame.width, 0);
   const height = aggregateMixedValue(elements, (node) => node.frame.height, 0);
 
@@ -209,7 +126,7 @@ const DocumentBatchPanel = ({
                 handleBatchSpacing={(spacing) =>
                   commitGeometry({ kind: 'spacing', spacing })
                 }
-                batchSpacing={computeBatchSpacingValue(layout)}
+                batchSpacing={geometry.spacingValue()}
                 t={t}
               />
               <PropertyRow label={t('propertiesPanel.size') || '크기'}>

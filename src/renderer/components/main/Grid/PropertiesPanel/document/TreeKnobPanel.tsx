@@ -1,32 +1,44 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, type ComponentProps } from 'react';
 
 import { useDocumentElement } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
-import type {
-  EditorPaintPropertyPatchV1,
-  EditorStylePropertyPreviewPatchV1,
-} from '@src/types/editor';
+import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import type { KnobItemPosition } from '@src/types/key/knobs';
 import { setDocumentCommon } from '../../document/documentEditActions';
 import { useDocumentFramePreviewStore } from '../../document/useDocumentFramePreviewStore';
 import { SingleKnobPanel } from '../single/SingleKnobPanel';
-import type { TabType } from '../types';
 import { treeLegacyPanelHandlers } from './treeLegacyPanelHandlers';
 
-interface TreeKnobPanelProps {
+type SingleKnobPanelProps = ComponentProps<typeof SingleKnobPanel>;
+
+// 겉모습 칸은 옛 노브 패널 처리기를 그대로 쓴다 (옛 경로로 낙관 반영, 편집 화면 얼굴이 그 값을 그린다)
+type StyleHandlers = Pick<
+  SingleKnobPanelProps,
+  | 'onElementPropertyCommit'
+  | 'onInactiveImageCommit'
+  | 'onActiveImageCommit'
+  | 'onIdleTransparentCommit'
+  | 'onActiveTransparentCommit'
+  | 'onIdleImageFitCommit'
+  | 'onActiveImageFitCommit'
+  | 'onStylePropertyPreview'
+  | 'onStylePropertyCommit'
+  | 'onPaintPreview'
+  | 'onPaintCommit'
+  | 'onShadowCommit'
+>;
+
+interface TreeKnobPanelProps extends StyleHandlers {
   sceneId: string;
   elementId: string;
-  setPanelElement: (element: HTMLDivElement | null) => void;
-  panelElement: HTMLDivElement | null;
-  singleScrollRefFor: (tab: TabType) => (node: HTMLDivElement | null) => void;
+  setPanelElement: SingleKnobPanelProps['setPanelElement'];
+  panelElement: SingleKnobPanelProps['panelElement'];
+  singleScrollRefFor: SingleKnobPanelProps['singleScrollRefFor'];
   useCustomCSS: boolean;
-  // 미리보기는 옛 패널과 같은 편집 제스처 (옛 모양 보기 위에서 그린다)
-  onStylePropertyPreview?: (patch: EditorStylePropertyPreviewPatchV1) => void;
-  onPaintPreview?: (patch: EditorPaintPropertyPatchV1) => void;
   t: (key: string) => string;
 }
 
-/** 트리로 옮긴 노브 - 옛 노브 패널을 그대로 그리고 커밋은 트리 연산으로 보낸다 */
+/** 트리로 옮긴 노브 - 옛 노브 패널을 그대로 그린다. 위치·크기·이름은 트리로, 겉모습 칸은 옛 경로로 */
 const TreeKnobPanel = ({
   sceneId,
   elementId,
@@ -34,11 +46,13 @@ const TreeKnobPanel = ({
   panelElement,
   singleScrollRefFor,
   useCustomCSS,
-  onStylePropertyPreview,
-  onPaintPreview,
   t,
+  ...styleHandlers
 }: TreeKnobPanelProps) => {
   const element = useDocumentElement(sceneId, elementId);
+  const legacy = useKnobItemStore((state) =>
+    state.positions[sceneId]?.find(({ id }) => id === elementId),
+  );
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -49,11 +63,21 @@ const TreeKnobPanel = ({
     [elementId],
   );
   if (!element) return null;
-  const handlers = treeLegacyPanelHandlers(sceneId, elementId, 'knob');
+  const geometry = treeLegacyPanelHandlers(sceneId, elementId);
+  const position = {
+    ...(legacy ?? legacyPositionOf(element)),
+    dx: element.frame.x,
+    dy: element.frame.y,
+    width: element.frame.width,
+    height: element.frame.height,
+    rotation: element.frame.rotation,
+    layerName: element.name ?? undefined,
+  } as KnobItemPosition;
   return (
     <SingleKnobPanel
+      {...styleHandlers}
       setPanelElement={setPanelElement}
-      singleKnobPosition={legacyPositionOf(element) as KnobItemPosition}
+      singleKnobPosition={position}
       selectedKeyType={sceneId}
       isRenaming={isRenaming}
       renameInputRef={renameInputRef}
@@ -73,20 +97,8 @@ const TreeKnobPanel = ({
         });
       }}
       handleRenameCancel={() => setIsRenaming(false)}
-      onElementPropertyCommit={handlers.onElementPropertyCommit}
-      onInactiveImageCommit={handlers.onInactiveImageCommit}
-      onActiveImageCommit={handlers.onActiveImageCommit}
-      onIdleTransparentCommit={handlers.onIdleTransparentCommit}
-      onActiveTransparentCommit={handlers.onActiveTransparentCommit}
-      onIdleImageFitCommit={handlers.onIdleImageFitCommit}
-      onActiveImageFitCommit={handlers.onActiveImageFitCommit}
-      onStylePropertyPreview={onStylePropertyPreview}
-      onStylePropertyCommit={handlers.onStylePropertyCommit}
-      onPaintPreview={onPaintPreview}
-      onPaintCommit={handlers.onPaintCommit}
-      onShadowCommit={handlers.onShadowCommit}
-      handleGeometryPreview={handlers.handleGeometryPreview}
-      handleGeometryCommit={handlers.handleGeometryCommit}
+      handleGeometryPreview={geometry.handleGeometryPreview}
+      handleGeometryCommit={geometry.handleGeometryCommit}
       singleScrollRefFor={singleScrollRefFor}
       panelElement={panelElement}
       useCustomCSS={useCustomCSS}
