@@ -2,9 +2,8 @@ import { createElement } from 'react';
 import OverlaySpriteItem from '@components/overlay/counters/OverlaySpriteItem';
 import { defineElementKind, type FieldDecl } from '../defineElementKind';
 import SpriteEditorFace from './sprite/SpriteEditorFace';
-import SpriteEditorHandles, {
-  spriteOccupiedResizeHandle,
-} from './sprite/SpriteEditorHandles';
+import SpriteEditorHandles from './sprite/SpriteEditorHandles';
+import { spriteOccupiedResizeHandle } from './sprite/spriteOccupiedResizeHandle';
 
 // 반응형 스프라이트 - 담당 키를 누르는 동안 자세가 바뀌는 이미지 레이어
 
