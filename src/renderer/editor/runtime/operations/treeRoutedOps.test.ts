@@ -72,4 +72,26 @@ describe('트리로 옮긴 옛 종류의 옛 편집 연산 → 트리 연산', (
     expect(treeOps).toEqual([]);
     expect([...legacyIndexes]).toEqual([0]);
   });
+
+  it('스프라이트 상자 크기 조절은 트리 setFrame으로 (이동값 비례는 트리 쓰기 입구가 붙인다)', () => {
+    const { treeOps, legacyIndexes } = treeRoutedOps(
+      [
+        {
+          kind: 'resizeSprite',
+          id: 'n1',
+          bounds: { dx: 1, dy: 2, width: 30, height: 40 },
+        },
+      ],
+      { scene: '4key', isTreeEdited: (type) => type === 'sprite', inScene },
+    );
+    expect(treeOps).toEqual([
+      {
+        op: 'setFrame',
+        scene: '4key',
+        id: 'n1',
+        frame: { x: 1, y: 2, width: 30, height: 40 },
+      },
+    ]);
+    expect([...legacyIndexes]).toEqual([]);
+  });
 });

@@ -155,6 +155,8 @@ vi.mock('@stores/data/useKeyStore', () => ({
       setPositions: vi.fn(),
     }),
   },
+  // 공통 커밋 경로가 종류 정의(편집 화면 얼굴)를 불러올 때 프리뷰 오버레이가 등록한다
+  registerRenderedPositionsComposer: vi.fn(),
 }));
 vi.mock('@stores/data/useStatItemStore', () => ({
   useStatItemStore: {

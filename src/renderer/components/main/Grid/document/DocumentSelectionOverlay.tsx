@@ -205,18 +205,6 @@ const SelectionItem = ({
           }}
         />
       )}
-      {withHandles && definition?.editorHandles && (
-        <definition.editorHandles
-          sceneId={sceneId}
-          element={element}
-          bounds={bounds}
-          previewBounds={preview ?? null}
-          rotation={frame.rotation}
-          zoom={zoom}
-          panX={panX}
-          panY={panY}
-        />
-      )}
       {withHandles && definition?.rotatable !== false && (
         <CanvasRotateHandle
           bounds={bounds}

@@ -143,6 +143,10 @@ const MixedSelectionResizeHandles = ({
     const element = store?.getElement(sceneId, id);
     return element ? [{ id, frame: element.frame, element }] : [];
   });
+  // 스프라이트(그림 레이어)는 트리로 옮겨도 옛 종류 섞인 묶음과 같이 열지 않는다
+  if (documentEntries.some(({ element }) => element.kind === 'sprite')) {
+    return null;
+  }
   const all = [...legacy, ...documentEntries];
   // 회전이 섞이면 옛 종류처럼 닫는다
   if (

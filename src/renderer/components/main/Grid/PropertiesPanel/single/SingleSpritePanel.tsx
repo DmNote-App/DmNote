@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { sendTreeEditedFrame } from '@src/renderer/editor/runtime/operations/editorSemanticOps';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
@@ -512,6 +513,25 @@ export const SingleSpritePanel: React.FC<SingleSpritePanelProps> = ({
         console.error('Failed to update sprite', error);
       });
     return persisted;
+  };
+
+  // 회전 - 트리 편집기가 맡는 스프라이트는 트리에 바로 써 감싸는 상자가 즉시 돈다
+  const commitRotation = (rotation: number) => {
+    const gestureId = editGestureController.activeGestureId() ?? undefined;
+    const persisted = sendTreeEditedFrame(
+      'sprite',
+      position.id,
+      { rotation },
+      gestureId,
+    );
+    if (!persisted) {
+      void commitFields({ rotation });
+      return;
+    }
+    editGestureController.settleCommit(persisted);
+    void persisted.catch((error) => {
+      console.error('Failed to rotate sprite', error);
+    });
   };
 
   const trackPoseWrite = (persisted: Promise<unknown>) => {
@@ -1345,7 +1365,7 @@ export const SingleSpritePanel: React.FC<SingleSpritePanelProps> = ({
                 label={t('propertiesPanel.rotation') || '회전'}
                 value={position.rotation ?? 0}
                 onPreview={(rotation) => previewFields({ rotation })}
-                onChange={(rotation) => commitFields({ rotation })}
+                onChange={(rotation) => commitRotation(rotation)}
                 onCancel={() => editGestureController.cancel()}
               />
 

@@ -2,6 +2,7 @@ import { enqueueEditorCompatibilityOperation } from '../lifecycle/editorCompatib
 
 import type { EditorOpV1 } from '@src/types/editor';
 import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
+import type { FramePatch } from '@src/types/generated/elementDocument';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import {
@@ -9,6 +10,7 @@ import {
   editorCoordinator,
 } from '../coordinator/editorStateCoordinator';
 import { treeRoutedOps } from './treeRoutedOps';
+import { withResizeValues } from '@src/renderer/elementKinds/runtime/resizeValues';
 import type {
   EditorSemanticCommitMeta,
   EditorSemanticCommitOutcome,
@@ -29,13 +31,32 @@ const splitForTree = (ops: readonly EditorOpV1[]) => {
   if (treeOps.length === 0) return null;
   const send = (gestureId: string | undefined) =>
     void store
-      .edit(treeOps, gestureId ? { gestureId } : undefined)
+      // 크기와 함께 맞출 값(스프라이트 이동값 등)도 같은 커밋에
+      .edit(withResizeValues(treeOps), gestureId ? { gestureId } : undefined)
       .catch((error) => console.error('[ElementDocument] edit failed', error));
   return {
     send,
     legacyIndexes,
     legacyOps: ops.filter((_op, index) => legacyIndexes.has(index)),
   };
+};
+
+/** 트리로 옮긴 종류의 틀(회전 등)을 트리에 바로 쓴다 - 시맨틱 연산이 없는 값(스프라이트 회전)용.
+ * 트리로 옮긴 종류가 아니거나 트리에 없으면 null (호출자가 옛 경로로) */
+export const sendTreeEditedFrame = (
+  type: string,
+  id: string,
+  frame: FramePatch,
+  gestureId?: string,
+): Promise<unknown> | null => {
+  if (!TREE_EDITED_KINDS.has(type)) return null;
+  const store = getElementDocumentStore();
+  const scene = useKeyStore.getState().selectedKeyType;
+  if (!store?.edit || !store.getElement(scene, id)) return null;
+  return store.edit(
+    withResizeValues([{ op: 'setFrame', scene, id, frame }]),
+    gestureId ? { gestureId } : undefined,
+  );
 };
 
 const treeRoutedOutcome = (

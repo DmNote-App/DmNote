@@ -24,6 +24,19 @@ const treeOpOf = (op: EditorOpV1, scene: string): Op | null => {
           height: op.bounds.height,
         },
       };
+    // 스프라이트 상자 - 자세 이동값 비례는 트리 쓰기 입구가 붙인다(withResizeValues, 같은 projection)
+    case 'resizeSprite':
+      return {
+        op: 'setFrame',
+        scene,
+        id: op.id,
+        frame: {
+          x: op.bounds.dx,
+          y: op.bounds.dy,
+          width: op.bounds.width,
+          height: op.bounds.height,
+        },
+      };
     case 'deleteElement':
       return { op: 'remove', scene, ids: [op.id] };
     case 'patchElement': {
@@ -60,7 +73,9 @@ export const treeRoutedOps = (
   const legacyIndexes = new Set<number>();
   ops.forEach((op, index) => {
     const target =
-      'elementType' in op && 'id' in op
+      op.kind === 'resizeSprite'
+        ? { type: 'sprite', id: op.id }
+        : 'elementType' in op && 'id' in op
         ? { type: op.elementType, id: op.id }
         : null;
     const treeOp =

@@ -1,5 +1,6 @@
 // 트리 문서 편집 동작 - 백엔드에 커밋하고 반영된 결과를 돌려준다
 import type { ElementDocumentCommitResult } from '@api/modules/editor/elementDocumentApi';
+import { withResizeValues } from '@src/renderer/elementKinds/runtime/resizeValues';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import { elementKindData } from '@src/renderer/elementKinds/defineElementKind';
@@ -30,7 +31,8 @@ export const editDocument = async (
   const store = getElementDocumentStore();
   if (!store?.edit) return null;
   try {
-    const result = await store.edit(ops, options);
+    // 크기와 함께 맞출 값(스프라이트 이동값 등)도 같은 커밋에
+    const result = await store.edit(withResizeValues(ops), options);
     report(result);
     return result;
   } catch (error) {
