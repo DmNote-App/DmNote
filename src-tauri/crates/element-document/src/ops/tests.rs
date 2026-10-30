@@ -175,7 +175,7 @@ fn 참조_종류는_묶음이_끝난_뒤_장면_기준으로_검사하고_끊긴
 }
 
 #[test]
-fn 지운_요소를_가리키던_참조는_비우고_그_요소도_바뀐_것으로_알린다() {
+fn 지운_요소를_가리키던_참조는_끊긴_채로_남긴다() {
     let kinds = registry();
     let mut values = dial_values();
     values["target"] = json!("p");
@@ -191,14 +191,15 @@ fn 지운_요소를_가리키던_참조는_비우고_그_요소도_바뀐_것으
             &scene_ops(json!([{ "op": "remove", "scene": "tab", "ids": ["p"] }])),
         )
         .unwrap();
+    // 옛 계약 - 지운 키를 가리키는 스프라이트 트리거는 남는다(비면 옛 검증이 거부, 되돌리면 다시 이어진다)
     let values = &doc.scenes["tab"].element("d").unwrap().values;
-    assert_eq!(values["target"], json!(null));
+    assert_eq!(values["target"], json!("p"));
     assert_eq!(
         values["poses"],
-        json!([{ "poseId": "x", "triggers": ["q"] }])
+        json!([{ "poseId": "x", "triggers": ["p", "q"] }])
     );
     assert!(changes.scenes["tab"].removed.contains("p"));
-    assert!(changes.scenes["tab"].changed.contains("d"));
+    assert!(!changes.scenes["tab"].changed.contains("d"));
 }
 
 #[test]

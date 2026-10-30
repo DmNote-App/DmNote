@@ -1834,3 +1834,41 @@ fn 지운_키를_가리키는_트리거가_있는_스프라이트도_트리_쓰�
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 스프라이트_자세의_하나뿐인_트리거_키를_트리_쓰기로_지워도_트리거는_남는다() {
+    // 옛 계약 - 키를 지워도 자세 트리거는 남는다(패널에 '삭제된 키'). 비우면 옛 검증이 거부한다
+    let (dir, store) = open_store();
+    let key = store.snapshot().key_positions["4key"][0].id.clone();
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        let mut sprite = crate::models::ReactiveSpritePosition {
+            id: uuid::Uuid::new_v4().to_string(),
+            ..Default::default()
+        };
+        sprite.poses.push(crate::models::SpritePose {
+            pose_id: uuid::Uuid::new_v4().to_string(),
+            name: None,
+            triggers: vec![key.clone()],
+            transform: sprite.idle_transform,
+            pivot: None,
+            image_override: None,
+            image_override_metrics: None,
+        });
+        scratch.sprite_positions.insert("4key".into(), vec![sprite]);
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "remove", "scene": "4key", "ids": [key] }]),
+    );
+    let snapshot = store.snapshot();
+    assert!(snapshot.key_positions["4key"].iter().all(|p| p.id != key));
+    assert_eq!(
+        snapshot.sprite_positions["4key"][0].poses[0].triggers,
+        vec![key]
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

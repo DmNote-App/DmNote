@@ -418,10 +418,14 @@ impl ValueKind {
             ValueKind::File { .. } | ValueKind::Id {} => {
                 value.as_str().map(|text| Value::String(text.to_string()))
             }
+            // 끊긴 참조는 남긴다 - 있는 요소면 종류만 검사
             ValueKind::ElementRef { kinds } => {
                 let id = value.as_str()?;
-                let kind = scope.kind_of(id)?;
-                (kinds.is_empty() || kinds.iter().any(|allowed| allowed == kind))
+                scope
+                    .kind_of(id)
+                    .is_none_or(|kind| {
+                        kinds.is_empty() || kinds.iter().any(|allowed| allowed == kind)
+                    })
                     .then(|| Value::String(id.to_string()))
             }
             ValueKind::List {

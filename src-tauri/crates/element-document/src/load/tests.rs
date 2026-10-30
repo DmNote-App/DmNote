@@ -120,7 +120,7 @@ fn 값과_위치를_너그럽게_고치고_고친_요소를_알린다() {
     let mut broken = element(
         "d",
         "dial",
-        json!({ "sensitivity": "fast", "target": "missing", "future": 1 }),
+        json!({ "sensitivity": "fast", "target": "d", "future": 1 }),
     );
     broken.frame.width = -3.0;
     broken.frame.rotation = 400.0;
@@ -131,6 +131,7 @@ fn 값과_위치를_너그럽게_고치고_고친_요소를_알린다() {
     let report = loader(&kinds).load(&mut doc, &mut Sequence(0));
     let element = doc.scenes["tab"].element("d").unwrap();
     assert_eq!(element.values["sensitivity"], json!(1));
+    // 다른 종류를 가리키는 참조는 비운다 (끊긴 참조는 남긴다)
     assert_eq!(element.values["target"], json!(null));
     assert_eq!(element.values["future"], json!(1));
     assert_eq!(element.frame.width, 80.0);

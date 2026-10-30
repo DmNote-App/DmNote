@@ -467,9 +467,8 @@ impl Engine<'_> {
                         removed.insert(node.id().to_string());
                     });
                 }
-                let cleared = self.clear_references(document, &scene_id, &removed);
+                // 지운 요소를 가리키던 참조는 그대로 둔다 - 끊긴 참조 허용(되돌리면 다시 이어진다)
                 let change = changes.scene(&scene_id);
-                change.changed.extend(cleared);
                 change.removed.extend(removed);
                 change.structure = true;
             }
@@ -917,30 +916,6 @@ impl Engine<'_> {
             Err(violations)
         }
     }
-
-    // 지운 요소를 가리키던 참조 비우기 - 목록 안이면 항목을 빼고, 칸이면 null로
-    fn clear_references(
-        &self,
-        document: &mut Document,
-        scene_id: &str,
-        removed: &BTreeSet<String>,
-    ) -> Vec<String> {
-        let mut touched = Vec::new();
-        let kinds = self.kinds;
-        let scene = document.scenes.get_mut(scene_id).expect("scene checked");
-        crate::document::walk_mut(&mut scene.nodes, &mut |node| {
-            let Node::Element(element) = node else {
-                return;
-            };
-            let Some(schema) = kinds.get(&element.kind) else {
-                return;
-            };
-            if clear_refs_in(&schema.fields, &mut element.values, removed) {
-                touched.push(element.id.clone());
-            }
-        });
-        touched
-    }
 }
 
 fn locked_code(engine: &Engine<'_>, document: &Document, kind: &str) -> ViolationCode {
@@ -961,54 +936,6 @@ fn reference_values<'a>(
         }
     });
     out
-}
-
-fn clear_refs_in(
-    fields: &[crate::value::FieldRule],
-    values: &mut Map<String, Value>,
-    removed: &BTreeSet<String>,
-) -> bool {
-    let mut changed = false;
-    for rule in fields {
-        let Some(value) = values.get_mut(&rule.name) else {
-            continue;
-        };
-        match &rule.value {
-            ValueKind::ElementRef { .. } => {
-                if value.as_str().is_some_and(|id| removed.contains(id)) {
-                    *value = Value::Null;
-                    changed = true;
-                }
-            }
-            ValueKind::List { item, .. } => {
-                let Some(items) = value.as_array_mut() else {
-                    continue;
-                };
-                match &**item {
-                    ValueKind::ElementRef { .. } => {
-                        let before = items.len();
-                        items.retain(|item| !item.as_str().is_some_and(|id| removed.contains(id)));
-                        changed |= items.len() != before;
-                    }
-                    ValueKind::Object { fields } => {
-                        for item in items {
-                            if let Some(object) = item.as_object_mut() {
-                                changed |= clear_refs_in(fields, object, removed);
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            ValueKind::Object { fields } => {
-                if let Some(object) = value.as_object_mut() {
-                    changed |= clear_refs_in(fields, object, removed);
-                }
-            }
-            _ => {}
-        }
-    }
-    changed
 }
 
 /// 복제·붙여넣기 때 참조 다시 잇기 - 함께 복제된 요소를 가리키면 복제본으로 바꾼다
