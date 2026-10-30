@@ -1,4 +1,10 @@
-import React, { useRef, useEffect, useMemo, useState } from 'react';
+import React, {
+  useRef,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { isMac } from '@utils/core/platform';
 import {
@@ -24,7 +30,15 @@ import {
   beginPluginInstancesEditSession,
   endPluginInstancesEditSession,
 } from '@plugins/runtime/displayElement/instancesCommitQueue';
-import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import {
+  getElementDocumentStore,
+  useElementDocumentScene,
+} from '@src/renderer/editor/document/elementDocumentRuntime';
+import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
+import {
+  getPreviewOverlayVersion,
+  subscribePreviewOverlay,
+} from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { groupSelectionOf } from '../../main/Grid/document/documentGroups';
 import { documentRangeSelection } from '../../main/Grid/document/documentSelection';
 import { setStructureSelection } from '../../main/Grid/document/treeEditedSelection';
@@ -162,8 +176,13 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
       t,
     });
 
-  const positions = useKeyStore((state) => state.positions);
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
+  // 키에 붙은 요소의 기준 위치 - 트리의 키 슬롯·위치(편집 미리보기 포함)
+  const keyRecords = treePanelRecords(
+    useElementDocumentScene(selectedKeyType),
+    selectedKeyType,
+    useSyncExternalStore(subscribePreviewOverlay, getPreviewOverlayVersion),
+  );
   // Settings 변경 감지용 ref와 콜백 리스트
   const prevSettingsRef = useRef<Record<string, unknown> | null>(null);
   const settingsChangeListenersRef = useRef<
@@ -212,8 +231,8 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
 
   const calculatedPosition = resolvePluginElementPosition({
     element,
-    positions,
-    keyMappings: useKeyStore.getState().keyMappings,
+    positions: keyRecords.positions as never,
+    keyMappings: keyRecords.keyMappings as never,
     selectedKeyType,
     positionOffset,
   });

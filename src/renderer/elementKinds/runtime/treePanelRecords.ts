@@ -49,10 +49,12 @@ const empty = (sceneId: string): TreePanelRecords => {
 };
 
 /** 속성 패널이 읽는 옛 위치 기록 모양을 트리에서 - 트리 순서, 지금 탭 하나만.
- * 장면·미리보기 판이 같으면 같은 객체 (패널 effect·메모가 참조로 비교한다) */
+ * 장면·미리보기 판이 같으면 같은 객체 (패널 effect·메모가 참조로 비교한다).
+ * previewVersion은 React Compiler가 메모하는 파일에서 미리보기 판을 인자로 넘기는 자리(값은 안에서 읽는다) */
 export const treePanelRecords = (
   scene: Scene | undefined,
   sceneId: string,
+  _previewVersion?: number,
 ): TreePanelRecords => {
   if (!scene) return empty(sceneId);
   const version = getPreviewOverlayVersion();

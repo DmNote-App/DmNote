@@ -247,6 +247,7 @@ const Grid = ({
   const records = treePanelRecords(
     useElementDocumentScene(selectedKeyType),
     selectedKeyType,
+    previewVersion,
   );
   // 묶음 identity 유지 - 컴파일된 자식(선택 오버레이·미니맵)의 메모가 기대는 참조
   const collections = useMemo<ElementCollections>(
