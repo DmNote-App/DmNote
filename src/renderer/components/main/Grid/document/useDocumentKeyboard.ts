@@ -69,7 +69,7 @@ export const useDocumentKeyboard = () => {
       if (!sceneId || selectedIds.length === 0) return;
       if (primaryModifier && event.key.toLowerCase() === 'c') {
         event.preventDefault();
-        copyDocumentSelection();
+        copyDocumentSelection({ keepLegacyClipboard: isGridKeyHandled(event) });
         return;
       }
       // Cmd+G 묶기, Shift+Cmd+G 풀기 (옛 종류와 같은 키).

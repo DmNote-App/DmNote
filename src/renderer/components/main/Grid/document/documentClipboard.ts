@@ -90,7 +90,10 @@ export const buildDocumentPaste = (
 };
 
 /** 고른 트리 요소를 겹치는 순서대로 복사 - 옛 종류 클립보드는 비운다 */
-export const copyDocumentSelection = () => {
+export const copyDocumentSelection = ({
+  // 같은 키 입력에서 옛 종류 요소도 복사했으면(섞어 복사) 방금 채운 옛 클립보드를 지킨다
+  keepLegacyClipboard = false,
+}: { keepLegacyClipboard?: boolean } = {}) => {
   const { sceneId, selectedIds } = useDocumentSelectionStore.getState();
   const scene = sceneId
     ? getElementDocumentStore()?.getScene(sceneId)
@@ -107,9 +110,7 @@ export const copyDocumentSelection = () => {
   };
   visit(scene.nodes);
   if (picked.length === 0) return false;
-  // 옛 종류 요소도 함께 골랐으면(섞어 복사) 방금 채운 옛 클립보드를 지킨다
-  const grid = useGridSelectionStore.getState();
-  if (grid.selectedElements.length === 0) grid.clearClipboard();
+  if (!keepLegacyClipboard) useGridSelectionStore.getState().clearClipboard();
   useDocumentClipboardStore.getState().set(picked);
   return true;
 };

@@ -144,7 +144,7 @@ describe('트리 요소 키보드', () => {
     expect(mocks.paste).not.toHaveBeenCalled();
     useDocumentSelectionStore.getState().select('4key', 't1');
     press('c', { metaKey: true });
-    expect(mocks.copy).toHaveBeenCalledTimes(1);
+    expect(mocks.copy).toHaveBeenCalledWith({ keepLegacyClipboard: false });
     useDocumentSelectionStore.getState().clear();
     mocks.clipboard = [{ id: 't1' }];
     useKeyStore.setState({ selectedKeyType: '5key' });
