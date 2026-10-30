@@ -153,7 +153,7 @@ describe('NativeGridElements', () => {
           }}
           keyMappings={['KeyA']}
           pluginElements={[]}
-          selectedElements={[{ type: 'graph', id: GRAPH_ID, index: 0 }]}
+          selectedElements={[{ type: 'stat', id: STAT_ID, index: 0 }]}
           activeTool="select"
           zoom={1}
           panX={0}
@@ -205,19 +205,18 @@ describe('NativeGridElements', () => {
     host.remove();
   });
 
-  it('키·통계·그래프·스프라이트를 기존 순서와 표시 모델로 렌더하고 트리로 옮긴 노브는 그리지 않는다', () => {
+  it('키·통계·스프라이트를 기존 순서와 표시 모델로 렌더하고 트리로 옮긴 노브·그래프는 그리지 않는다', () => {
     renderScene();
 
     const elements = [...host.querySelectorAll('[data-native-kind]')];
     expect(elements.map((element) => element.textContent)).toEqual([
       'KeyA',
       'Total',
-      'graph',
       'sprite',
     ]);
     expect(
       elements.map((element) => element.getAttribute('data-selected')),
-    ).toEqual(['false', 'false', 'true', 'false']);
+    ).toEqual(['false', 'true', 'false']);
   });
 
   it('스프라이트도 같은 공통 핸들러로 위치 커밋·삭제·메뉴를 라우팅한다', () => {
@@ -252,7 +251,6 @@ describe('NativeGridElements', () => {
     renderScene();
     const key = host.querySelector(`[data-element-id="${KEY_ID}"]`)!;
     const stat = host.querySelector(`[data-element-id="${STAT_ID}"]`)!;
-    const graph = host.querySelector(`[data-element-id="${GRAPH_ID}"]`)!;
     dispatchMouse(key, 'click');
     expect(callbacks.select).toHaveBeenCalledWith('key', 0);
     expect(callbacks.setLastBounds).toHaveBeenCalledWith({
@@ -269,14 +267,11 @@ describe('NativeGridElements', () => {
     expect(callbacks.clear).toHaveBeenCalledTimes(1);
     expect(callbacks.toggle).toHaveBeenCalledWith('key', 0);
 
-    dispatchMouse(graph, 'contextmenu', { clientX: 7, clientY: 9 });
-    expect(callbacks.openContext).toHaveBeenCalledWith('graph', 0, 7, 9, graph);
+    dispatchMouse(stat, 'contextmenu', { clientX: 7, clientY: 9 });
+    expect(callbacks.openContext).toHaveBeenCalledWith('stat', 0, 7, 9, stat);
 
-    dispatchMouse(graph, 'mouseup', { button: 1 });
-    expect(operationMocks.deleteElement).toHaveBeenCalledWith(
-      'graph',
-      GRAPH_ID,
-    );
+    dispatchMouse(stat, 'mouseup', { button: 1 });
+    expect(operationMocks.deleteElement).toHaveBeenCalledWith('stat', STAT_ID);
   });
 
   it('기존 키 앵커가 있으면 좌표 범위 수집 결과를 한 번에 적용한다', () => {
@@ -296,7 +291,7 @@ describe('NativeGridElements', () => {
       `key:${KEY_ID}`,
       `stat:${STAT_ID}`,
       `graph:${GRAPH_ID}`,
-      // 트리로 옮긴 노브도 범위에 든다 - 선택 스토어가 트리 선택으로 보낸다
+      // 트리로 옮긴 그래프·노브도 범위에 든다 - 선택 스토어가 트리 선택으로 보낸다
       `knob:${KNOB_ID}`,
       `sprite:${SPRITE_ID}`,
     ]);
