@@ -25,11 +25,19 @@ export const spriteResizeValues = (
   ) {
     return null;
   }
-  const position = {
+  // 이동값과 비율의 기준 크기는 같은 곳에서 - 옛 스토어 값이면 그 크기 기준(패널 크기 변경은 옛 스토어에
+  // 이미 비례 반영돼 있어 비율 1), 트리 값이면 트리 틀 기준
+  const basis = legacy ?? {
     dx: element.frame.x,
     dy: element.frame.y,
     width: element.frame.width,
     height: element.frame.height,
+  };
+  const position = {
+    dx: basis.dx,
+    dy: basis.dy,
+    width: basis.width,
+    height: basis.height,
     idleTransform: values.idleTransform,
     poses: values.poses ?? [],
   };
