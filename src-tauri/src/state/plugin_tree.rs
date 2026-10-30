@@ -11,6 +11,7 @@ use element_document::{Document, Element, Frame, Node};
 use serde_json::{json, Map, Value};
 
 use super::plugin::normalize_plugin_instance_tab_id;
+use crate::models::legacy_layout::is_legacy_kind;
 
 const LEGACY: &str = "legacy";
 const ENTRY: &str = "pluginEntry";
@@ -187,6 +188,61 @@ fn retain_elements(nodes: &mut Vec<Node>, keep: &mut dyn FnMut(&Element) -> bool
     }
 }
 
+// 항목이 정하는 트리 자리 - (zIndex, groupId)
+fn placement_of(element: &Element) -> (Option<f64>, Option<String>) {
+    let entry = element.extra.get(LEGACY).map(|legacy| &legacy[ENTRY]);
+    (
+        entry.and_then(|entry| number(entry, "zIndex")),
+        entry
+            .and_then(|entry| entry.get("groupId"))
+            .and_then(Value::as_str)
+            .map(str::to_string),
+    )
+}
+
+// 형제 사이 겹침 순서 비교 값 - 옛 종류는 저장된 zIndex, 플러그인은 항목 zIndex, 그룹은 안쪽 가장 큰 값
+fn z_of(node: &Node) -> Option<f64> {
+    match node {
+        Node::Group(group) => group
+            .children
+            .iter()
+            .filter_map(z_of)
+            .fold(None, |max: Option<f64>, z| {
+                Some(max.map_or(z, |max| max.max(z)))
+            }),
+        Node::Element(element) if plugin_id_of_kind(&element.kind).is_some() => {
+            placement_of(element).0
+        }
+        Node::Element(element) if is_legacy_kind(&element.kind) => {
+            let legacy = element.extra.get(LEGACY)?;
+            number(legacy, "zIndex").or_else(|| number(legacy, "index"))
+        }
+        Node::Element(_) => None,
+    }
+}
+
+// 새로 두는 노드 - groupId 그룹(없으면 장면 맨 위 단계)에서 zIndex가 더 큰 첫 형제 아래, zIndex가 없으면 맨 위
+fn place(scene: &mut element_document::Scene, element: Element) {
+    let (z, group) = placement_of(&element);
+    let parent = group.filter(|group| {
+        scene
+            .find_path(group)
+            .and_then(|path| scene.node_at(&path))
+            .is_some_and(|node| matches!(node, Node::Group(_)))
+    });
+    let siblings = scene
+        .children_mut(parent.as_deref())
+        .expect("parent checked");
+    let at = z
+        .and_then(|z| {
+            siblings
+                .iter()
+                .position(|sibling| z_of(sibling).is_some_and(|other| other > z))
+        })
+        .unwrap_or(siblings.len());
+    siblings.insert(at, Node::Element(element));
+}
+
 /// 인스턴스 목록 → 트리. 남는 요소는 트리 자리를 지키고 새 요소는 장면 맨 위, 빠진 요소는 지운다
 pub(crate) fn apply_plugin_bucket(document: &mut Document, plugin_id: &str, value: Option<&Value>) {
     let kind = plugin_kind(plugin_id);
@@ -220,12 +276,13 @@ pub(crate) fn apply_plugin_bucket(document: &mut Document, plugin_id: &str, valu
         Some(raw) => rest = Some(json!({ "raw": raw })),
     }
 
+    // 자리가 그대로인 노드(같은 장면, zIndex·groupId 그대로)는 제자리에서 고치고, 나머지는 빼고 다시 둔다
     for (scene_id, scene) in document.scenes.iter_mut() {
         retain_elements(&mut scene.nodes, &mut |element| {
             element.kind != kind
-                || wanted
-                    .get(&element.id)
-                    .is_some_and(|(tab, _)| tab == scene_id)
+                || wanted.get(&element.id).is_some_and(|(tab, next)| {
+                    tab == scene_id && placement_of(element) == placement_of(next)
+                })
         });
     }
     for id in order_of_wanted {
@@ -233,7 +290,7 @@ pub(crate) fn apply_plugin_bucket(document: &mut Document, plugin_id: &str, valu
         let scene = document.scenes.get_mut(&tab).expect("scene checked");
         match scene.element_mut(&element.id) {
             Some(existing) => *existing = element,
-            None => scene.nodes.push(Node::Element(element)),
+            None => place(scene, element),
         }
     }
 

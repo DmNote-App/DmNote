@@ -119,3 +119,88 @@ fn 플러그인_안에서_겹친_인스턴스_id는_뒤의_것을_장면_밖에_
     assert_eq!(project_plugin_bucket(&doc, "demo"), Some(duplicated));
     assert_eq!(doc.scenes["4key"].elements().len(), 1);
 }
+
+fn native(id: &str, z: i64) -> Node {
+    Node::Element(element_document::Element {
+        id: id.into(),
+        kind: "key".into(),
+        frame: element_document::Frame {
+            x: 0.0,
+            y: 0.0,
+            width: 1.0,
+            height: 1.0,
+            rotation: 0.0,
+        },
+        name: None,
+        hidden: false,
+        class_name: None,
+        use_inline_styles: None,
+        bundles: Default::default(),
+        values: Default::default(),
+        input: None,
+        extra: serde_json::from_value(json!({ "legacy": { "zIndex": z } })).unwrap(),
+    })
+}
+
+fn ids_of(nodes: &[Node]) -> Vec<&str> {
+    nodes.iter().map(Node::id).collect()
+}
+
+#[test]
+fn 플러그인_노드는_항목의_겹침값으로_형제_사이에_그룹값으로_부모_그룹에_둔다() {
+    let mut doc = document(&["4key"]);
+    let scene = doc.scenes.get_mut("4key").unwrap();
+    scene.nodes = vec![
+        native("k1", 1),
+        native("k3", 3),
+        Node::Group(element_document::Group {
+            id: "g1".into(),
+            name: "g".into(),
+            hidden: false,
+            children: vec![native("k5", 5)],
+            extra: Default::default(),
+        }),
+    ];
+    apply_plugin_bucket(
+        &mut doc,
+        "demo",
+        Some(&json!([
+            { "instanceId": "a", "position": { "x": 0, "y": 0 }, "tabId": "4key", "zIndex": 2 },
+            { "instanceId": "b", "position": { "x": 0, "y": 0 }, "tabId": "4key", "zIndex": 6, "groupId": "g1" },
+            { "instanceId": "c", "position": { "x": 0, "y": 0 }, "tabId": "4key" }
+        ])),
+    );
+    let scene = &doc.scenes["4key"];
+    // zIndex 없는 항목은 맨 위
+    assert_eq!(
+        ids_of(&scene.nodes),
+        vec!["k1", "demo::a", "k3", "g1", "demo::c"]
+    );
+    let Node::Group(group) = &scene.nodes[3] else {
+        panic!()
+    };
+    assert_eq!(ids_of(&group.children), vec!["k5", "demo::b"]);
+}
+
+#[test]
+fn 이미_있던_노드는_겹침값_그룹값이_그대로면_자리를_지키고_바뀌면_다시_둔다() {
+    let mut doc = document(&["4key"]);
+    doc.scenes.get_mut("4key").unwrap().nodes = vec![native("k1", 1), native("k3", 3)];
+    let entry = |z: i64, x: i64| json!([{ "instanceId": "a", "position": { "x": x, "y": 0 }, "tabId": "4key", "zIndex": z }]);
+    apply_plugin_bucket(&mut doc, "demo", Some(&entry(2, 0)));
+    // 트리에서 맨 아래로 옮겨 둔 상태 - zIndex가 그대로면 자리를 지킨다
+    let scene = doc.scenes.get_mut("4key").unwrap();
+    let moved = scene.nodes.remove(1);
+    scene.nodes.insert(0, moved);
+    apply_plugin_bucket(&mut doc, "demo", Some(&entry(2, 9)));
+    assert_eq!(
+        ids_of(&doc.scenes["4key"].nodes),
+        vec!["demo::a", "k1", "k3"]
+    );
+    // zIndex가 바뀌면 그 값의 자리로
+    apply_plugin_bucket(&mut doc, "demo", Some(&entry(4, 9)));
+    assert_eq!(
+        ids_of(&doc.scenes["4key"].nodes),
+        vec!["k1", "k3", "demo::a"]
+    );
+}
