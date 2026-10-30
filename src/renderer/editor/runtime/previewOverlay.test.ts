@@ -20,14 +20,14 @@ describe('previewOverlay 로컬 세션 수명', () => {
       'spritePosition',
     );
     previewOverlay.applyRemoteEnvelope({
-      schemaVersion: 1,
+      schemaVersion: 2,
       sessionId: '22222222-2222-4222-8222-222222222222',
       seq: 1,
       kind: 'patch',
       sourceLabel: 'panel',
       domain: 'spritePosition',
       mode: '4key',
-      targets: [0],
+      targets: ['sprite-a'],
       patch: { remote: 7 },
     });
     previewOverlay.applyLocalPatchByIds(
@@ -58,14 +58,14 @@ describe('previewOverlay 로컬 세션 수명', () => {
       'spritePosition',
     );
     previewOverlay.applyRemoteEnvelope({
-      schemaVersion: 1,
+      schemaVersion: 2,
       sessionId: '22222222-2222-4222-8222-222222222222',
       seq: 1,
       kind: 'patch',
       sourceLabel: 'panel',
       domain: 'spritePosition',
       mode: '4key',
-      targets: [0],
+      targets: ['sprite-a'],
       patch: { remote: 7 },
     });
 

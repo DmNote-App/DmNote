@@ -71,15 +71,6 @@ const authorityRecordFor = (domain: PreviewDomain): PositionsRecordLike =>
     ELEMENT_TYPE_BY_PREVIEW_DOMAIN[domain],
   ) as PositionsRecordLike;
 
-const currentIndexForId = (
-  domain: PreviewDomain,
-  mode: string,
-  id: string,
-): number =>
-  (authorityRecordFor(domain)[mode] ?? []).findIndex(
-    (position) => position.id === id,
-  );
-
 let active: ActiveGesture | null = null;
 
 const schedulePublishFlush = () => {
@@ -111,20 +102,17 @@ const takeNextGroup = (gesture: ActiveGesture) => {
 
     const [firstId, patch] = first.value;
     const patchKey = JSON.stringify(patch);
-    const firstIndex = currentIndexForId(domain, gesture.mode, firstId);
-    const groupTargets = firstIndex >= 0 ? [firstIndex] : [];
+    const groupTargets = [firstId];
     targets.delete(firstId);
 
     for (const [id, candidate] of targets) {
       if (JSON.stringify(candidate) === patchKey) {
-        const index = currentIndexForId(domain, gesture.mode, id);
-        if (index >= 0) groupTargets.push(index);
+        groupTargets.push(id);
         targets.delete(id);
       }
     }
 
     if (targets.size === 0) gesture.pendingPatches.delete(domain);
-    if (groupTargets.length === 0) continue;
     return { domain, targets: groupTargets, patch };
   }
 

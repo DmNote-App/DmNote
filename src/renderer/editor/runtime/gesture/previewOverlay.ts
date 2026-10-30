@@ -29,10 +29,8 @@ interface PreviewSession {
   // 같은 창에서는 편집 게스처가 하나뿐이라 로컬 세션도 하나만 활성
   // optional은 개발 중 이전 모듈이 남긴 세션도 로컬로 회수하기 위한 호환
   local?: boolean;
-  // 도메인 → target index → 누적 patch (같은 필드는 덮어쓰기)
-  domainPatches: Map<PreviewDomain, Map<number, Record<string, unknown>>>;
-  // 로컬 세션은 ID를 신원으로 보관해 canonical reorder에도 같은 요소를 따라간다
-  localIdPatches: Map<PreviewDomain, Map<string, Record<string, unknown>>>;
+  // 도메인 → 요소 id → 누적 patch (같은 필드는 덮어쓰기). id가 신원이라 canonical reorder에도 같은 요소를 따라간다
+  idPatches: Map<PreviewDomain, Map<string, Record<string, unknown>>>;
   lastSeq: number;
 }
 
@@ -70,26 +68,17 @@ export const composePreviewPositions = <T extends { id: string }>(
 
   let rendered = pending;
   for (const session of sessions.values()) {
-    const targetPatches = session.domainPatches.get(domain);
-    const idPatches = session.localIdPatches.get(domain);
-    if (!targetPatches && !idPatches) continue;
+    const idPatches = session.idPatches.get(domain);
+    if (!idPatches?.size) continue;
     const modePositions = rendered[session.mode];
     if (!modePositions) continue;
 
     let nextMode: T[] | null = null;
-    for (const [index, patch] of targetPatches ?? []) {
-      const current = (nextMode ?? modePositions)[index];
-      if (!current) continue;
-      if (nextMode === null) nextMode = [...modePositions];
-      nextMode[index] = { ...current, ...patch };
-    }
     const indexById = new Map<string, number>();
-    if (idPatches?.size) {
-      (nextMode ?? modePositions).forEach(({ id }, index) => {
-        if (!indexById.has(id)) indexById.set(id, index);
-      });
-    }
-    for (const [id, patch] of idPatches ?? []) {
+    modePositions.forEach(({ id }, index) => {
+      if (!indexById.has(id)) indexById.set(id, index);
+    });
+    for (const [id, patch] of idPatches) {
       const index = indexById.get(id);
       if (index === undefined) continue;
       const current = (nextMode ?? modePositions)[index];
@@ -139,36 +128,16 @@ const refreshRenderedState = () => {
 const unsubscribePendingTreeEdits =
   subscribePendingTreeEdits(refreshRenderedState);
 
-const mergeTargetPatch = (
-  session: PreviewSession,
-  domain: PreviewDomain,
-  targets: number[],
-  patch: Record<string, unknown>,
-) => {
-  let targetPatches = session.domainPatches.get(domain);
-  if (!targetPatches) {
-    targetPatches = new Map();
-    session.domainPatches.set(domain, targetPatches);
-  }
-  for (const index of targets) {
-    const existing = targetPatches.get(index);
-    targetPatches.set(
-      index,
-      existing ? { ...existing, ...patch } : { ...patch },
-    );
-  }
-};
-
-const mergeLocalIdPatch = (
+const mergeIdPatch = (
   session: PreviewSession,
   domain: PreviewDomain,
   targets: readonly string[],
   patch: Record<string, unknown>,
 ) => {
-  let targetPatches = session.localIdPatches.get(domain);
+  let targetPatches = session.idPatches.get(domain);
   if (!targetPatches) {
     targetPatches = new Map();
-    session.localIdPatches.set(domain, targetPatches);
+    session.idPatches.set(domain, targetPatches);
   }
   for (const id of targets) {
     const existing = targetPatches.get(id);
@@ -192,31 +161,6 @@ const replacePreviousLocalSession = (sessionId: string): string[] =>
 
 export const previewOverlay = {
   /** 로컬(발신) 세션 patch 반영 */
-  applyLocalPatch(
-    sessionId: string,
-    mode: string,
-    targets: number[],
-    patch: Record<string, unknown>,
-    domain: PreviewDomain = 'keyPosition',
-  ): string[] {
-    if (tombstones.has(sessionId)) return [];
-    const replaced = replacePreviousLocalSession(sessionId);
-    let session = sessions.get(sessionId);
-    if (!session) {
-      session = {
-        mode,
-        local: true,
-        domainPatches: new Map(),
-        localIdPatches: new Map(),
-        lastSeq: 0,
-      };
-      sessions.set(sessionId, session);
-    }
-    mergeTargetPatch(session, domain, targets, patch);
-    refreshRenderedState();
-    return replaced;
-  },
-
   applyLocalPatchByIds(
     sessionId: string,
     mode: string,
@@ -245,14 +189,13 @@ export const previewOverlay = {
       session = {
         mode,
         local: true,
-        domainPatches: new Map(),
-        localIdPatches: new Map(),
+        idPatches: new Map(),
         lastSeq: 0,
       };
       sessions.set(sessionId, session);
     }
     for (const { id, patch } of entries) {
-      mergeLocalIdPatch(session, domain, [id], patch);
+      mergeIdPatch(session, domain, [id], patch);
     }
     refreshRenderedState();
     return replaced;
@@ -275,19 +218,13 @@ export const previewOverlay = {
       session = {
         mode: envelope.mode,
         local: false,
-        domainPatches: new Map(),
-        localIdPatches: new Map(),
+        idPatches: new Map(),
         lastSeq: 0,
       };
       sessions.set(envelope.sessionId, session);
     }
     session.lastSeq = envelope.seq;
-    mergeTargetPatch(
-      session,
-      envelope.domain,
-      envelope.targets,
-      envelope.patch,
-    );
+    mergeIdPatch(session, envelope.domain, envelope.targets, envelope.patch);
     refreshRenderedState();
   },
 

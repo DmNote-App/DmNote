@@ -11,9 +11,11 @@ use uuid::Uuid;
 
 use crate::state::history::{HistoryAdmission, HistoryAdmissionGate};
 
-const PREVIEW_SCHEMA_VERSION: u16 = 1;
+// 2: 대상이 옛 배열 순번에서 요소 id로
+const PREVIEW_SCHEMA_VERSION: u16 = 2;
 const MAX_PREVIEW_BYTES: usize = 64 * 1024;
 const MAX_PREVIEW_TARGETS: usize = 512;
+const MAX_PREVIEW_TARGET_ID_LEN: usize = 128;
 const TOMBSTONE_CAPACITY: usize = 1_024;
 const MAX_ACTIVE_PREVIEW_SESSIONS: usize = TOMBSTONE_CAPACITY;
 
@@ -134,7 +136,7 @@ pub struct PreviewEnvelope {
     pub source_label: String,
     pub domain: PreviewDomain,
     pub mode: String,
-    pub targets: Vec<u32>,
+    pub targets: Vec<String>,
     pub patch: Map<String, Value>,
 }
 
@@ -148,7 +150,7 @@ pub struct PreviewPublishRequest {
     pub kind: PreviewKind,
     pub domain: PreviewDomain,
     pub mode: String,
-    pub targets: Vec<u32>,
+    pub targets: Vec<String>,
     pub patch: Map<String, Value>,
 }
 
@@ -453,6 +455,13 @@ fn validate_publish_request(request: &PreviewPublishRequest) -> Result<(), Strin
         return Err(format!(
             "preview target count exceeds {MAX_PREVIEW_TARGETS}"
         ));
+    }
+    if request
+        .targets
+        .iter()
+        .any(|id| id.is_empty() || id.len() > MAX_PREVIEW_TARGET_ID_LEN)
+    {
+        return Err("preview target id is empty or too long".to_string());
     }
     let allowed_fields = preview_patch_fields(request.domain);
     if let Some(field) = request

@@ -148,14 +148,14 @@ const spritePosition = (dx: number): CanonicalReactiveSpritePosition => ({
 const remoteEnvelope = (
   overrides: Partial<PreviewEnvelope> = {},
 ): PreviewEnvelope => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   sessionId: SESSION_ID,
   seq: 1,
   kind: 'patch',
   sourceLabel: 'main',
   domain: 'spritePosition',
   mode: '4key',
-  targets: [0],
+  targets: [SPRITE_ID],
   patch: { dx: 99 },
   ...overrides,
 });

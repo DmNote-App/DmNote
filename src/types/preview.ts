@@ -2,7 +2,8 @@
 
 import type { EditorElementTypeV1 } from '@src/types/editor';
 
-export const PREVIEW_SCHEMA_VERSION = 1;
+// 2: 대상이 옛 배열 순번에서 요소 id로
+export const PREVIEW_SCHEMA_VERSION = 2;
 
 export type PreviewDomain = `${EditorElementTypeV1}Position`;
 
@@ -33,7 +34,8 @@ export interface PreviewEnvelope {
   sourceLabel: string;
   domain: PreviewDomain;
   mode: string;
-  targets: number[];
+  // 요소 id
+  targets: string[];
   patch: Record<string, unknown>;
 }
 
@@ -43,6 +45,7 @@ export interface PreviewPublishRequest {
   seq: number;
   domain: PreviewDomain;
   mode: string;
-  targets: number[];
+  // 요소 id
+  targets: string[];
   patch: Record<string, unknown>;
 }

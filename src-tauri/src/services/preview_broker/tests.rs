@@ -23,7 +23,7 @@ fn request_for_domain(session_id: &str, seq: u64, domain: PreviewDomain) -> Prev
         kind: PreviewKind::Patch,
         domain,
         mode: "default".to_string(),
-        targets: vec![0],
+        targets: vec!["key-0".into()],
         patch: Map::from_iter([("width".to_string(), Value::from(80))]),
     }
 }
@@ -123,7 +123,7 @@ fn publish_injects_source_label_and_defaults_to_patch() {
         "seq": 1,
         "domain": "keyPosition",
         "mode": "default",
-        "targets": [0],
+        "targets": ["key-0"],
         "patch": { "width": 80 }
     }))
     .expect("frontend request shape is accepted");
@@ -191,7 +191,7 @@ fn image_transform_preview_fields_round_trip_through_channel() {
         "seq": 1,
         "domain": "keyPosition",
         "mode": "default",
-        "targets": [0],
+        "targets": ["key-0"],
         "patch": expected_patch
     }))
     .expect("nested image transform request is valid JSON");
@@ -374,7 +374,7 @@ fn sprite_position_domain_validates_and_round_trips_through_subscribers() {
         "seq": 1,
         "domain": "spritePosition",
         "mode": "4key",
-        "targets": [0],
+        "targets": ["key-0"],
         "patch": patch
     }))
     .expect("spritePosition domain is accepted");
@@ -453,7 +453,7 @@ fn unknown_preview_domain_is_rejected_during_wire_validation() {
         "seq": 1,
         "domain": "spritePose",
         "mode": "4key",
-        "targets": [0],
+        "targets": ["key-0"],
         "patch": { "dx": 24 }
     }))
     .expect_err("unknown preview domains stay closed");
@@ -682,4 +682,15 @@ fn cancel_all_tombstones_every_active_session() {
         .publish("owner", request(&session_id, 2))
         .unwrap_err()
         .contains("already ended"));
+}
+
+#[test]
+fn preview_target_ids_must_be_non_empty_and_bounded() {
+    let mut empty = request(&session_id(), 1);
+    empty.targets = vec![String::new()];
+    assert!(validate_publish_request(&empty).is_err());
+    let mut long = request(&session_id(), 1);
+    long.targets = vec!["x".repeat(MAX_PREVIEW_TARGET_ID_LEN + 1)];
+    assert!(validate_publish_request(&long).is_err());
+    validate_publish_request(&request(&session_id(), 1)).expect("요소 id 대상은 받는다");
 }

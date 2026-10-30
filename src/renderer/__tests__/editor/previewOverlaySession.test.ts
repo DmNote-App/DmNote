@@ -111,14 +111,14 @@ const resetPositionStores = () => {
 const remoteEnvelope = (
   overrides: Partial<PreviewEnvelope>,
 ): PreviewEnvelope => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   sessionId: 'remote-session',
   seq: 1,
   kind: 'patch',
   sourceLabel: 'panel',
   domain: 'keyPosition',
   mode: '4key',
-  targets: [0],
+  targets: [KEY_ID_A],
   patch: { backgroundColor: '#ff0000' },
   ...overrides,
 });
@@ -138,7 +138,7 @@ describe('previewOverlay', () => {
   });
 
   it('로컬 patch는 rendered에만 합성되고 canonical은 불변', () => {
-    previewOverlay.applyLocalPatch('s1', '4key', [0], {
+    previewOverlay.applyLocalPatchByIds('s1', '4key', [KEY_ID_A], {
       backgroundColor: '#123456',
     });
 
@@ -151,7 +151,9 @@ describe('previewOverlay', () => {
   });
 
   it('세션 종료 시 오버레이만 제거되고 rendered가 canonical로 복귀', () => {
-    previewOverlay.applyLocalPatch('s1', '4key', [0], { width: 120 });
+    previewOverlay.applyLocalPatchByIds('s1', '4key', [KEY_ID_A], {
+      width: 120,
+    });
     previewOverlay.endSession('s1');
 
     const state = useKeyStore.getState();
@@ -192,11 +194,13 @@ describe('previewOverlay', () => {
   });
 
   it('병합 커밋은 두 창의 세션을 함께 끝내고 늦은 patch를 차단', () => {
-    previewOverlay.applyLocalPatch('main-session', '4key', [0], { width: 90 });
+    previewOverlay.applyLocalPatchByIds('main-session', '4key', [KEY_ID_A], {
+      width: 90,
+    });
     previewOverlay.applyRemoteEnvelope(
       remoteEnvelope({
         sessionId: 'panel-session',
-        targets: [1],
+        targets: [KEY_ID_B],
         patch: { width: 95 },
       }),
     );
@@ -206,12 +210,14 @@ describe('previewOverlay', () => {
     expect(useKeyStore.getState().positions['4key'][0].width).toBe(60);
     expect(useKeyStore.getState().positions['4key'][1].width).toBe(60);
 
-    previewOverlay.applyLocalPatch('main-session', '4key', [0], { width: 100 });
+    previewOverlay.applyLocalPatchByIds('main-session', '4key', [KEY_ID_A], {
+      width: 100,
+    });
     previewOverlay.applyRemoteEnvelope(
       remoteEnvelope({
         sessionId: 'panel-session',
         seq: 2,
-        targets: [1],
+        targets: [KEY_ID_B],
         patch: { width: 105 },
       }),
     );
@@ -220,7 +226,7 @@ describe('previewOverlay', () => {
   });
 
   it('프리뷰 활성 중 canonical 편집이 들어와도 오버레이가 재합성됨', () => {
-    previewOverlay.applyLocalPatch('s1', '4key', [0], {
+    previewOverlay.applyLocalPatchByIds('s1', '4key', [KEY_ID_A], {
       backgroundColor: '#123456',
     });
 
@@ -235,10 +241,10 @@ describe('previewOverlay', () => {
   });
 
   it('stat patch는 canonical을 바꾸지 않고 도메인 렌더 결과에만 합성', () => {
-    previewOverlay.applyLocalPatch(
+    previewOverlay.applyLocalPatchByIds(
       'stat-session',
       '4key',
-      [0],
+      [STAT_ID_A],
       { width: 120 },
       'statPosition',
     );
@@ -254,14 +260,14 @@ describe('previewOverlay', () => {
     ).toBe(60);
   });
 
-  it('같은 세션과 index의 서로 다른 도메인 patch를 독립 보관', () => {
-    previewOverlay.applyLocalPatch('mixed-session', '4key', [0], {
+  it('같은 세션과 대상의 서로 다른 도메인 patch를 독립 보관', () => {
+    previewOverlay.applyLocalPatchByIds('mixed-session', '4key', [KEY_ID_A], {
       width: 90,
     });
-    previewOverlay.applyLocalPatch(
+    previewOverlay.applyLocalPatchByIds(
       'mixed-session',
       '4key',
-      [0],
+      [STAT_ID_A],
       { width: 130 },
       'statPosition',
     );
@@ -329,7 +335,7 @@ describe('editGestureController', () => {
 
   it('새 게스처는 남은 로컬 프리뷰를 교체하고 브로커에도 종료를 알린다', () => {
     const staleSessionId = '11111111-1111-4111-8111-111111111111';
-    previewOverlay.applyLocalPatch(staleSessionId, '4key', [0], {
+    previewOverlay.applyLocalPatchByIds(staleSessionId, '4key', [KEY_ID_A], {
       backgroundColor: '#111111',
     });
 
@@ -347,7 +353,7 @@ describe('editGestureController', () => {
     const staleSessionId = '11111111-1111-4111-8111-111111111111';
     const canonicalColor =
       useKeyStore.getState().positions['4key'][0].backgroundColor;
-    previewOverlay.applyLocalPatch(staleSessionId, '4key', [0], {
+    previewOverlay.applyLocalPatchByIds(staleSessionId, '4key', [KEY_ID_A], {
       backgroundColor: '#111111',
     });
 
@@ -369,7 +375,7 @@ describe('editGestureController', () => {
     const request = vi.mocked(previewApi.publish).mock.calls[0][0];
     expect(request.mode).toBe('4key');
     expect(request.domain).toBe('keyPosition');
-    expect(request.targets).toEqual([0]);
+    expect(request.targets).toEqual([KEY_ID_A]);
     expect(request.patch).toEqual({ backgroundColor: '#111111' });
   });
 
@@ -434,7 +440,7 @@ describe('editGestureController', () => {
     const targetOneCalls = vi
       .mocked(previewApi.publish)
       .mock.calls.map(([request]) => request)
-      .filter((request) => request.targets.includes(1));
+      .filter((request) => request.targets.includes(KEY_ID_B));
     expect(targetOneCalls).toHaveLength(1);
     expect(targetOneCalls[0].patch).toEqual({ width: 30 });
   });
@@ -448,7 +454,7 @@ describe('editGestureController', () => {
 
     expect(previewApi.publish).toHaveBeenCalledTimes(1);
     const request = vi.mocked(previewApi.publish).mock.calls[0][0];
-    expect(request.targets).toEqual([0, 1]);
+    expect(request.targets).toEqual([KEY_ID_A, KEY_ID_B]);
     expect(request.patch).toEqual({ width: 42 });
   });
 
@@ -692,7 +698,7 @@ describe('editGestureController', () => {
     });
     expect(
       vi.mocked(previewApi.publish).mock.calls.at(-1)?.[0].targets,
-    ).toEqual([1]);
+    ).toEqual([KEY_ID_A]);
 
     await editGestureController.commitPendingAsync();
     const patch = generatedPatches[0] as {
