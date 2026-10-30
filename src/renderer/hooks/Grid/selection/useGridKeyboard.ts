@@ -7,6 +7,7 @@
  * - Ctrl+Z/Shift+Z Undo/Redo
  */
 
+import { markGridKeyHandled } from '@stores/grid/gridKeyHandled';
 import { useEffect, useRef } from 'react';
 import {
   useGridSelectionStore,
@@ -144,6 +145,7 @@ export function useGridKeyboard({
       // Ctrl/Cmd + G: 선택 요소 그룹화
       if (isPrimaryModifierPressed && !e.shiftKey && e.code === 'KeyG') {
         e.preventDefault();
+        markGridKeyHandled(e);
         if (selectedElements.length < 2) return;
 
         const selectedKeyType = useKeyStore.getState().selectedKeyType;
@@ -158,6 +160,7 @@ export function useGridKeyboard({
       // Ctrl/Cmd + Shift + G: 선택 요소 그룹 해제
       if (isPrimaryModifierPressed && e.shiftKey && e.code === 'KeyG') {
         e.preventDefault();
+        markGridKeyHandled(e);
         if (selectedElements.length === 0) return;
 
         const selectedKeyType = useKeyStore.getState().selectedKeyType;
@@ -171,6 +174,7 @@ export function useGridKeyboard({
       if (isPrimaryModifierPressed && e.key.toLowerCase() === 'c') {
         if (selectedElements.length > 0) {
           e.preventDefault();
+          markGridKeyHandled(e);
           copySelectedElements();
         }
         return;
@@ -181,6 +185,7 @@ export function useGridKeyboard({
         const currentClipboard = useGridSelectionStore.getState().clipboard;
         if (currentClipboard.length > 0) {
           e.preventDefault();
+          markGridKeyHandled(e);
           void Promise.resolve(pasteElements()).catch(reportElementOpError);
         }
         return;
@@ -193,6 +198,7 @@ export function useGridKeyboard({
       const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
       if (arrowKeys.includes(e.key)) {
         e.preventDefault();
+        markGridKeyHandled(e);
 
         let deltaX = 0;
         let deltaY = 0;
@@ -231,6 +237,7 @@ export function useGridKeyboard({
       // Delete 키로 선택 요소 삭제
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
+        markGridKeyHandled(e);
         void Promise.resolve(deleteSelectedElements()).catch(
           reportElementOpError,
         );

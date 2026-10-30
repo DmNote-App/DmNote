@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useKeyStore } from '@stores/data/useKeyStore';
+import { markGridKeyHandled } from '@stores/grid/gridKeyHandled';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useDocumentKeyboard } from './useDocumentKeyboard';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
@@ -106,7 +107,7 @@ describe('트리 요소 키보드', () => {
     mocks.clipboard = [{ id: 't1' }];
     useKeyStore.setState({ selectedKeyType: '5key' });
     press('v', { metaKey: true });
-    expect(mocks.paste).toHaveBeenCalledWith('5key');
+    expect(mocks.paste).toHaveBeenCalledWith('5key', { keepOther: false });
   });
 
   it('Cmd+G는 고른 트리 요소를 묶고 Shift+Cmd+G는 푼다', () => {
@@ -142,5 +143,33 @@ describe('트리 요소 키보드', () => {
     });
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
     act(() => useGridSelectionStore.getState().clearSelection());
+  });
+
+  it('옛 종류 키보드가 처리한 편집 키(섞인 선택)는 트리 요소에도 같은 동작을 한다', () => {
+    useDocumentSelectionStore.getState().select('4key', 't1');
+    act(() => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'Delete',
+        cancelable: true,
+      });
+      // 옛 종류 키보드가 먼저 처리한 상황
+      event.preventDefault();
+      markGridKeyHandled(event);
+      window.dispatchEvent(event);
+    });
+    expect(mocks.remove).toHaveBeenCalledWith('4key', ['t1']);
+  });
+
+  it('다른 층이 소비한 키는 양보한다', () => {
+    useDocumentSelectionStore.getState().select('4key', 't1');
+    act(() => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'Delete',
+        cancelable: true,
+      });
+      event.preventDefault();
+      window.dispatchEvent(event);
+    });
+    expect(mocks.remove).not.toHaveBeenCalled();
   });
 });

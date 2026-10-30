@@ -1,5 +1,6 @@
 // 트리 요소 클립보드 - 옛 종류 클립보드와 같은 규칙(같은 만큼 비켜 붙이기, 다른 탭에도 붙이기)
 // 두 클립보드는 함께 서지 않는다 - 한쪽에 복사하면 다른 쪽을 비운다
+import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { create } from 'zustand';
 
 import { PASTE_OFFSET } from '@hooks/Grid/constants';
@@ -106,13 +107,19 @@ export const copyDocumentSelection = () => {
   };
   visit(scene.nodes);
   if (picked.length === 0) return false;
-  useGridSelectionStore.getState().clearClipboard();
+  // 옛 종류 요소도 함께 골랐으면(섞어 복사) 방금 채운 옛 클립보드를 지킨다
+  const grid = useGridSelectionStore.getState();
+  if (grid.selectedElements.length === 0) grid.clearClipboard();
   useDocumentClipboardStore.getState().set(picked);
   return true;
 };
 
 /** 지금 탭에 붙여넣고 붙인 요소를 고른다 */
-export const pasteDocumentClipboard = async (sceneId: string) => {
+export const pasteDocumentClipboard = async (
+  sceneId: string,
+  // 옛 종류 클립보드와 함께 붙일 때 - 붙인 옛 요소 선택을 지킨다
+  { keepOther = false }: { keepOther?: boolean } = {},
+) => {
   const { nodes } = useDocumentClipboardStore.getState();
   if (nodes.length === 0) return;
   const { ops, ids } = buildDocumentPaste(
@@ -123,7 +130,10 @@ export const pasteDocumentClipboard = async (sceneId: string) => {
   );
   const result = await editDocument(ops);
   if (result?.status === 'committed') {
-    useDocumentSelectionStore.getState().setSelection(sceneId, ids);
+    const select = () =>
+      useDocumentSelectionStore.getState().setSelection(sceneId, ids);
+    if (keepOther) keepOtherSelection(select);
+    else select();
   }
 };
 

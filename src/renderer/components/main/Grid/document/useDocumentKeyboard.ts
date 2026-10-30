@@ -4,6 +4,8 @@ import { useTranslation } from '@contexts/useTranslation';
 
 import { isModalLayerActive } from '@components/main/Modal/popupLayer';
 import { useKeyStore } from '@stores/data/useKeyStore';
+import { isGridKeyHandled } from '@stores/grid/gridKeyHandled';
+import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { isMac } from '@utils/core/platform';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import {
@@ -27,7 +29,8 @@ export const useDocumentKeyboard = () => {
   const { t } = useTranslation();
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
+      // 옛 종류 키보드가 처리한 편집 키는 섞인 선택이므로 트리 요소에도 같은 동작을 한다
+      if (event.defaultPrevented && !isGridKeyHandled(event)) return;
       if (isModalLayerActive() || window.__dmn_isKeyListening) return;
       const target = event.target as HTMLElement | null;
       if (
@@ -39,11 +42,14 @@ export const useDocumentKeyboard = () => {
         return;
       }
       const primaryModifier = isMac() ? event.metaKey : event.ctrlKey;
-      // 붙여넣기는 고른 것이 없어도 된다 - 트리 클립보드가 있을 때만 (옛 종류 클립보드와 함께 서지 않는다)
+      // 붙여넣기는 고른 것이 없어도 된다 - 트리 클립보드가 있을 때만.
+      // 옛 종류 클립보드도 함께 붙이면(섞어 복사) 붙인 옛 요소 선택을 지킨다
       if (primaryModifier && event.key.toLowerCase() === 'v') {
         if (useDocumentClipboardStore.getState().nodes.length === 0) return;
         event.preventDefault();
-        void pasteDocumentClipboard(useKeyStore.getState().selectedKeyType);
+        void pasteDocumentClipboard(useKeyStore.getState().selectedKeyType, {
+          keepOther: useGridSelectionStore.getState().clipboard.length > 0,
+        });
         return;
       }
       const { sceneId, selectedIds, clear } =
