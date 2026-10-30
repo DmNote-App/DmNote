@@ -83,8 +83,6 @@ describe('그리드 컨텍스트 메뉴', () => {
   const Probe = () => {
     const { getGridMenuItems } = useGridContextMenu({
       selectedKeyType: '4key',
-      keyMappings: { '4key': [] },
-      positions: { '4key': [] },
       locale: 'ko',
       t: (key: string) => key,
       noteEffect: probe.noteEffect,

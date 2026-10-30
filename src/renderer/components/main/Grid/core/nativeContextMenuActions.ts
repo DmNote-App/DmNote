@@ -1,10 +1,9 @@
-import { deleteElementById } from '@src/renderer/editor/runtime/operations/elementOps';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
 import {
+  removeDocumentElements,
   runStructureAction,
   type StructureAction,
 } from '../document/documentEditActions';
-import type { NativeElementType } from '@src/renderer/editor/model/elementIdMap';
 
 const layerActionByMenuItem: Readonly<Record<string, StructureAction>> = {
   bringToFront: 'front',
@@ -15,30 +14,29 @@ const layerActionByMenuItem: Readonly<Record<string, StructureAction>> = {
 
 interface ExecuteNativeContextMenuActionOptions {
   menuItemId: string;
-  type: NativeElementType;
   mode: string;
   elementId: string | null;
-  resolvedIndex: number | null;
-  onDuplicate: (resolvedIndex: number) => void;
+  onDuplicate: (elementId: string) => void;
 }
 
+/** 요소 하나의 우클릭 메뉴 - 지우기·겹침 순서는 트리 연산, 복제는 자리 고르기 시작 */
 export const executeNativeContextMenuAction = ({
   menuItemId,
-  type,
   mode,
   elementId,
-  resolvedIndex,
   onDuplicate,
 }: ExecuteNativeContextMenuActionOptions): boolean => {
   if (menuItemId === 'delete') {
     if (elementId) {
-      void deleteElementById(type, elementId).catch(reportElementOpError);
+      void removeDocumentElements(mode, [elementId]).catch(
+        reportElementOpError,
+      );
     }
     return true;
   }
 
   if (menuItemId === 'duplicate') {
-    if (resolvedIndex !== null) onDuplicate(resolvedIndex);
+    if (elementId) onDuplicate(elementId);
     return true;
   }
 

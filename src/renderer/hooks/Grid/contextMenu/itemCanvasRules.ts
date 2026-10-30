@@ -4,10 +4,6 @@ import {
   addKnobAt,
   addSpriteAt,
   addStatAt,
-  placeDuplicatedGraph,
-  placeDuplicatedKnob,
-  placeDuplicatedSprite,
-  placeDuplicatedStat,
 } from '@src/renderer/editor/runtime/operations/elementOps';
 import type { CanonicalPositionOf, ItemElementType } from '@src/types/editor';
 import { DEFAULT_ELEMENT_ROTATION } from '@src/types/key/rotation';
@@ -20,10 +16,6 @@ import {
   DEFAULT_SPRITE_TRANSITION_MS,
   IDENTITY_SPRITE_TRANSFORM,
 } from '@src/types/key/sprites';
-import type {
-  CounterAnimationBezier,
-  KeyCounterSettings,
-} from '@src/types/key/keys';
 import { createDefaultCounterSettings } from '@src/types/key/keys';
 import {
   DEFAULT_ELEMENT_ACTIVE_BG,
@@ -31,25 +23,12 @@ import {
   DEFAULT_ELEMENT_FONT,
   DEFAULT_ELEMENT_RADIUS,
 } from '@utils/element/elementDefaults';
-import { getLooseStatTypeLabel } from '@utils/grid/statTypeLabel';
 import { toSpriteWireShape } from '@utils/sprite/spriteWireShape';
 
 interface ItemCanvasRules<K extends ItemElementType> {
   // 새 요소 기본값
   create: (dx: number, dy: number) => CanonicalPositionOf<K>;
   add: (mode: string, position: CanonicalPositionOf<K>) => Promise<unknown>;
-  // 복제 시작 - 고스트 라벨과 복제 템플릿
-  duplicateSource: (position: CanonicalPositionOf<K>) => {
-    keyName: string;
-    position: CanonicalPositionOf<K>;
-  };
-  placeDuplicated: (
-    mode: string,
-    source: CanonicalPositionOf<K>,
-    dx: number,
-    dy: number,
-    zIndex: number,
-  ) => Promise<unknown>;
 }
 
 // 노트 기본값 - KeyPosition 기반 아이템 공통
@@ -93,41 +72,6 @@ export const ITEM_CANVAS_RULES: {
       counter: createDefaultCounterSettings(),
     }),
     add: addStatAt,
-    duplicateSource: (position) => {
-      const clonedNoteColor =
-        position.noteColor &&
-        typeof position.noteColor === 'object' &&
-        position.noteColor !== null
-          ? { ...position.noteColor }
-          : position.noteColor;
-
-      const clonedCounter: KeyCounterSettings | null = position.counter
-        ? {
-            ...position.counter,
-            fill: { ...position.counter.fill },
-            ...(position.counter.animation
-              ? {
-                  animation: {
-                    ...position.counter.animation,
-                    bezier: [
-                      ...position.counter.animation.bezier,
-                    ] as CounterAnimationBezier,
-                  },
-                }
-              : {}),
-          }
-        : null;
-
-      return {
-        keyName: getLooseStatTypeLabel(position.statType),
-        position: {
-          ...position,
-          noteColor: clonedNoteColor,
-          counter: clonedCounter ?? createDefaultCounterSettings(),
-        },
-      };
-    },
-    placeDuplicated: placeDuplicatedStat,
   },
   graph: {
     create: (dx, dy) => ({
@@ -162,11 +106,6 @@ export const ITEM_CANVAS_RULES: {
       displayText: '',
     }),
     add: addGraphAt,
-    duplicateSource: (position) => ({
-      keyName: getLooseStatTypeLabel(position.statType),
-      position: { ...position },
-    }),
-    placeDuplicated: placeDuplicatedGraph,
   },
   knob: {
     create: (dx, dy) => ({
@@ -191,11 +130,6 @@ export const ITEM_CANVAS_RULES: {
       activeBackgroundColor: DEFAULT_ELEMENT_ACTIVE_BG,
     }),
     add: addKnobAt,
-    duplicateSource: (position) => ({
-      keyName: 'Knob',
-      position: { ...position },
-    }),
-    placeDuplicated: placeDuplicatedKnob,
   },
   sprite: {
     // wire 정규화: nullish layerName·groupId는 키 부재로 맞춰 ack와 일치
@@ -225,10 +159,5 @@ export const ITEM_CANVAS_RULES: {
         referenceNaturalSize: null,
       }),
     add: addSpriteAt,
-    duplicateSource: (position) => ({
-      keyName: 'Sprite',
-      position: { ...position },
-    }),
-    placeDuplicated: placeDuplicatedSprite,
   },
 };

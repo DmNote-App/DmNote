@@ -4,16 +4,26 @@
  */
 import React, { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useGridContextMenu } from '@hooks/Grid/contextMenu/useGridContextMenu';
 import { usePluginMenuStore } from '@stores/plugin/usePluginMenuStore';
+import { useKeyStore } from '@stores/data/useKeyStore';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import type { KeyMappings, KeyPosition } from '@src/types/key/keys';
 import type {
   KeyMenuContext,
   PluginMenuItemInternal,
 } from '@src/types/plugin/api';
+
+// 예측자 맥락은 요소 id로 트리에서 다시 읽는다 - 옛 키 스토어 값으로 트리 장면을 만든다
+vi.mock(
+  '@src/renderer/editor/document/elementDocumentRuntime',
+  async (importOriginal) =>
+    (
+      await import('@src/renderer/__tests__/treeFromLegacyStores')
+    ).treeFromStores(importOriginal as never),
+);
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -38,11 +48,9 @@ const captured: { current: ReturnType<typeof useGridContextMenu> | null } = {
 };
 const latest = () => captured.current!;
 
-const Probe = ({ positions, keyMappings }: ProbeProps) => {
+const Probe = () => {
   const result = useGridContextMenu({
     selectedKeyType: '4key',
-    keyMappings,
-    positions,
     locale: 'ko',
     t: (key) => key,
     noteEffect: false,
@@ -79,9 +87,15 @@ describe('키 메뉴 예측자 context 재해석', () => {
     });
   };
 
-  const renderProbe = (props: ProbeProps) => {
+  const renderProbe = ({ positions, keyMappings }: ProbeProps) => {
     act(() => {
-      root.render(<Probe {...props} />);
+      useKeyStore.setState({
+        selectedKeyType: '4key',
+        canonicalPositions: positions as never,
+        positions: positions as never,
+        keyMappings,
+      });
+      root.render(<Probe />);
     });
   };
 
@@ -109,7 +123,7 @@ describe('키 메뉴 예측자 context 재해석', () => {
     });
 
     // 열림 시점: index 0 = ID_1
-    const items = latest().getKeyMenuItems(0, ID_1);
+    const items = latest().getKeyMenuItems(ID_1);
     expect(items.some((item) => item.id === 'pluginA::inspect')).toBe(true);
     expect(seenContexts.at(-1)).toMatchObject({
       id: ID_1,
@@ -123,7 +137,7 @@ describe('키 메뉴 예측자 context 재해석', () => {
       keyMappings: { '4key': ['B', 'A'] },
     });
 
-    const reordered = latest().getKeyMenuItems(0, ID_1);
+    const reordered = latest().getKeyMenuItems(ID_1);
     const pluginItem = reordered.find(
       (item) => item.id === 'pluginA::inspect',
     )!;
@@ -142,7 +156,7 @@ describe('키 메뉴 예측자 context 재해석', () => {
       keyMappings: { '4key': ['B'] },
     });
 
-    const items = latest().getKeyMenuItems(0, ID_1);
+    const items = latest().getKeyMenuItems(ID_1);
     // 예측자 미평가 + 플러그인 항목 제외, 기본 항목은 유지
     expect(seenContexts).toHaveLength(0);
     expect(items.some((item) => item.isPlugin)).toBe(false);
@@ -161,24 +175,8 @@ describe('키 메뉴 예측자 context 재해석', () => {
       keyMappings: { '4key': ['A'] },
     });
 
-    const items = latest().getKeyMenuItems(0, null);
+    const items = latest().getKeyMenuItems(null);
     expect(seenContexts).toHaveLength(0);
     expect(items.some((item) => item.isPlugin)).toBe(false);
-  });
-
-  it('id 미전달 호출은 기존 index 해석을 유지한다', () => {
-    renderProbe({
-      positions: { '4key': [keyPos(ID_1), keyPos(ID_2)] },
-      keyMappings: { '4key': ['A', 'B'] },
-    });
-
-    const items = latest().getKeyMenuItems(1);
-    const pluginItem = items.find((item) => item.id === 'pluginA::inspect')!;
-    expect(seenContexts.at(-1)).toMatchObject({
-      id: ID_2,
-      index: 1,
-      keyCode: 'B',
-    });
-    expect(pluginItem.disabled).toBe(true);
   });
 });

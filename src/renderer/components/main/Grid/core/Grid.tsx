@@ -16,18 +16,13 @@ declare global {
 }
 import { useTranslation } from '@contexts/useTranslation';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
-import {
-  resolveElementById,
-  type NativeElementType,
-} from '@src/renderer/editor/model/elementIdMap';
-import { getItemStoreState } from '@src/renderer/editor/model/elementStores';
+import type { NativeElementType } from '@src/renderer/editor/model/elementIdMap';
 import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
 import { defaultElementSize, TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import {
   isEditorElementType,
   isItemElementType,
   type ElementCollections,
-  type ItemElementType,
 } from '@src/types/editor';
 import TabCssModal from '../../Modal/content/editors/TabCssModal';
 import TabNoteSettingModal from '../../Modal/content/editors/TabNoteSettingModal';
@@ -38,7 +33,6 @@ import { PluginElementsRenderer } from '@components/shared/plugin/PluginElements
 import { useGridZoomPan } from '@hooks/Grid/viewport/useGridZoomPan';
 import {
   addCanvasElementAt,
-  placeFrozenDuplicateAt,
   useGridCanvasActions,
 } from '@hooks/Grid/contextMenu/useGridCanvasActions';
 import type { DuplicateState } from '@hooks/Grid/contextMenu/useGridCanvasActions';
@@ -64,12 +58,7 @@ import {
   useGridResize,
   useSmartGuidesElements,
 } from '@hooks/Grid';
-import { createDefaultCounterSettings } from '@src/types/key/keys';
-import type {
-  KeyMappings,
-  KeyCounterSettings,
-  CounterAnimationBezier,
-} from '@src/types/key/keys';
+import type { KeyMappings } from '@src/types/key/keys';
 import { slotCanonical, slotDisplayName } from '@utils/keySlot';
 import { overlayApi } from '@api/modules/window/overlayApi';
 import { panelWindowApi } from '@api/modules/window/panelWindowApi';
@@ -98,6 +87,12 @@ import DocumentGridLayer from '../document/DocumentGridLayer';
 import DocumentSelectionOverlay from '../document/DocumentSelectionOverlay';
 import { documentKindForAddMenuItem } from '../document/documentAddMenu';
 import { insertDocumentElement } from '../document/documentEditActions';
+import {
+  beginDocumentDuplicate,
+  placeDocumentDuplicate,
+} from '../document/documentDuplicate';
+import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
+import { keyMenuContextOf } from '@hooks/Grid/contextMenu/useGridContextMenu';
 import { useDocumentKeyboard } from '../document/useDocumentKeyboard';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { deleteStructureSelection } from '../document/deleteStructureSelection';
@@ -221,8 +216,6 @@ const Grid = ({
     pluginGridMenuItems,
   } = useGridContextMenu({
     selectedKeyType,
-    keyMappings,
-    positions,
     locale,
     t,
     noteEffect,
@@ -389,7 +382,6 @@ const Grid = ({
 
   // 키 컨텍스트 메뉴
   const [isContextOpen, setIsContextOpen] = useState<boolean>(false);
-  const [contextIndex, setContextIndex] = useState<number | null>(null);
   // 메뉴 대상의 안정 신원 - 열림 동안 재정렬돼도 액션이 같은 요소를 향한다
   const [contextElementId, setContextElementId] = useState<string | null>(null);
   const [contextType, setContextType] = useState<string>('key');
@@ -422,7 +414,6 @@ const Grid = ({
     referenceNode: HTMLElement | null,
   ) => {
     setContextType('mixed');
-    setContextIndex(null);
     contextRef.current = referenceNode || null;
     setContextPosition({ x, y });
     setIsContextOpen(true);
@@ -435,58 +426,13 @@ const Grid = ({
     return snapCursorToGrid(gridCoords.x, gridCoords.y);
   };
 
-  // 복제 시작은 로컬 UI 상태(duplicateState) 설정이 필요하므로 래퍼 사용
-  const beginDuplicateItem = (type: ItemElementType, sourceIndex: number) => {
-    const result = canvasActions.beginDuplicateItem(type, sourceIndex);
+  // 복제 시작 - 고스트로 자리를 고른다 (원본은 트리 요소 id)
+  const beginDuplicate = (id: string) => {
+    const result = beginDocumentDuplicate(selectedKeyType, id);
     if (!result) return;
-    setDuplicateState(result);
-    setDuplicateCursor(null);
-  };
-
-  const beginDuplicateKey = (sourceIndex: number) => {
-    const sourceSlot =
-      useKeyStore.getState().keyMappings[selectedKeyType]?.[sourceIndex];
-    const position =
-      useKeyStore.getState().canonicalPositions[selectedKeyType]?.[
-        sourceIndex
-      ] || null;
-    if (!position || typeof sourceSlot === 'undefined') return;
-
-    const clonedNoteColor =
-      position.noteColor &&
-      typeof position.noteColor === 'object' &&
-      position.noteColor !== null
-        ? { ...position.noteColor }
-        : position.noteColor;
-    const clonedCounter: KeyCounterSettings | null = position.counter
-      ? {
-          ...position.counter,
-          fill: { ...position.counter.fill },
-          ...(position.counter.animation
-            ? {
-                animation: {
-                  ...position.counter.animation,
-                  bezier: [
-                    ...position.counter.animation.bezier,
-                  ] as CounterAnimationBezier,
-                },
-              }
-            : {}),
-        }
-      : null;
     const currentMousePos = lastMousePosRef.current;
     computeSnappedCursorFromClient(currentMousePos.x, currentMousePos.y);
-    setDuplicateState({
-      elementType: 'key',
-      sourceIndex,
-      slot: sourceSlot,
-      keyName: slotDisplayName(sourceSlot),
-      position: {
-        ...position,
-        noteColor: clonedNoteColor,
-        counter: clonedCounter ?? createDefaultCounterSettings(),
-      },
-    });
+    setDuplicateState(result);
     setDuplicateCursor(null);
   };
 
@@ -590,7 +536,7 @@ const Grid = ({
   // 요소 컨텍스트 메뉴 열기
   const openElementContextMenu = (
     type: NativeElementType,
-    index: number,
+    clickedId: string,
     clientX: number,
     clientY: number,
     ref: HTMLElement | null,
@@ -599,32 +545,17 @@ const Grid = ({
       setDuplicateState(null);
       setDuplicateCursor(null);
     }
-    const clickedPosition = (
-      type === 'key'
-        ? positions[selectedKeyType]
-        : getItemStoreState(type).positions[selectedKeyType]
-    )?.[index];
-    // 조회가 옵셔널인데 여기서 무방비로 풀면, 렌더와 우클릭 사이에 배열이 줄었을 때
-    // TypeError가 나고 에러 바운더리가 없어 앱이 통째로 언마운트된다.
-    // id가 없으면 혼합 선택 판정 자체가 성립하지 않으므로 그냥 건너뛴다
-    const clickedId = clickedPosition?.id;
     // 트리 요소도 함께 골랐으면 고른 것 전체를 다루는 메뉴
     if (
-      clickedId &&
-      (shouldOpenMixedSelectionMenu(selectedElements, clickedId) ||
-        (useDocumentSelectionStore.getState().selectedIds.length > 0 &&
-          selectedElements.some((element) => element.id === clickedId)))
+      shouldOpenMixedSelectionMenu(selectedElements, clickedId) ||
+      (useDocumentSelectionStore.getState().selectedIds.length > 0 &&
+        selectedElements.some((element) => element.id === clickedId))
     ) {
       openMixedSelectionContextMenu(clientX, clientY, ref);
       return;
     }
     setContextType(type);
-    setContextIndex(index);
-    setContextElementId(
-      typeof clickedPosition?.id === 'string' && clickedPosition.id.length > 0
-        ? clickedPosition.id
-        : null,
-    );
+    setContextElementId(clickedId);
     contextRef.current = ref;
     setContextPosition({ x: clientX, y: clientY });
     setIsContextOpen(true);
@@ -690,17 +621,14 @@ const Grid = ({
         );
         return;
       }
-      const index = targets.find(({ id }) => id === element.id)?.index;
-      if (index !== undefined) {
-        openElementContextMenu(
-          kind,
-          index,
-          event.clientX,
-          event.clientY,
-          event.currentTarget as HTMLElement,
-        );
-        return;
-      }
+      openElementContextMenu(
+        kind,
+        element.id,
+        event.clientX,
+        event.clientY,
+        event.currentTarget as HTMLElement,
+      );
+      return;
     }
     useDocumentContextMenuStore.getState().open({
       sceneId: selectedKeyType,
@@ -785,8 +713,8 @@ const Grid = ({
           // 마우스 위치에서 키의 중심이 배치되도록 조정
           const width = duplicateState.position.width || 60;
           const height = duplicateState.position.height || 60;
-          placeFrozenDuplicateAt(
-            canvasActions,
+          void placeDocumentDuplicate(
+            selectedKeyType,
             duplicateState,
             snapped.x - width / 2,
             snapped.y - height / 2,
@@ -929,7 +857,7 @@ const Grid = ({
               ? mixedSelectionMenuItems
               : isItemElementType(contextType)
               ? getItemMenuItems(contextType)
-              : getKeyMenuItems(contextIndex, contextElementId)
+              : getKeyMenuItems(contextElementId)
           }
           onSelect={async (id: string) => {
             if (contextType === 'mixed') {
@@ -979,62 +907,26 @@ const Grid = ({
               return;
             }
 
-            if (contextIndex == null) return;
-
-            // 메뉴가 열린 동안의 재정렬·삭제를 액션 시점에 재해석.
-            // 모드 밖으로 이동한 대상은 소실로 취급한다
-            const resolveContextTarget = (
-              targetType: NativeElementType,
-            ): number | null => {
-              if (!contextElementId) return null;
-              const locator = resolveElementById(targetType, contextElementId);
-              return locator && locator.mode === selectedKeyType
-                ? locator.index
-                : null;
-            };
-
-            if (isItemElementType(contextType)) {
-              const targetType = contextType;
-              const targetIndex = resolveContextTarget(targetType);
-              executeNativeContextMenuAction({
-                menuItemId: id,
-                type: targetType,
-                mode: selectedKeyType,
-                elementId: contextElementId,
-                resolvedIndex: targetIndex,
-                onDuplicate: (resolvedIndex) =>
-                  beginDuplicateItem(targetType, resolvedIndex),
-              });
+            // 대상은 요소 id - 메뉴가 열린 동안 재정렬돼도 같은 요소. 지금 탭에서 사라졌으면 하지 않는다
+            const target = contextElementId
+              ? getElementDocumentStore()?.getElement(
+                  selectedKeyType,
+                  contextElementId,
+                )
+              : undefined;
+            if (!target) {
               setIsContextOpen(false);
               setContextPosition(null);
               return;
             }
 
-            // 플러그인 메뉴 처리
+            // 플러그인 키 메뉴 - 플러그인 표면은 옛 모양 (canonical 슬롯 문자열·옛 위치·순번)
             const pluginItem = pluginKeyMenuItems.find(
               (item) => item.fullId === id,
             );
             if (pluginItem) {
-              const keyIndex = resolveContextTarget('key');
-              if (keyIndex == null) return;
-              const positionForContext =
-                useKeyStore.getState().canonicalPositions[selectedKeyType]?.[
-                  keyIndex
-                ];
-              if (!positionForContext) return;
-              const context = {
-                // 플러그인 메뉴 표면은 canonical 문자열 유지
-                keyCode: slotCanonical(
-                  useKeyStore.getState().keyMappings[selectedKeyType]?.[
-                    keyIndex
-                  ] ?? '',
-                ),
-                id: positionForContext.id,
-                index: keyIndex,
-                position: positionForContext,
-                mode: selectedKeyType,
-              };
-
+              const context = keyMenuContextOf(target, selectedKeyType);
+              if (!context) return;
               try {
                 const result = pluginItem.onClick(context);
                 if (result && typeof result.then === 'function') {
@@ -1051,34 +943,28 @@ const Grid = ({
                   error,
                 );
               }
-
               setIsContextOpen(false);
               setContextPosition(null);
               return;
             }
 
-            const keyIndex = resolveContextTarget('key');
             if (id === 'counterReset') {
-              const slot =
-                keyIndex != null
-                  ? keyMappings[selectedKeyType]?.[keyIndex] ?? ''
-                  : '';
-              const displayName = slotDisplayName(slot);
+              const displayName = slotDisplayName(treeKeySlot(target) ?? '');
               showConfirm(
                 t('confirm.resetKeyCounter', { name: displayName }),
                 async () => {
-                  // 확인 시점 재해석 - 모달이 떠 있는 동안의 재바인딩 반영
-                  const confirmIndex = resolveContextTarget('key');
-                  if (confirmIndex == null) return;
-                  const globalKey = slotCanonical(
-                    useKeyStore.getState().keyMappings[selectedKeyType]?.[
-                      confirmIndex
-                    ] ?? '',
+                  // 확인 시점 다시 읽기 - 모달이 떠 있는 동안의 슬롯 바꾸기 반영
+                  const slot = treeKeySlot(
+                    getElementDocumentStore()?.getElement(
+                      selectedKeyType,
+                      target.id,
+                    ),
                   );
+                  if (slot == null) return;
                   try {
                     await keysApi.resetSingleCounter(
                       selectedKeyType,
-                      globalKey,
+                      slotCanonical(slot),
                     );
                   } catch (error) {
                     console.error('Failed to reset key counter', error);
@@ -1089,11 +975,9 @@ const Grid = ({
             } else {
               executeNativeContextMenuAction({
                 menuItemId: id,
-                type: 'key',
                 mode: selectedKeyType,
-                elementId: contextElementId,
-                resolvedIndex: keyIndex,
-                onDuplicate: beginDuplicateKey,
+                elementId: target.id,
+                onDuplicate: beginDuplicate,
               });
             }
             setIsContextOpen(false);

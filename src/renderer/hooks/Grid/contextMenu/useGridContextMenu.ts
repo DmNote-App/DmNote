@@ -16,8 +16,12 @@ import { usePluginMenuStore } from '@stores/plugin/usePluginMenuStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { translatePluginMessage } from '@utils/plugin/pluginI18n';
-import type { KeyMappings, KeyPosition } from '@src/types/key/keys';
+import type { KeyPosition } from '@src/types/key/keys';
 import { slotCanonical } from '@utils/keySlot';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
+import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
+import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
 import type { ItemElementType } from '@src/types/editor';
 import {
   CREATABLE_ITEM_TYPES,
@@ -60,7 +64,7 @@ const groupRow = (
   disabled: children.every((child) => child.disabled),
 });
 
-interface KeyContext {
+export interface KeyContext {
   keyCode: string;
   // 요소 안정 ID - index는 스냅샷 한정 locator
   id: string;
@@ -69,6 +73,21 @@ interface KeyContext {
   mode: string;
 }
 
+/** 플러그인 키 메뉴 맥락 - 플러그인 표면은 옛 모양(canonical 슬롯 문자열·옛 위치·옛 순번), 값은 트리 키 요소에서 */
+export const keyMenuContextOf = (
+  element: ElementNode | undefined,
+  mode: string,
+): KeyContext | null =>
+  element?.kind === 'key'
+    ? {
+        keyCode: slotCanonical(treeKeySlot(element) ?? ''),
+        id: element.id,
+        index: (element.legacy as { index?: number } | undefined)?.index ?? -1,
+        position: legacyPositionOf(element) as unknown as KeyPosition,
+        mode,
+      }
+    : null;
+
 interface GridContext {
   position: { dx: number; dy: number };
   mode: string;
@@ -76,18 +95,13 @@ interface GridContext {
 
 interface UseGridContextMenuParams {
   selectedKeyType: string;
-  keyMappings: KeyMappings;
-  positions: Record<string, KeyPosition[]>;
   locale: string;
   t: (key: string) => string;
   noteEffect?: boolean;
 }
 
 interface UseGridContextMenuReturn {
-  getKeyMenuItems: (
-    contextIndex: number | null,
-    contextElementId?: string | null,
-  ) => MenuItem[];
+  getKeyMenuItems: (contextElementId: string | null) => MenuItem[];
   getItemMenuItems: (type: ItemElementType) => MenuItem[];
   getGridMenuItems: (
     gridAddLocalPos: { dx: number; dy: number } | null,
@@ -102,8 +116,6 @@ interface UseGridContextMenuReturn {
  */
 export function useGridContextMenu({
   selectedKeyType,
-  keyMappings,
-  positions,
   locale,
   t,
   noteEffect,
@@ -205,10 +217,7 @@ export function useGridContextMenu({
   };
 
   // 키 메뉴 아이템 생성 (기본 + 플러그인)
-  const getKeyMenuItems = (
-    contextIndex: number | null,
-    contextElementId?: string | null,
-  ): MenuItem[] => {
+  const getKeyMenuItems = (contextElementId: string | null): MenuItem[] => {
     const baseItems: MenuItem[] = [
       { id: 'delete', label: t('contextMenu.deleteKey') },
       { id: 'duplicate', label: t('contextMenu.duplicateKey') },
@@ -219,35 +228,17 @@ export function useGridContextMenu({
       { id: 'sendToBack', label: t('contextMenu.sendToBack') },
     ];
 
-    // 플러그인 메뉴 필터링 (조건부 표시)
-    // 예측자 context는 열림 시점 index가 아니라 요소 id로 재해석.
+    // 플러그인 메뉴 필터링 (조건부 표시) - 예측자 맥락은 요소 id로 트리에서 다시 읽는다.
     // 메뉴가 열린 동안 재정렬돼도 원래 요소를 따라가고, 소실 시 fail-closed
-    const modePositions = positions[selectedKeyType] ?? [];
-    let resolvedIndex = contextIndex;
-    if (contextElementId !== undefined) {
-      const found =
-        contextElementId === null
-          ? -1
-          : modePositions.findIndex(
-              (position) => position.id === contextElementId,
-            );
-      resolvedIndex = found >= 0 ? found : null;
-    }
-    const keyPosition =
-      resolvedIndex !== null ? modePositions[resolvedIndex] : undefined;
-    const context: KeyContext | null =
-      resolvedIndex !== null && keyPosition
-        ? {
-            // 플러그인 메뉴 표면은 canonical 문자열 유지
-            keyCode: slotCanonical(
-              keyMappings[selectedKeyType]?.[resolvedIndex] ?? '',
-            ),
-            id: keyPosition.id,
-            index: resolvedIndex,
-            position: keyPosition,
-            mode: selectedKeyType,
-          }
-        : null;
+    const context = contextElementId
+      ? keyMenuContextOf(
+          getElementDocumentStore()?.getElement(
+            selectedKeyType,
+            contextElementId,
+          ),
+          selectedKeyType,
+        )
+      : null;
 
     const topPluginItems = evaluatePluginItems(
       pluginKeyMenuItems.filter((i) => i.position === 'top'),

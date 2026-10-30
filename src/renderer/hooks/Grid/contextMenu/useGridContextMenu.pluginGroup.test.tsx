@@ -48,6 +48,21 @@ const store = vi.hoisted(() => ({
   gridMenuItems: [] as unknown[],
 }));
 
+// 키 메뉴 맥락은 트리 키 요소에서
+vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
+  getElementDocumentStore: () => ({
+    getElement: (_scene: string, id: string) =>
+      id === 'key-1'
+        ? {
+            type: 'element',
+            id,
+            kind: 'key',
+            frame: { x: 0, y: 0, width: 60, height: 60, rotation: 0 },
+            input: { type: 'key', slot: 'a' },
+          }
+        : undefined,
+  }),
+}));
 vi.mock('@stores/plugin/usePluginMenuStore', () => ({
   usePluginMenuStore: <T,>(selector: (state: typeof store) => T) =>
     selector(store),
@@ -98,14 +113,12 @@ describe('빈 바닥 메뉴 플러그인 묶음', () => {
   const Probe = () => {
     const { getGridMenuItems, getKeyMenuItems } = useGridContextMenu({
       selectedKeyType: '4key',
-      keyMappings: { '4key': ['a'] },
-      positions: { '4key': [{ id: 'key-1', dx: 0, dy: 0 } as never] },
       locale: 'ko',
       t: (key: string) => key,
       noteEffect: true,
     });
     const grid = getGridMenuItems({ dx: 0, dy: 0 });
-    const key = getKeyMenuItems(0, 'key-1');
+    const key = getKeyMenuItems('key-1');
     useEffect(() => {
       captured.grid = grid;
       captured.key = key;

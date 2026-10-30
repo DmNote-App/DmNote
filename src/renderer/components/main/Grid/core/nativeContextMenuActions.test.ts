@@ -7,10 +7,8 @@ const actionMocks = vi.hoisted(() => ({
   reportError: vi.fn(),
 }));
 
-vi.mock('@src/renderer/editor/runtime/operations/elementOps', () => ({
-  deleteElementById: actionMocks.deleteElement,
-}));
 vi.mock('../document/documentEditActions', () => ({
+  removeDocumentElements: actionMocks.deleteElement,
   runStructureAction: actionMocks.commitLayer,
 }));
 vi.mock('@src/renderer/editor/runtime/intent/elementIntent', () => ({
@@ -20,41 +18,35 @@ vi.mock('@src/renderer/editor/runtime/intent/elementIntent', () => ({
 describe('executeNativeContextMenuAction', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('삭제를 안정 ID로 실행한다', () => {
+  it('삭제는 트리에서 그 요소를 뺀다', () => {
     const handled = executeNativeContextMenuAction({
       menuItemId: 'delete',
-      type: 'stat',
       mode: '4key',
       elementId: 'stat-id',
-      resolvedIndex: 2,
       onDuplicate: vi.fn(),
     });
 
     expect(handled).toBe(true);
-    expect(actionMocks.deleteElement).toHaveBeenCalledWith('stat', 'stat-id');
+    expect(actionMocks.deleteElement).toHaveBeenCalledWith('4key', ['stat-id']);
   });
 
-  it('복제는 액션 시점에 재해석된 index만 전달한다', () => {
+  it('복제는 대상 id가 있을 때만 자리 고르기를 시작한다', () => {
     const onDuplicate = vi.fn();
     executeNativeContextMenuAction({
       menuItemId: 'duplicate',
-      type: 'graph',
       mode: '4key',
       elementId: 'graph-id',
-      resolvedIndex: 3,
       onDuplicate,
     });
     executeNativeContextMenuAction({
       menuItemId: 'duplicate',
-      type: 'graph',
       mode: '4key',
-      elementId: 'graph-id',
-      resolvedIndex: null,
+      elementId: null,
       onDuplicate,
     });
 
     expect(onDuplicate).toHaveBeenCalledTimes(1);
-    expect(onDuplicate).toHaveBeenCalledWith(3);
+    expect(onDuplicate).toHaveBeenCalledWith('graph-id');
   });
 
   it.each([
@@ -65,10 +57,8 @@ describe('executeNativeContextMenuAction', () => {
   ] as const)('%s를 레이어 액션 %s로 변환한다', (menuItemId, action) => {
     executeNativeContextMenuAction({
       menuItemId,
-      type: 'key',
       mode: '4key',
       elementId: 'key-id',
-      resolvedIndex: 0,
       onDuplicate: vi.fn(),
     });
 
@@ -84,10 +74,8 @@ describe('executeNativeContextMenuAction', () => {
     expect(
       executeNativeContextMenuAction({
         menuItemId: 'plugin:item',
-        type: 'key',
         mode: '4key',
         elementId: 'key-id',
-        resolvedIndex: 0,
         onDuplicate: vi.fn(),
       }),
     ).toBe(false);
