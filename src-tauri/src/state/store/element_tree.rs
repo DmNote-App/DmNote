@@ -286,23 +286,26 @@ pub(crate) fn attach_parsed_document(
     })
 }
 
-/// 영속 커밋 직전 - 옛 모양으로 고친 사본이 있으면 지금 트리의 옛 모양과 견줘 트리에 맞춘다(사본은 비운다)
-pub(crate) fn sync_element_document(state: &mut AppStoreData) -> Result<()> {
-    let Some(edit) = state.take_legacy_edit() else {
+/// 영속 커밋 직전 - 옛 모양으로 고친 사본이 있으면 확정된 상태(`before`) 트리의 옛 모양과 견줘 트리에 맞춘다(사본은 비운다).
+/// 기준은 지금 트리의 투영이 아니라 확정된 옛 모양이다 - 같은 갱신에서 트리를 먼저 바꾼 경로(트리 쓰기 커밋·
+/// 플러그인 스냅샷)의 변화를 옛 모양 변경으로 되돌리지 않고, 트리로 넣은 옛 요소도 맞추기에서 배열 자리를 받는다
+pub(crate) fn sync_element_document(before: &AppStoreData, after: &mut AppStoreData) -> Result<()> {
+    let Some(edit) = after.take_legacy_edit() else {
         return Ok(());
     };
-    if edit == *state.tree_legacy() {
+    let previous = before.tree_legacy();
+    if edit == *previous {
         return Ok(());
     }
     let mut next = reconcile_document(
-        state.element_document(),
-        Some(LegacyRef::from(state.tree_legacy())),
+        after.element_document(),
+        Some(LegacyRef::from(previous)),
         LegacyRef::from(&edit),
     )
     .context("요소 트리 맞추기 실패")?;
     // 옛 모양에서 빠진 탭의 장면은 버려진다 - 그 탭의 플러그인 인스턴스는 장면 밖에 보존한다
-    carry_plugin_buckets(state.element_document(), &mut next);
-    state.set_element_document(std::sync::Arc::new(next));
+    carry_plugin_buckets(after.element_document(), &mut next);
+    after.set_element_document(std::sync::Arc::new(next));
     Ok(())
 }
 

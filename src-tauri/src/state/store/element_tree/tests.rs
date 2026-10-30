@@ -67,7 +67,7 @@ fn 옛_모양이_바뀐_커밋만_트리에_반영한다() {
         .element_document_mut()
         .extra
         .insert("probe".into(), serde_json::json!(1));
-    sync_element_document(&mut settings_only).unwrap();
+    sync_element_document(&before, &mut settings_only).unwrap();
     assert_eq!(
         settings_only.element_document_mut().extra["probe"],
         serde_json::json!(1)
@@ -78,7 +78,7 @@ fn 옛_모양이_바뀐_커밋만_트리에_반영한다() {
     key.dx += 7.0;
     let id = key.id.clone();
     let x = key.dx;
-    sync_element_document(&mut moved).unwrap();
+    sync_element_document(&before, &mut moved).unwrap();
     assert_eq!(
         moved.element_document().scenes["4key"]
             .element(&id)
@@ -303,7 +303,7 @@ fn 지운_탭을_되살리면_트리_전용_요소도_돌아온다() {
     deleted.legacy_mut().keys.remove("4key");
     deleted.legacy_mut().key_positions.remove("4key");
     deleted.legacy_mut().stat_positions.remove("4key");
-    sync_element_document(&mut deleted).unwrap();
+    sync_element_document(&with_tab, &mut deleted).unwrap();
     assert!(!deleted.element_document().scenes.contains_key("4key"));
     let snapshot = element_tree_snapshot(with_tab.element_document(), ["4key".to_string()].iter());
 
@@ -317,7 +317,7 @@ fn 지운_탭을_되살리면_트리_전용_요소도_돌아온다() {
         &snapshot,
         true,
     )));
-    sync_element_document(&mut restored).unwrap();
+    sync_element_document(&deleted, &mut restored).unwrap();
     let scene = &restored.element_document().scenes["4key"];
     assert!(scene.element("tracker-1").is_some());
     // 옛 종류 요소는 뼈대가 아니라 실제 값으로 채워진다
@@ -2170,7 +2170,7 @@ fn 옛_모양에서_탭이_빠져_장면이_버려져도_그_탭의_플러그인
     let mut after = before.clone();
     after.legacy_mut().keys.remove("custom-x");
     after.legacy_mut().key_positions.remove("custom-x");
-    sync_element_document(&mut after).unwrap();
+    sync_element_document(&before, &mut after).unwrap();
     assert!(!after.element_document().scenes.contains_key("custom-x"));
     assert_eq!(
         crate::state::plugin::read_plugin_instance_bucket(&after, "demo"),
@@ -2515,6 +2515,96 @@ fn 트리_입력_연산으로_키_슬롯을_바꾸면_옛_키_매핑이_따라�
     );
     undo(&store).unwrap();
     assert_eq!(store.snapshot().legacy().keys["4key"][1], before);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+fn key_order(store: &crate::state::AppStore) -> Vec<String> {
+    store.snapshot().legacy().key_positions["4key"]
+        .iter()
+        .map(|position| position.id.clone())
+        .collect()
+}
+
+#[test]
+fn 트리로_넣은_옛_요소는_뒤의_옛_편집에도_배열_순서를_지킨다() {
+    let (dir, store) = open_store();
+    let template = store.element_document_snapshot().1.scenes["4key"]
+        .elements()
+        .into_iter()
+        .find(|element| element.kind == "key")
+        .unwrap()
+        .clone();
+    let ids = [
+        "0b1c2d3e-0000-4000-8000-0000000000a1",
+        "0b1c2d3e-0000-4000-8000-0000000000a2",
+    ];
+    for id in ids {
+        let mut node = serde_json::to_value(&template).unwrap();
+        node["type"] = serde_json::json!("element");
+        node["id"] = serde_json::json!(id);
+        node["legacy"] = serde_json::json!({});
+        commit_planned(
+            &store,
+            serde_json::json!([{ "op": "insert", "scene": "4key", "parent": null, "index": null, "node": node }]),
+        );
+    }
+    let before = key_order(&store);
+    assert_eq!(&before[before.len() - 2..], &ids);
+
+    // 트리를 거치지 않는 옛 편집 - 두 번째 것만 고친다
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        let positions = scratch.legacy_mut().key_positions.get_mut("4key").unwrap();
+        positions
+            .iter_mut()
+            .find(|position| position.id == ids[1])
+            .unwrap()
+            .dx += 5.0;
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    assert_eq!(key_order(&store), before, "고친 요소가 앞으로 가지 않는다");
+    let snapshot = store.snapshot();
+    assert_eq!(
+        snapshot.legacy().keys["4key"].len(),
+        snapshot.legacy().key_positions["4key"].len()
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 옛_편집과_함께_플러그인_쓰기로_빈_그룹이_트리_전용이_되어도_그룹이_겹치지_않는다() {
+    let (dir, store) = open_store();
+    write_demo_bucket(
+        &store,
+        serde_json::json!([{ "instanceId": PLUGIN_INSTANCE, "position": { "x": 0, "y": 0 }, "tabId": "4key" }]),
+    );
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "group", "scene": "4key", "id": "gx", "name": "묶음", "ids": [format!("demo::{PLUGIN_INSTANCE}")] }]),
+    );
+    let before = store.snapshot();
+    let mut after = before.clone();
+    // 옛 편집(고친 사본) 뒤에 플러그인 쓰기가 그룹의 마지막 인스턴스를 뺀다
+    after.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx += 1.0;
+    crate::state::plugin::write_plugin_instance_bucket(
+        &mut after,
+        "demo",
+        Some(serde_json::json!([])),
+    );
+    sync_element_document(&before, &mut after).unwrap();
+    let scene = &after.element_document().scenes["4key"];
+    let mut count = 0;
+    element_document::document::walk(&scene.nodes, &mut |node, _| {
+        if let Node::Group(group) = node {
+            if group.id == "gx" {
+                count += 1;
+            }
+        }
+    });
+    assert!(count <= 1, "그룹 노드가 겹쳤다: {count}");
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }

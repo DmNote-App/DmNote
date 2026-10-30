@@ -345,6 +345,7 @@ impl AppStore {
                 (default_path, initialize_default_state(), true, false, true)
             };
 
+        let loaded_state = state.clone();
         // 외래 기기 자산 참조를 먼저 재연결 — 이후 마이그레이션이 실존 파일 기준으로 판단
         if rehome_foreign_asset_references(dir, &mut state) {
             needs_persist = true;
@@ -370,7 +371,7 @@ impl AppStore {
         if state.element_document().scenes.is_empty() {
             attach_loaded_document(&mut state, None)?;
         } else {
-            element_tree::sync_element_document(&mut state)?;
+            element_tree::sync_element_document(&loaded_state, &mut state)?;
         }
         needs_persist |= document_missing;
 
@@ -449,7 +450,7 @@ impl AppStore {
         mut scratch: AppStoreData,
         result: T,
     ) -> Result<T> {
-        element_tree::sync_element_document(&mut scratch)?;
+        element_tree::sync_element_document(&state.data, &mut scratch)?;
         let element_document_changed =
             !Arc::ptr_eq(state.data.element_document(), scratch.element_document())
                 && state.data.element_document() != scratch.element_document();
