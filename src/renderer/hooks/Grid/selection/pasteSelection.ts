@@ -348,7 +348,7 @@ export const pasteSelection = async ({
     });
 
   // 동기 검사(플러그인 상한 등)를 통과했다 - 함께 붙이는 트리 클립보드의 스프라이트 트리거도 사본 키를 가리키게 알린다
-  recordPastedKeyIds(keyIdMap);
+  recordPastedKeyIds(keyIdMap, gestureId);
   try {
     await pasteWithFrozenPlan();
   } finally {

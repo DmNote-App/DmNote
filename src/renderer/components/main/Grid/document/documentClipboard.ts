@@ -230,10 +230,9 @@ export const pasteDocumentClipboard = async (
   const idMap = new Map(
     nodesOf(copied).map((node) => [node.id, crypto.randomUUID()]),
   );
-  const pastedIds = new Map([
-    ...(keepOther ? takePastedKeyIds() : []),
-    ...idMap,
-  ]);
+  // 함께 붙인 옛 붙여넣기 - 사본 키 id와 같은 동작 id(되돌리기 한 번)
+  const legacyPaste = keepOther ? takePastedKeyIds() : null;
+  const pastedIds = new Map([...(legacyPaste?.keyIds ?? []), ...idMap]);
   // 다른 탭이면 그 탭의 같은 키
   const { keyMappings, canonicalPositions } = useKeyStore.getState();
   const nodes = pastedSpriteNodes(
@@ -256,7 +255,10 @@ export const pasteDocumentClipboard = async (
     documentGroupNames(getElementDocumentStore()?.getScene(sceneId)),
     idMap,
   );
-  const result = await editDocument(ops);
+  const result = await editDocument(
+    ops,
+    legacyPaste?.gestureId ? { gestureId: legacyPaste.gestureId } : undefined,
+  );
   if (result?.status === 'committed') {
     const select = () =>
       useDocumentSelectionStore.getState().setSelection(sceneId, ids);
