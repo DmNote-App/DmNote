@@ -55,14 +55,16 @@ describe('속성 패널 단일 요소 값', () => {
     useGridSelectionStore.setState({
       selectedElements: [{ type: 'knob', id: KNOB, index: 0 }],
     });
-    let latest: ReturnType<typeof usePropertiesPanelSelection> | null = null;
+    const onRender =
+      vi.fn<(value: ReturnType<typeof usePropertiesPanelSelection>) => void>();
     const Probe = () => {
-      latest = usePropertiesPanelSelection();
+      onRender(usePropertiesPanelSelection());
       return null;
     };
+    const latest = () => onRender.mock.lastCall![0];
     const root = createRoot(document.createElement('div'));
     act(() => root.render(<Probe />));
-    expect(latest!.singleKnobPosition?.sensitivity).toBe(3);
+    expect(latest().singleKnobPosition?.sensitivity).toBe(3);
 
     act(() => {
       previewOverlay.applyLocalPatchByIds(
@@ -73,7 +75,7 @@ describe('속성 패널 단일 요소 값', () => {
         'knobPosition',
       );
     });
-    expect(latest!.singleKnobPosition?.sensitivity).toBe(4);
+    expect(latest().singleKnobPosition?.sensitivity).toBe(4);
     act(() => {
       previewOverlay.clearAll();
       root.unmount();
