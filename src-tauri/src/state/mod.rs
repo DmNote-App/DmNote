@@ -10,6 +10,7 @@ pub(crate) mod history;
 pub(crate) mod migration;
 pub(crate) mod native_element_id;
 pub(crate) mod plugin;
+pub(crate) mod plugin_tree;
 pub mod store;
 pub(crate) mod tab_metadata;
 pub(crate) mod window;

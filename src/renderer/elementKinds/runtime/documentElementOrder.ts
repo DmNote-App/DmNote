@@ -1,6 +1,6 @@
 import type { Node, Scene } from '@src/types/generated/elementDocument';
 import { isEditorElementType } from '@src/types/editor';
-import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
+import { isPluginKind, TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 
 export interface DocumentElementSlot {
@@ -62,6 +62,8 @@ export const documentElementSlots = (
         visit(node.children, hidden || node.hidden === true);
         continue;
       }
+      // 플러그인 인스턴스는 옛 플러그인 렌더러가 그린다
+      if (isPluginKind(node.kind)) continue;
       if (isEditorElementType(node.kind) && !legacyKinds.has(node.kind)) {
         below = legacyZIndex(node) ?? below;
         continue;

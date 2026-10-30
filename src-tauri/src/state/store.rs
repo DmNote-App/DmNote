@@ -54,10 +54,10 @@ use super::plugin::{
     add_plugin_group_refs, decode_plugin_instance_entries, decode_plugin_instances_lenient,
     encode_plugin_instance_entries, encode_plugin_instances, for_each_stored_plugin_instances,
     is_plugin_instances_storage_key, normalize_plugin_instance_tab_id,
-    plugin_group_refs_from_store, plugin_id_from_instances_storage_key,
-    plugin_instance_bucket_ids, plugin_instances_storage_key, read_plugin_instance_bucket,
-    validate_plugin_id, validate_plugin_instances_reconcile_request, write_plugin_instance_bucket,
-    validate_plugin_instances_request, validate_plugin_instances_transition, PluginGroupRefs,
+    plugin_group_refs_from_store, plugin_id_from_instances_storage_key, plugin_instance_bucket_ids,
+    plugin_instances_storage_key, read_plugin_instance_bucket, validate_plugin_id,
+    validate_plugin_instances_reconcile_request, validate_plugin_instances_request,
+    validate_plugin_instances_transition, write_plugin_instance_bucket, PluginGroupRefs,
     StoredPluginInstanceEntry, PLUGIN_DATA_KEY_PREFIX,
 };
 
@@ -69,6 +69,8 @@ mod gesture_commit;
 mod history_restore;
 mod legacy_transactions;
 mod persistence;
+#[cfg(test)]
+pub(crate) use persistence::serialize_store;
 mod plugin_storage;
 mod sound_assets;
 
@@ -774,8 +776,8 @@ fn reset_plugin_instances_for_scope(
                 if !removed {
                     continue;
                 }
-                let value = (!entries.is_empty())
-                    .then(|| encode_plugin_instance_entries(entries, &key));
+                let value =
+                    (!entries.is_empty()).then(|| encode_plugin_instance_entries(entries, &key));
                 write_plugin_instance_bucket(store, &plugin_id, value);
                 affected_plugin_ids.push(plugin_id);
             }

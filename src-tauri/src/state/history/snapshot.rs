@@ -8,7 +8,21 @@ use crate::models::{
     EditorDocumentV1, EditorField, EditorPatchV1, ElementCollection, FontSettings, KeyCounters,
     NoteSettings, SavedPluginInstance, TabCss, TabCssOverrides, TabNoteOverrides, TabNoteSettings,
 };
-use crate::state::plugin::{is_plugin_instances_storage_key, plugin_id_from_instances_storage_key};
+use crate::state::plugin::{
+    plugin_id_from_instances_storage_key, plugin_instance_bucket_ids, plugin_instances_storage_key,
+    read_plugin_instance_bucket, write_plugin_instance_bucket,
+};
+
+// 플러그인 인스턴스 버킷을 저장소 키 모양으로 - 프리셋 기록 패치가 키 단위로 비교한다
+fn plugin_bucket_map(store: &AppStoreData) -> HashMap<String, Value> {
+    plugin_instance_bucket_ids(store)
+        .into_iter()
+        .filter_map(|plugin_id| {
+            read_plugin_instance_bucket(store, &plugin_id)
+                .map(|value| (plugin_instances_storage_key(&plugin_id), value))
+        })
+        .collect()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -86,10 +100,10 @@ impl CustomTabsHistorySnapshot {
                 &before.tab_note_overrides,
                 &after.tab_note_overrides,
             ),
-            plugin_instances_patch: changed_value_patch(&before.plugin_data, &after.plugin_data)
-                .into_iter()
-                .filter(|(key, _)| is_plugin_instances_storage_key(key))
-                .collect(),
+            plugin_instances_patch: changed_value_patch(
+                &plugin_bucket_map(before),
+                &plugin_bucket_map(after),
+            ),
             // 트리는 커밋 때 맞춰지므로 옛 모양에서 바뀐 탭으로 고른다
             element_tree: crate::state::store::element_tree_snapshot(
                 &before.element_document,
@@ -115,7 +129,7 @@ impl CustomTabsHistorySnapshot {
                 target.tab_note_patch.keys(),
             ),
             plugin_instances_patch: current_values_for_keys(
-                &store.plugin_data,
+                &plugin_bucket_map(store),
                 target.plugin_instances_patch.keys(),
             ),
             // 되돌릴 대상이 바꿀 탭 - 목표의 탭과 지금 옛 모양이 목표와 다른 탭
@@ -139,13 +153,17 @@ impl CustomTabsHistorySnapshot {
             && self.selected_key_type == store.selected_key_type
             && patch_matches(&self.tab_css_patch, &store.tab_css_overrides)
             && patch_matches(&self.tab_note_patch, &store.tab_note_overrides)
-            && patch_matches(&self.plugin_instances_patch, &store.plugin_data)
+            && patch_matches(&self.plugin_instances_patch, &plugin_bucket_map(store))
     }
 
     pub(crate) fn apply_override_patches(&self, store: &mut AppStoreData) {
         apply_value_patch(&self.tab_css_patch, &mut store.tab_css_overrides);
         apply_value_patch(&self.tab_note_patch, &mut store.tab_note_overrides);
-        apply_value_patch(&self.plugin_instances_patch, &mut store.plugin_data);
+        for (key, value) in &self.plugin_instances_patch {
+            if let Some(plugin_id) = plugin_id_from_instances_storage_key(key) {
+                write_plugin_instance_bucket(store, plugin_id, value.clone());
+            }
+        }
     }
 
     pub(crate) fn changed_plugin_ids(&self) -> Vec<String> {

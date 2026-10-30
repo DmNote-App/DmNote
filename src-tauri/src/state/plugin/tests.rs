@@ -246,13 +246,14 @@ fn group_refs_fold_empty_tab_id_into_default_mode() {
 
     // store 수집(관대 decode 경로)도 동일 판정
     let mut data = AppStoreData::default();
-    data.plugin_data.insert(
-        plugin_instances_storage_key("demo"),
-        serde_json::json!([{
+    write_plugin_instance_bucket(
+        &mut data,
+        "demo",
+        Some(serde_json::json!([{
             "position": { "x": 1.0, "y": 2.0 },
             "tabId": "",
             "groupId": "stored-group"
-        }]),
+        }])),
     );
     let refs = plugin_group_refs_from_store(&data, &HashSet::new());
     assert!(refs["4key"].contains("stored-group"));

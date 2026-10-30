@@ -951,8 +951,13 @@ fn saved_plugin_instance_json(x: f64, instance_id: Option<&str>) -> serde_json::
     instance
 }
 
+// 인스턴스 버킷은 트리에 둔다 - 버킷 입구로 읽는다
+fn stored_bucket(data: &AppStoreData, plugin_id: &str) -> serde_json::Value {
+    crate::state::plugin::read_plugin_instance_bucket(data, plugin_id).expect("bucket")
+}
+
 fn stored_plugin_instance_ids(data: &AppStoreData, plugin_id: &str) -> Vec<String> {
-    data.plugin_data[&crate::state::plugin::plugin_instances_storage_key(plugin_id)]
+    stored_bucket(data, plugin_id)
         .as_array()
         .unwrap()
         .iter()
@@ -1004,7 +1009,11 @@ fn backfill_plugin_instances_assigns_unique_ids_and_reload_preserves_them() {
     );
 
     // 멱등: 영속 후 재로드에서 같은 ID 유지, 추가 변경 없음
-    std::fs::write(&path, serde_json::to_vec_pretty(&loaded.data).unwrap()).unwrap();
+    std::fs::write(
+        &path,
+        crate::state::store::serialize_store(&loaded.data).unwrap(),
+    )
+    .unwrap();
     let reloaded = load_store_from_path(&path).unwrap();
     assert!(!reloaded.needs_persist);
     assert!(!reloaded.repaired);
@@ -1035,21 +1044,25 @@ fn backfill_plugin_instances_preserves_malformed_siblings_across_reload() {
     let loaded = load_store_from_path(&path).unwrap();
     assert!(loaded.needs_persist);
     assert!(!loaded.repaired);
-    let key = crate::state::plugin::plugin_instances_storage_key("alpha");
-    let entries = loaded.data.plugin_data[&key].as_array().unwrap();
+    let bucket = stored_bucket(&loaded.data, "alpha");
+    let entries = bucket.as_array().unwrap();
     assert_eq!(entries.len(), 3);
     assert_eq!(entries[0]["instanceId"], existing_id);
     assert!(crate::state::native_element_id::is_valid_element_id(
         entries[1]["instanceId"].as_str().unwrap()
     ));
     assert_eq!(entries[2], malformed);
-    let persisted_bucket = loaded.data.plugin_data[&key].clone();
+    let persisted_bucket = stored_bucket(&loaded.data, "alpha").clone();
 
-    std::fs::write(&path, serde_json::to_vec_pretty(&loaded.data).unwrap()).unwrap();
+    std::fs::write(
+        &path,
+        crate::state::store::serialize_store(&loaded.data).unwrap(),
+    )
+    .unwrap();
     let reloaded = load_store_from_path(&path).unwrap();
     assert!(!reloaded.needs_persist);
     assert!(!reloaded.repaired);
-    assert_eq!(reloaded.data.plugin_data[&key], persisted_bucket);
+    assert_eq!(stored_bucket(&reloaded.data, "alpha"), persisted_bucket);
     let _ = std::fs::remove_file(path);
 }
 
@@ -1077,10 +1090,8 @@ fn backfill_plugin_instances_preserves_existing_valid_ids() {
         &ids[1]
     ));
     // 값 필드와 순서 보존
-    let instances = loaded.data.plugin_data
-        [&crate::state::plugin::plugin_instances_storage_key("alpha")]
-        .as_array()
-        .unwrap();
+    let bucket = stored_bucket(&loaded.data, "alpha");
+    let instances = bucket.as_array().unwrap();
     assert_eq!(instances[0]["position"]["x"], 1.0);
     assert_eq!(instances[1]["position"]["x"], 2.0);
     let _ = std::fs::remove_file(path);
@@ -1161,8 +1172,8 @@ fn backfill_plugin_instances_preserves_cross_plugin_duplicates_untouched() {
     std::fs::write(&path, serde_json::to_vec_pretty(&raw).unwrap()).unwrap();
 
     let loaded = load_store_from_path(&path).unwrap();
-    // 교차 플러그인 중복만으로는 수리 대상이 아니다
-    assert!(!loaded.needs_persist);
+    // 교차 플러그인 중복만으로는 수리 대상이 아니다 (트리로 옮겨 영속은 한다 - 요소 id가 플러그인마다 다르다)
+    assert!(loaded.needs_persist);
     assert!(!loaded.repaired);
     assert_eq!(
         stored_plugin_instance_ids(&loaded.data, "alpha"),
@@ -1208,14 +1219,8 @@ fn backfill_plugin_instances_skips_undecodable_values_and_processes_the_rest() {
         &alpha_ids[0]
     ));
     // decode 불가 키는 원본 Value 그대로 보존 (런타임 read의 fail-closed에 위임)
-    assert_eq!(
-        loaded.data.plugin_data["plugin_data_broken/instances"],
-        not_an_array
-    );
-    assert_eq!(
-        loaded.data.plugin_data["plugin_data_weird/instances"],
-        unknown_field
-    );
+    assert_eq!(stored_bucket(&loaded.data, "broken"), not_an_array);
+    assert_eq!(stored_bucket(&loaded.data, "weird"), unknown_field);
     let _ = std::fs::remove_file(path);
 }
 
@@ -1252,13 +1257,10 @@ fn backfill_plugin_instances_leaves_empty_arrays_untouched() {
     std::fs::write(&path, serde_json::to_vec_pretty(&raw).unwrap()).unwrap();
 
     let loaded = load_store_from_path(&path).unwrap();
-    // 빈 배열은 사용자 storage로 보존
-    assert!(!loaded.needs_persist);
+    // 빈 배열은 사용자 storage로 보존 (트리로 옮겨 영속은 한다)
+    assert!(loaded.needs_persist);
     assert!(!loaded.repaired);
-    assert_eq!(
-        loaded.data.plugin_data["plugin_data_alpha/instances"],
-        serde_json::json!([])
-    );
+    assert_eq!(stored_bucket(&loaded.data, "alpha"), serde_json::json!([]));
     let _ = std::fs::remove_file(path);
 }
 
@@ -1297,7 +1299,11 @@ fn legacy_panel_detach_setting_is_removed_without_touching_plugin_data() {
         true
     );
 
-    std::fs::write(&path, serde_json::to_vec_pretty(&loaded.data).unwrap()).unwrap();
+    std::fs::write(
+        &path,
+        crate::state::store::serialize_store(&loaded.data).unwrap(),
+    )
+    .unwrap();
     let reloaded = load_store_from_path(&path).unwrap();
     assert!(!reloaded.needs_persist);
     assert!(!reloaded.repaired);
@@ -1394,7 +1400,11 @@ fn noncanonical_gradient_store_repersist_and_reload_is_idempotent() {
     assert_eq!(position.font_gradient.as_ref().unwrap().angle, 90.0);
     assert_eq!(position.counter.fill.idle, "rgba(255,255,255,1)");
 
-    std::fs::write(&path, serde_json::to_vec_pretty(&loaded.data).unwrap()).unwrap();
+    std::fs::write(
+        &path,
+        crate::state::store::serialize_store(&loaded.data).unwrap(),
+    )
+    .unwrap();
     let reloaded = load_store_from_path(&path).unwrap();
     assert!(!reloaded.needs_persist);
     assert!(!reloaded.repaired);
@@ -5376,4 +5386,46 @@ fn sound_library_rekey_preserves_metadata_and_conflicts() {
     assert!(!candidates_only.sound_library.contains_key(&local_key));
 
     let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn 플러그인_인스턴스_버킷은_처음_불러올_때_트리로_한_번_옮긴다() {
+    let path = plugin_backfill_fixture_path("tree-import");
+    let id = uuid::Uuid::new_v4().to_string();
+    let mut raw = serde_json::to_value(store_with_each_native_collection()).unwrap();
+    raw.as_object_mut().unwrap().insert(
+        "plugin_data_alpha/instances".to_string(),
+        serde_json::json!([saved_plugin_instance_json(7.0, Some(&id))]),
+    );
+    std::fs::write(&path, serde_json::to_vec_pretty(&raw).unwrap()).unwrap();
+
+    let loaded = load_store_from_path(&path).unwrap();
+    assert!(loaded.needs_persist);
+    assert!(!loaded
+        .data
+        .plugin_data
+        .contains_key("plugin_data_alpha/instances"));
+    let element = loaded.data.element_document.scenes["4key"]
+        .element(&format!("alpha::{id}"))
+        .unwrap();
+    assert_eq!(element.kind, "plugin:alpha");
+    assert_eq!(element.frame.x, 7.0);
+    assert!(loaded
+        .data
+        .element_document
+        .extra
+        .contains_key("pluginInstancesImported"));
+
+    std::fs::write(
+        &path,
+        crate::state::store::serialize_store(&loaded.data).unwrap(),
+    )
+    .unwrap();
+    let reloaded = load_store_from_path(&path).unwrap();
+    assert!(!reloaded.needs_persist);
+    assert_eq!(
+        stored_bucket(&reloaded.data, "alpha"),
+        stored_bucket(&loaded.data, "alpha")
+    );
+    let _ = std::fs::remove_file(path);
 }

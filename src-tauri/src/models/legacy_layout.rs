@@ -861,10 +861,15 @@ fn stored_z_index(element: &Element) -> Option<i64> {
         .and_then(Value::as_i64)
 }
 
-/// 트리 전용 노드를 뺀다 - 옛 종류 요소와 옛 그룹만 남는다
+/// 플러그인 인스턴스 요소 - 목록은 플러그인 버킷이 맡는다(트리 기록·프리셋은 보지 않고 다시 만들 때 옮겨 싣는다)
+pub(crate) fn is_plugin_kind(name: &str) -> bool {
+    name.starts_with(element_document::schema::EXTERNAL_KIND_PREFIX)
+}
+
+/// 트리 전용 노드를 뺀다 - 옛 종류 요소와 옛 그룹만 남는다. 플러그인 인스턴스 요소는 그대로 둔다
 pub(crate) fn strip_tree_only(nodes: &mut Vec<Node>) {
     nodes.retain(|node| match node {
-        Node::Element(element) => is_legacy_kind(&element.kind),
+        Node::Element(element) => is_legacy_kind(&element.kind) || is_plugin_kind(&element.kind),
         Node::Group(group) => !is_tree_only_group(group),
     });
     for node in nodes {
@@ -925,6 +930,8 @@ pub(crate) fn preset_scene(scene: &Scene) -> Option<Scene> {
                             &element.kind,
                         ))
                     }),
+                // 플러그인 인스턴스는 프리셋에 싣지 않는다 (불러올 때 새 id로 복제돼 버킷과 어긋난다)
+                Node::Element(element) if is_plugin_kind(&element.kind) => None,
                 Node::Element(_) => {
                     *has_tree_only = true;
                     Some(node.clone())

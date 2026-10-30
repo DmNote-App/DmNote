@@ -1941,3 +1941,75 @@ fn 플러그인_외부_종류는_등록하면_트리에_넣고_고칠_수_있고
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 트리_편집을_되돌려도_그_사이_바뀐_플러그인_인스턴스는_되돌아가지_않는다() {
+    use crate::state::history::HistoryDirection;
+    let (dir, store) = open_store();
+    let bucket = |x: f64| serde_json::json!([{ "instanceId": "i1", "position": { "x": x, "y": 0 }, "tabId": "4key" }]);
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        crate::state::plugin::write_plugin_instance_bucket(&mut scratch, "demo", Some(bucket(1.0)));
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let insert: Op = serde_json::from_value(serde_json::json!({
+        "op": "insert", "scene": "4key", "parent": null, "index": null,
+        "node": { "type": "element", "id": "tracker-1", "kind": "cursorTracker",
+                  "frame": { "x": 5, "y": 5, "width": 120, "height": 120 } }
+    }))
+    .unwrap();
+    assert!(matches!(
+        store.commit_element_document(&[insert]).unwrap(),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    // 그 사이 플러그인 인스턴스가 바뀐다 (플러그인 기록 몫)
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        crate::state::plugin::write_plugin_instance_bucket(&mut scratch, "demo", Some(bucket(9.0)));
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    store
+        .apply_history_operation(
+            HistoryDirection::Undo,
+            &uuid::Uuid::new_v4().to_string(),
+            &Default::default(),
+            || {},
+        )
+        .unwrap();
+    let snapshot = store.snapshot();
+    assert!(snapshot.element_document.scenes["4key"]
+        .element("tracker-1")
+        .is_none());
+    assert_eq!(
+        crate::state::plugin::read_plugin_instance_bucket(&snapshot, "demo"),
+        Some(bucket(9.0))
+    );
+    assert!(snapshot.element_document.scenes["4key"]
+        .element("demo::i1")
+        .is_some());
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 프리셋_트리_정보에는_플러그인_인스턴스를_싣지_않고_전체_프리셋을_불러와도_인스턴스는_남는다() {
+    let mut state = default_state();
+    crate::state::store::attach_loaded_document(&mut state, None).unwrap();
+    crate::state::plugin::write_plugin_instance_bucket(
+        &mut state,
+        "demo",
+        Some(
+            serde_json::json!([{ "instanceId": "i1", "position": { "x": 1, "y": 2 }, "tabId": "4key" }]),
+        ),
+    );
+    let scene = &state.element_document.scenes["4key"];
+    assert!(crate::models::legacy_layout::preset_scene(scene).is_none());
+    let before = crate::state::plugin::read_plugin_instance_bucket(&state, "demo");
+    apply_full_preset_tree(&mut state, None).unwrap();
+    assert_eq!(
+        crate::state::plugin::read_plugin_instance_bucket(&state, "demo"),
+        before
+    );
+}

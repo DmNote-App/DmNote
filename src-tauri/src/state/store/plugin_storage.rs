@@ -193,6 +193,10 @@ impl AppStore {
     // 플러그인 데이터 관련 메서드
     pub fn get_plugin_data(&self, key: &str) -> Result<Option<Value>> {
         let guard = self.state.read();
+        // 인스턴스 키는 트리에 둔 버킷을 같은 모양으로 돌려준다
+        if let Some(plugin_id) = plugin_id_from_instances_storage_key(key) {
+            return Ok(read_plugin_instance_bucket(&guard.data, plugin_id));
+        }
         Ok(guard.data.plugin_data.get(key).cloned())
     }
 
@@ -304,7 +308,7 @@ impl AppStore {
             .revalidate_for(&self.history_gate)
             .map_err(anyhow::Error::msg)?;
         let plugin_history_exists = guard.history.contains_plugin_elements_for(None);
-        if guard.data.plugin_data.is_empty() {
+        if guard.data.plugin_data.is_empty() && plugin_instance_bucket_ids(&guard.data).is_empty() {
             let history_status = (plugin_history_exists && guard.history.invalidate_all())
                 .then(|| guard.history.issue_status(self.history_gate.is_closed()));
             return Ok(AdmittedPluginStorageMutation {
@@ -315,14 +319,16 @@ impl AppStore {
             });
         }
         let mut scratch = guard.data.clone();
-        let affected_plugin_ids =
-            collect_plugin_instance_ids(scratch.plugin_data.keys().map(String::as_str));
+        let affected_plugin_ids = plugin_instance_bucket_ids(&scratch);
         let instance_data_changed = !affected_plugin_ids.is_empty();
         let next_model_revision = instance_data_changed
             .then(|| next_plugin_model_revision(guard.plugin_model_revision))
             .transpose()
             .map_err(anyhow::Error::msg)?;
         scratch.plugin_data.clear();
+        for plugin_id in &affected_plugin_ids {
+            write_plugin_instance_bucket(&mut scratch, plugin_id, None);
+        }
         self.commit_locked(&mut guard, scratch, ())?;
         if let Some(revision) = next_model_revision {
             guard.plugin_model_revision = revision;
@@ -351,7 +357,14 @@ impl AppStore {
 
     pub fn get_all_plugin_keys(&self) -> Result<Vec<String>> {
         let guard = self.state.read();
-        Ok(guard.data.plugin_data.keys().cloned().collect())
+        // 트리에 둔 인스턴스 버킷도 옛 키로 보인다
+        let mut keys = guard.data.plugin_data.keys().cloned().collect::<Vec<_>>();
+        keys.extend(
+            plugin_instance_bucket_ids(&guard.data)
+                .iter()
+                .map(|plugin_id| plugin_instances_storage_key(plugin_id)),
+        );
+        Ok(keys)
     }
 
     #[cfg(test)]
@@ -381,19 +394,20 @@ impl AppStore {
         // 공개 storage의 개별 키는 canonical 배치와 독립이다. 다만 플러그인
         // 전체 namespace clear는 1.6.1의 "모든 데이터 삭제" 계약대로 내부
         // 배치도 함께 지운다. cache/ 같은 하위 prefix에는 적용하지 않음
-        let canonical_instances_key = namespace_plugin_id.map(plugin_instances_storage_key);
-        let keys = guard
+        // 인스턴스 버킷은 트리에 있다 - 플러그인 전체 namespace면 그 버킷도 지운다
+        let bucket_plugin_id = namespace_plugin_id
+            .filter(|plugin_id| read_plugin_instance_bucket(&guard.data, plugin_id).is_some())
+            .map(str::to_string);
+        let mut keys = guard
             .data
             .plugin_data
             .keys()
-            .filter(|key| {
-                key.starts_with(prefix)
-                    || canonical_instances_key
-                        .as_ref()
-                        .is_some_and(|canonical| *key == canonical)
-            })
+            .filter(|key| key.starts_with(prefix))
             .cloned()
             .collect::<Vec<_>>();
+        if let Some(plugin_id) = &bucket_plugin_id {
+            keys.push(plugin_instances_storage_key(plugin_id));
+        }
         if keys.is_empty() {
             let history_status = (plugin_history_exists && guard.history.invalidate_all())
                 .then(|| guard.history.issue_status(self.history_gate.is_closed()));
@@ -413,6 +427,9 @@ impl AppStore {
         let mut scratch = guard.data.clone();
         for key in &keys {
             scratch.plugin_data.remove(key);
+        }
+        if let Some(plugin_id) = &bucket_plugin_id {
+            write_plugin_instance_bucket(&mut scratch, plugin_id, None);
         }
         self.commit_locked(&mut guard, scratch, ())?;
         if let Some(revision) = next_model_revision {

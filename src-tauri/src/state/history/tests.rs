@@ -31,28 +31,29 @@ fn plugin_snapshot(plugin_id: &str) -> PluginElementsHistorySnapshot {
 
 #[test]
 fn custom_tabs_snapshot_keeps_patch_ownership_and_sorted_plugin_ids() {
+    use crate::state::plugin::write_plugin_instance_bucket;
     let plugin_a = plugin_instances_storage_key("plugin-a");
     let plugin_b = plugin_instances_storage_key("plugin-b");
     let plugin_z = plugin_instances_storage_key("plugin-z");
     let unrelated = "plugin_data_unrelated/settings".to_string();
     let mut before = AppStoreData::default();
-    before
-        .plugin_data
-        .insert(plugin_z.clone(), serde_json::json!(["before-z"]));
-    before
-        .plugin_data
-        .insert(plugin_a.clone(), serde_json::json!(["before-a"]));
+    write_plugin_instance_bucket(
+        &mut before,
+        "plugin-z",
+        Some(serde_json::json!(["before-z"])),
+    );
+    write_plugin_instance_bucket(
+        &mut before,
+        "plugin-a",
+        Some(serde_json::json!(["before-a"])),
+    );
     before
         .plugin_data
         .insert(unrelated.clone(), serde_json::json!({ "before": true }));
     let mut after = before.clone();
-    after.plugin_data.remove(&plugin_z);
-    after
-        .plugin_data
-        .insert(plugin_a.clone(), serde_json::json!(["after-a"]));
-    after
-        .plugin_data
-        .insert(plugin_b.clone(), serde_json::json!(["after-b"]));
+    write_plugin_instance_bucket(&mut after, "plugin-z", None);
+    write_plugin_instance_bucket(&mut after, "plugin-a", Some(serde_json::json!(["after-a"])));
+    write_plugin_instance_bucket(&mut after, "plugin-b", Some(serde_json::json!(["after-b"])));
     after
         .plugin_data
         .insert(unrelated, serde_json::json!({ "after": true }));

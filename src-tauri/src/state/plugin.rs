@@ -372,9 +372,11 @@ pub(crate) fn for_each_stored_plugin_instances(
 ) {
     for plugin_id in plugin_instance_bucket_ids(data) {
         let key = plugin_instances_storage_key(&plugin_id);
-        let instances =
-            decode_plugin_instances_lenient(read_plugin_instance_bucket(data, &plugin_id).as_ref(), &key)
-                .unwrap_or_default();
+        let instances = decode_plugin_instances_lenient(
+            read_plugin_instance_bucket(data, &plugin_id).as_ref(),
+            &key,
+        )
+        .unwrap_or_default();
         visit(&plugin_id, instances);
     }
 }
@@ -396,22 +398,13 @@ pub(crate) fn plugin_group_refs_from_store(
 }
 
 // 플러그인 인스턴스 버킷 - 인스턴스 목록(저장 모양 배열)을 읽고 쓰는 단일 입구.
-// 저장 위치를 바꿀 때 여기만 고친다 (지금은 plugin_data의 인스턴스 키)
+// 저장 위치는 트리 장면(플러그인 종류 요소, state::plugin_tree) - 플러그인 런타임은 같은 목록을 주고받는다
 pub(crate) fn plugin_instance_bucket_ids(data: &AppStoreData) -> Vec<String> {
-    let mut plugin_ids = data
-        .plugin_data
-        .keys()
-        .filter_map(|key| plugin_id_from_instances_storage_key(key))
-        .map(str::to_string)
-        .collect::<Vec<_>>();
-    plugin_ids.sort_unstable();
-    plugin_ids
+    crate::state::plugin_tree::plugin_bucket_ids(&data.element_document)
 }
 
 pub(crate) fn read_plugin_instance_bucket(data: &AppStoreData, plugin_id: &str) -> Option<Value> {
-    data.plugin_data
-        .get(&plugin_instances_storage_key(plugin_id))
-        .cloned()
+    crate::state::plugin_tree::project_plugin_bucket(&data.element_document, plugin_id)
 }
 
 pub(crate) fn write_plugin_instance_bucket(
@@ -419,15 +412,47 @@ pub(crate) fn write_plugin_instance_bucket(
     plugin_id: &str,
     value: Option<Value>,
 ) {
-    let key = plugin_instances_storage_key(plugin_id);
-    match value {
-        Some(value) => {
-            data.plugin_data.insert(key, value);
+    crate::state::plugin_tree::apply_plugin_bucket(
+        std::sync::Arc::make_mut(&mut data.element_document),
+        plugin_id,
+        value.as_ref(),
+    );
+}
+
+// 처음 한 번 - plugin_data의 인스턴스 키를 트리로 옮긴다. 표식이 있으면 다시 옮기지 않는다
+// (남은 키는 쓰지 않고 그대로 둔다). 같은 영속 한 번에 담겨 중간 크래시면 옛 파일로 다시 돈다
+pub(crate) fn migrate_plugin_buckets_into_tree(data: &mut AppStoreData) -> bool {
+    const IMPORTED: &str = "pluginInstancesImported";
+    let keys = data
+        .plugin_data
+        .keys()
+        .filter(|key| is_plugin_instances_storage_key(key))
+        .cloned()
+        .collect::<Vec<_>>();
+    if data.element_document.extra.contains_key(IMPORTED) {
+        if !keys.is_empty() {
+            log::warn!("[Store] Ignoring plugin instance buckets left after import: {keys:?}");
         }
-        None => {
-            data.plugin_data.remove(&key);
+        return false;
+    }
+    // 옮길 것이 없으면 표식도 두지 않는다 (이후 버킷은 트리에만 쓰인다)
+    if keys.is_empty() {
+        return false;
+    }
+    let mut keys = keys;
+    keys.sort_unstable();
+    for key in keys {
+        let Some(plugin_id) = plugin_id_from_instances_storage_key(&key).map(str::to_string) else {
+            continue;
+        };
+        if let Some(value) = data.plugin_data.remove(&key) {
+            write_plugin_instance_bucket(data, &plugin_id, Some(value));
         }
     }
+    std::sync::Arc::make_mut(&mut data.element_document)
+        .extra
+        .insert(IMPORTED.into(), Value::from(1));
+    true
 }
 
 pub(crate) fn plugin_instances_storage_key(plugin_id: &str) -> String {

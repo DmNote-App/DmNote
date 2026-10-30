@@ -302,10 +302,6 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     let id_backfill = super::native_element_id::backfill_store_element_ids(&mut state);
     needs_persist |= id_backfill.changed;
     repaired |= id_backfill.repaired || explicit_invalid_element_id;
-    // 플러그인 인스턴스 ID backfill도 recovery 합류 이후에 수행
-    let plugin_id_backfill = super::plugin::backfill_plugin_instance_ids(&mut state);
-    needs_persist |= plugin_id_backfill.changed;
-    repaired |= plugin_id_backfill.repaired;
     let element_document_missing = parsed_element_document.is_none();
     let attached = super::store::attach_parsed_document(
         &mut state,
@@ -313,6 +309,12 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
         projected_legacy.as_ref(),
     )?;
     needs_persist |= attached.changed;
+    // 플러그인 인스턴스는 트리에 둔다 - 처음 한 번 옮긴다 (트리를 붙인 뒤)
+    needs_persist |= super::plugin::migrate_plugin_buckets_into_tree(&mut state);
+    // 플러그인 인스턴스 ID backfill도 recovery 합류 이후에 수행
+    let plugin_id_backfill = super::plugin::backfill_plugin_instance_ids(&mut state);
+    needs_persist |= plugin_id_backfill.changed;
+    repaired |= plugin_id_backfill.repaired;
     // 읽지 못한 트리 문서는 손상 복구와 같이 원본을 백업하고 자산 정리를 건너뛴다
     repaired |= attached.unreadable || projection_failed;
     if needs_persist {

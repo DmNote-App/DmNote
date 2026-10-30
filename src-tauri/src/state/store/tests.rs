@@ -1,7 +1,7 @@
 use super::{
     collect_local_font_paths, collect_local_image_path_keys, collect_local_image_paths,
     collect_local_sound_path_keys, collect_local_sound_paths, initialize_default_state,
-    plugin_instances_storage_key, project_history_key_counters, purge_expired_trash_sessions_at,
+    project_history_key_counters, purge_expired_trash_sessions_at,
     recover_interrupted_processed_wav_replacements_with, recover_interrupted_sound_deletions_with,
     stage_sound_files_for_deletion, sweep_unreferenced_asset_files, system_time_millis, AppStore,
     AuxEditorResetTransactionOptions, AuxEditorTransactionOptions, HistoryAuxChange,
@@ -719,17 +719,17 @@ fn editor_reset_mode_preserves_malformed_entries_and_skips_non_array_buckets() {
     let non_array = json!({ "keep": "unchanged" });
     let key = super::plugin_instances_storage_key("plugin-a");
     let non_array_key = super::plugin_instances_storage_key("broken");
-    data.plugin_data.insert(
-        key.clone(),
-        json!([
+    super::write_plugin_instance_bucket(
+        &mut data,
+        "plugin-a",
+        Some(json!([
             serde_json::to_value(target_with_id).unwrap(),
             serde_json::to_value(target_without_id).unwrap(),
             retained_value.clone(),
             malformed.clone()
-        ]),
+        ])),
     );
-    data.plugin_data
-        .insert(non_array_key.clone(), non_array.clone());
+    super::write_plugin_instance_bucket(&mut data, "broken", Some(non_array.clone()));
     let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
 
     let admission = store.admit_editor_mutation().unwrap();
@@ -929,9 +929,10 @@ fn canonical_plugin_bucket_preserves_legacy_outlier_while_editing_sibling() {
     let mut data = initialize_default_state();
     let mut legacy = saved_plugin_instance(40_000.0);
     let sibling = saved_plugin_instance(10.0);
-    data.plugin_data.insert(
-        super::plugin_instances_storage_key("plugin-a"),
-        serde_json::to_value(vec![legacy.clone(), sibling.clone()]).unwrap(),
+    super::write_plugin_instance_bucket(
+        &mut data,
+        "plugin-a",
+        Some(serde_json::to_value(vec![legacy.clone(), sibling.clone()]).unwrap()),
     );
     let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
 
@@ -979,12 +980,13 @@ fn canonical_get_keeps_valid_instances_next_to_malformed_storage_entries() {
     std::fs::create_dir_all(&dir).unwrap();
     let mut data = initialize_default_state();
     let valid = saved_plugin_instance(10.0);
-    data.plugin_data.insert(
-        super::plugin_instances_storage_key("plugin-a"),
-        json!([
+    super::write_plugin_instance_bucket(
+        &mut data,
+        "plugin-a",
+        Some(json!([
             serde_json::to_value(&valid).unwrap(),
             { "position": "broken" }
-        ]),
+        ])),
     );
     let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
 
@@ -1990,19 +1992,22 @@ fn plugin_group_refs_by_plugin_includes_unloaded_data_and_skips_broken_keys() {
     third.tab_id = Some("6key".to_string());
     third.group_id = Some("group-c".to_string());
     let ungrouped = saved_plugin_instance(40.0);
-    data.plugin_data.insert(
-        super::plugin_instances_storage_key("grouped-plugin"),
-        serde_json::to_value(vec![first, second, third, ungrouped]).unwrap(),
+    super::write_plugin_instance_bucket(
+        &mut data,
+        "grouped-plugin",
+        Some(serde_json::to_value(vec![first, second, third, ungrouped]).unwrap()),
     );
     // 그룹 참조 없는 플러그인은 결과에서 제외
-    data.plugin_data.insert(
-        super::plugin_instances_storage_key("plain-plugin"),
-        serde_json::to_value(vec![saved_plugin_instance(50.0)]).unwrap(),
+    super::write_plugin_instance_bucket(
+        &mut data,
+        "plain-plugin",
+        Some(serde_json::to_value(vec![saved_plugin_instance(50.0)]).unwrap()),
     );
     // 형태가 깨진 인스턴스 키는 집계만 skip
-    data.plugin_data.insert(
-        super::plugin_instances_storage_key("broken-plugin"),
-        json!({ "not": "an array" }),
+    super::write_plugin_instance_bucket(
+        &mut data,
+        "broken-plugin",
+        Some(json!({ "not": "an array" })),
     );
     // 인스턴스 예약 키가 아닌 plugin_data는 무시
     data.plugin_data.insert(
@@ -3211,10 +3216,10 @@ fn gesture_plugin_transition_rejects_new_and_worsened_legacy_outliers_atomically
     );
     assert_eq!(store.snapshot(), before);
 
-    let key = super::plugin_instances_storage_key("demo-plugin");
-    store.state.write().data.plugin_data.insert(
-        key,
-        serde_json::to_value(vec![new_outlier.clone()]).unwrap(),
+    super::write_plugin_instance_bucket(
+        &mut store.state.write().data,
+        "demo-plugin",
+        Some(serde_json::to_value(vec![new_outlier.clone()]).unwrap()),
     );
     let legacy_before = store.snapshot();
     let mut worsened = new_outlier;
@@ -3244,9 +3249,10 @@ fn gesture_plugin_transition_allows_legacy_outlier_sibling_edit_and_improvement(
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let legacy = saved_plugin_instance(40_000.0);
-    store.state.write().data.plugin_data.insert(
-        super::plugin_instances_storage_key("demo-plugin"),
-        serde_json::to_value(vec![legacy.clone()]).unwrap(),
+    super::write_plugin_instance_bucket(
+        &mut store.state.write().data,
+        "demo-plugin",
+        Some(serde_json::to_value(vec![legacy.clone()]).unwrap()),
     );
 
     let mut sibling_edit = legacy.clone();
@@ -14550,8 +14556,6 @@ fn custom_tab_delete_history_restores_plugin_instances_atomically() {
     target.group_id = Some("group-plugin".to_string());
     let mut retained = saved_plugin_instance(22.0);
     retained.tab_id = Some("4key".to_string());
-    let plugin_a_key = plugin_instances_storage_key("plugin-a");
-    let plugin_b_key = plugin_instances_storage_key("plugin-b");
     let plugin_a_before = serde_json::json!([
         target,
         { "broken": true },
@@ -14568,10 +14572,8 @@ fn custom_tab_delete_history_restores_plugin_instances_atomically() {
     ]);
     store
         .update(|data| {
-            data.plugin_data
-                .insert(plugin_a_key.clone(), plugin_a_before.clone());
-            data.plugin_data
-                .insert(plugin_b_key.clone(), plugin_b_before.clone());
+            super::write_plugin_instance_bucket(data, "plugin-a", Some(plugin_a_before.clone()));
+            super::write_plugin_instance_bucket(data, "plugin-b", Some(plugin_b_before.clone()));
         })
         .unwrap();
 
@@ -14616,10 +14618,10 @@ fn custom_tab_delete_history_restores_plugin_instances_atomically() {
     assert_eq!(delete.change.plugin_instances_changes.len(), 2);
     let after_delete = store.snapshot();
     assert_eq!(
-        after_delete.plugin_data[&plugin_a_key],
+        super::read_plugin_instance_bucket(&after_delete, "plugin-a").unwrap(),
         serde_json::json!([{ "broken": true }, retained])
     );
-    assert!(!after_delete.plugin_data.contains_key(&plugin_b_key));
+    assert!(super::read_plugin_instance_bucket(&after_delete, "plugin-b").is_none());
     let mut stale_instance = saved_plugin_instance(44.0);
     stale_instance.tab_id = Some("history-plugin-tab".to_string());
     let mut stale_request = plugin_instances_request(
@@ -14634,7 +14636,7 @@ fn custom_tab_delete_history_restores_plugin_instances_atomically() {
         store.commit_plugin_instances(stale_request).unwrap_err(),
         "HISTORY_EPOCH_CONFLICT"
     );
-    assert!(!store.snapshot().plugin_data.contains_key(&plugin_b_key));
+    assert!(super::read_plugin_instance_bucket(&store.snapshot(), "plugin-b").is_none());
     drop(delete);
 
     let gate = store.history_gate();
@@ -14659,8 +14661,14 @@ fn custom_tab_delete_history_restores_plugin_instances_atomically() {
     );
     assert_eq!(*revision, before_plugin_revision + 2);
     let restored = store.snapshot();
-    assert_eq!(restored.plugin_data[&plugin_a_key], plugin_a_before);
-    assert_eq!(restored.plugin_data[&plugin_b_key], plugin_b_before);
+    assert_eq!(
+        super::read_plugin_instance_bucket(&restored, "plugin-a").unwrap(),
+        plugin_a_before
+    );
+    assert_eq!(
+        super::read_plugin_instance_bucket(&restored, "plugin-b").unwrap(),
+        plugin_b_before
+    );
     assert!(restored
         .custom_tabs
         .iter()
@@ -14675,10 +14683,10 @@ fn custom_tab_delete_history_restores_plugin_instances_atomically() {
     drop(redo_barrier);
     let redone = store.snapshot();
     assert_eq!(
-        redone.plugin_data[&plugin_a_key],
+        super::read_plugin_instance_bucket(&redone, "plugin-a").unwrap(),
         serde_json::json!([{ "broken": true }, retained])
     );
-    assert!(!redone.plugin_data.contains_key(&plugin_b_key));
+    assert!(super::read_plugin_instance_bucket(&redone, "plugin-b").is_none());
     assert!(!redone.custom_tabs.iter().any(|tab| tab.id == delete_tab_id));
 
     store.flush_and_shutdown().unwrap();
@@ -19552,4 +19560,44 @@ fn custom_tab_delete_undo_restores_tree_only_elements() {
     history(HistoryDirection::Undo);
     assert!(has_tracker(&store), "다시 하기 뒤 되돌리기");
     store.flush_and_shutdown().unwrap();
+}
+
+#[test]
+fn plugin_instance_bucket_assets_in_tree_remain_until_released() {
+    // 플러그인 인스턴스 설정 값의 자산 경로 - 버킷을 트리로 옮긴 뒤에도 정리에서 지킨다
+    let dir = std::env::temp_dir().join(format!(
+        "dmnote-plugin-bucket-assets-{}",
+        uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(dir.join("images")).unwrap();
+    let image_path = dir.join("images").join("instance-owned.png");
+    std::fs::write(&image_path, b"image").unwrap();
+    let store = AppStore::initialize_in_dir(&dir).unwrap();
+    store
+        .update(|data| {
+            super::write_plugin_instance_bucket(
+                data,
+                "demo-plugin",
+                Some(json!([{
+                    "instanceId": "00000000-0000-4000-8000-000000000071",
+                    "position": { "x": 0, "y": 0 },
+                    "tabId": "4key",
+                    "settings": { "imagePath": image_path.to_string_lossy() }
+                }])),
+            );
+        })
+        .unwrap();
+    store.flush_cleanup_and_shutdown().unwrap();
+    drop(store);
+    assert!(image_path.exists());
+
+    let store = AppStore::initialize_in_dir(&dir).unwrap();
+    assert!(super::read_plugin_instance_bucket(&store.snapshot(), "demo-plugin").is_some());
+    store
+        .update(|data| super::write_plugin_instance_bucket(data, "demo-plugin", None))
+        .unwrap();
+    store.flush_cleanup_and_shutdown().unwrap();
+    drop(store);
+    assert!(!image_path.exists());
+    let _ = std::fs::remove_dir_all(&dir);
 }

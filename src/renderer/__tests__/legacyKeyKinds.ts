@@ -16,7 +16,9 @@ export const keepKeyLegacy = async (
   return {
     ...actual,
     TREE_EDITED_KINDS: kinds,
-    isTreeEditedKind: (kind) => !isEditorElementType(kind) || kinds.has(kind),
+    isTreeEditedKind: (kind) =>
+      !actual.isPluginKind(kind) &&
+      (!isEditorElementType(kind) || kinds.has(kind)),
     isLegacyEditedType: (type) => !kinds.has(type),
   };
 };

@@ -17,12 +17,13 @@ use serde_json::Value;
 
 use super::AppStore;
 use crate::models::legacy_layout::{
-    graft_preset_scene, graft_tree_only, import_document, is_legacy_kind, is_tree_only_group,
-    lift_legacy_kind_fields, moved_z_fixes, project_document, reconcile_document, set_tree_z,
-    strip_tree_only, LegacyRef,
+    graft_preset_scene, graft_tree_only, import_document, is_legacy_kind, is_plugin_kind,
+    is_tree_only_group, lift_legacy_kind_fields, moved_z_fixes, project_document,
+    reconcile_document, set_tree_z, strip_tree_only, LegacyRef,
 };
 use crate::models::{builtin_kind_registry, AppStoreData, EditorCommitRequest, EditorDocumentV1};
 use crate::state::history::ElementTreeHistorySnapshot;
+use crate::state::plugin_tree::carry_plugin_buckets;
 
 // 저장 파일에서 트리 문서가 실리는 칸
 pub(crate) const ELEMENT_DOCUMENT_FIELD: &str = "elementDocument";
@@ -515,10 +516,12 @@ fn first_legacy_op(engine: &Engine<'_>, document: &Document, ops: &[Op]) -> Opti
     None
 }
 
-// 옛 종류 요소는 id·종류만 남긴 장면 뼈대 - 되돌리기 기록용
+// 옛 종류 요소는 id·종류만 남긴 장면 뼈대 - 되돌리기 기록용.
+// 플러그인 인스턴스 요소는 뺀다 - 플러그인 기록이 맡고, 되돌릴 때도 떼지 않는다
 fn tree_skeleton(nodes: &[Node]) -> Vec<Node> {
     nodes
         .iter()
+        .filter(|node| !matches!(node, Node::Element(element) if is_plugin_kind(&element.kind)))
         .map(|node| match node {
             Node::Group(group) => {
                 let mut group = group.clone();
@@ -610,6 +613,8 @@ pub(crate) fn restore_scenes_from_legacy(
         graft_tree_only(skeleton, &mut scene);
         next.scenes.insert(scene_id.clone(), scene);
     }
+    // 다시 만든 장면에는 플러그인 인스턴스가 없다 - 지금 버킷을 옮겨 싣는다
+    carry_plugin_buckets(document, &mut next);
     Ok(next)
 }
 
@@ -629,6 +634,8 @@ pub(crate) fn apply_full_preset_tree(
         }
     }
     load_document(&mut document);
+    // 다시 만든 트리에는 플러그인 인스턴스가 없다 - 지금 버킷을 옮겨 싣는다
+    carry_plugin_buckets(&store.element_document, &mut document);
     store.element_document = std::sync::Arc::new(document);
     Ok(())
 }
@@ -648,9 +655,12 @@ pub(crate) fn apply_tab_preset_tree(
         return Ok(());
     };
     graft_preset_scene(preset, &mut scene, &mut || uuid::Uuid::new_v4().to_string());
+    let previous = store.element_document.clone();
     let document = std::sync::Arc::make_mut(&mut store.element_document);
     document.scenes.insert(tab_id.to_string(), scene);
     load_document(document);
+    // 다시 만든 장면에는 플러그인 인스턴스가 없다 - 지금 버킷을 옮겨 싣는다
+    carry_plugin_buckets(&previous, document);
     Ok(())
 }
 

@@ -8,6 +8,7 @@ import type {
 } from '@src/types/generated/elementDocument';
 import { isTreeOnlyGroup } from '@src/renderer/editor/document/documentPatch';
 import { isEditorElementType } from '@src/types/editor';
+import { isPluginKind } from '@src/types/elementKinds';
 
 export interface DocumentLayerRowModel {
   node: Node;
@@ -31,7 +32,8 @@ export const documentLayerRows = (
     for (let index = nodes.length - 1; index >= 0; index -= 1) {
       const node = nodes[index];
       if (node.type === 'element') {
-        if (!isEditorElementType(node.kind)) {
+        // 플러그인 인스턴스는 옛 목록이 보인다
+        if (!isEditorElementType(node.kind) && !isPluginKind(node.kind)) {
           rows.push({ node, depth, parentId, index });
         }
         continue;

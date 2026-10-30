@@ -197,3 +197,22 @@ describe('숨긴 트리 그룹 안 요소', () => {
     expect(withTreeGroupHidden(positions, '')).toBe(positions);
   });
 });
+
+describe('플러그인 인스턴스 요소', () => {
+  it('옛 플러그인 렌더러가 그리므로 트리 슬롯에서 빠진다', () => {
+    const scene: Scene = {
+      nodes: [
+        tracker('t1'),
+        { type: 'element', id: 'demo::i1', kind: 'plugin:demo', frame } as Node,
+      ],
+    };
+    expect(
+      documentElementSlots(scene).map(({ element }) => element.id),
+    ).toEqual(['t1']);
+    expect(
+      documentElementSlots(scene, { ownZIndex: true }).map(
+        ({ element }) => element.id,
+      ),
+    ).toEqual(['t1']);
+  });
+});

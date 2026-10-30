@@ -192,7 +192,7 @@ fn write_store_snapshot(path: &Path, revision: u64, state: &AppStoreData) -> Res
     atomic_replace(path, json.as_bytes(), &format!("revision-{revision}"))
 }
 
-fn serialize_store(state: &AppStoreData) -> Result<String> {
+pub(crate) fn serialize_store(state: &AppStoreData) -> Result<String> {
     use serde_json::{to_value, Map, Value};
 
     let mut root = to_value(state)?;

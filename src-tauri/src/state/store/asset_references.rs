@@ -58,6 +58,12 @@ fn collect_plugin_managed_asset_paths(
     for value in data.plugin_data.values() {
         collect_plugin_managed_asset_value(app_data_dir, &managed_dir, value, paths);
     }
+    // 트리에 둔 플러그인 인스턴스 버킷(설정 값 안의 경로)도 같은 규칙으로
+    for plugin_id in crate::state::plugin::plugin_instance_bucket_ids(data) {
+        if let Some(value) = crate::state::plugin::read_plugin_instance_bucket(data, &plugin_id) {
+            collect_plugin_managed_asset_value(app_data_dir, &managed_dir, &value, paths);
+        }
+    }
 }
 
 fn collect_plugin_managed_asset_value(
