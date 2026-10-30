@@ -19,7 +19,7 @@ const normalizeTriggers = (triggers: string[]): string[] => {
 };
 
 // 자세 name도 같은 관례 - None이면 키 생략
-const toPoseWireShape = (pose: SpritePose): SpritePose => {
+export const toPoseWireShape = (pose: SpritePose): SpritePose => {
   const triggers = normalizeTriggers(pose.triggers);
   const dropName = pose.name == null && 'name' in pose;
   if (triggers === pose.triggers && !dropName) return pose;

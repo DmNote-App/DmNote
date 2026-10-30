@@ -44,11 +44,11 @@ import {
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { cloneSlot } from '@utils/keySlot';
 import {
-  rebindPoseTriggersByKey,
+  pastedPoseTriggers,
   reissueSpritePoseIds,
-  remapSpritePoseTriggers,
 } from '@utils/sprite/poseIdentity';
-import { buildSpriteKeyCanonicalMap } from '@utils/sprite/spriteKeyBinding';
+import { keyIdsByCanonical } from '@utils/sprite/spriteKeyBinding';
+import { recordPastedKeyIds } from '@stores/grid/pastedKeyIds';
 import { toSpriteWireShape } from '@utils/sprite/spriteWireShape';
 import {
   buildLayerItemsForMode,
@@ -208,35 +208,31 @@ export const pasteSelection = async ({
   const isCrossModePaste =
     clipboardMode !== null && clipboardMode !== selectedKeyType;
   if (spritesToAdd.length > 0) {
-    const targetKeyIdsByCanonical = new Map<string, string[]>();
-    if (isCrossModePaste) {
-      const { keyMappings, canonicalPositions } = useKeyStore.getState();
-      for (const [id, canonical] of buildSpriteKeyCanonicalMap(
-        keyMappings[selectedKeyType] ?? [],
-        canonicalPositions[selectedKeyType] ?? [],
-      )) {
-        const ids = targetKeyIdsByCanonical.get(canonical) ?? [];
-        ids.push(id);
-        targetKeyIdsByCanonical.set(canonical, ids);
-      }
-    }
+    const { keyMappings, canonicalPositions } = useKeyStore.getState();
+    const targetKeyIdsByCanonical = isCrossModePaste
+      ? keyIdsByCanonical(
+          keyMappings[selectedKeyType] ?? [],
+          canonicalPositions[selectedKeyType] ?? [],
+        )
+      : null;
     for (const sprite of spritesToAdd) {
-      const remapped =
-        keyIdMap.size > 0
-          ? remapSpritePoseTriggers(sprite.position.poses, keyIdMap)
-          : sprite.position.poses;
       sprite.position = toSpriteWireShape({
         ...sprite.position,
-        poses: isCrossModePaste
-          ? rebindPoseTriggersByKey(
-              remapped,
-              sprite.triggerCanonicals ?? {},
-              targetKeyIdsByCanonical,
-            )
-          : remapped,
+        poses: pastedPoseTriggers(
+          sprite.position.poses,
+          keyIdMap,
+          targetKeyIdsByCanonical
+            ? {
+                triggerCanonicals: sprite.triggerCanonicals ?? {},
+                targetKeyIdsByCanonical,
+              }
+            : null,
+        ),
       });
     }
   }
+  // 함께 붙이는 트리 클립보드의 스프라이트 트리거도 사본 키를 가리키게 알린다
+  recordPastedKeyIds(keyIdMap);
 
   // maxInstances 사전 검증 - add 경로(생성 메뉴)와 동일하게 상한 도달 시
   // 거부·경고. 혼합 선택도 destructive 관례(부분 성공 금지)에 따라 전체 중단

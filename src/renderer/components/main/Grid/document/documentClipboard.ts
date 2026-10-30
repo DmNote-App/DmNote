@@ -11,20 +11,89 @@ import { editDocument } from './documentEditActions';
 import { documentGroupNames, documentGroupRoots } from './documentGroups';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+import { useKeyStore } from '@stores/data/useKeyStore';
+import { takePastedKeyIds } from '@stores/grid/pastedKeyIds';
+import type { SpritePose } from '@src/types/key/sprites';
+import {
+  freezeTriggerCanonicals,
+  pastedPoseTriggers,
+  reissueSpritePoseIds,
+} from '@utils/sprite/poseIdentity';
+import {
+  buildSpriteKeyCanonicalMap,
+  keyIdsByCanonical,
+} from '@utils/sprite/spriteKeyBinding';
+import { toPoseWireShape } from '@utils/sprite/spriteWireShape';
+
+// 복사한 탭과 스프라이트 트리거가 가리키던 키의 canonical (스프라이트 id별) - 다른 탭에 붙일 때 다시 결합
+interface DocumentClipboardSource {
+  mode: string;
+  triggerCanonicals: Record<string, Record<string, string>>;
+}
 
 interface DocumentClipboardState {
   nodes: Node[];
-  set: (nodes: Node[]) => void;
+  source: DocumentClipboardSource | null;
+  set: (nodes: Node[], source?: DocumentClipboardSource) => void;
   clear: () => void;
 }
 
 export const useDocumentClipboardStore = create<DocumentClipboardState>(
   (set) => ({
     nodes: [],
-    set: (nodes) => set({ nodes }),
-    clear: () => set({ nodes: [] }),
+    source: null,
+    set: (nodes, source) => set({ nodes, source: source ?? null }),
+    clear: () => set({ nodes: [], source: null }),
   }),
 );
+
+const spritePosesOf = (node: Node): SpritePose[] | null =>
+  node.type === 'element' &&
+  node.kind === 'sprite' &&
+  Array.isArray(node.values?.poses)
+    ? (node.values.poses as unknown as SpritePose[])
+    : null;
+
+const elementsOf = (nodes: readonly Node[]): Node[] =>
+  nodes.flatMap((node) =>
+    node.type === 'group' ? elementsOf(node.children) : [node],
+  );
+
+/** 붙여넣을 스프라이트의 자세 - poseId 재발급, 함께 붙인 키·다른 탭의 같은 키로 트리거 재결합(옛 붙여넣기와 같은 규칙) */
+export const pastedSpriteNodes = (
+  nodes: readonly Node[],
+  keyIdMap: ReadonlyMap<string, string>,
+  cross: {
+    triggerCanonicals: Record<string, Record<string, string>>;
+    targetKeyIdsByCanonical: ReadonlyMap<string, readonly string[]>;
+  } | null,
+): Node[] =>
+  nodes.map((node) => {
+    if (node.type === 'group') {
+      return {
+        ...node,
+        children: pastedSpriteNodes(node.children, keyIdMap, cross),
+      };
+    }
+    const poses = spritePosesOf(node);
+    if (!poses) return node;
+    const next = reissueSpritePoseIds(
+      pastedPoseTriggers(
+        poses,
+        keyIdMap,
+        cross
+          ? {
+              triggerCanonicals: cross.triggerCanonicals[node.id] ?? {},
+              targetKeyIdsByCanonical: cross.targetKeyIdsByCanonical,
+            }
+          : null,
+      ),
+    ).map(toPoseWireShape);
+    return {
+      ...node,
+      values: { ...node.values, poses: next as unknown as JsonValue },
+    };
+  });
 
 // 옛 종류를 복사하면 트리 클립보드를 비운다
 useGridSelectionStore.subscribe((state, previous) => {
@@ -120,7 +189,23 @@ export const copyDocumentSelection = ({
   visit(scene.nodes);
   if (picked.length === 0) return false;
   if (!keepLegacyClipboard) useGridSelectionStore.getState().clearClipboard();
-  useDocumentClipboardStore.getState().set(picked);
+  // 스프라이트 트리거가 가리키는 키를 canonical로 얼린다 (옛 복사와 같다)
+  const { keyMappings, canonicalPositions } = useKeyStore.getState();
+  const sourceKeyCanonicals = buildSpriteKeyCanonicalMap(
+    keyMappings[sceneId!] ?? [],
+    canonicalPositions[sceneId!] ?? [],
+  );
+  const triggerCanonicals = Object.fromEntries(
+    elementsOf(picked).flatMap((node) => {
+      const poses = spritePosesOf(node);
+      return poses
+        ? [[node.id, freezeTriggerCanonicals(poses, sourceKeyCanonicals)]]
+        : [];
+    }),
+  );
+  useDocumentClipboardStore
+    .getState()
+    .set(picked, { mode: sceneId!, triggerCanonicals });
   return true;
 };
 
@@ -130,8 +215,23 @@ export const pasteDocumentClipboard = async (
   // 옛 종류 클립보드와 함께 붙일 때 - 붙인 옛 요소 선택을 지킨다
   { keepOther = false }: { keepOther?: boolean } = {},
 ) => {
-  const { nodes } = useDocumentClipboardStore.getState();
-  if (nodes.length === 0) return;
+  const { nodes: copied, source } = useDocumentClipboardStore.getState();
+  if (copied.length === 0) return;
+  // 함께 붙인 옛 키(같은 동작)의 사본 id, 다른 탭이면 그 탭의 같은 키
+  const { keyMappings, canonicalPositions } = useKeyStore.getState();
+  const nodes = pastedSpriteNodes(
+    copied,
+    keepOther ? takePastedKeyIds() : new Map(),
+    source && source.mode !== sceneId
+      ? {
+          triggerCanonicals: source.triggerCanonicals,
+          targetKeyIdsByCanonical: keyIdsByCanonical(
+            keyMappings[sceneId] ?? [],
+            canonicalPositions[sceneId] ?? [],
+          ),
+        }
+      : null,
+  );
   const { ops, ids } = buildDocumentPaste(
     sceneId,
     nodes,

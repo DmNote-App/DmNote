@@ -10,6 +10,7 @@ import type { KeySlot } from '@src/types/key/keys';
 import type { LayerGroupDef } from '@src/types/layerGroups';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import { cloneSlot } from '@utils/keySlot';
+import { freezeTriggerCanonicals } from '@utils/sprite/poseIdentity';
 import { buildSpriteKeyCanonicalMap } from '@utils/sprite/spriteKeyBinding';
 
 type SelectionClipboardSource = ElementCollectionsModeArrays & {
@@ -69,13 +70,9 @@ export const createSelectionClipboardSnapshot = (
           type: 'sprite',
           position: { ...position },
           // 다른 탭에 붙일 때 같은 키로 다시 결합하려면 지금의 결합을 얼려야 한다
-          triggerCanonicals: Object.fromEntries(
-            position.poses.flatMap((pose) =>
-              pose.triggers.flatMap((trigger) => {
-                const canonical = sourceKeyCanonicals.get(trigger);
-                return canonical === undefined ? [] : [[trigger, canonical]];
-              }),
-            ),
+          triggerCanonicals: freezeTriggerCanonicals(
+            position.poses,
+            sourceKeyCanonicals,
           ),
         });
       }

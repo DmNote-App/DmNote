@@ -19,3 +19,18 @@ export const buildSpriteKeyCanonicalMap = (
   }
   return map;
 };
+
+// 붙일 탭의 canonical 키 -> 키 요소 id 목록 (같은 키가 여럿이면 모호)
+export const keyIdsByCanonical = (
+  keys: readonly KeySlot[],
+  keyPositions: readonly { id?: string | null }[],
+): Map<string, string[]> => {
+  const byCanonical = new Map<string, string[]>();
+  for (const [id, canonical] of buildSpriteKeyCanonicalMap(
+    keys,
+    keyPositions,
+  )) {
+    byCanonical.set(canonical, [...(byCanonical.get(canonical) ?? []), id]);
+  }
+  return byCanonical;
+};

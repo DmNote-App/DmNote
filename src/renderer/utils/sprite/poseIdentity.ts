@@ -37,3 +37,37 @@ export const rebindPoseTriggersByKey = (
       return candidates && candidates.length === 1 ? candidates[0] : trigger;
     }),
   }));
+
+// 복사할 때 트리거가 가리키는 키의 canonical을 얼린다 - 다른 탭에 붙일 때 같은 키로 다시 결합한다
+export const freezeTriggerCanonicals = (
+  poses: readonly SpritePose[],
+  sourceKeyCanonicals: ReadonlyMap<string, string>,
+): Record<string, string> =>
+  Object.fromEntries(
+    poses.flatMap((pose) =>
+      pose.triggers.flatMap((trigger) => {
+        const canonical = sourceKeyCanonicals.get(trigger);
+        return canonical === undefined ? [] : [[trigger, canonical]];
+      }),
+    ),
+  );
+
+// 붙여넣은 사본의 트리거 - 함께 붙인 키의 신 id로, 다른 탭이면 얼린 canonical의 같은 키로
+export const pastedPoseTriggers = (
+  poses: readonly SpritePose[],
+  keyIdMap: ReadonlyMap<string, string>,
+  crossMode: {
+    triggerCanonicals: Readonly<Record<string, string>>;
+    targetKeyIdsByCanonical: ReadonlyMap<string, readonly string[]>;
+  } | null,
+): SpritePose[] => {
+  const remapped =
+    keyIdMap.size > 0 ? remapSpritePoseTriggers(poses, keyIdMap) : [...poses];
+  return crossMode
+    ? rebindPoseTriggersByKey(
+        remapped,
+        crossMode.triggerCanonicals,
+        crossMode.targetKeyIdsByCanonical,
+      )
+    : remapped;
+};
