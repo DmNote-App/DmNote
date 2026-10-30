@@ -20,7 +20,7 @@ interface CounterPreviewFaceProps {
 
 interface CounterPreviewLayerProps {
   kind: CounterPreviewKind;
-  positions: CounterPreviewPosition[];
+  positions: readonly CounterPreviewPosition[];
   value: number;
   selectedElements: SelectedElement[];
 }

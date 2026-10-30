@@ -110,6 +110,7 @@ import DuplicateElementGhost from './DuplicateElementGhost';
 import NativeGridElements from './NativeGridElements';
 import GridSelectionOverlays from '../overlays/GridSelectionOverlays';
 import DocumentContextMenu from '../document/DocumentContextMenu';
+import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
 import {
   combinedSelection as combinedSelectionOf,
   treeOnlySelectedIds,
@@ -302,6 +303,12 @@ const Grid = ({
     [collections, selectedKeyType],
   );
   const { statPositions } = collections;
+  // 트리에서 그리는 스탯의 바깥 카운터는 트리 틀을 따라간다
+  const statCounterPositions = useTreeFramedPositions(
+    'stat',
+    statPositions?.[selectedKeyType] || [],
+    selectedKeyType,
+  );
 
   // 선택 관련 로직 훅 사용
   const {
@@ -990,7 +997,7 @@ const Grid = ({
             />
           )}
           <StatCounterLayer
-            positions={statPositions?.[selectedKeyType] || []}
+            positions={statCounterPositions}
             selectedElements={selectedElements}
           />
           <DuplicateElementGhost

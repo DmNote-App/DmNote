@@ -4,7 +4,7 @@ import CounterPreviewLayer, {
 } from './CounterPreviewLayer';
 
 interface StatCounterLayerProps {
-  positions: CounterPreviewPosition[];
+  positions: readonly CounterPreviewPosition[];
   selectedElements?: SelectedElement[];
 }
 
