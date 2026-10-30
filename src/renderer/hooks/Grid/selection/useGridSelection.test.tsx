@@ -65,6 +65,20 @@ const mocks = vi.hoisted(() => ({
   sendBridgeMessage: vi.fn(),
 }));
 
+// 옛 복사·붙여넣기(스프라이트 트리거 재결합 등)를 본다 - 트리 편집기 전환은 끈 상태로
+vi.mock('@src/types/elementKinds', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('@src/types/elementKinds')
+  >();
+  const { isEditorElementType } = await import('@src/types/editor');
+  return {
+    ...actual,
+    TREE_EDITED_KINDS: new Set<string>(),
+    isTreeEditedKind: (kind: string) => !isEditorElementType(kind),
+    isLegacyEditedType: () => true,
+  };
+});
+
 vi.mock(
   '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
   () => ({

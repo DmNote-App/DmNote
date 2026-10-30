@@ -28,6 +28,20 @@ const mocks = vi.hoisted(() => ({
   commitPatch: vi.fn(() => Promise.resolve()),
 }));
 
+// 옛 레이어 동작의 종류별 분기를 본다 - 트리 편집기 전환은 끈 상태로
+vi.mock('@src/types/elementKinds', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('@src/types/elementKinds')
+  >();
+  const { isEditorElementType } = await import('@src/types/editor');
+  return {
+    ...actual,
+    TREE_EDITED_KINDS: new Set<string>(),
+    isTreeEditedKind: (kind: string) => !isEditorElementType(kind),
+    isLegacyEditedType: () => true,
+  };
+});
+
 vi.mock('@src/renderer/editor/runtime/operations/elementOps', () => ({
   patchElementHiddenById: mocks.patchHidden,
   patchElementLayerNameById: mocks.patchLayerName,

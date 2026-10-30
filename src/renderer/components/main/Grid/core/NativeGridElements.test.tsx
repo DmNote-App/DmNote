@@ -153,7 +153,7 @@ describe('NativeGridElements', () => {
           }}
           keyMappings={['KeyA']}
           pluginElements={[]}
-          selectedElements={[{ type: 'sprite', id: SPRITE_ID, index: 0 }]}
+          selectedElements={[{ type: 'key', id: KEY_ID, index: 0 }]}
           activeTool="select"
           zoom={1}
           panX={0}
@@ -205,51 +205,19 @@ describe('NativeGridElements', () => {
     host.remove();
   });
 
-  it('키·스프라이트를 기존 순서와 표시 모델로 렌더하고 트리로 옮긴 스탯·노브·그래프는 그리지 않는다', () => {
+  it('키만 그리고 트리로 옮긴 스탯·그래프·노브·스프라이트는 그리지 않는다', () => {
     renderScene();
 
     const elements = [...host.querySelectorAll('[data-native-kind]')];
-    expect(elements.map((element) => element.textContent)).toEqual([
-      'KeyA',
-      'sprite',
-    ]);
+    expect(elements.map((element) => element.textContent)).toEqual(['KeyA']);
     expect(
       elements.map((element) => element.getAttribute('data-selected')),
-    ).toEqual(['false', 'true']);
+    ).toEqual(['true']);
   });
 
-  it('스프라이트도 같은 공통 핸들러로 위치 커밋·삭제·메뉴를 라우팅한다', () => {
-    renderScene();
-    const sprite = host.querySelector(`[data-element-id="${SPRITE_ID}"]`)!;
-
-    dispatchMouse(sprite, 'mousedown');
-    expect(operationMocks.commitPosition).toHaveBeenCalledWith(
-      'sprite',
-      SPRITE_ID,
-      12,
-      34,
-    );
-
-    dispatchMouse(sprite, 'contextmenu', { clientX: 3, clientY: 4 });
-    expect(callbacks.openContext).toHaveBeenCalledWith(
-      'sprite',
-      0,
-      3,
-      4,
-      sprite,
-    );
-
-    dispatchMouse(sprite, 'mouseup', { button: 1 });
-    expect(operationMocks.deleteElement).toHaveBeenCalledWith(
-      'sprite',
-      SPRITE_ID,
-    );
-  });
-
-  it('선택·범위 선택·위치 커밋·컨텍스트 메뉴 동작을 유형별로 라우팅한다', () => {
+  it('키 선택·위치 커밋·지우개·컨텍스트 메뉴를 공통 핸들러로 라우팅한다', () => {
     renderScene();
     const key = host.querySelector(`[data-element-id="${KEY_ID}"]`)!;
-    const sprite = host.querySelector(`[data-element-id="${SPRITE_ID}"]`)!;
     dispatchMouse(key, 'click');
     expect(callbacks.select).toHaveBeenCalledWith('key', 0);
     expect(callbacks.setLastBounds).toHaveBeenCalledWith({
@@ -259,21 +227,19 @@ describe('NativeGridElements', () => {
       height: 60,
     });
 
-    dispatchMouse(sprite, 'click', { shiftKey: true });
-    expect(callbacks.toggle).toHaveBeenCalledWith('sprite', 0);
-
-    dispatchMouse(key, 'click', { shiftKey: true });
-    expect(callbacks.clear).toHaveBeenCalledTimes(1);
-    expect(callbacks.toggle).toHaveBeenCalledWith('key', 0);
-
-    dispatchMouse(sprite, 'contextmenu', { clientX: 7, clientY: 9 });
-    expect(callbacks.openContext).toHaveBeenCalledWith(
-      'sprite',
-      0,
-      7,
-      9,
-      sprite,
+    dispatchMouse(key, 'mousedown');
+    expect(operationMocks.commitPosition).toHaveBeenCalledWith(
+      'key',
+      KEY_ID,
+      12,
+      34,
     );
+
+    dispatchMouse(key, 'contextmenu', { clientX: 7, clientY: 9 });
+    expect(callbacks.openContext).toHaveBeenCalledWith('key', 0, 7, 9, key);
+
+    dispatchMouse(key, 'mouseup', { button: 1 });
+    expect(operationMocks.deleteElement).toHaveBeenCalledWith('key', KEY_ID);
   });
 
   it('기존 키 앵커가 있으면 좌표 범위 수집 결과를 한 번에 적용한다', () => {
@@ -293,7 +259,7 @@ describe('NativeGridElements', () => {
       `key:${KEY_ID}`,
       `stat:${STAT_ID}`,
       `graph:${GRAPH_ID}`,
-      // 트리로 옮긴 스탯·그래프·노브도 범위에 든다 - 선택 스토어가 트리 선택으로 보낸다
+      // 트리로 옮긴 종류도 범위에 든다 - 선택 스토어가 트리 선택으로 보낸다
       `knob:${KNOB_ID}`,
       `sprite:${SPRITE_ID}`,
     ]);
