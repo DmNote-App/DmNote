@@ -56,12 +56,15 @@ fn assert_wav_rollback(path: &Path, metadata: &RefCell<&'static str>) {
 
 fn sound_delete_data(path_key: &str) -> AppStoreData {
     let mut data = AppStoreData {
-        key_positions: default_positions().clone(),
         ..Default::default()
-    };
+    }
+    .with_legacy(|legacy| {
+        legacy.key_positions = default_positions().clone();
+    });
     data.sound_library
         .insert(path_key.to_string(), Default::default());
     let position = data
+        .legacy_mut()
         .key_positions
         .get_mut("4key")
         .unwrap()
@@ -84,17 +87,20 @@ fn sound_delete_all_position_data(path_key: &str) -> AppStoreData {
     let mut data = AppStoreData::default();
     data.sound_library
         .insert(path_key.to_string(), Default::default());
-    data.keys.insert("4key".to_string(), vec!["KeyA".into()]);
-    data.key_positions
+    data.legacy_mut()
+        .keys
+        .insert("4key".to_string(), vec!["KeyA".into()]);
+    data.legacy_mut()
+        .key_positions
         .insert("4key".to_string(), vec![position_with_sound(path_key)]);
-    data.stat_positions.insert(
+    data.legacy_mut().stat_positions.insert(
         "4key".to_string(),
         vec![StatPosition {
             stat_type: StatType::Kps,
             position: position_with_sound(path_key),
         }],
     );
-    data.graph_positions.insert(
+    data.legacy_mut().graph_positions.insert(
         "4key".to_string(),
         vec![GraphPosition {
             stat_type: GraphStatType::Kps,
@@ -105,7 +111,7 @@ fn sound_delete_all_position_data(path_key: &str) -> AppStoreData {
             position: position_with_sound(path_key),
         }],
     );
-    data.knob_positions.insert(
+    data.legacy_mut().knob_positions.insert(
         "4key".to_string(),
         vec![KnobPosition {
             axis_id: "axis".to_string(),
@@ -190,10 +196,10 @@ fn sound_delete_clears_all_position_references_and_reports_actual_fields() {
         ]
     );
     for position in [
-        &data.key_positions["4key"][0],
-        &data.stat_positions["4key"][0].position,
-        &data.graph_positions["4key"][0].position,
-        &data.knob_positions["4key"][0].position,
+        &data.legacy().key_positions["4key"][0],
+        &data.legacy().stat_positions["4key"][0].position,
+        &data.legacy().graph_positions["4key"][0].position,
+        &data.legacy().knob_positions["4key"][0].position,
     ] {
         assert_eq!(position.sound_path, None);
         assert_eq!(position.sound_enabled, Some(false));
@@ -365,8 +371,11 @@ fn sound_path_key_resolver_uses_canonical_match_for_reference_removal() {
     assert_eq!(resolved_key, stored_key);
     assert!(remove_sound_entry_and_references(&mut data, &resolved_key));
     assert!(!data.sound_library.contains_key(&stored_key));
-    assert_eq!(data.key_positions["4key"][0].sound_path, None);
-    assert_eq!(data.key_positions["4key"][0].sound_enabled, Some(false));
+    assert_eq!(data.legacy().key_positions["4key"][0].sound_path, None);
+    assert_eq!(
+        data.legacy().key_positions["4key"][0].sound_enabled,
+        Some(false)
+    );
 
     let _ = std::fs::remove_dir_all(root);
 }
@@ -423,10 +432,13 @@ fn sound_path_key_resolver_preserves_unmatched_input_behavior() {
     assert!(!remove_sound_entry_and_references(&mut data, &resolved_key));
     assert!(data.sound_library.contains_key(&stored_key));
     assert_eq!(
-        data.key_positions["4key"][0].sound_path.as_deref(),
+        data.legacy().key_positions["4key"][0].sound_path.as_deref(),
         Some(stored_key.as_str())
     );
-    assert_eq!(data.key_positions["4key"][0].sound_enabled, Some(true));
+    assert_eq!(
+        data.legacy().key_positions["4key"][0].sound_enabled,
+        Some(true)
+    );
 
     let _ = std::fs::remove_dir_all(root);
 }
@@ -495,7 +507,8 @@ fn sound_delete_store_failure_keeps_files_and_references() {
     assert!(original_path.exists());
     assert!(!cache_invalidated.get());
     assert!(data.borrow().sound_library.contains_key(&path_key));
-    let position = &data.borrow().key_positions["4key"][0];
+    let data = data.borrow();
+    let position = &data.legacy().key_positions["4key"][0];
     assert_eq!(position.sound_path.as_deref(), Some(path_key.as_str()));
     assert_eq!(position.sound_enabled, Some(true));
 
@@ -545,7 +558,8 @@ fn sound_delete_stages_files_before_store_and_moves_them_to_trash_after_commit()
         .collect();
     assert!(quarantined.contains(&"sound.wav".into()));
     assert!(quarantined.contains(&"original.wav".into()));
-    let position = &data.borrow().key_positions["4key"][0];
+    let data = data.borrow();
+    let position = &data.legacy().key_positions["4key"][0];
     assert_eq!(position.sound_path, None);
     assert_eq!(position.sound_enabled, Some(false));
 

@@ -982,43 +982,43 @@ impl ElementCollections {
 
 impl ElementPositionsHost for AppStoreData {
     fn key_collection(&self) -> &KeyPositions {
-        &self.key_positions
+        &self.legacy().key_positions
     }
 
     fn key_collection_mut(&mut self) -> &mut KeyPositions {
-        &mut self.key_positions
+        &mut self.legacy_mut().key_positions
     }
 
     fn stat_collection(&self) -> &StatPositions {
-        &self.stat_positions
+        &self.legacy().stat_positions
     }
 
     fn stat_collection_mut(&mut self) -> &mut StatPositions {
-        &mut self.stat_positions
+        &mut self.legacy_mut().stat_positions
     }
 
     fn graph_collection(&self) -> &GraphPositions {
-        &self.graph_positions
+        &self.legacy().graph_positions
     }
 
     fn graph_collection_mut(&mut self) -> &mut GraphPositions {
-        &mut self.graph_positions
+        &mut self.legacy_mut().graph_positions
     }
 
     fn knob_collection(&self) -> &KnobPositions {
-        &self.knob_positions
+        &self.legacy().knob_positions
     }
 
     fn knob_collection_mut(&mut self) -> &mut KnobPositions {
-        &mut self.knob_positions
+        &mut self.legacy_mut().knob_positions
     }
 
     fn sprite_collection(&self) -> &SpritePositions {
-        &self.sprite_positions
+        &self.legacy().sprite_positions
     }
 
     fn sprite_collection_mut(&mut self) -> &mut SpritePositions {
-        &mut self.sprite_positions
+        &mut self.legacy_mut().sprite_positions
     }
 }
 

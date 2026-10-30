@@ -5,9 +5,7 @@ pub(super) fn ensure_generic_editor_unchanged(
     before: &AppStoreData,
     after: &AppStoreData,
 ) -> Result<()> {
-    if before.editor_revision != after.editor_revision
-        || EditorDocumentV1::from_store(before) != EditorDocumentV1::from_store(after)
-    {
+    if before.editor_revision != after.editor_revision || !before.legacy_eq(after) {
         return Err(anyhow!(
             "editor fields must be changed through an editor transaction"
         ));

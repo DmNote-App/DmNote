@@ -225,8 +225,10 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
                         let (gradient_changed, gradient_pair_repaired) =
                             canonicalize_gradient_pairs(&mut data);
                         needs_persist |= gradient_changed;
-                        needs_persist |=
-                            key_position_lengths_mismatch(&data.keys, &data.key_positions);
+                        needs_persist |= key_position_lengths_mismatch(
+                            &data.legacy().keys,
+                            &data.legacy().key_positions,
+                        );
                         needs_persist |= !has_valid_selected_key_type(&data);
                         needs_persist |=
                             migrate_custom_css_history_timestamps(&mut data.custom_css_history);

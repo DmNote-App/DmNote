@@ -419,18 +419,22 @@ mod tests {
 
     fn counter_store(key_bound: bool, stat_bound: bool, graph_bound: bool) -> AppStoreData {
         let mut store = AppStoreData::default();
-        store.keys.insert(MODE.to_string(), vec!["KeyA".into()]);
         store
+            .legacy_mut()
+            .keys
+            .insert(MODE.to_string(), vec!["KeyA".into()]);
+        store
+            .legacy_mut()
             .key_positions
             .insert(MODE.to_string(), vec![position(key_bound)]);
-        store.stat_positions.insert(
+        store.legacy_mut().stat_positions.insert(
             MODE.to_string(),
             vec![StatPosition {
                 stat_type: StatType::Kps,
                 position: position(stat_bound),
             }],
         );
-        store.graph_positions.insert(
+        store.legacy_mut().graph_positions.insert(
             MODE.to_string(),
             vec![GraphPosition {
                 stat_type: GraphStatType::Kps,
@@ -472,9 +476,10 @@ mod tests {
         let preset = target_preset();
         let mut store = counter_store(true, true, true);
         store
+            .legacy_mut()
             .keys
             .insert(OTHER_MODE.to_string(), vec!["KeyB".into()]);
-        store.key_positions.insert(
+        store.legacy_mut().key_positions.insert(
             OTHER_MODE.to_string(),
             vec![position(true), position(false)],
         );
@@ -483,7 +488,7 @@ mod tests {
 
         assert_eq!(affected, 4);
 
-        let other = &store.key_positions[OTHER_MODE];
+        let other = &store.legacy().key_positions[OTHER_MODE];
         let bound = &other[0].counter.animation;
         assert_eq!(bound.preset_id.as_deref(), Some(TARGET_PRESET_ID));
         assert_eq!(bound.bezier, preset.bezier);

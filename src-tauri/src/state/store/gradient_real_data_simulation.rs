@@ -145,7 +145,8 @@ fn position_object_mut<'a>(
 }
 
 fn position_from_store<'a>(data: &'a AppStoreData, location: &PositionLocation) -> &'a KeyPosition {
-    data.key_positions
+    data.legacy()
+        .key_positions
         .get(&location.mode)
         .and_then(|positions| positions.get(location.index))
         .expect("selected key position must survive the simulation")
@@ -157,19 +158,23 @@ fn serialized_position(data: &AppStoreData, location: &PositionLocation) -> Valu
 }
 
 fn normalized_store_with_every_position_collection() -> AppStoreData {
-    let mut data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
-    data.stat_positions.insert(
+    let mut data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
+    data.legacy_mut().stat_positions.insert(
         "4key".to_string(),
         vec![StatPosition {
             stat_type: StatType::Kps,
             position: KeyPosition::default(),
         }],
     );
-    data.graph_positions.insert(
+    data.legacy_mut().graph_positions.insert(
         "4key".to_string(),
         vec![GraphPosition {
             stat_type: GraphStatType::Kps,
@@ -180,7 +185,7 @@ fn normalized_store_with_every_position_collection() -> AppStoreData {
             position: KeyPosition::default(),
         }],
     );
-    data.knob_positions.insert(
+    data.legacy_mut().knob_positions.insert(
         "4key".to_string(),
         vec![KnobPosition {
             axis_id: "axis".to_string(),
@@ -316,10 +321,10 @@ fn collection_counts(value: &Value, field: &str) -> BTreeMap<String, usize> {
 
 fn editor_position_semantics_without_ids(data: &AppStoreData) -> Value {
     let mut value = json!({
-        "keyPositions": data.key_positions,
-        "statPositions": data.stat_positions,
-        "graphPositions": data.graph_positions,
-        "knobPositions": data.knob_positions,
+        "keyPositions": data.legacy().key_positions,
+        "statPositions": data.legacy().stat_positions,
+        "graphPositions": data.legacy().graph_positions,
+        "knobPositions": data.legacy().knob_positions,
     });
     for field in POSITION_COLLECTION_FIELDS {
         for entries in value
@@ -343,24 +348,28 @@ fn editor_position_semantics_without_ids(data: &AppStoreData) -> Value {
 }
 
 fn editor_element_ids(data: &AppStoreData) -> BTreeSet<String> {
-    data.key_positions
+    data.legacy()
+        .key_positions
         .values()
         .flatten()
         .map(|position| position.id.clone())
         .chain(
-            data.stat_positions
+            data.legacy()
+                .stat_positions
                 .values()
                 .flatten()
                 .map(|position| position.position.id.clone()),
         )
         .chain(
-            data.graph_positions
+            data.legacy()
+                .graph_positions
                 .values()
                 .flatten()
                 .map(|position| position.position.id.clone()),
         )
         .chain(
-            data.knob_positions
+            data.legacy()
+                .knob_positions
                 .values()
                 .flatten()
                 .map(|position| position.position.id.clone()),
@@ -370,26 +379,30 @@ fn editor_element_ids(data: &AppStoreData) -> BTreeSet<String> {
 
 fn editor_preset_from_store(data: &AppStoreData) -> PresetFile {
     PresetFile {
-        keys: Some(data.keys.clone()),
-        key_positions: Some(data.key_positions.clone()),
-        stat_positions: Some(data.stat_positions.clone()),
-        graph_positions: Some(data.graph_positions.clone()),
-        knob_positions: Some(data.knob_positions.clone()),
+        keys: Some(data.legacy().keys.clone()),
+        key_positions: Some(data.legacy().key_positions.clone()),
+        stat_positions: Some(data.legacy().stat_positions.clone()),
+        graph_positions: Some(data.legacy().graph_positions.clone()),
+        knob_positions: Some(data.legacy().knob_positions.clone()),
         custom_tabs: Some(data.custom_tabs.clone()),
         tab_order: Some(data.tab_order.clone()),
         selected_key_type: Some(data.selected_key_type.clone()),
-        layer_groups: Some(data.layer_groups.clone()),
+        layer_groups: Some(data.legacy().layer_groups.clone()),
         ..PresetFile::default()
     }
 }
 
 fn import_editor_preset(directory: &Path, preset: PresetFile) -> AppStoreData {
     fs::create_dir_all(directory).expect("preset import directory must be creatable");
-    let seed = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
+    let seed = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
     fs::write(
         directory.join("store-v2.json"),
         serde_json::to_vec_pretty(&seed).expect("seed store must be serializable"),
@@ -399,22 +412,22 @@ fn import_editor_preset(directory: &Path, preset: PresetFile) -> AppStoreData {
     let store =
         AppStore::initialize_in_dir(directory).expect("preset import store must initialize");
     let current = store.snapshot();
-    let keys = preset.keys.unwrap_or_else(|| current.keys.clone());
+    let keys = preset.keys.unwrap_or_else(|| current.legacy().keys.clone());
     let key_positions = preset
         .key_positions
-        .unwrap_or_else(|| current.key_positions.clone());
+        .unwrap_or_else(|| current.legacy().key_positions.clone());
     let stat_positions = preset
         .stat_positions
-        .unwrap_or_else(|| current.stat_positions.clone());
+        .unwrap_or_else(|| current.legacy().stat_positions.clone());
     let graph_positions = preset
         .graph_positions
-        .unwrap_or_else(|| current.graph_positions.clone());
+        .unwrap_or_else(|| current.legacy().graph_positions.clone());
     let knob_positions = preset
         .knob_positions
-        .unwrap_or_else(|| current.knob_positions.clone());
+        .unwrap_or_else(|| current.legacy().knob_positions.clone());
     let layer_groups = preset
         .layer_groups
-        .unwrap_or_else(|| current.layer_groups.clone());
+        .unwrap_or_else(|| current.legacy().layer_groups.clone());
     let custom_tabs = preset
         .custom_tabs
         .unwrap_or_else(|| current.custom_tabs.clone());
@@ -438,12 +451,12 @@ fn import_editor_preset(directory: &Path, preset: PresetFile) -> AppStoreData {
                 EditorField::LayerGroups,
             ],
             move |data| {
-                data.keys = keys;
-                data.key_positions = key_positions;
-                data.stat_positions = stat_positions;
-                data.graph_positions = graph_positions;
-                data.knob_positions = knob_positions;
-                data.layer_groups = layer_groups;
+                data.legacy_mut().keys = keys;
+                data.legacy_mut().key_positions = key_positions;
+                data.legacy_mut().stat_positions = stat_positions;
+                data.legacy_mut().graph_positions = graph_positions;
+                data.legacy_mut().knob_positions = knob_positions;
+                data.legacy_mut().layer_groups = layer_groups;
                 data.custom_tabs = custom_tabs;
                 data.tab_order = tab_order;
                 data.selected_key_type = selected_key_type;
@@ -727,7 +740,7 @@ fn simulation_3_gradient_store_and_preset_chain_stays_canonical() {
     let imported_preset = read_preset_file_for_simulation(&preset_path)
         .expect("exported preset must pass the import parser");
     let imported_store = import_editor_preset(&directory.path().join("imported"), imported_preset);
-    assert!(imported_store.keys == reloaded.data.keys);
+    assert!(imported_store.legacy().keys == reloaded.data.legacy().keys);
     assert_eq!(
         editor_position_semantics_without_ids(&imported_store),
         editor_position_semantics_without_ids(&reloaded.data)
@@ -736,10 +749,30 @@ fn simulation_3_gradient_store_and_preset_chain_stays_canonical() {
     let imported_ids = editor_element_ids(&imported_store);
     assert_eq!(
         imported_ids.len(),
-        imported_store.key_positions.values().flatten().count()
-            + imported_store.stat_positions.values().flatten().count()
-            + imported_store.graph_positions.values().flatten().count()
-            + imported_store.knob_positions.values().flatten().count(),
+        imported_store
+            .legacy()
+            .key_positions
+            .values()
+            .flatten()
+            .count()
+            + imported_store
+                .legacy()
+                .stat_positions
+                .values()
+                .flatten()
+                .count()
+            + imported_store
+                .legacy()
+                .graph_positions
+                .values()
+                .flatten()
+                .count()
+            + imported_store
+                .legacy()
+                .knob_positions
+                .values()
+                .flatten()
+                .count(),
         "imported element IDs must remain unique"
     );
     assert!(
@@ -936,8 +969,8 @@ fn simulation_5_inline_legacy_preset_imports_without_gradients() {
     let preset = read_preset_file_for_simulation(&preset_path)
         .expect("gradient-free legacy preset must pass the import parser");
     let imported = import_editor_preset(&directory.path().join("imported"), preset);
-    let position = &imported.key_positions["4key"][0];
-    assert_eq!(imported.keys["4key"], vec![KeySlot::from("KeyQ")]);
+    let position = &imported.legacy().key_positions["4key"][0];
+    assert_eq!(imported.legacy().keys["4key"], vec![KeySlot::from("KeyQ")]);
     assert_eq!(position.background_color.as_deref(), Some("#123456"));
     assert_eq!(position.active_background_color.as_deref(), Some("#234567"));
     assert_eq!(position.border_color.as_deref(), Some("#345678"));

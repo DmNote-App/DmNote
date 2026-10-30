@@ -182,7 +182,7 @@ impl AppStore {
             .changes
             .as_ref()
             .is_some_and(|changes| changes.keys.is_some())
-            && key_mappings_contain_multi(&guard.data.keys)
+            && key_mappings_contain_multi(&guard.data.legacy().keys)
             && !request.multi_key
         {
             return Err(EditorCommitError::multi_key_unsupported());
@@ -203,7 +203,7 @@ impl AppStore {
         let change = if let Some(changes) = request.changes.as_mut() {
             let legacy = guard.data.legacy();
             changes.merge_omitted_sprite_fields(&legacy.sprite_positions);
-            native_element_id::prepare_commit_patch_element_ids(&legacy, changes)?;
+            native_element_id::prepare_commit_patch_element_ids(legacy, changes)?;
             let touched_fields = changes.included_fields();
             self.commit_editor_patch_locked(
                 &mut guard,
@@ -343,7 +343,7 @@ impl AppStore {
                     .scenes
                     .keys()
                     .filter(|scene_id| {
-                        element_tree_snapshot(&current_store.element_document, [*scene_id])
+                        element_tree_snapshot(current_store.element_document(), [*scene_id])
                             != element_tree_snapshot(tree, [*scene_id])
                     })
                     .collect();
@@ -356,7 +356,7 @@ impl AppStore {
                             .add_element_tree_to_plan(
                                 plan,
                                 element_tree_snapshot(
-                                    &current_store.element_document,
+                                    current_store.element_document(),
                                     changed_scenes,
                                 ),
                             )
@@ -372,7 +372,7 @@ impl AppStore {
         let changed_plugins = options
             .element_tree
             .as_ref()
-            .map(|tree| changed_plugin_buckets(&current_store.element_document, tree))
+            .map(|tree| changed_plugin_buckets(current_store.element_document(), tree))
             .unwrap_or_default();
         let history_plan = match history_plan {
             Some(plan) if !changed_plugins.is_empty() => {
@@ -406,7 +406,7 @@ impl AppStore {
         let key_counters = scratch.key_counters.clone();
         // 트리 쓰기에서 온 커밋 - 편집한 트리를 맞추기 기준으로 (트리 전용 노드 자리 유지)
         if let Some(tree) = options.element_tree.clone() {
-            scratch.element_document = tree;
+            scratch.set_element_document(tree);
         }
 
         self.commit_locked(guard, scratch, ())
@@ -419,7 +419,7 @@ impl AppStore {
             .filter_map(|plugin_id| plugin_elements_snapshot(&guard.data, plugin_id).ok())
             .collect::<Vec<_>>();
         let history_status = history_plan.map(|plan| {
-            let tree = guard.data.element_document.clone();
+            let tree = guard.data.element_document().clone();
             guard
                 .history
                 .apply_editor_record_plan(plan, &candidate, &tree, &plugins);

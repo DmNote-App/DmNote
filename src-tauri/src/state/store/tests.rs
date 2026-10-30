@@ -73,7 +73,7 @@ fn store_initialization_fills_missing_sprite_metrics_after_paths_resolve() {
     std::fs::write(&base, png_header(640, 360)).unwrap();
     std::fs::write(&pose, png_header(320, 240)).unwrap();
     let mut data = AppStoreData::default();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![
             ReactiveSpritePosition {
@@ -98,7 +98,7 @@ fn store_initialization_fills_missing_sprite_metrics_after_paths_resolve() {
 
     let store = AppStore::initialize_for_test(&directory).unwrap();
     let snapshot = store.snapshot();
-    let sprite = &snapshot.sprite_positions["4key"][0];
+    let sprite = &snapshot.legacy().sprite_positions["4key"][0];
     assert_eq!(
         sprite
             .reference_natural_size
@@ -114,7 +114,7 @@ fn store_initialization_fills_missing_sprite_metrics_after_paths_resolve() {
         Some((320, 240))
     );
     assert_eq!(
-        snapshot.sprite_positions["4key"][1].reference_natural_size,
+        snapshot.legacy().sprite_positions["4key"][1].reference_natural_size,
         None
     );
 
@@ -148,11 +148,15 @@ fn initialize_neutral_editor_store(dir: &Path) -> AppStore {
         .iter()
         .map(|(mode, slots)| (mode.clone(), vec![KeyPosition::default(); slots.len()]))
         .collect();
-    let mut data = crate::state::migration::normalize_state(AppStoreData {
-        keys,
-        key_positions,
-        ..AppStoreData::default()
-    });
+    let mut data = crate::state::migration::normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = keys;
+            legacy.key_positions = key_positions;
+        }),
+    );
     data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
     store.persist_current().unwrap();
@@ -179,8 +183,9 @@ fn first_initialize_migrates_default_images_and_reopen_is_idempotent() {
     assert!(image_references
         .iter()
         .all(|image| Path::new(image.as_str()).is_file()));
-    for mode in first_snapshot.keys.keys() {
+    for mode in first_snapshot.legacy().keys.keys() {
         let stats = first_snapshot
+            .legacy()
             .stat_positions
             .get(mode)
             .unwrap_or_else(|| panic!("missing initialized stats for {mode}"));
@@ -1081,7 +1086,7 @@ fn editor_admission_without_runtime_counters_rejects_key_changes() {
     let dir = test_directory("editor-counter-baseline-required-test");
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let mut keys = store.snapshot().keys;
+    let mut keys = store.snapshot().legacy().keys.clone();
     keys.get_mut("4key").unwrap()[0] = KeySlot::from("CounterBaselineEditorKey");
     let mut request = editor_request(
         store.editor_get().revision,
@@ -1107,7 +1112,7 @@ fn gesture_admission_without_runtime_counters_rejects_key_changes() {
     let dir = test_directory("gesture-counter-baseline-required-test");
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let mut keys = store.snapshot().keys;
+    let mut keys = store.snapshot().legacy().keys.clone();
     keys.get_mut("4key").unwrap()[0] = KeySlot::from("CounterBaselineGestureKey");
     let request = gesture_request(
         &store,
@@ -1147,7 +1152,8 @@ fn aux_admission_without_runtime_counters_rejects_declared_keys() {
             },
             admission,
             |data| {
-                data.keys.get_mut("4key").unwrap()[0] = KeySlot::from("CounterBaselineAuxKey");
+                data.legacy_mut().keys.get_mut("4key").unwrap()[0] =
+                    KeySlot::from("CounterBaselineAuxKey");
                 Ok(())
             },
         )
@@ -1565,15 +1571,15 @@ fn compound_history_projects_live_and_historical_key_counters() {
     let dir = test_directory("compound-history-counter-scope-test");
     let store = initialize_neutral_editor_store(&dir);
     let before = store.snapshot();
-    let old_key = before.keys["4key"][0].canonical();
-    let preserved_key = before.keys["4key"][1].canonical();
+    let old_key = before.legacy().keys["4key"][0].canonical();
+    let preserved_key = before.legacy().keys["4key"][1].canonical();
     let mut historical_counters = before.key_counters.clone();
     historical_counters
         .get_mut("4key")
         .unwrap()
         .insert(old_key.clone(), 12);
     let new_key = "CompoundHistoryCounterScopeKey".to_string();
-    let mut keys = before.keys;
+    let mut keys = before.legacy().keys.clone();
     keys.get_mut("4key").unwrap()[0] = new_key.clone().into();
     let gesture_id = uuid::Uuid::new_v4().to_string();
     let mut editor = editor_request(
@@ -1621,7 +1627,7 @@ fn compound_history_projects_live_and_historical_key_counters() {
         .apply_history_operation(HistoryDirection::Undo, &undo_id, &undo_counters, || {})
         .unwrap();
     let restored = store.snapshot();
-    assert_eq!(restored.keys["4key"][0].canonical(), old_key);
+    assert_eq!(restored.legacy().keys["4key"][0].canonical(), old_key);
     assert_eq!(restored.key_counters["4key"][&old_key], 12);
     assert_eq!(restored.key_counters["4key"][&preserved_key], 7);
     assert!(!restored.key_counters["4key"].contains_key(&new_key));
@@ -1655,7 +1661,7 @@ fn compound_history_projects_live_and_historical_key_counters() {
         .apply_history_operation(HistoryDirection::Redo, &redo_id, &redo_counters, || {})
         .unwrap();
     let redone = store.snapshot();
-    assert_eq!(redone.keys["4key"][0].canonical(), new_key);
+    assert_eq!(redone.legacy().keys["4key"][0].canonical(), new_key);
     assert_eq!(redone.key_counters["4key"][&new_key], 9);
     assert_eq!(redone.key_counters["4key"][&preserved_key], 8);
     assert!(!redone.key_counters["4key"].contains_key(&old_key));
@@ -2639,11 +2645,11 @@ fn group_structural_ops_replay_reuse_and_round_trip_snapshot_history() {
             EditorField::LayerGroups,
         ],
         |data| {
-            data.key_positions.get_mut("4key").unwrap()[0].group_id =
+            data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].group_id =
                 Some("source-group".to_string());
-            data.key_positions.get_mut("4key").unwrap()[1].group_id =
+            data.legacy_mut().key_positions.get_mut("4key").unwrap()[1].group_id =
                 Some("source-group".to_string());
-            data.stat_positions.insert(
+            data.legacy_mut().stat_positions.insert(
                 "4key".to_string(),
                 vec![StatPosition {
                     stat_type: StatType::Kps,
@@ -2654,7 +2660,7 @@ fn group_structural_ops_replay_reuse_and_round_trip_snapshot_history() {
                     },
                 }],
             );
-            data.graph_positions.insert(
+            data.legacy_mut().graph_positions.insert(
                 "4key".to_string(),
                 vec![GraphPosition {
                     stat_type: GraphStatType::Kps,
@@ -2669,7 +2675,7 @@ fn group_structural_ops_replay_reuse_and_round_trip_snapshot_history() {
                     },
                 }],
             );
-            data.knob_positions.insert(
+            data.legacy_mut().knob_positions.insert(
                 "4key".to_string(),
                 vec![KnobPosition {
                     axis_id: "axis".to_string(),
@@ -2682,7 +2688,7 @@ fn group_structural_ops_replay_reuse_and_round_trip_snapshot_history() {
                     },
                 }],
             );
-            data.layer_groups.insert(
+            data.legacy_mut().layer_groups.insert(
                 "4key".to_string(),
                 vec![LayerGroupDef {
                     id: "source-group".to_string(),
@@ -2997,7 +3003,7 @@ fn mixed_reorder_and_plugin_change_are_atomic_on_validation_and_persist_failure(
     drop(barrier);
     assert_eq!(
         store.editor_get().document.key_positions,
-        before.key_positions
+        before.legacy().key_positions
     );
     assert!(store
         .plugin_instances_get("demo-plugin")
@@ -3174,7 +3180,7 @@ fn gesture_plugin_validation_failure_leaves_editor_and_store_unchanged() {
         .commit_gesture(gesture_request(
             &store,
             uuid::Uuid::new_v4().to_string(),
-            position_patch(&store, before.key_positions["4key"][0].dx + 25.0),
+            position_patch(&store, before.legacy().key_positions["4key"][0].dx + 25.0),
             "demo-plugin",
             vec![invalid],
         ))
@@ -3205,7 +3211,7 @@ fn gesture_plugin_transition_rejects_new_and_worsened_legacy_outliers_atomically
         .commit_gesture(gesture_request(
             &store,
             uuid::Uuid::new_v4().to_string(),
-            position_patch(&store, before.key_positions["4key"][0].dx + 25.0),
+            position_patch(&store, before.legacy().key_positions["4key"][0].dx + 25.0),
             "demo-plugin",
             vec![new_outlier.clone()],
         ))
@@ -3228,7 +3234,10 @@ fn gesture_plugin_transition_rejects_new_and_worsened_legacy_outliers_atomically
         .commit_gesture(gesture_request(
             &store,
             uuid::Uuid::new_v4().to_string(),
-            position_patch(&store, legacy_before.key_positions["4key"][0].dx + 30.0),
+            position_patch(
+                &store,
+                legacy_before.legacy().key_positions["4key"][0].dx + 30.0,
+            ),
             "demo-plugin",
             vec![worsened],
         ))
@@ -3309,7 +3318,7 @@ fn gesture_persist_failure_does_not_publish_partial_state() {
         .commit_gesture(gesture_request(
             &store,
             uuid::Uuid::new_v4().to_string(),
-            position_patch(&store, before.key_positions["4key"][0].dx + 25.0),
+            position_patch(&store, before.legacy().key_positions["4key"][0].dx + 25.0),
             "demo-plugin",
             vec![saved_plugin_instance(25.0)],
         ))
@@ -3346,7 +3355,7 @@ fn gesture_oversized_history_rejects_the_whole_transaction() {
         .commit_gesture(gesture_request(
             &store,
             uuid::Uuid::new_v4().to_string(),
-            position_patch(&store, before.key_positions["4key"][0].dx + 25.0),
+            position_patch(&store, before.legacy().key_positions["4key"][0].dx + 25.0),
             "demo-plugin",
             vec![saved_plugin_instance(25.0)],
         ))
@@ -4732,8 +4741,8 @@ fn strict_editor_commit_persists_once_and_synchronizes_key_counters() {
     let store = initialize_neutral_editor_store(&dir);
     let persist_count = store.writer.persist_count();
     let before = store.snapshot();
-    let old_key = before.keys["4key"][0].canonical();
-    let mut keys = before.keys.clone();
+    let old_key = before.legacy().keys["4key"][0].canonical();
+    let mut keys = before.legacy().keys.clone();
     keys.get_mut("4key").unwrap()[0] = "StrictKey".into();
     let first_gesture_id = uuid::Uuid::new_v4().to_string();
     let gesture_id = uuid::Uuid::new_v4().to_string();
@@ -4768,7 +4777,10 @@ fn strict_editor_commit_persists_once_and_synchronizes_key_counters() {
     assert_eq!(store.writer.persist_count(), persist_count + 1);
     let snapshot = store.snapshot();
     assert_eq!(snapshot.editor_revision, 1);
-    assert_eq!(snapshot.keys["4key"][0], KeySlot::from("StrictKey"));
+    assert_eq!(
+        snapshot.legacy().keys["4key"][0],
+        KeySlot::from("StrictKey")
+    );
     assert_eq!(snapshot.key_counters["4key"]["StrictKey"], 0);
     assert!(!snapshot.key_counters["4key"].contains_key(&old_key));
     assert_eq!(change.history_status.unwrap().history_revision, 1);
@@ -4780,7 +4792,10 @@ fn strict_editor_commit_persists_once_and_synchronizes_key_counters() {
         .unwrap()
         .data;
     assert_eq!(reloaded.editor_revision, 1);
-    assert_eq!(reloaded.keys["4key"][0], KeySlot::from("StrictKey"));
+    assert_eq!(
+        reloaded.legacy().keys["4key"][0],
+        KeySlot::from("StrictKey")
+    );
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -4916,9 +4931,9 @@ fn legacy_position_replacements_reject_noncanonical_ids_atomically() {
 
     for (field, expected_code, replacement) in invalid_cases {
         let error = legacy_editor_commit(&store, &[field], move |data| match replacement {
-            PositionReplacement::Stat(positions) => data.stat_positions = positions,
-            PositionReplacement::Graph(positions) => data.graph_positions = positions,
-            PositionReplacement::Knob(positions) => data.knob_positions = positions,
+            PositionReplacement::Stat(positions) => data.legacy_mut().stat_positions = positions,
+            PositionReplacement::Graph(positions) => data.legacy_mut().graph_positions = positions,
+            PositionReplacement::Knob(positions) => data.legacy_mut().knob_positions = positions,
         })
         .unwrap_err();
         assert_eq!(error.error_code, EditorCommitErrorCode::ValidationFailed);
@@ -4934,7 +4949,7 @@ fn legacy_position_replacements_reject_noncanonical_ids_atomically() {
 
     let valid_stat_id = uuid::Uuid::new_v4().to_string();
     let valid_stat = legacy_editor_commit(&store, &[EditorField::StatPositions], |data| {
-        data.stat_positions.insert(
+        data.legacy_mut().stat_positions.insert(
             "4key".to_string(),
             vec![StatPosition {
                 stat_type: StatType::Kps,
@@ -4957,7 +4972,7 @@ fn legacy_position_replacements_reject_noncanonical_ids_atomically() {
 
     let valid_graph_id = uuid::Uuid::new_v4().to_string();
     let valid_graph = legacy_editor_commit(&store, &[EditorField::GraphPositions], |data| {
-        data.graph_positions.insert(
+        data.legacy_mut().graph_positions.insert(
             "4key".to_string(),
             vec![GraphPosition {
                 stat_type: GraphStatType::Kps,
@@ -4984,7 +4999,7 @@ fn legacy_position_replacements_reject_noncanonical_ids_atomically() {
 
     let valid_knob_id = uuid::Uuid::new_v4().to_string();
     let valid_knob = legacy_editor_commit(&store, &[EditorField::KnobPositions], |data| {
-        data.knob_positions.insert(
+        data.legacy_mut().knob_positions.insert(
             "4key".to_string(),
             vec![KnobPosition {
                 axis_id: String::new(),
@@ -5026,6 +5041,7 @@ fn alternate_uuid_spellings_remain_raw_distinct_through_load_bootstrap_and_event
     ];
     let mut data = initialize_default_state();
     for (position, id) in data
+        .legacy_mut()
         .key_positions
         .get_mut("4key")
         .unwrap()
@@ -5110,7 +5126,7 @@ fn v2_editor_commit_rejects_invalid_ids_atomically_and_keeps_read_event_v1() {
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     legacy_editor_commit(&store, &[EditorField::StatPositions], |data| {
-        data.stat_positions.insert(
+        data.legacy_mut().stat_positions.insert(
             "4key".to_string(),
             vec![StatPosition {
                 stat_type: StatType::Kps,
@@ -5282,7 +5298,7 @@ fn strict_editor_commit_rechecks_multi_key_capability_under_store_lock() {
     );
     capable_request.multi_key = true;
     store.commit_editor_document(capable_request).unwrap();
-    let committed_keys = serde_json::to_vec(&store.snapshot().keys).unwrap();
+    let committed_keys = store.snapshot().legacy().keys.clone();
     let committed_disk = std::fs::read(dir.join("store-v2.json")).unwrap();
     let persist_count = store.writer.persist_count();
 
@@ -5295,10 +5311,7 @@ fn strict_editor_commit_rechecks_multi_key_capability_under_store_lock() {
     );
     assert!(!error.retryable);
     assert_eq!(store.snapshot().editor_revision, 1);
-    assert_eq!(
-        serde_json::to_vec(&store.snapshot().keys).unwrap(),
-        committed_keys
-    );
+    assert_eq!(store.snapshot().legacy().keys, committed_keys);
     assert_eq!(store.writer.persist_count(), persist_count);
     assert_eq!(
         std::fs::read(dir.join("store-v2.json")).unwrap(),
@@ -5313,10 +5326,7 @@ fn strict_editor_commit_rechecks_multi_key_capability_under_store_lock() {
         ))
         .unwrap();
     assert_eq!(position_change.result.revision, 2);
-    assert_eq!(
-        serde_json::to_vec(&store.snapshot().keys).unwrap(),
-        committed_keys
-    );
+    assert_eq!(store.snapshot().legacy().keys, committed_keys);
 
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(dir);
@@ -6709,7 +6719,8 @@ fn legacy_sprite_changes_preserve_omitted_canonical_fields_and_undo_full_snapsho
         }],
         ..ReactiveSpritePosition::default()
     };
-    data.sprite_positions
+    data.legacy_mut()
+        .sprite_positions
         .insert("4key".to_string(), vec![sprite]);
     let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
     store.persist_current().unwrap();
@@ -6805,10 +6816,10 @@ fn user_sprite_pose_rotation_v1_patch_commits_with_missing_image_files() {
     let first_trigger = "0bf18ec9-7af0-4f03-a009-aebc99e70167";
     let second_trigger = "9c2d07a6-e6d5-4ecc-84be-ca67d2d483d0";
     let mut data = initialize_default_state();
-    let key_positions = data.key_positions.get_mut("4key").unwrap();
+    let key_positions = data.legacy_mut().key_positions.get_mut("4key").unwrap();
     key_positions[0].id = first_trigger.to_string();
     key_positions[1].id = second_trigger.to_string();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![ReactiveSpritePosition {
             id: "495749a9-0a13-4204-9d47-28fd91109c7f".to_string(),
@@ -9414,7 +9425,7 @@ fn counter_boolean_batch_replays_and_round_trips_one_history_entry() {
         &store,
         &[EditorField::KeyPositions, EditorField::StatPositions],
         |data| {
-            let key = &mut data.key_positions.get_mut("4key").unwrap()[0];
+            let key = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
             key.counter.enabled = true;
             key.counter.placement = crate::models::KeyCounterPlacement::Outside;
             key.counter.animation.enabled = true;
@@ -9422,7 +9433,7 @@ fn counter_boolean_batch_replays_and_round_trips_one_history_entry() {
             key.counter.animation.scale = 1.75;
             let mut stat_position = key.clone();
             stat_position.id = stat_id.clone();
-            data.stat_positions.insert(
+            data.legacy_mut().stat_positions.insert(
                 "4key".to_string(),
                 vec![StatPosition {
                     stat_type: StatType::Kps,
@@ -9594,7 +9605,7 @@ fn counter_layout_batch_replays_and_round_trips_one_history_entry() {
         &store,
         &[EditorField::KeyPositions, EditorField::StatPositions],
         |data| {
-            let key_positions = data.key_positions.get_mut("4key").unwrap();
+            let key_positions = data.legacy_mut().key_positions.get_mut("4key").unwrap();
             for position in key_positions.iter_mut().take(2) {
                 let counter = &mut position.counter;
                 counter.enabled = false;
@@ -9622,7 +9633,8 @@ fn counter_layout_batch_replays_and_round_trips_one_history_entry() {
                     }
                 })
                 .collect();
-            data.stat_positions
+            data.legacy_mut()
+                .stat_positions
                 .insert("4key".to_string(), stat_positions);
         },
     )
@@ -9807,7 +9819,7 @@ fn counter_typography_batch_replays_and_round_trips_one_history_entry() {
         &store,
         &[EditorField::KeyPositions, EditorField::StatPositions],
         |data| {
-            let key_positions = data.key_positions.get_mut("4key").unwrap();
+            let key_positions = data.legacy_mut().key_positions.get_mut("4key").unwrap();
             for position in key_positions.iter_mut().take(2) {
                 let counter = &mut position.counter;
                 counter.font_size = 16;
@@ -9834,13 +9846,14 @@ fn counter_typography_batch_replays_and_round_trips_one_history_entry() {
                     }
                 })
                 .collect();
-            data.stat_positions
+            data.legacy_mut()
+                .stat_positions
                 .insert("4key".to_string(), stat_positions);
-            data.stat_positions.get_mut("4key").unwrap()[3]
+            data.legacy_mut().stat_positions.get_mut("4key").unwrap()[3]
                 .position
                 .counter
                 .font_family = None;
-            data.stat_positions.get_mut("4key").unwrap()[3]
+            data.legacy_mut().stat_positions.get_mut("4key").unwrap()[3]
                 .position
                 .font_family = Some("top-level-font-sibling".to_string());
         },
@@ -10051,7 +10064,7 @@ fn counter_fill_batch_replays_atomic_pairs_and_round_trips_history() {
         &store,
         &[EditorField::KeyPositions, EditorField::StatPositions],
         |data| {
-            let key_positions = data.key_positions.get_mut("4key").unwrap();
+            let key_positions = data.legacy_mut().key_positions.get_mut("4key").unwrap();
             for position in key_positions.iter_mut().take(2) {
                 position.counter.fill.idle = "idle-before".to_string();
                 position.counter.fill.active = "active-before".to_string();
@@ -10080,7 +10093,7 @@ fn counter_fill_batch_replays_atomic_pairs_and_round_trips_history() {
             }
             let mut stat_position = key_positions[0].clone();
             stat_position.id = stat_id.clone();
-            data.stat_positions.insert(
+            data.legacy_mut().stat_positions.insert(
                 "4key".to_string(),
                 vec![StatPosition {
                     stat_type: StatType::Kps,
@@ -10274,7 +10287,7 @@ fn counter_animation_preset_batch_replays_and_round_trips_one_history_entry() {
         &store,
         &[EditorField::KeyPositions, EditorField::StatPositions],
         |data| {
-            let key = &mut data.key_positions.get_mut("4key").unwrap()[0];
+            let key = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
             key.counter.animation.enabled = false;
             key.counter.animation.preset_id = Some("builtin-ease-out".to_string());
             key.counter.animation.bezier = [0.3, 0.4, 0.5, 0.6];
@@ -10282,7 +10295,7 @@ fn counter_animation_preset_batch_replays_and_round_trips_one_history_entry() {
             key.counter.animation.duration_ms = 777;
             let mut stat_position = key.clone();
             stat_position.id = stat_id.clone();
-            data.stat_positions.insert(
+            data.legacy_mut().stat_positions.insert(
                 "4key".to_string(),
                 vec![StatPosition {
                     stat_type: StatType::Kps,
@@ -10588,7 +10601,7 @@ fn note_paint_batch_replays_and_round_trips_one_history_entry() {
         .collect::<Vec<_>>();
     assert_eq!(ids.len(), 4);
     let setup = legacy_editor_commit(&store, &[EditorField::KeyPositions], |data| {
-        let positions = data.key_positions.get_mut("4key").unwrap();
+        let positions = data.legacy_mut().key_positions.get_mut("4key").unwrap();
         positions[0].note_color = crate::models::NoteColor::Solid("old".to_string());
         positions[0].note_opacity_top = Some(17);
         positions[0].note_opacity_bottom = Some(27);
@@ -10857,7 +10870,7 @@ fn note_glow_size_replays_and_round_trips_one_history_entry() {
         .id
         .clone();
     let setup = legacy_editor_commit(&store, &[EditorField::KeyPositions], |data| {
-        let position = &mut data.key_positions.get_mut("4key").unwrap()[0];
+        let position = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
         position.note_glow_size = 20.0;
         position.note_glow_enabled = true;
         position.note_glow_opacity = 71;
@@ -10990,15 +11003,15 @@ fn note_numeric_batch_replays_raw_options_and_round_trips_one_history_entry() {
         initial.key_positions["5key"][0].id.clone(),
     ];
     let setup = legacy_editor_commit(&store, &[EditorField::KeyPositions], |data| {
-        for position in data.key_positions.values_mut().flatten() {
+        for position in data.legacy_mut().key_positions.values_mut().flatten() {
             position.note_color = crate::models::NoteColor::Solid("note-sibling".to_string());
             position.note_glow_size = 17.5;
         }
-        data.key_positions.get_mut("4key").unwrap()[0].note_offset_x = None;
-        data.key_positions.get_mut("4key").unwrap()[1].note_offset_y = Some(8.5);
-        data.key_positions.get_mut("4key").unwrap()[2].note_width = Some(31.5);
-        data.key_positions.get_mut("4key").unwrap()[3].note_border_width = None;
-        data.key_positions.get_mut("5key").unwrap()[0].note_border_radius = None;
+        data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].note_offset_x = None;
+        data.legacy_mut().key_positions.get_mut("4key").unwrap()[1].note_offset_y = Some(8.5);
+        data.legacy_mut().key_positions.get_mut("4key").unwrap()[2].note_width = Some(31.5);
+        data.legacy_mut().key_positions.get_mut("4key").unwrap()[3].note_border_width = None;
+        data.legacy_mut().key_positions.get_mut("5key").unwrap()[0].note_border_radius = None;
     })
     .unwrap();
     let ops = vec![
@@ -11162,13 +11175,13 @@ fn paint_descriptor_batch_replays_and_round_trips_one_history_entry() {
     let first_id = initial.key_positions["4key"][0].id.clone();
     let second_id = initial.key_positions["4key"][1].id.clone();
     let setup = legacy_editor_commit(&store, &[EditorField::KeyPositions], |data| {
-        let first = &mut data.key_positions.get_mut("4key").unwrap()[0];
+        let first = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
         first.background_color = Some("idle-before".to_string());
         first.background_gradient = None;
         first.active_background_color = None;
         first.active_background_gradient = None;
         first.border_color = Some("first-border-sibling".to_string());
-        let second = &mut data.key_positions.get_mut("4key").unwrap()[1];
+        let second = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[1];
         second.active_border_color = None;
         second.active_border_gradient = None;
         second.background_color = Some("second-background-sibling".to_string());
@@ -11339,14 +11352,14 @@ fn font_paint_batch_replays_fallbacks_and_round_trips_one_history_entry() {
         &store,
         &[EditorField::KeyPositions, EditorField::StatPositions],
         |data| {
-            let template = data.key_positions["4key"][0].clone();
-            let key_idle = &mut data.key_positions.get_mut("4key").unwrap()[0];
+            let template = data.legacy().key_positions["4key"][0].clone();
+            let key_idle = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
             key_idle.font_color = Some("same-idle".to_string());
             key_idle.font_gradient = None;
             key_idle.active_font_color = None;
             key_idle.active_font_gradient = None;
             key_idle.background_color = Some("key-background-sibling".to_string());
-            let key_active = &mut data.key_positions.get_mut("4key").unwrap()[1];
+            let key_active = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[1];
             key_active.font_color = Some("key-idle-sibling".to_string());
             key_active.font_gradient = None;
             key_active.active_font_color = None;
@@ -11358,7 +11371,7 @@ fn font_paint_batch_replays_fallbacks_and_round_trips_one_history_entry() {
             stat_position.font_gradient = None;
             stat_position.active_font_color = Some("stat-active-sibling".to_string());
             stat_position.active_font_gradient = None;
-            data.stat_positions.insert(
+            data.legacy_mut().stat_positions.insert(
                 "4key".to_string(),
                 vec![StatPosition {
                     stat_type: StatType::Kps,
@@ -11551,7 +11564,7 @@ fn paint_fallback_only_is_applied_and_records_one_history_entry() {
         .id
         .clone();
     let setup = legacy_editor_commit(&store, &[EditorField::KeyPositions], |data| {
-        let position = &mut data.key_positions.get_mut("4key").unwrap()[0];
+        let position = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
         position.background_color = Some("same-paint".to_string());
         position.background_gradient = None;
         position.active_background_color = None;
@@ -11634,7 +11647,7 @@ fn shadow_enabled_master_replays_and_round_trips_one_history_entry() {
             EditorField::KnobPositions,
         ],
         |data| {
-            let key = &mut data.key_positions.get_mut("4key").unwrap()[0];
+            let key = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
             key.inactive_image = Some("idle.png".to_string());
             key.active_image = Some("active.png".to_string());
             key.shadow = None;
@@ -11652,14 +11665,14 @@ fn shadow_enabled_master_replays_and_round_trips_one_history_entry() {
             knob_position.border_width = Some(2.0);
             knob_position.shadow = None;
             knob_position.active_shadow = None;
-            data.stat_positions.insert(
+            data.legacy_mut().stat_positions.insert(
                 "4key".to_string(),
                 vec![StatPosition {
                     stat_type: StatType::Kps,
                     position: stat_position,
                 }],
             );
-            data.knob_positions.insert(
+            data.legacy_mut().knob_positions.insert(
                 "4key".to_string(),
                 vec![KnobPosition {
                     axis_id: "axis".to_string(),
@@ -11847,7 +11860,7 @@ fn shadow_mask_replays_and_round_trips_one_history_entry() {
         .id
         .clone();
     let setup = legacy_editor_commit(&store, &[EditorField::KeyPositions], |data| {
-        let position = &mut data.key_positions.get_mut("4key").unwrap()[0];
+        let position = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
         position.shadow = None;
         position.active_shadow = Some(crate::models::ElementShadowSpec {
             enabled: true,
@@ -12141,8 +12154,12 @@ fn editor_op_reports_target_missing_after_legacy_deletes_its_stable_id() {
         &store,
         &[EditorField::Keys, EditorField::KeyPositions],
         |data| {
-            data.keys.get_mut("4key").unwrap().remove(0);
-            data.key_positions.get_mut("4key").unwrap().remove(0);
+            data.legacy_mut().keys.get_mut("4key").unwrap().remove(0);
+            data.legacy_mut()
+                .key_positions
+                .get_mut("4key")
+                .unwrap()
+                .remove(0);
         },
     )
     .unwrap();
@@ -12827,7 +12844,7 @@ fn delete_op_type_mismatch_and_missing_key_pair_fail_atomically() {
 
     {
         let mut state = store.state.write();
-        state.data.keys.remove("4key");
+        state.data.legacy_mut().keys.remove("4key");
     }
     let malformed = store.editor_get();
     let error = store
@@ -13038,7 +13055,7 @@ fn resize_sprite_and_set_bounds_batch_undoes_as_one_history_entry() {
     let dir = test_directory("resize-sprite-mixed-batch-history-test");
     std::fs::create_dir_all(&dir).unwrap();
     let mut data = initialize_default_state();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![ReactiveSpritePosition {
             id: uuid::Uuid::new_v4().to_string(),
@@ -13728,7 +13745,7 @@ fn unrecorded_legacy_editor_mutations_invalidate_stale_undo_and_redo() {
             EditorCommitOrigin::LegacyAdapter("resource_delete_test".to_string()),
             &[EditorField::KeyPositions],
             |data| {
-                data.key_positions.get_mut("4key").unwrap()[0].dx = initial_dx + 2.0;
+                data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx = initial_dx + 2.0;
                 Ok(())
             },
         )
@@ -13760,7 +13777,7 @@ fn unrecorded_legacy_editor_mutations_invalidate_stale_undo_and_redo() {
             EditorCommitOrigin::LegacyAdapter("resource_replace_test".to_string()),
             &[EditorField::KeyPositions],
             |data| {
-                data.key_positions.get_mut("4key").unwrap()[0].dx = initial_dx + 4.0;
+                data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx = initial_dx + 4.0;
                 Ok(())
             },
         )
@@ -14299,8 +14316,10 @@ fn custom_tabs_history_restores_typed_state_and_editor_revision() {
             &[EditorField::Keys, EditorField::KeyPositions],
             |data| {
                 data.custom_tabs.push(tab);
-                data.keys.insert(tab_id.clone(), Vec::new());
-                data.key_positions.insert(tab_id.clone(), Vec::new());
+                data.legacy_mut().keys.insert(tab_id.clone(), Vec::new());
+                data.legacy_mut()
+                    .key_positions
+                    .insert(tab_id.clone(), Vec::new());
                 data.selected_key_type = tab_id;
                 Ok(())
             },
@@ -14391,8 +14410,11 @@ fn custom_tab_delete_history_restores_note_css_and_change_projection() {
                     id: created_tab_id.clone(),
                     name: "Override".to_string(),
                 });
-                data.keys.insert(created_tab_id.clone(), Vec::new());
-                data.key_positions
+                data.legacy_mut()
+                    .keys
+                    .insert(created_tab_id.clone(), Vec::new());
+                data.legacy_mut()
+                    .key_positions
                     .insert(created_tab_id.clone(), Vec::new());
                 data.selected_key_type = created_tab_id;
                 Ok(())
@@ -14430,12 +14452,12 @@ fn custom_tab_delete_history_restores_note_css_and_change_projection() {
             ],
             |data| {
                 data.custom_tabs.retain(|tab| tab.id != deleted_tab_id);
-                data.keys.remove(&deleted_tab_id);
-                data.key_positions.remove(&deleted_tab_id);
-                data.stat_positions.remove(&deleted_tab_id);
-                data.graph_positions.remove(&deleted_tab_id);
-                data.knob_positions.remove(&deleted_tab_id);
-                data.layer_groups.remove(&deleted_tab_id);
+                data.legacy_mut().keys.remove(&deleted_tab_id);
+                data.legacy_mut().key_positions.remove(&deleted_tab_id);
+                data.legacy_mut().stat_positions.remove(&deleted_tab_id);
+                data.legacy_mut().graph_positions.remove(&deleted_tab_id);
+                data.legacy_mut().knob_positions.remove(&deleted_tab_id);
+                data.legacy_mut().layer_groups.remove(&deleted_tab_id);
                 data.key_counters.remove(&deleted_tab_id);
                 data.tab_css_overrides.remove(&deleted_tab_id);
                 data.tab_note_overrides.remove(&deleted_tab_id);
@@ -14542,8 +14564,12 @@ fn custom_tab_delete_history_restores_plugin_instances_atomically() {
                     id: create_tab_id.clone(),
                     name: "Plugin".to_string(),
                 });
-                data.keys.insert(create_tab_id.clone(), Vec::new());
-                data.key_positions.insert(create_tab_id.clone(), Vec::new());
+                data.legacy_mut()
+                    .keys
+                    .insert(create_tab_id.clone(), Vec::new());
+                data.legacy_mut()
+                    .key_positions
+                    .insert(create_tab_id.clone(), Vec::new());
                 data.selected_key_type = create_tab_id;
                 Ok(())
             },
@@ -14600,12 +14626,12 @@ fn custom_tab_delete_history_restores_plugin_instances_atomically() {
             admission,
             |data| {
                 data.custom_tabs.retain(|tab| tab.id != delete_tab_id);
-                data.keys.remove(&delete_tab_id);
-                data.key_positions.remove(&delete_tab_id);
-                data.stat_positions.remove(&delete_tab_id);
-                data.graph_positions.remove(&delete_tab_id);
-                data.knob_positions.remove(&delete_tab_id);
-                data.layer_groups.remove(&delete_tab_id);
+                data.legacy_mut().keys.remove(&delete_tab_id);
+                data.legacy_mut().key_positions.remove(&delete_tab_id);
+                data.legacy_mut().stat_positions.remove(&delete_tab_id);
+                data.legacy_mut().graph_positions.remove(&delete_tab_id);
+                data.legacy_mut().knob_positions.remove(&delete_tab_id);
+                data.legacy_mut().layer_groups.remove(&delete_tab_id);
                 data.key_counters.remove(&delete_tab_id);
                 data.selected_key_type = "4key".to_string();
                 Ok(())
@@ -14699,8 +14725,8 @@ fn preset_full_history_restores_settings_and_preserves_redo_snapshot() {
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let mode = store.snapshot().selected_key_type;
-    let original_key = store.snapshot().keys[&mode][0].canonical();
-    let preserved_key = store.snapshot().keys[&mode][1].canonical();
+    let original_key = store.snapshot().legacy().keys[&mode][0].canonical();
+    let preserved_key = store.snapshot().legacy().keys[&mode][1].canonical();
     let initial_plugin = JsPlugin {
         id: "initial-plugin".to_string(),
         name: "Initial Plugin".to_string(),
@@ -14797,7 +14823,7 @@ fn preset_full_history_restores_settings_and_preserves_redo_snapshot() {
             &[EditorField::Keys],
             runtime_counters,
             |data| {
-                data.keys.get_mut(&mode).unwrap()[0] = preset_key.clone().into();
+                data.legacy_mut().keys.get_mut(&mode).unwrap()[0] = preset_key.clone().into();
                 data.use_custom_css = true;
                 data.custom_css = CustomCss {
                     path: Some(dir.join("preset.css").to_string_lossy().to_string()),
@@ -15117,15 +15143,15 @@ fn editor_history_projects_live_and_historical_key_counters() {
     std::fs::create_dir_all(&dir).unwrap();
     let store = initialize_neutral_editor_store(&dir);
     let before = store.snapshot();
-    let old_key = before.keys["4key"][0].canonical();
-    let preserved_key = before.keys["4key"][1].canonical();
+    let old_key = before.legacy().keys["4key"][0].canonical();
+    let preserved_key = before.legacy().keys["4key"][1].canonical();
     let mut historical_counters = before.key_counters.clone();
     historical_counters
         .get_mut("4key")
         .unwrap()
         .insert(old_key.clone(), 12);
     let new_key = "HistoryCounterScopeKey".to_string();
-    let mut keys = before.keys;
+    let mut keys = before.legacy().keys.clone();
     keys.get_mut("4key").unwrap()[0] = new_key.clone().into();
     let commit = editor_request(
         0,
@@ -15171,7 +15197,7 @@ fn editor_history_projects_live_and_historical_key_counters() {
     drop(barrier);
 
     let restored = store.snapshot();
-    assert_eq!(restored.keys["4key"][0].canonical(), old_key);
+    assert_eq!(restored.legacy().keys["4key"][0].canonical(), old_key);
     assert_eq!(restored.key_counters["4key"][&old_key], 12);
     assert_eq!(restored.key_counters["4key"][&preserved_key], 7);
     assert!(!restored.key_counters["4key"].contains_key(&new_key));
@@ -15193,7 +15219,7 @@ fn editor_history_projects_live_and_historical_key_counters() {
     drop(redo_barrier);
 
     let redone = store.snapshot();
-    assert_eq!(redone.keys["4key"][0].canonical(), new_key);
+    assert_eq!(redone.legacy().keys["4key"][0].canonical(), new_key);
     assert_eq!(redone.key_counters["4key"][&new_key], 9);
     assert_eq!(redone.key_counters["4key"][&preserved_key], 8);
     assert!(!redone.key_counters["4key"].contains_key(&old_key));
@@ -15543,7 +15569,7 @@ fn legacy_keys_publication_drains_before_later_history_restore() {
     let state = Arc::new(AppState::initialize(initialize_neutral_editor_store(&dir)).unwrap());
     let initial = state.store.snapshot();
     let mode = initial.selected_key_type.clone();
-    let mut strict_keys = initial.keys.clone();
+    let mut strict_keys = initial.legacy().keys.clone();
     strict_keys.get_mut(&mode).unwrap()[0] = "StrictHistoryKey".into();
     state
         .store
@@ -15558,7 +15584,7 @@ fn legacy_keys_publication_drains_before_later_history_restore() {
         .unwrap();
 
     let legacy_key = "LegacyPublishedKey".to_string();
-    let mut legacy_keys = state.store.snapshot().keys;
+    let mut legacy_keys = state.store.snapshot().legacy().keys.clone();
     legacy_keys.get_mut(&mode).unwrap()[0] = legacy_key.clone().into();
     let transaction = state
         .store
@@ -15566,7 +15592,7 @@ fn legacy_keys_publication_drains_before_later_history_restore() {
             EditorCommitOrigin::LegacyAdapter("legacy_publish_test".to_string()),
             &[EditorField::Keys],
             move |data| {
-                data.keys = legacy_keys;
+                data.legacy_mut().keys = legacy_keys;
                 Ok(())
             },
         )
@@ -15606,7 +15632,7 @@ fn legacy_keys_publication_drains_before_later_history_restore() {
         .unwrap();
 
     let post_legacy_key = "PostLegacyHistoryKey".to_string();
-    let mut post_legacy_keys = state.store.snapshot().keys;
+    let mut post_legacy_keys = state.store.snapshot().legacy().keys.clone();
     post_legacy_keys.get_mut(&mode).unwrap()[0] = post_legacy_key.clone().into();
     state
         .store
@@ -15672,7 +15698,7 @@ fn legacy_keys_publication_drains_before_later_history_restore() {
 
     assert_eq!(outcome.change.unwrap().result.revision, 4);
     assert_eq!(
-        state.store.snapshot().keys[&mode][0].canonical(),
+        state.store.snapshot().legacy().keys[&mode][0].canonical(),
         legacy_key
     );
     assert_eq!(state.snapshot_key_counters(), expected_counters);
@@ -15699,9 +15725,9 @@ fn stale_key_publisher_cannot_overwrite_newer_counter_runtime() {
     let state = AppState::initialize(AppStore::initialize_in_dir(&dir).unwrap()).unwrap();
     let initial = state.store.snapshot();
     let mode = initial.selected_key_type.clone();
-    let old_key = initial.keys[&mode][0].canonical();
+    let old_key = initial.legacy().keys[&mode][0].canonical();
     let new_key = "PublicationOrderedKey".to_string();
-    let mut changed_keys = initial.keys;
+    let mut changed_keys = initial.legacy().keys.clone();
     changed_keys.get_mut(&mode).unwrap()[0] = new_key.clone().into();
 
     let stale_transaction = state
@@ -15710,7 +15736,7 @@ fn stale_key_publisher_cannot_overwrite_newer_counter_runtime() {
             EditorCommitOrigin::LegacyAdapter("stale_key_publisher_test".to_string()),
             &[EditorField::Keys],
             move |data| {
-                data.keys = changed_keys;
+                data.legacy_mut().keys = changed_keys;
                 Ok(())
             },
         )
@@ -15877,7 +15903,7 @@ fn editor_commit_folds_replace_image_mode_into_none() {
     assert!(change.document.key_positions["4key"][0]
         .image_mode
         .is_none());
-    assert!(store.snapshot().key_positions["4key"][0]
+    assert!(store.snapshot().legacy().key_positions["4key"][0]
         .image_mode
         .is_none());
 
@@ -16059,7 +16085,7 @@ fn strict_editor_io_failure_is_not_committed_or_acknowledged() {
 
     let retried = store.commit_editor_document(request).unwrap();
     assert_eq!(retried.result.revision, 1);
-    assert_eq!(store.snapshot().key_positions["4key"][0].dx, 456.0);
+    assert_eq!(store.snapshot().legacy().key_positions["4key"][0].dx, 456.0);
     store.flush_and_shutdown().unwrap();
     drop(store);
     let _ = std::fs::remove_dir_all(dir);
@@ -16071,7 +16097,7 @@ fn strict_editor_structural_single_field_update_requires_pair() {
     std::fs::create_dir_all(&dir).unwrap();
     let store = initialize_neutral_editor_store(&dir);
     let before = store.snapshot();
-    let mut keys = before.keys.clone();
+    let mut keys = before.legacy().keys.clone();
     keys.get_mut("4key").unwrap().push("F5".into());
     let error = store
         .commit_editor_document(editor_request(
@@ -16186,7 +16212,7 @@ fn canonical_request_hash_makes_map_order_idempotent() {
     std::fs::create_dir_all(&dir).unwrap();
     let store = initialize_neutral_editor_store(&dir);
     let mutation_id = uuid::Uuid::new_v4().to_string();
-    let current = store.snapshot().keys;
+    let current = store.snapshot().legacy().keys.clone();
     let mut entries = current.into_iter().collect::<Vec<_>>();
     entries.sort_by(|left, right| left.0.cmp(&right.0));
     let forward = entries.iter().cloned().collect::<HashMap<_, _>>();
@@ -16295,10 +16321,11 @@ fn strict_editor_commit_preserves_existing_ghost_modes_losslessly() {
     let dir = test_directory("editor-grandfather-test");
     std::fs::create_dir_all(&dir).unwrap();
     let mut data = super::initialize_default_state();
-    data.keys
+    data.legacy_mut()
+        .keys
         .insert("ghost".to_string(), vec!["GhostKey".into()]);
     let ghost_id = uuid::Uuid::new_v4().to_string();
-    data.key_positions.insert(
+    data.legacy_mut().key_positions.insert(
         "ghost".to_string(),
         vec![KeyPosition {
             id: ghost_id.clone(),
@@ -16316,8 +16343,11 @@ fn strict_editor_commit_preserves_existing_ghost_modes_losslessly() {
         .unwrap();
 
     let snapshot = store.snapshot();
-    assert_eq!(snapshot.keys["ghost"], vec![KeySlot::from("GhostKey")]);
-    assert_eq!(snapshot.key_positions["ghost"][0].id, ghost_id);
+    assert_eq!(
+        snapshot.legacy().keys["ghost"],
+        vec![KeySlot::from("GhostKey")]
+    );
+    assert_eq!(snapshot.legacy().key_positions["ghost"][0].id, ghost_id);
     store.flush_and_shutdown().unwrap();
     drop(store);
     let _ = std::fs::remove_dir_all(dir);
@@ -16329,7 +16359,7 @@ fn editor_get_exposes_recovered_safe_revision_after_loading_unsafe_wire_value() 
     std::fs::create_dir_all(&dir).unwrap();
     let mut data = super::initialize_default_state();
     data.editor_revision = crate::state::editor::MAX_SAFE_WIRE_REVISION + 1;
-    data.key_positions.get_mut("4key").unwrap()[0].dx = 12_345.0;
+    data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx = 12_345.0;
     std::fs::write(
         dir.join("store-v2.json"),
         serde_json::to_vec_pretty(&data).unwrap(),
@@ -16357,7 +16387,7 @@ fn generic_update_cannot_mutate_editor_fields_or_revision() {
     let before = store.snapshot();
 
     assert!(store
-        .update(|data| data.key_positions.get_mut("4key").unwrap()[0].dx = 999.0)
+        .update(|data| data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx = 999.0)
         .is_err());
     assert!(store.update(|data| data.editor_revision += 1).is_err());
     assert_eq!(store.snapshot(), before);
@@ -16381,8 +16411,10 @@ fn paired_keys_update_returns_the_normalized_mode_for_runtime_sync() {
                     id: custom_mode.clone(),
                     name: "Custom".to_string(),
                 });
-                data.keys.insert(custom_mode.clone(), vec!["KeyA".into()]);
-                data.key_positions.insert(
+                data.legacy_mut()
+                    .keys
+                    .insert(custom_mode.clone(), vec!["KeyA".into()]);
+                data.legacy_mut().key_positions.insert(
                     custom_mode.clone(),
                     vec![KeyPosition {
                         id: uuid::Uuid::new_v4().to_string(),
@@ -16396,20 +16428,20 @@ fn paired_keys_update_returns_the_normalized_mode_for_runtime_sync() {
         .unwrap();
     let initialized = store.snapshot();
     let keyboard = KeyboardManager::new(
-        initialized.keys.clone(),
+        initialized.legacy().keys.clone(),
         initialized.selected_key_type.clone(),
     );
 
-    let mut mappings = initialized.keys;
+    let mut mappings = initialized.legacy().keys.clone();
     mappings.remove(&custom_mode);
-    let mut positions = initialized.key_positions;
+    let mut positions = initialized.legacy().key_positions.clone();
     positions.remove(&custom_mode);
     let change = legacy_editor_commit(
         &store,
         &[EditorField::Keys, EditorField::KeyPositions],
         move |data| {
-            data.keys = mappings;
-            data.key_positions = positions;
+            data.legacy_mut().keys = mappings;
+            data.legacy_mut().key_positions = positions;
         },
     )
     .unwrap();
@@ -16433,10 +16465,10 @@ fn keys_with_positions_commit_is_atomic_without_implicit_padding() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let before = store.snapshot();
     let disk_before = std::fs::read(dir.join("store-v2.json")).unwrap();
-    let mut mappings = before.keys.clone();
+    let mut mappings = before.legacy().keys.clone();
     mappings.get_mut("4key").unwrap().push("F5".into());
     mappings.get_mut("5key").unwrap().push(KeySlot::default());
-    let mut positions = before.key_positions.clone();
+    let mut positions = before.legacy().key_positions.clone();
     positions.get_mut("4key").unwrap().push(KeyPosition {
         id: uuid::Uuid::new_v4().to_string(),
         ..KeyPosition::default()
@@ -16453,8 +16485,8 @@ fn keys_with_positions_commit_is_atomic_without_implicit_padding() {
         &store,
         &[EditorField::Keys, EditorField::KeyPositions],
         move |data| {
-            data.keys = failed_mappings;
-            data.key_positions = failed_positions;
+            data.legacy_mut().keys = failed_mappings;
+            data.legacy_mut().key_positions = failed_positions;
         },
     )
     .is_err());
@@ -16469,8 +16501,8 @@ fn keys_with_positions_commit_is_atomic_without_implicit_padding() {
         &store,
         &[EditorField::Keys, EditorField::KeyPositions],
         move |data| {
-            data.keys = mappings;
-            data.key_positions = positions;
+            data.legacy_mut().keys = mappings;
+            data.legacy_mut().key_positions = positions;
         },
     )
     .unwrap();
@@ -16497,24 +16529,24 @@ fn legacy_structural_single_collection_commits_are_rejected() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
 
     let before = store.snapshot();
-    let mut mappings = before.keys.clone();
+    let mut mappings = before.legacy().keys.clone();
     mappings.get_mut("4key").unwrap().push("F5".into());
     assert!(
         legacy_editor_commit(&store, &[EditorField::Keys], move |data| {
-            data.keys = mappings;
+            data.legacy_mut().keys = mappings;
         })
         .is_err()
     );
     assert_eq!(store.snapshot(), before);
 
-    let mut positions = before.key_positions.clone();
+    let mut positions = before.legacy().key_positions.clone();
     positions
         .get_mut("5key")
         .unwrap()
         .push(KeyPosition::default());
     assert!(
         legacy_editor_commit(&store, &[EditorField::KeyPositions], move |data| {
-            data.key_positions = positions;
+            data.legacy_mut().key_positions = positions;
         },)
         .is_err()
     );
@@ -16597,7 +16629,7 @@ fn preset_style_layout_and_settings_commit_in_one_writer_revision() {
             EditorCommitOrigin::LegacyAdapter("preset_test".to_string()),
             &[EditorField::KeyPositions],
             |data| {
-                data.key_positions.get_mut("4key").unwrap()[0].dx = 321.0;
+                data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx = 321.0;
                 apply_patch_to_store(
                     data,
                     &SettingsPatchInput {
@@ -16613,7 +16645,7 @@ fn preset_style_layout_and_settings_commit_in_one_writer_revision() {
     let updated = store.snapshot();
 
     assert_eq!(store.writer.persist_count(), initial_persist_count + 1);
-    assert_eq!(updated.key_positions["4key"][0].dx, 321.0);
+    assert_eq!(updated.legacy().key_positions["4key"][0].dx, 321.0);
     assert_eq!(updated.background_color, "#123456");
     assert_eq!(updated.plugin_data["plugin_data_fixture"]["kept"], true);
 
@@ -16624,7 +16656,7 @@ fn preset_style_layout_and_settings_commit_in_one_writer_revision() {
         EditorCommitOrigin::LegacyAdapter("preset_test".to_string()),
         &[EditorField::KeyPositions],
         |data| {
-            data.key_positions.get_mut("4key").unwrap()[0].dx = 999.0;
+            data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx = 999.0;
             apply_patch_to_store(
                 data,
                 &SettingsPatchInput {
@@ -16663,7 +16695,7 @@ fn failed_preset_style_commit_keeps_revision_and_key_runtime_unchanged() {
     let before_disk = std::fs::read(dir.join("store-v2.json")).unwrap();
     let before_mode = state.keyboard.current_mode();
     let before_counters = state.snapshot_key_counters();
-    let mut keys = before_store.keys.clone();
+    let mut keys = before_store.legacy().keys.clone();
     keys.get_mut("4key").unwrap()[0] = "PresetKey".into();
 
     state.store.writer.fail_next_persist();
@@ -16671,7 +16703,7 @@ fn failed_preset_style_commit_keeps_revision_and_key_runtime_unchanged() {
         EditorCommitOrigin::LegacyAdapter("preset_failure_test".to_string()),
         &[EditorField::Keys],
         move |data| {
-            data.keys = keys;
+            data.legacy_mut().keys = keys;
             data.selected_key_type = "5key".to_string();
             data.background_color = "#123456".to_string();
             Ok(())
@@ -16699,7 +16731,7 @@ fn group_ids_and_definitions_commit_atomically() {
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
 
-    let mut positions = store.snapshot().key_positions;
+    let mut positions = store.snapshot().legacy().key_positions.clone();
     if let Some(list) = positions.get_mut("4key") {
         list[0].group_id = Some("new-group".to_string());
         list[1].group_id = Some("new-group".to_string());
@@ -16715,7 +16747,7 @@ fn group_ids_and_definitions_commit_atomically() {
     let rejected_positions = positions.clone();
     assert!(
         legacy_editor_commit(&store, &[EditorField::KeyPositions], move |data| {
-            data.key_positions = rejected_positions;
+            data.legacy_mut().key_positions = rejected_positions;
         },)
         .is_err()
     );
@@ -16724,8 +16756,8 @@ fn group_ids_and_definitions_commit_atomically() {
             EditorCommitOrigin::LegacyAdapter("group_test".to_string()),
             &[EditorField::KeyPositions, EditorField::LayerGroups],
             move |data| {
-                data.key_positions = positions;
-                data.layer_groups = groups;
+                data.legacy_mut().key_positions = positions;
+                data.legacy_mut().layer_groups = groups;
                 Ok(())
             },
         )
@@ -16733,11 +16765,11 @@ fn group_ids_and_definitions_commit_atomically() {
 
     let data = store.snapshot();
     assert_eq!(
-        data.key_positions["4key"][0].group_id.as_deref(),
+        data.legacy().key_positions["4key"][0].group_id.as_deref(),
         Some("new-group")
     );
     assert_eq!(
-        data.key_positions["4key"][1].group_id.as_deref(),
+        data.legacy().key_positions["4key"][1].group_id.as_deref(),
         Some("new-group")
     );
 
@@ -16746,7 +16778,7 @@ fn group_ids_and_definitions_commit_atomically() {
     drop(store);
     let reopened = AppStore::initialize_in_dir(&dir).unwrap();
     assert_eq!(
-        reopened.snapshot().key_positions["4key"][0]
+        reopened.snapshot().legacy().key_positions["4key"][0]
             .group_id
             .as_deref(),
         Some("new-group")
@@ -16768,7 +16800,7 @@ fn dangling_group_ids_are_cleaned_and_persisted_on_boot() {
     if let Some(list) = positions.get_mut("4key") {
         list[0].group_id = Some("ghost-group".to_string());
     }
-    data.key_positions = positions;
+    data.legacy_mut().key_positions = positions;
     std::fs::write(&path, serde_json::to_vec_pretty(&data).unwrap()).unwrap();
 
     let store = AppStore::initialize_in_dir(&dir).unwrap();
@@ -16778,7 +16810,7 @@ fn dangling_group_ids_are_cleaned_and_persisted_on_boot() {
     let on_disk: AppStoreData =
         serde_json::from_value(crate::state::migration::read_store_value_with_legacy(&path))
             .unwrap();
-    assert_eq!(on_disk.key_positions["4key"][0].group_id, None);
+    assert_eq!(on_disk.legacy().key_positions["4key"][0].group_id, None);
 
     let reloaded = super::load_store_from_path(&path).unwrap();
     assert!(!reloaded.needs_persist);
@@ -16819,7 +16851,7 @@ fn invalid_note_gradient_stop_repair_backs_up_persists_and_is_idempotent() {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("store-v2.json");
     let mut data = super::initialize_default_state();
-    let position = &mut data.key_positions.get_mut("4key").unwrap()[0];
+    let position = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     position.note_color = NoteColor::Gradient {
         top: "body-top".to_string(),
         bottom: "body-bottom".to_string(),
@@ -16865,7 +16897,7 @@ fn invalid_note_gradient_stop_repair_backs_up_persists_and_is_idempotent() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     assert!(store.skip_asset_sweep);
     let repaired = store.snapshot();
-    let position = &repaired.key_positions["4key"][0];
+    let position = &repaired.legacy().key_positions["4key"][0];
     assert!(position.note_gradient.is_none());
     assert_eq!(
         position.note_color,
@@ -16913,8 +16945,8 @@ fn invalid_note_gradient_stop_repair_backs_up_persists_and_is_idempotent() {
     assert!(!reloaded.needs_persist);
     assert!(!reloaded.repaired);
     assert_eq!(
-        reloaded.data.key_positions["4key"][0],
-        repaired.key_positions["4key"][0]
+        reloaded.data.legacy().key_positions["4key"][0],
+        repaired.legacy().key_positions["4key"][0]
     );
 
     let _ = std::fs::remove_dir_all(dir);
@@ -17317,7 +17349,7 @@ fn counter_persist_failure_keeps_runtime_mirror_unchanged() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let snapshot = store.snapshot();
     let mode = snapshot.selected_key_type.clone();
-    let key = snapshot.keys[&mode][0].canonical();
+    let key = snapshot.legacy().keys[&mode][0].canonical();
     let mut counters = snapshot.key_counters;
     counters
         .entry(mode.clone())
@@ -17351,7 +17383,7 @@ fn reset_snapshot_emit_precedes_waiting_increment_emit() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let snapshot = store.snapshot();
     let mode = snapshot.selected_key_type.clone();
-    let key = snapshot.keys[&mode][0].canonical();
+    let key = snapshot.legacy().keys[&mode][0].canonical();
     store
         .update(|data| {
             data.key_counter_enabled = true;
@@ -17432,7 +17464,7 @@ fn queued_increment_survives_same_generation_noop_key_publication() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let snapshot = store.snapshot();
     let mode = snapshot.selected_key_type.clone();
-    let key = snapshot.keys[&mode][0].canonical();
+    let key = snapshot.legacy().keys[&mode][0].canonical();
     store
         .update(|data| {
             data.key_counter_enabled = true;
@@ -17609,16 +17641,17 @@ fn asset_references_include_every_position_kind() {
         position
     };
 
-    data.key_positions
+    data.legacy_mut()
+        .key_positions
         .insert("mode".to_string(), vec![next_position("key")]);
-    data.stat_positions.insert(
+    data.legacy_mut().stat_positions.insert(
         "mode".to_string(),
         vec![StatPosition {
             stat_type: StatType::Kps,
             position: next_position("stat"),
         }],
     );
-    data.graph_positions.insert(
+    data.legacy_mut().graph_positions.insert(
         "mode".to_string(),
         vec![GraphPosition {
             stat_type: GraphStatType::Kps,
@@ -17629,7 +17662,7 @@ fn asset_references_include_every_position_kind() {
             position: next_position("graph"),
         }],
     );
-    data.knob_positions.insert(
+    data.legacy_mut().knob_positions.insert(
         "mode".to_string(),
         vec![KnobPosition {
             axis_id: String::new(),
@@ -17659,10 +17692,12 @@ fn asset_references_protect_every_element_kind_image_and_sound() {
         let mode = "mode".to_string();
         match kind {
             EditorElementTypeV1::Key => {
-                data.key_positions.insert(mode, vec![position.clone()]);
+                data.legacy_mut()
+                    .key_positions
+                    .insert(mode, vec![position.clone()]);
             }
             EditorElementTypeV1::Stat => {
-                data.stat_positions.insert(
+                data.legacy_mut().stat_positions.insert(
                     mode,
                     vec![StatPosition {
                         stat_type: StatType::Kps,
@@ -17671,7 +17706,7 @@ fn asset_references_protect_every_element_kind_image_and_sound() {
                 );
             }
             EditorElementTypeV1::Graph => {
-                data.graph_positions.insert(
+                data.legacy_mut().graph_positions.insert(
                     mode,
                     vec![GraphPosition {
                         stat_type: GraphStatType::Kps,
@@ -17684,7 +17719,7 @@ fn asset_references_protect_every_element_kind_image_and_sound() {
                 );
             }
             EditorElementTypeV1::Knob => {
-                data.knob_positions.insert(
+                data.legacy_mut().knob_positions.insert(
                     mode,
                     vec![KnobPosition {
                         axis_id: String::new(),
@@ -17695,7 +17730,7 @@ fn asset_references_protect_every_element_kind_image_and_sound() {
                 );
             }
             EditorElementTypeV1::Sprite => {
-                data.sprite_positions.insert(
+                data.legacy_mut().sprite_positions.insert(
                     mode,
                     vec![ReactiveSpritePosition {
                         poses: vec![SpritePose::default()],
@@ -17758,7 +17793,7 @@ fn reactive_sprite_images_survive_explicit_orphan_sweep() {
 
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     legacy_editor_commit(&store, &[EditorField::SpritePositions], |data| {
-        data.sprite_positions.insert(
+        data.legacy_mut().sprite_positions.insert(
             "4key".to_string(),
             vec![ReactiveSpritePosition {
                 id: uuid::Uuid::new_v4().to_string(),
@@ -17865,7 +17900,7 @@ fn referenced_v1_gif_cache_remains_a_direct_image_asset() {
             EditorCommitOrigin::LegacyAdapter("gif_v1_direct_test".to_string()),
             &[EditorField::KeyPositions],
             |data| {
-                data.key_positions.get_mut("4key").unwrap()[0].active_image =
+                data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].active_image =
                     Some(cache.to_string_lossy().to_string());
                 Ok(())
             },
@@ -17874,7 +17909,7 @@ fn referenced_v1_gif_cache_remains_a_direct_image_asset() {
     store.cleanup_orphan_assets_now().unwrap();
     assert!(cache.exists());
     assert_eq!(
-        store.snapshot().key_positions["4key"][0]
+        store.snapshot().legacy().key_positions["4key"][0]
             .active_image
             .as_deref(),
         Some(cache.to_string_lossy().as_ref())
@@ -17885,7 +17920,7 @@ fn referenced_v1_gif_cache_remains_a_direct_image_asset() {
             EditorCommitOrigin::LegacyAdapter("gif_v1_direct_test".to_string()),
             &[EditorField::KeyPositions],
             |data| {
-                data.key_positions.get_mut("4key").unwrap()[0].active_image = None;
+                data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].active_image = None;
                 Ok(())
             },
         )
@@ -17905,7 +17940,8 @@ fn asset_references_preserve_the_leading_slash_in_file_urls() {
     let mut position = default_positions()["4key"][0].clone();
     position.active_image = Some("file:///tmp/dmnote-file-url.png".to_string());
     position.sound_path = Some("file:///tmp/dmnote-file-url.wav".to_string());
-    data.key_positions
+    data.legacy_mut()
+        .key_positions
         .insert("4key".to_string(), vec![position]);
 
     let classify_root = Path::new("/nonexistent-app-data");
@@ -17926,10 +17962,10 @@ fn percent_encoded_file_url_keeps_referenced_image_out_of_trash() {
     assert!(image_url.contains("%20"));
 
     let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let mut positions = store.snapshot().key_positions;
+    let mut positions = store.snapshot().legacy().key_positions.clone();
     positions.get_mut("4key").unwrap()[0].active_image = Some(image_url);
     legacy_editor_commit(&store, &[EditorField::KeyPositions], move |data| {
-        data.key_positions = positions;
+        data.legacy_mut().key_positions = positions;
     })
     .unwrap();
 
@@ -17950,11 +17986,11 @@ fn invalid_file_url_skips_destructive_image_sweep() {
     std::fs::write(&image_path, b"image").unwrap();
 
     let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let mut positions = store.snapshot().key_positions;
+    let mut positions = store.snapshot().legacy().key_positions.clone();
     positions.get_mut("4key").unwrap()[0].active_image =
         Some("file:///tmp/broken%ZZ.png".to_string());
     legacy_editor_commit(&store, &[EditorField::KeyPositions], move |data| {
-        data.key_positions = positions;
+        data.legacy_mut().key_positions = positions;
     })
     .unwrap();
 
@@ -18010,12 +18046,12 @@ fn unresolved_path_like_values_skip_destructive_asset_sweeps() {
     }
 
     let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let mut positions = store.snapshot().key_positions;
+    let mut positions = store.snapshot().legacy().key_positions.clone();
     let position = &mut positions.get_mut("4key").unwrap()[0];
     position.active_image = Some(r"\unresolved-image.png".to_string());
     position.sound_path = Some("C:unresolved-sound.wav".to_string());
     legacy_editor_commit(&store, &[EditorField::KeyPositions], move |data| {
-        data.key_positions = positions;
+        data.legacy_mut().key_positions = positions;
     })
     .unwrap();
 
@@ -18042,7 +18078,7 @@ fn unresolved_asset_reference_counts_are_grouped_by_category() {
         css_content: None,
         weight_ranges: Vec::new(),
     });
-    data.key_positions.insert(
+    data.legacy_mut().key_positions.insert(
         "unresolved-mode".to_string(),
         vec![KeyPosition {
             active_image: Some(r"\unresolved-image.png".to_string()),
@@ -18073,10 +18109,12 @@ fn missing_foreign_file_url_reference_marks_sweep_unresolved() {
     let dir = test_directory("foreign-file-url-unresolved-test");
     std::fs::create_dir_all(dir.join("images")).unwrap();
     let mut data = AppStoreData {
-        key_positions: default_positions().clone(),
         ..AppStoreData::default()
-    };
-    data.key_positions.get_mut("4key").unwrap()[0].active_image = Some(
+    }
+    .with_legacy(|legacy| {
+        legacy.key_positions = default_positions().clone();
+    });
+    data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].active_image = Some(
         "file:///C:/Users/me/AppData/Roaming/com.dmnote.desktop/images/missing.png".to_string(),
     );
 
@@ -18084,7 +18122,7 @@ fn missing_foreign_file_url_reference_marks_sweep_unresolved() {
     assert_eq!(collect_local_image_paths(&dir, &data).unresolved_count, 1);
 
     // 현재 기기 appData의 단순 누락 참조는 기존대로 보류 대상이 아님
-    data.key_positions.get_mut("4key").unwrap()[0].inactive_image = Some(
+    data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].inactive_image = Some(
         dir.join("images")
             .join("gone.png")
             .to_string_lossy()
@@ -18103,11 +18141,13 @@ fn missing_foreign_file_url_holds_sweep_and_keeps_unreferenced_image() {
     std::fs::write(&kept_image, b"image").unwrap();
 
     let mut data = AppStoreData {
-        keys: crate::defaults::default_keys().clone(),
-        key_positions: default_positions().clone(),
         ..AppStoreData::default()
-    };
-    data.key_positions.get_mut("4key").unwrap()[0].active_image = Some(
+    }
+    .with_legacy(|legacy| {
+        legacy.keys = crate::defaults::default_keys().clone();
+        legacy.key_positions = default_positions().clone();
+    });
+    data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].active_image = Some(
         "file:///C:/Users/me/AppData/Roaming/com.dmnote.desktop/images/missing.png".to_string(),
     );
     std::fs::write(
@@ -18144,11 +18184,13 @@ fn foreign_asset_references_rehome_before_persist_and_sweep() {
     let foreign_image = format!(r"{foreign_root}\images\portable.png");
     let foreign_sound = format!(r"{foreign_root}\sounds\portable.wav");
     let mut data = AppStoreData {
-        keys: crate::defaults::default_keys().clone(),
-        key_positions: default_positions().clone(),
         ..AppStoreData::default()
-    };
-    let position = &mut data.key_positions.get_mut("4key").unwrap()[0];
+    }
+    .with_legacy(|legacy| {
+        legacy.keys = crate::defaults::default_keys().clone();
+        legacy.key_positions = default_positions().clone();
+    });
+    let position = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     position.active_image = Some(foreign_image.clone());
     position.sound_path = Some(foreign_sound.clone());
     data.font_settings.custom_fonts.push(CustomFont {
@@ -18185,11 +18227,15 @@ fn foreign_asset_references_rehome_before_persist_and_sweep() {
     // 이전된 폰트는 경로 재귀화와 함께 활성 상태도 유지되어야 함
     assert!(snapshot.font_settings.custom_fonts[0].enabled);
     assert_eq!(
-        snapshot.key_positions["4key"][0].active_image.as_deref(),
+        snapshot.legacy().key_positions["4key"][0]
+            .active_image
+            .as_deref(),
         Some(local_image.as_str())
     );
     assert_eq!(
-        snapshot.key_positions["4key"][0].sound_path.as_deref(),
+        snapshot.legacy().key_positions["4key"][0]
+            .sound_path
+            .as_deref(),
         Some(local_sound.as_str())
     );
     assert!(snapshot.sound_library.contains_key(&local_sound));
@@ -18422,14 +18468,16 @@ fn tauri_1_6_1_literal_fixture_preserves_collections_and_assets_through_shutdown
     assert!(!store.skip_asset_sweep);
     let snapshot = store.snapshot();
     assert_eq!(snapshot.custom_tabs.len(), 1);
-    assert_eq!(snapshot.keys[tab_id], vec![KeySlot::from("F5")]);
-    assert_eq!(snapshot.key_positions[tab_id].len(), 1);
-    assert_eq!(snapshot.stat_positions[tab_id].len(), 1);
-    assert_eq!(snapshot.graph_positions[tab_id].len(), 1);
-    assert_eq!(snapshot.knob_positions[tab_id].len(), 1);
-    assert!(snapshot.knob_positions[tab_id][0].axis_id.is_empty());
-    assert_eq!(snapshot.knob_positions[tab_id][0].sensitivity, 1.0);
-    assert_eq!(snapshot.layer_groups[tab_id].len(), 1);
+    assert_eq!(snapshot.legacy().keys[tab_id], vec![KeySlot::from("F5")]);
+    assert_eq!(snapshot.legacy().key_positions[tab_id].len(), 1);
+    assert_eq!(snapshot.legacy().stat_positions[tab_id].len(), 1);
+    assert_eq!(snapshot.legacy().graph_positions[tab_id].len(), 1);
+    assert_eq!(snapshot.legacy().knob_positions[tab_id].len(), 1);
+    assert!(snapshot.legacy().knob_positions[tab_id][0]
+        .axis_id
+        .is_empty());
+    assert_eq!(snapshot.legacy().knob_positions[tab_id][0].sensitivity, 1.0);
+    assert_eq!(snapshot.legacy().layer_groups[tab_id].len(), 1);
     assert_eq!(snapshot.key_counters[tab_id]["F5"], 3);
     assert!(snapshot.tab_css_overrides.contains_key(tab_id));
     assert!(snapshot.tab_note_overrides.contains_key(tab_id));
@@ -18450,13 +18498,18 @@ fn tauri_1_6_1_literal_fixture_preserves_collections_and_assets_through_shutdown
     let reloaded = crate::state::migration::load_store_from_path(&store_path).unwrap();
     assert!(!reloaded.repaired);
     assert_eq!(reloaded.data.custom_tabs.len(), 1);
-    assert_eq!(reloaded.data.keys[tab_id], vec![KeySlot::from("F5")]);
-    assert_eq!(reloaded.data.key_positions[tab_id].len(), 1);
-    assert_eq!(reloaded.data.stat_positions[tab_id].len(), 1);
-    assert_eq!(reloaded.data.graph_positions[tab_id].len(), 1);
-    assert_eq!(reloaded.data.knob_positions[tab_id].len(), 1);
-    assert!(reloaded.data.knob_positions[tab_id][0].axis_id.is_empty());
-    assert_eq!(reloaded.data.layer_groups[tab_id].len(), 1);
+    assert_eq!(
+        reloaded.data.legacy().keys[tab_id],
+        vec![KeySlot::from("F5")]
+    );
+    assert_eq!(reloaded.data.legacy().key_positions[tab_id].len(), 1);
+    assert_eq!(reloaded.data.legacy().stat_positions[tab_id].len(), 1);
+    assert_eq!(reloaded.data.legacy().graph_positions[tab_id].len(), 1);
+    assert_eq!(reloaded.data.legacy().knob_positions[tab_id].len(), 1);
+    assert!(reloaded.data.legacy().knob_positions[tab_id][0]
+        .axis_id
+        .is_empty());
+    assert_eq!(reloaded.data.legacy().layer_groups[tab_id].len(), 1);
     assert!(reloaded.data.sound_library.contains_key(&stored_sound_path));
 
     let _ = std::fs::remove_dir_all(dir);
@@ -19004,10 +19057,10 @@ fn repaired_asset_references_survive_the_next_normal_session_sweep() {
     assert!(snapshot
         .sound_library
         .contains_key(&library_sound.to_string_lossy().to_string()));
-    assert_eq!(snapshot.stat_positions["asset-mode"].len(), 1);
-    assert_eq!(snapshot.graph_positions["asset-mode"].len(), 1);
-    assert_eq!(snapshot.knob_positions["asset-mode"].len(), 1);
-    assert_eq!(snapshot.sprite_positions["asset-mode"].len(), 1);
+    assert_eq!(snapshot.legacy().stat_positions["asset-mode"].len(), 1);
+    assert_eq!(snapshot.legacy().graph_positions["asset-mode"].len(), 1);
+    assert_eq!(snapshot.legacy().knob_positions["asset-mode"].len(), 1);
+    assert_eq!(snapshot.legacy().sprite_positions["asset-mode"].len(), 1);
     recovered.cleanup_orphan_assets_now().unwrap();
     recovered.flush_and_shutdown().unwrap();
     drop(recovered);
@@ -19494,8 +19547,10 @@ fn custom_tab_delete_undo_restores_tree_only_elements() {
                         id: created.clone(),
                         name: "Tree".to_string(),
                     });
-                    data.keys.insert(created.clone(), Vec::new());
-                    data.key_positions.insert(created.clone(), Vec::new());
+                    data.legacy_mut().keys.insert(created.clone(), Vec::new());
+                    data.legacy_mut()
+                        .key_positions
+                        .insert(created.clone(), Vec::new());
                     Ok(())
                 },
             )
@@ -19523,8 +19578,8 @@ fn custom_tab_delete_undo_restores_tree_only_elements() {
                     &[EditorField::Keys, EditorField::KeyPositions],
                     |data| {
                         data.custom_tabs.retain(|tab| tab.id != deleted);
-                        data.keys.remove(&deleted);
-                        data.key_positions.remove(&deleted);
+                        data.legacy_mut().keys.remove(&deleted);
+                        data.legacy_mut().key_positions.remove(&deleted);
                         data.selected_key_type = "4key".to_string();
                         Ok(())
                     },

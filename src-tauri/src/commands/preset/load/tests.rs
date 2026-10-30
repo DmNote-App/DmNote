@@ -1594,37 +1594,45 @@ fn tab_preset_collection_without_source_tab_entry_clears_target_tab() {
 #[test]
 fn tab_preset_key_pair_merge_preserves_other_modes_and_latest_target_positions() {
     let mut store = AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
         ..AppStoreData::default()
-    };
-    store.key_positions.get_mut("4key").unwrap()[0].dx = 777.0;
-    let untouched_keys = store.keys["5key"].clone();
-    let untouched_positions = store.key_positions["5key"].clone();
+    }
+    .with_legacy(|legacy| {
+        legacy.keys = default_keys().clone();
+        legacy.key_positions = default_positions().clone();
+    });
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx = 777.0;
+    let untouched_keys = store.legacy().keys["5key"].clone();
+    let untouched_positions = store.legacy().key_positions["5key"].clone();
 
     merge_tab_preset_key_pair(&mut store, "4key", vec![KeySlot::from("Imported")], None);
 
-    assert_eq!(store.keys["5key"], untouched_keys);
-    assert_eq!(store.key_positions["5key"], untouched_positions);
-    assert_eq!(store.key_positions["4key"][0].dx, 777.0);
-    assert_eq!(store.keys["4key"][0], KeySlot::from("Imported"));
-    assert_eq!(store.keys["4key"].len(), store.key_positions["4key"].len());
+    assert_eq!(store.legacy().keys["5key"], untouched_keys);
+    assert_eq!(store.legacy().key_positions["5key"], untouched_positions);
+    assert_eq!(store.legacy().key_positions["4key"][0].dx, 777.0);
+    assert_eq!(store.legacy().keys["4key"][0], KeySlot::from("Imported"));
+    assert_eq!(
+        store.legacy().keys["4key"].len(),
+        store.legacy().key_positions["4key"].len()
+    );
 }
 
 fn old_preset_store() -> AppStoreData {
     AppStoreData {
-        key_positions: KeyPositions::from([
+        ..AppStoreData::default()
+    }
+    .with_legacy(|legacy| {
+        legacy.key_positions = KeyPositions::from([
             ("target".to_string(), vec![KeyPosition::default()]),
             ("untouched".to_string(), vec![KeyPosition::default()]),
-        ]),
-        stat_positions: StatPositions::from([(
+        ]);
+        legacy.stat_positions = StatPositions::from([(
             "target".to_string(),
             vec![StatPosition {
                 stat_type: StatType::Kps,
                 position: KeyPosition::default(),
             }],
-        )]),
-        graph_positions: GraphPositions::from([(
+        )]);
+        legacy.graph_positions = GraphPositions::from([(
             "target".to_string(),
             vec![GraphPosition {
                 stat_type: GraphStatType::Kps,
@@ -1634,8 +1642,8 @@ fn old_preset_store() -> AppStoreData {
                 show_avg_line: true,
                 position: KeyPosition::default(),
             }],
-        )]),
-        knob_positions: KnobPositions::from([(
+        )]);
+        legacy.knob_positions = KnobPositions::from([(
             "target".to_string(),
             vec![KnobPosition {
                 axis_id: "axis".to_string(),
@@ -1643,17 +1651,25 @@ fn old_preset_store() -> AppStoreData {
                 reverse: false,
                 position: KeyPosition::default(),
             }],
-        )]),
-        ..AppStoreData::default()
-    }
+        )]);
+    })
 }
 
 fn target_preset_ids(store: &AppStoreData) -> Vec<String> {
     vec![
-        store.key_positions["target"][0].id.clone(),
-        store.stat_positions["target"][0].position.id.clone(),
-        store.graph_positions["target"][0].position.id.clone(),
-        store.knob_positions["target"][0].position.id.clone(),
+        store.legacy().key_positions["target"][0].id.clone(),
+        store.legacy().stat_positions["target"][0]
+            .position
+            .id
+            .clone(),
+        store.legacy().graph_positions["target"][0]
+            .position
+            .id
+            .clone(),
+        store.legacy().knob_positions["target"][0]
+            .position
+            .id
+            .clone(),
     ]
 }
 
@@ -1676,7 +1692,7 @@ fn old_full_preset_rekeys_every_application() {
 fn old_tab_preset_rekeys_only_written_collections_on_every_application() {
     let mut store = old_preset_store();
     store.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
-    let untouched_id = store.key_positions["untouched"][0].id.clone();
+    let untouched_id = store.legacy().key_positions["untouched"][0].id.clone();
     let original_ids = target_preset_ids(&store);
 
     rekey_tab_preset_elements(&mut store, "target", true, true, true, false, false);
@@ -1694,7 +1710,10 @@ fn old_tab_preset_rekeys_only_written_collections_on_every_application() {
         .all(|(before, after)| before != after));
     assert_eq!(first_ids[3], original_ids[3]);
     assert_eq!(second_ids[3], original_ids[3]);
-    assert_eq!(store.key_positions["untouched"][0].id, untouched_id);
+    assert_eq!(
+        store.legacy().key_positions["untouched"][0].id,
+        untouched_id
+    );
     crate::state::native_element_id::validate_document_element_ids(
         &crate::models::EditorDocumentV1::from_store(&store),
     )
@@ -1709,6 +1728,7 @@ fn tab_preset_without_key_positions_keeps_existing_key_ids() {
     // keys만 담긴 탭 프리셋: merge가 기존 위치를 값 그대로 되삽입하고
     // 슬롯 정렬이 빈 위치 하나를 덧붙인 상태
     store
+        .legacy_mut()
         .key_positions
         .get_mut("target")
         .unwrap()
@@ -1717,8 +1737,11 @@ fn tab_preset_without_key_positions_keeps_existing_key_ids() {
     rekey_tab_preset_elements(&mut store, "target", false, false, false, false, false);
 
     // 값이 그대로인 기존 키는 신원을 지키고, 덧붙은 슬롯만 새 id를 받는다
-    assert_eq!(store.key_positions["target"][0].id, original_ids[0]);
-    let appended = &store.key_positions["target"][1].id;
+    assert_eq!(
+        store.legacy().key_positions["target"][0].id,
+        original_ids[0]
+    );
+    let appended = &store.legacy().key_positions["target"][1].id;
     assert!(crate::state::native_element_id::is_valid_element_id(
         appended
     ));

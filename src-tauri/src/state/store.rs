@@ -345,7 +345,6 @@ impl AppStore {
                 (default_path, initialize_default_state(), true, false, true)
             };
 
-        let loaded_state = state.clone();
         // 외래 기기 자산 참조를 먼저 재연결 — 이후 마이그레이션이 실존 파일 기준으로 판단
         if rehome_foreign_asset_references(dir, &mut state) {
             needs_persist = true;
@@ -357,7 +356,7 @@ impl AppStore {
         if migrate_key_images_to_app_data(dir, &mut state) {
             needs_persist = true;
         }
-        if fill_missing_sprite_image_metrics(&mut state.sprite_positions) {
+        if fill_missing_sprite_image_metrics(&mut state.legacy_mut().sprite_positions) {
             needs_persist = true;
         }
         // 내장 키음 시딩
@@ -368,10 +367,10 @@ impl AppStore {
         warn_unresolved_asset_references(dir, &state);
 
         // 불러온 뒤 정리(자산 경로·이미지 크기 등)가 옛 모양을 바꿨으면 트리에도 반영
-        if state.element_document.scenes.is_empty() {
+        if state.element_document().scenes.is_empty() {
             attach_loaded_document(&mut state, None)?;
         } else {
-            element_tree::sync_element_document(&loaded_state, &mut state)?;
+            element_tree::sync_element_document(&mut state)?;
         }
         needs_persist |= document_missing;
 
@@ -450,10 +449,10 @@ impl AppStore {
         mut scratch: AppStoreData,
         result: T,
     ) -> Result<T> {
-        element_tree::sync_element_document(&state.data, &mut scratch)?;
+        element_tree::sync_element_document(&mut scratch)?;
         let element_document_changed =
-            !Arc::ptr_eq(&state.data.element_document, &scratch.element_document)
-                && state.data.element_document != scratch.element_document;
+            !Arc::ptr_eq(state.data.element_document(), scratch.element_document())
+                && state.data.element_document() != scratch.element_document();
         let revision = state
             .revision
             .checked_add(1)
@@ -601,7 +600,7 @@ impl AppStore {
             .revalidate_for(&self.history_gate)
             .map_err(|_| EditorCommitError::history_in_progress())?;
         validate_observed_history_epoch(&guard.history, observed_history_epoch)?;
-        sync_key_counters(&mut counters, &guard.data.keys);
+        sync_key_counters(&mut counters, &guard.data.legacy().keys);
         let runtime_changed = before != counters;
         let plan = runtime_changed
             .then(|| guard.history.prepare_counters_entry(before))
@@ -701,12 +700,12 @@ fn preserve_pre_migration_store(path: &Path) -> Result<Option<PathBuf>> {
 fn initialize_default_state() -> AppStoreData {
     use crate::defaults::{default_keys, default_positions, default_stat_positions};
 
-    let mut data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        stat_positions: default_stat_positions().clone(),
-        ..Default::default()
-    });
+    let mut data = AppStoreData::default();
+    let legacy = data.legacy_mut();
+    legacy.keys = default_keys().clone();
+    legacy.key_positions = default_positions().clone();
+    legacy.stat_positions = default_stat_positions().clone();
+    let mut data = normalize_state(data);
     data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     data
 }

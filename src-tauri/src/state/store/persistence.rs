@@ -238,7 +238,7 @@ pub(crate) fn serialize_store(state: &AppStoreData) -> Result<String> {
         obj.insert(
             super::element_tree::ELEMENT_DOCUMENT_FIELD.to_string(),
             to_value(super::element_tree::compact_document(
-                &state.element_document,
+                state.element_document(),
             ))?,
         );
     }

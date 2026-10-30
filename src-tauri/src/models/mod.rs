@@ -712,20 +712,6 @@ pub struct AppStoreData {
     #[serde(default)]
     pub editor_revision: u64,
     #[serde(default)]
-    pub keys: KeyMappings,
-    #[serde(default)]
-    pub key_positions: KeyPositions,
-    #[serde(default)]
-    pub stat_positions: StatPositions,
-    #[serde(default)]
-    pub graph_positions: GraphPositions,
-    #[serde(default)]
-    pub knob_positions: KnobPositions,
-    #[serde(default)]
-    pub sprite_positions: SpritePositions,
-    #[serde(default)]
-    pub layer_groups: LayerGroups,
-    #[serde(default)]
     pub key_counters: KeyCounters,
     pub background_color: String,
     pub use_custom_css: bool,
@@ -783,14 +769,138 @@ pub struct AppStoreData {
     /// OBS 세션 토큰 (영구 저장, 앱 재시작 시 재사용)
     #[serde(default)]
     pub obs_token: Option<String>,
+    /// 요소 트리 문서(저장 원본)와 그 옛 모양 - 종류별 배열(keys·keyPositions 등)은 트리의 옛 모양 보기다.
+    /// 직렬화는 옛 모양 배열을 싣고 트리는 싣지 않는다 (저장 파일은 store/persistence.rs가 배열을 빼고 트리를 쓴다).
+    /// 읽을 때는 배열(옛 파일·테스트 JSON)과 `elementDocument`를 함께 받는다
+    /// (플러그인 데이터 칸보다 먼저 가져가야 그 칸으로 새지 않는다)
+    #[serde(flatten)]
+    pub(crate) element_document: ElementDocumentCell,
     /// 플러그인 데이터 저장소 (plugin_data_* 키로 저장)
     #[serde(default, flatten)]
     pub plugin_data: HashMap<String, serde_json::Value>,
-    /// 요소 트리 문서 - 종류별 배열(keys·keyPositions 등)은 이 문서의 옛 모양이다.
-    /// 프론트로 나가는 직렬화에는 싣지 않고 저장 파일에만 따로 쓴다 (store/persistence.rs)
-    /// 바꿀 때만 복제한다 (store가 커밋마다 통째로 복사하므로)
-    #[serde(default, skip_serializing)]
-    pub element_document: std::sync::Arc<element_document::Document>,
+}
+
+/// 트리 문서·옛 모양 보기·옛 모양으로 고친 사본 - 트리는 접근자로만 바꿔 보기가 낡지 않는다.
+/// 트리는 바꿀 때만 복제한다 (store가 커밋마다 통째로 복사하므로)
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ElementDocumentCell {
+    document: std::sync::Arc<element_document::Document>,
+    // 트리 판마다 한 번 만든다 (트리를 바꾸면 비운다)
+    view: LegacyView,
+    // 한 갱신 안에서만 있고 커밋 때 트리에 맞춘 뒤 비운다 (`sync_element_document`)
+    edit: Option<Box<EditorDocumentV1>>,
+}
+
+impl<'de> Deserialize<'de> for ElementDocumentCell {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Wire {
+            keys: Option<KeyMappings>,
+            key_positions: Option<KeyPositions>,
+            stat_positions: Option<StatPositions>,
+            graph_positions: Option<GraphPositions>,
+            knob_positions: Option<KnobPositions>,
+            sprite_positions: Option<SpritePositions>,
+            layer_groups: Option<LayerGroups>,
+            element_document: Option<std::sync::Arc<element_document::Document>>,
+        }
+        let wire = Wire::deserialize(deserializer)?;
+        // 배열 칸이 하나라도 있으면 고친 사본으로 (불러온 뒤 트리에 맞춘다)
+        let present = wire.keys.is_some()
+            || wire.key_positions.is_some()
+            || wire.stat_positions.is_some()
+            || wire.graph_positions.is_some()
+            || wire.knob_positions.is_some()
+            || wire.sprite_positions.is_some()
+            || wire.layer_groups.is_some();
+        let edit = present.then(|| {
+            Box::new(EditorDocumentV1 {
+                schema_version: EDITOR_SCHEMA_VERSION,
+                keys: wire.keys.unwrap_or_default(),
+                key_positions: wire.key_positions.unwrap_or_default(),
+                stat_positions: wire.stat_positions.unwrap_or_default(),
+                graph_positions: wire.graph_positions.unwrap_or_default(),
+                knob_positions: wire.knob_positions.unwrap_or_default(),
+                sprite_positions: wire.sprite_positions.unwrap_or_default(),
+                layer_groups: wire.layer_groups.unwrap_or_default(),
+            })
+        });
+        Ok(Self {
+            document: wire.element_document.unwrap_or_default(),
+            view: LegacyView::default(),
+            edit,
+        })
+    }
+}
+
+impl Serialize for ElementDocumentCell {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Wire<'a> {
+            keys: &'a KeyMappings,
+            key_positions: &'a KeyPositions,
+            stat_positions: &'a StatPositions,
+            graph_positions: &'a GraphPositions,
+            knob_positions: &'a KnobPositions,
+            sprite_positions: &'a SpritePositions,
+            layer_groups: &'a LayerGroups,
+        }
+        let legacy = self.legacy();
+        Wire {
+            keys: &legacy.keys,
+            key_positions: &legacy.key_positions,
+            stat_positions: &legacy.stat_positions,
+            graph_positions: &legacy.graph_positions,
+            knob_positions: &legacy.knob_positions,
+            sprite_positions: &legacy.sprite_positions,
+            layer_groups: &legacy.layer_groups,
+        }
+        .serialize(serializer)
+    }
+}
+
+// 같은 트리·같은 옛 모양이면 같다 (보기 캐시·트리와 같은 고친 사본 유무는 상관없다)
+impl PartialEq for ElementDocumentCell {
+    fn eq(&self, other: &Self) -> bool {
+        (std::sync::Arc::ptr_eq(&self.document, &other.document) || self.document == other.document)
+            && legacy_eq(self.legacy(), other.legacy())
+    }
+}
+
+// 같은 보기(같은 트리 판의 캐시)면 깊이 비교하지 않는다
+fn legacy_eq(left: &EditorDocumentV1, right: &EditorDocumentV1) -> bool {
+    std::ptr::eq(left, right) || left == right
+}
+
+impl ElementDocumentCell {
+    fn legacy(&self) -> &EditorDocumentV1 {
+        match &self.edit {
+            Some(edit) => edit,
+            None => self.tree_legacy(),
+        }
+    }
+
+    fn tree_legacy(&self) -> &EditorDocumentV1 {
+        self.view.0.get_or_init(|| project_legacy(&self.document))
+    }
+}
+
+/// 트리 투영 캐시 - 같은 트리 판의 복제(스냅샷 등)끼리 함께 쓴다. 트리를 바꾸면 새 캐시로 갈아 끼운다
+#[derive(Clone, Default)]
+struct LegacyView(std::sync::Arc<std::sync::OnceLock<EditorDocumentV1>>);
+
+impl PartialEq for LegacyView {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl std::fmt::Debug for LegacyView {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("LegacyView")
+    }
 }
 
 impl Default for AppStoreData {
@@ -815,13 +925,6 @@ impl Default for AppStoreData {
             auto_update_enabled: default_auto_update_enabled(),
             main_window_hidden: false,
             editor_revision: 0,
-            keys: KeyMappings::new(),
-            key_positions: KeyPositions::new(),
-            stat_positions: StatPositions::new(),
-            graph_positions: GraphPositions::new(),
-            knob_positions: KnobPositions::new(),
-            sprite_positions: SpritePositions::new(),
-            layer_groups: LayerGroups::new(),
             key_counters: KeyCounters::new(),
             background_color: "transparent".to_string(),
             use_custom_css: false,
@@ -849,24 +952,89 @@ impl Default for AppStoreData {
             obs_mode_enabled: false,
             obs_port: default_obs_port(),
             obs_token: None,
+            element_document: ElementDocumentCell::default(),
             plugin_data: HashMap::new(),
-            element_document: Default::default(),
         }
     }
 }
 
+// 트리 → 옛 모양. 저장 검증을 거친 트리라 실패는 드물다 - 실패하면 고칠 수 있는 만큼 고쳐 만든다
+fn project_legacy(document: &element_document::Document) -> EditorDocumentV1 {
+    legacy_layout::project_document_lenient(document)
+        .map(|(legacy, _)| legacy)
+        .unwrap_or_else(|error| {
+            log::error!("[Store] 트리에서 옛 모양을 만들지 못했습니다: {error:#}");
+            EditorDocumentV1 {
+                schema_version: EDITOR_SCHEMA_VERSION,
+                keys: KeyMappings::new(),
+                key_positions: KeyPositions::new(),
+                stat_positions: StatPositions::new(),
+                graph_positions: GraphPositions::new(),
+                knob_positions: KnobPositions::new(),
+                sprite_positions: SpritePositions::new(),
+                layer_groups: LayerGroups::new(),
+            }
+        })
+}
+
 impl AppStoreData {
-    /// 옛 모양 보기(키 매핑·종류별 위치 목록·옛 그룹) - 읽는 곳을 이 입구 하나로 모은다(5단계: 트리 투영으로 바뀐다)
-    pub(crate) fn legacy(&self) -> EditorDocumentV1 {
-        EditorDocumentV1::from_store(self)
+    /// 옛 모양 보기(키 매핑·종류별 위치 목록·옛 그룹) - 고친 사본이 있으면 그것, 없으면 트리 투영
+    pub(crate) fn legacy(&self) -> &EditorDocumentV1 {
+        self.element_document.legacy()
     }
 
-    /// 옛 모양으로 고치기 - 쓰는 곳을 이 입구 하나로 모은다(5단계: 고친 옛 모양을 트리에 맞춘다)
+    /// 두 저장 구조체의 옛 모양이 같은지 - 같은 보기면 깊이 비교하지 않는다
+    pub(crate) fn legacy_eq(&self, other: &Self) -> bool {
+        legacy_eq(self.legacy(), other.legacy())
+    }
+
+    /// 트리 투영 (고친 사본과 무관) - 트리 판마다 한 번 만든다
+    pub(crate) fn tree_legacy(&self) -> &EditorDocumentV1 {
+        self.element_document.tree_legacy()
+    }
+
+    /// 옛 모양으로 고치기 - 고친 사본은 커밋 때 트리에 맞춘다(`sync_element_document`)
+    pub(crate) fn legacy_mut(&mut self) -> &mut EditorDocumentV1 {
+        let cell = &mut self.element_document;
+        if cell.edit.is_none() {
+            cell.edit = Some(Box::new(cell.tree_legacy().clone()));
+        }
+        cell.edit.as_mut().expect("legacy edit")
+    }
+
+    /// 테스트 - 옛 모양을 채운 저장 구조체 (커밋 때 트리에 맞춘다)
+    #[cfg(test)]
+    pub(crate) fn with_legacy(mut self, edit: impl FnOnce(&mut EditorDocumentV1)) -> Self {
+        edit(self.legacy_mut());
+        self
+    }
+
     pub(crate) fn edit_legacy<R>(&mut self, edit: impl FnOnce(&mut EditorDocumentV1) -> R) -> R {
-        let mut legacy = EditorDocumentV1::from_store(self);
-        let result = edit(&mut legacy);
-        legacy.apply_to_store(self);
-        result
+        edit(self.legacy_mut())
+    }
+
+    /// 트리에 맞출 고친 사본을 꺼낸다 (사본은 비워진다)
+    pub(crate) fn take_legacy_edit(&mut self) -> Option<EditorDocumentV1> {
+        self.element_document.edit.take().map(|edit| *edit)
+    }
+
+    pub(crate) fn element_document(&self) -> &std::sync::Arc<element_document::Document> {
+        &self.element_document.document
+    }
+
+    /// 트리 바꾸기 - 옛 모양 보기를 비운다 (고친 사본은 커밋 때 새 트리에 맞춘다)
+    pub(crate) fn set_element_document(
+        &mut self,
+        document: std::sync::Arc<element_document::Document>,
+    ) {
+        self.element_document.document = document;
+        self.element_document.view = LegacyView::default();
+    }
+
+    /// 트리 고치기 - 옛 모양 보기를 비운다
+    pub(crate) fn element_document_mut(&mut self) -> &mut element_document::Document {
+        self.element_document.view = LegacyView::default();
+        std::sync::Arc::make_mut(&mut self.element_document.document)
     }
 
     /// 설정 사영, store 필드가 설정 기본값의 단일 원천이고 SettingsState는 파생 뷰

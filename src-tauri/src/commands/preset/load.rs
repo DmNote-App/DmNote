@@ -284,7 +284,7 @@ fn preset_load_from_path(
                     &keys,
                     store.selected_key_type.clone(),
                 );
-                store.keys = keys;
+                store.legacy_mut().keys = keys;
                 elements.move_into(store);
                 store.custom_tabs = custom_tabs;
                 store.tab_order = tab_order;
@@ -297,7 +297,7 @@ fn preset_load_from_path(
                     &store.selected_key_type,
                 )?;
                 store.tab_note_overrides = tab_note_overrides;
-                store.layer_groups = preset_layer_groups;
+                store.legacy_mut().layer_groups = preset_layer_groups;
                 if let Some(tab_css_overrides) = preset_tab_css_overrides {
                     store.tab_css_overrides = tab_css_overrides;
                 }
@@ -526,7 +526,10 @@ fn preset_load_tab_from_path(
                     imported_override,
                 );
                 if let Some(groups) = imported_groups {
-                    store.layer_groups.insert(current_tab_id.clone(), groups);
+                    store
+                        .legacy_mut()
+                        .layer_groups
+                        .insert(current_tab_id.clone(), groups);
                 }
                 if let Some(css) = imported_tab_css {
                     if let Some(css) = css {
@@ -931,14 +934,19 @@ fn merge_tab_preset_key_pair(
 ) {
     let mut positions = imported_positions.unwrap_or_else(|| {
         store
+            .legacy()
             .key_positions
             .get(current_tab_id)
             .cloned()
             .unwrap_or_default()
     });
     align_imported_key_pair(&mut keys, &mut positions);
-    store.keys.insert(current_tab_id.to_string(), keys);
     store
+        .legacy_mut()
+        .keys
+        .insert(current_tab_id.to_string(), keys);
+    store
+        .legacy_mut()
         .key_positions
         .insert(current_tab_id.to_string(), positions);
 }

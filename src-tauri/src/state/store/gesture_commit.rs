@@ -100,7 +100,7 @@ impl AppStore {
         if let Some(changes) = request.editor_changes.as_mut() {
             let legacy = guard.data.legacy();
             changes.merge_omitted_sprite_fields(&legacy.sprite_positions);
-            native_element_id::prepare_commit_patch_element_ids(&legacy, changes)?;
+            native_element_id::prepare_commit_patch_element_ids(legacy, changes)?;
         }
 
         let mut current_store = guard.data.clone();

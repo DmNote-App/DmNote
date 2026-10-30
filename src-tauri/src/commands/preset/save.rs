@@ -53,7 +53,7 @@ fn preset_save_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetOpera
     let state = app.state::<AppState>();
 
     let snapshot = state.store.snapshot();
-    let legacy = snapshot.legacy();
+    let legacy = snapshot.legacy().clone();
     let mut elements = ElementCollections::cloned_from(&legacy);
     let used_font_families = collect_used_font_families(&elements);
     let (font_settings, embedded_local_fonts) =
@@ -127,7 +127,7 @@ fn preset_save_tab_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetO
     let state = app.state::<AppState>();
 
     let snapshot = state.store.snapshot();
-    let legacy = snapshot.legacy();
+    let legacy = snapshot.legacy().clone();
     let tab_id = snapshot.selected_key_type.clone();
 
     // 단일 탭 맵 구성 (embed helper용)
@@ -565,7 +565,7 @@ fn preset_element_tree(
     only_tab: Option<&str>,
 ) -> Option<std::collections::BTreeMap<String, element_document::Scene>> {
     let scenes: std::collections::BTreeMap<_, _> = snapshot
-        .element_document
+        .element_document()
         .scenes
         .iter()
         .filter(|(mode, _)| only_tab.is_none_or(|tab| tab == mode.as_str()))

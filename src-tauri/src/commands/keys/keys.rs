@@ -308,7 +308,7 @@ fn mode_reset_semantics_equal(
 ) -> bool {
     let (current_legacy, candidate_legacy) = (current.legacy(), candidate.legacy());
     current_legacy.keys.get(mode) == candidate_legacy.keys.get(mode)
-        && mode_positions_equal_without_ids(&current_legacy, &candidate_legacy, mode)
+        && mode_positions_equal_without_ids(current_legacy, candidate_legacy, mode)
         && optional_collections_equal(
             current_legacy.layer_groups.get(mode).map(Vec::as_slice),
             candidate_legacy.layer_groups.get(mode).map(Vec::as_slice),
@@ -558,13 +558,16 @@ pub struct CustomTabDeleteResult {
 
 #[tauri::command]
 pub async fn keys_get(app: AppHandle) -> CmdResult<KeyMappings> {
-    run_blocking(app, |_, state| Ok(state.store.snapshot().legacy().keys)).await
+    run_blocking(app, |_, state| {
+        Ok(state.store.snapshot().legacy().keys.clone())
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn positions_get(app: AppHandle) -> CmdResult<KeyPositions> {
     run_blocking(app, |_, state| {
-        Ok(state.store.snapshot().legacy().key_positions)
+        Ok(state.store.snapshot().legacy().key_positions.clone())
     })
     .await
 }
@@ -947,7 +950,7 @@ pub async fn keys_set_counters(
 #[tauri::command]
 pub async fn layer_groups_get(app: AppHandle) -> CmdResult<LayerGroups> {
     run_blocking(app, |_, state| {
-        Ok(state.store.snapshot().legacy().layer_groups)
+        Ok(state.store.snapshot().legacy().layer_groups.clone())
     })
     .await
 }

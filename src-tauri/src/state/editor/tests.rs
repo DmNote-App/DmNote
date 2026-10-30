@@ -61,6 +61,7 @@ fn validate_new_sprite(
     let current_store = AppStoreData::default();
     let mut candidate_store = current_store.clone();
     candidate_store
+        .legacy_mut()
         .sprite_positions
         .insert("4key".to_string(), vec![sprite]);
     validate_document_transition(
@@ -181,10 +182,12 @@ fn validation_code(error: &EditorCommitError) -> Option<&str> {
 
 fn default_editor_store() -> AppStoreData {
     let mut store = AppStoreData {
-        keys: crate::defaults::default_keys().clone(),
-        key_positions: crate::defaults::default_positions().clone(),
         ..AppStoreData::default()
-    };
+    }
+    .with_legacy(|legacy| {
+        legacy.keys = crate::defaults::default_keys().clone();
+        legacy.key_positions = crate::defaults::default_positions().clone();
+    });
     store.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     store
 }
@@ -202,14 +205,14 @@ fn store_with_custom_modes(count: usize) -> AppStoreData {
 
 fn store_with_each_position_collection() -> AppStoreData {
     let mut store = default_editor_store();
-    store.stat_positions.insert(
+    store.legacy_mut().stat_positions.insert(
         "4key".to_string(),
         vec![StatPosition {
             stat_type: StatType::Kps,
             position: KeyPosition::default(),
         }],
     );
-    store.graph_positions.insert(
+    store.legacy_mut().graph_positions.insert(
         "4key".to_string(),
         vec![GraphPosition {
             stat_type: GraphStatType::Kps,
@@ -220,7 +223,7 @@ fn store_with_each_position_collection() -> AppStoreData {
             position: KeyPosition::default(),
         }],
     );
-    store.knob_positions.insert(
+    store.legacy_mut().knob_positions.insert(
         "4key".to_string(),
         vec![KnobPosition {
             axis_id: String::new(),
@@ -2189,9 +2192,11 @@ fn stage_four_paired_topology_uses_key_position_id_order() {
 fn unchanged_ghost_mode_is_grandfathered() {
     let mut store = AppStoreData::default();
     store
+        .legacy_mut()
         .keys
         .insert("ghost".to_string(), vec![KeySlot::from("A")]);
     store
+        .legacy_mut()
         .key_positions
         .insert("ghost".to_string(), vec![KeyPosition::default()]);
     let current = EditorDocumentV1::from_store(&store);
@@ -2230,9 +2235,11 @@ fn metadata_can_introduce_matching_custom_mode_in_same_transition() {
         name: "Custom".to_string(),
     });
     candidate_store
+        .legacy_mut()
         .keys
         .insert("custom".to_string(), vec![KeySlot::from("A")]);
     candidate_store
+        .legacy_mut()
         .key_positions
         .insert("custom".to_string(), vec![KeyPosition::default()]);
     let candidate = EditorDocumentV1::from_store(&candidate_store);
@@ -2244,9 +2251,11 @@ fn metadata_can_introduce_matching_custom_mode_in_same_transition() {
 fn history_restore_requires_metadata_for_every_custom_editor_mode() {
     let mut store = AppStoreData::default();
     store
+        .legacy_mut()
         .keys
         .insert("custom".to_string(), vec![KeySlot::from("A")]);
     store
+        .legacy_mut()
         .key_positions
         .insert("custom".to_string(), vec![KeyPosition::default()]);
     let document = EditorDocumentV1::from_store(&store);
@@ -2288,9 +2297,11 @@ fn history_restore_rejects_metadata_without_paired_editor_collections() {
 fn history_restore_accepts_names_longer_than_the_input_limit() {
     let mut store = AppStoreData::default();
     store
+        .legacy_mut()
         .keys
         .insert("custom".to_string(), vec![KeySlot::from("A")]);
     store
+        .legacy_mut()
         .key_positions
         .insert("custom".to_string(), vec![KeyPosition::default()]);
     let document = EditorDocumentV1::from_store(&store);
@@ -2351,7 +2362,7 @@ fn coordinate_and_dimension_limits_accept_boundary_and_reject_one_past_it() {
 #[test]
 fn oversized_coordinate_is_grandfathered_only_when_unchanged_or_decreased() {
     let mut store = default_editor_store();
-    store.key_positions.get_mut("4key").unwrap()[0].dx = MAX_ABS_COORDINATE + 2.0;
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx = MAX_ABS_COORDINATE + 2.0;
     let current = EditorDocumentV1::from_store(&store);
 
     validate_document_transition(&current, &current, &store, &store).unwrap();
@@ -2502,7 +2513,7 @@ fn element_rotation_grandfathers_only_unchanged_value_and_identity() {
 #[test]
 fn existing_shadow_violations_are_grandfathered_only_when_unchanged() {
     let mut store = default_editor_store();
-    let position = &mut store.key_positions.get_mut("4key").unwrap()[0];
+    let position = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     let mut shadow = valid_shadow();
     shadow.blur = MAX_SHADOW_BLUR + 1.0;
     position.shadow = Some(shadow);
@@ -2544,7 +2555,8 @@ fn image_transform_violations_are_rejected_unless_grandfathered() {
         scale,
     };
     let mut store = default_editor_store();
-    store.key_positions.get_mut("4key").unwrap()[0].idle_image_transform = Some(out_of_range(0.05));
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].idle_image_transform =
+        Some(out_of_range(0.05));
     let current = EditorDocumentV1::from_store(&store);
 
     let mut unrelated = current.clone();
@@ -2602,7 +2614,7 @@ fn sprite_pose_with_triggers(triggers: Vec<String>) -> SpritePose {
 
 fn store_with_grandfathered_sprite_poses(poses: Vec<SpritePose>) -> AppStoreData {
     let mut store = default_editor_store();
-    store.sprite_positions.insert(
+    store.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![ReactiveSpritePosition {
             id: Uuid::new_v4().to_string(),
@@ -2738,7 +2750,11 @@ fn preset_pose_alias_rejects_new_violation() {
     let current = EditorDocumentV1::from_store(&store);
     let mut candidate_store = store.clone();
     candidate_store.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
-    candidate_store.sprite_positions.get_mut("4key").unwrap()[0]
+    candidate_store
+        .legacy_mut()
+        .sprite_positions
+        .get_mut("4key")
+        .unwrap()[0]
         .poses
         .push(sprite_pose_with_triggers(Vec::new()));
     let candidate = EditorDocumentV1::from_store(&candidate_store);
@@ -2760,7 +2776,7 @@ fn stage_four_stable_id_grandfathers_violation_after_reorder() {
     let mut store = default_editor_store();
     let mut shadow = valid_shadow();
     shadow.blur = MAX_SHADOW_BLUR + 1.0;
-    store.key_positions.get_mut("4key").unwrap()[0].shadow = Some(shadow);
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].shadow = Some(shadow);
     let current = EditorDocumentV1::from_store(&store);
 
     let mut candidate = current.clone();
@@ -2778,7 +2794,7 @@ fn stage_four_native_violation_key_omits_mode_for_same_element() {
     let mut store = store_with_each_position_collection();
     let mut shadow = valid_shadow();
     shadow.blur = MAX_SHADOW_BLUR + 1.0;
-    store.stat_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
         .position
         .shadow = Some(shadow);
     let current = EditorDocumentV1::from_store(&store);
@@ -2805,7 +2821,7 @@ fn stage_four_same_violation_on_a_different_id_is_rejected() {
     let mut store = default_editor_store();
     let mut shadow = valid_shadow();
     shadow.blur = MAX_SHADOW_BLUR + 1.0;
-    store.key_positions.get_mut("4key").unwrap()[0].shadow = Some(shadow);
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].shadow = Some(shadow);
     let current = EditorDocumentV1::from_store(&store);
     let mut candidate = current.clone();
     candidate.key_positions.get_mut("4key").unwrap()[0].id = Uuid::new_v4().to_string();
@@ -2823,7 +2839,7 @@ fn stage_four_same_violation_on_a_different_id_is_rejected() {
 #[test]
 fn preset_keying_grandfathers_rekeyed_elements_by_mode_and_index() {
     let mut store = default_editor_store();
-    store.key_positions.get_mut("4key").unwrap()[0].dx = MAX_ABS_COORDINATE + 1.0;
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx = MAX_ABS_COORDINATE + 1.0;
     let current = EditorDocumentV1::from_store(&store);
 
     // 프리셋 로드는 검증 전에 모든 요소의 id를 재발급한다 - 값이 그대로여도
@@ -2853,11 +2869,12 @@ fn preset_keying_grandfathers_rekeyed_elements_by_mode_and_index() {
 fn preset_keying_grandfathers_structural_and_label_violations_too() {
     let mut store = default_editor_store();
     // 그림자 위반과 과길이 라벨을 함께 가진 관용 store
-    store.key_positions.get_mut("4key").unwrap()[0].shadow = Some(ElementShadowSpec {
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].shadow = Some(ElementShadowSpec {
         color: String::new(),
         ..valid_shadow()
     });
-    store.keys.get_mut("4key").unwrap()[0] = KeySlot::from("x".repeat(MAX_KEY_LABEL_BYTES + 1));
+    store.legacy_mut().keys.get_mut("4key").unwrap()[0] =
+        KeySlot::from("x".repeat(MAX_KEY_LABEL_BYTES + 1));
     let current = EditorDocumentV1::from_store(&store);
 
     let mut candidate_store = store.clone();
@@ -2881,12 +2898,17 @@ fn preset_keying_grandfathers_structural_and_label_violations_too() {
 #[test]
 fn preset_keying_still_rejects_newly_raised_metrics() {
     let mut store = default_editor_store();
-    store.key_positions.get_mut("4key").unwrap()[0].dx = MAX_ABS_COORDINATE + 1.0;
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx = MAX_ABS_COORDINATE + 1.0;
     let current = EditorDocumentV1::from_store(&store);
 
     let mut candidate_store = store.clone();
     candidate_store.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
-    candidate_store.key_positions.get_mut("4key").unwrap()[1].dx = MAX_ABS_COORDINATE + 1.0;
+    candidate_store
+        .legacy_mut()
+        .key_positions
+        .get_mut("4key")
+        .unwrap()[1]
+        .dx = MAX_ABS_COORDINATE + 1.0;
     let candidate = EditorDocumentV1::from_store(&candidate_store);
 
     // (mode,index) 관용은 같은 자리의 기존 위반만 물려받는다 - 멀쩡하던
@@ -2994,7 +3016,7 @@ fn legacy_preset_keying_still_rejects_non_positive_dimensions() {
 #[test]
 fn unconditional_structural_violation_is_rejected_even_when_unchanged() {
     let mut store = default_editor_store();
-    store.keys.get_mut("4key").unwrap().pop();
+    store.legacy_mut().keys.get_mut("4key").unwrap().pop();
     let document = EditorDocumentV1::from_store(&store);
 
     let error = validate_document_transition(&document, &document, &store, &store).unwrap_err();
@@ -3007,7 +3029,7 @@ fn unconditional_structural_violation_is_rejected_even_when_unchanged() {
 #[test]
 fn stage_four_per_owner_limits_follow_stable_ids_across_reorder() {
     let mut label_store = default_editor_store();
-    label_store.keys.get_mut("4key").unwrap()[0] =
+    label_store.legacy_mut().keys.get_mut("4key").unwrap()[0] =
         KeySlot::from("x".repeat(MAX_KEY_LABEL_BYTES + 1));
     let current_labels = EditorDocumentV1::from_store(&label_store);
     validate_document_transition(&current_labels, &current_labels, &label_store, &label_store)
@@ -3031,7 +3053,12 @@ fn stage_four_per_owner_limits_follow_stable_ids_across_reorder() {
     .unwrap();
 
     let mut coordinate_store = default_editor_store();
-    coordinate_store.key_positions.get_mut("4key").unwrap()[0].dx = MAX_ABS_COORDINATE + 1.0;
+    coordinate_store
+        .legacy_mut()
+        .key_positions
+        .get_mut("4key")
+        .unwrap()[0]
+        .dx = MAX_ABS_COORDINATE + 1.0;
     let current_coordinates = EditorDocumentV1::from_store(&coordinate_store);
     validate_document_transition(
         &current_coordinates,
@@ -3092,7 +3119,7 @@ fn stage_four_new_element_has_no_metric_allowance() {
 #[test]
 fn stage_four_deleted_element_is_excluded_from_per_owner_comparison() {
     let mut store = default_editor_store();
-    store.key_positions.get_mut("4key").unwrap()[0].dx = MAX_ABS_COORDINATE + 1.0;
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx = MAX_ABS_COORDINATE + 1.0;
     let current = EditorDocumentV1::from_store(&store);
     let deleted_id = current.key_positions["4key"][0].id.clone();
     let mut candidate = current.clone();
@@ -3110,7 +3137,7 @@ fn stage_four_deleted_element_is_excluded_from_per_owner_comparison() {
 #[test]
 fn stage_four_multi_key_label_allowances_are_consumed_once() {
     let mut store = default_editor_store();
-    store.keys.get_mut("4key").unwrap()[0] = KeySlot::Multi {
+    store.legacy_mut().keys.get_mut("4key").unwrap()[0] = KeySlot::Multi {
         keys: vec![
             "x".repeat(MAX_KEY_LABEL_BYTES + 100),
             "y".repeat(MAX_KEY_LABEL_BYTES + 200),
@@ -3151,7 +3178,7 @@ fn stage_four_multi_key_label_allowances_are_consumed_once() {
 #[test]
 fn stage_four_group_name_limit_follows_group_id_after_reorder() {
     let mut store = default_editor_store();
-    store.layer_groups.insert(
+    store.legacy_mut().layer_groups.insert(
         "4key".to_string(),
         vec![
             LayerGroupDef {
@@ -3189,13 +3216,15 @@ fn aggregate_render_limit_compares_total_candidate_and_current_counts() {
     for index in 0..8 {
         let mode = format!("custom-{index}");
         store
+            .legacy_mut()
             .keys
             .insert(mode.clone(), vec![KeySlot::default(); 512]);
         store
+            .legacy_mut()
             .key_positions
             .insert(mode, vec![KeyPosition::default(); 512]);
     }
-    store.stat_positions.insert(
+    store.legacy_mut().stat_positions.insert(
         "custom-0".to_string(),
         vec![
             StatPosition {
@@ -3247,16 +3276,18 @@ fn aggregate_render_limit_compares_total_candidate_and_current_counts() {
 fn violation_categories_keep_their_existing_grandfathering_decisions() {
     let mut mode_store = AppStoreData::default();
     mode_store
+        .legacy_mut()
         .keys
         .insert("ghost".to_string(), vec![KeySlot::from("A")]);
     mode_store
+        .legacy_mut()
         .key_positions
         .insert("ghost".to_string(), vec![KeyPosition::default()]);
     let mode_document = EditorDocumentV1::from_store(&mode_store);
     validate_document_transition(&mode_document, &mode_document, &mode_store, &mode_store).unwrap();
 
     let mut pair_store = default_editor_store();
-    pair_store.keys.get_mut("4key").unwrap().pop();
+    pair_store.legacy_mut().keys.get_mut("4key").unwrap().pop();
     let pair_document = EditorDocumentV1::from_store(&pair_store);
     let pair_error =
         validate_document_transition(&pair_document, &pair_document, &pair_store, &pair_store)
@@ -3267,7 +3298,7 @@ fn violation_categories_keep_their_existing_grandfathering_decisions() {
     );
 
     let mut group_store = default_editor_store();
-    group_store.layer_groups.insert(
+    group_store.legacy_mut().layer_groups.insert(
         "4key".to_string(),
         vec![LayerGroupDef {
             id: String::new(),
@@ -3281,7 +3312,12 @@ fn violation_categories_keep_their_existing_grandfathering_decisions() {
     let mut element_store = default_editor_store();
     let mut shadow = valid_shadow();
     shadow.blur = MAX_SHADOW_BLUR + 1.0;
-    element_store.key_positions.get_mut("4key").unwrap()[0].shadow = Some(shadow);
+    element_store
+        .legacy_mut()
+        .key_positions
+        .get_mut("4key")
+        .unwrap()[0]
+        .shadow = Some(shadow);
     let element_document = EditorDocumentV1::from_store(&element_store);
     validate_document_transition(
         &element_document,
@@ -3295,13 +3331,14 @@ fn violation_categories_keep_their_existing_grandfathering_decisions() {
 #[test]
 fn oversized_per_mode_collection_is_grandfathered_only_when_non_increasing() {
     let mut store = store_with_custom_modes(1);
-    store.keys.insert(
+    store.legacy_mut().keys.insert(
         "custom-0".to_string(),
         (0..514)
             .map(|index| KeySlot::from(format!("Key{index}")))
             .collect(),
     );
     store
+        .legacy_mut()
         .key_positions
         .insert("custom-0".to_string(), vec![KeyPosition::default(); 514]);
     let current = EditorDocumentV1::from_store(&store);
@@ -3334,8 +3371,12 @@ fn oversized_per_mode_collection_is_grandfathered_only_when_non_increasing() {
 fn oversized_mode_count_is_grandfathered_only_when_non_increasing() {
     let mut store = store_with_custom_modes(65);
     for index in 0..65 {
-        store.keys.insert(format!("custom-{index}"), Vec::new());
         store
+            .legacy_mut()
+            .keys
+            .insert(format!("custom-{index}"), Vec::new());
+        store
+            .legacy_mut()
             .key_positions
             .insert(format!("custom-{index}"), Vec::new());
     }
@@ -3582,13 +3623,15 @@ fn oversized_render_and_group_totals_only_allow_non_increasing_changes() {
     for index in 0..8 {
         let mode = format!("custom-{index}");
         render_store
+            .legacy_mut()
             .keys
             .insert(mode.clone(), vec![KeySlot::default(); 512]);
         render_store
+            .legacy_mut()
             .key_positions
             .insert(mode, vec![KeyPosition::default(); 512]);
     }
-    render_store.stat_positions.insert(
+    render_store.legacy_mut().stat_positions.insert(
         "custom-0".to_string(),
         vec![
             StatPosition {
@@ -3642,7 +3685,7 @@ fn oversized_render_and_group_totals_only_allow_non_increasing_changes() {
 
     let mut group_store = store_with_custom_modes(9);
     for index in 0..8 {
-        group_store.layer_groups.insert(
+        group_store.legacy_mut().layer_groups.insert(
             format!("custom-{index}"),
             (0..512)
                 .map(|group| LayerGroupDef {
@@ -3652,7 +3695,7 @@ fn oversized_render_and_group_totals_only_allow_non_increasing_changes() {
                 .collect(),
         );
     }
-    group_store.layer_groups.insert(
+    group_store.legacy_mut().layer_groups.insert(
         "custom-8".to_string(),
         vec![
             LayerGroupDef {
@@ -3702,7 +3745,7 @@ fn oversized_render_and_group_totals_only_allow_non_increasing_changes() {
 #[test]
 fn pair_violations_stay_unconditional_but_group_references_follow_element_ids() {
     let mut pair_store = default_editor_store();
-    pair_store.keys.get_mut("4key").unwrap().pop();
+    pair_store.legacy_mut().keys.get_mut("4key").unwrap().pop();
     let pair_document = EditorDocumentV1::from_store(&pair_store);
     assert!(
         validate_document_transition(&pair_document, &pair_document, &pair_store, &pair_store,)
@@ -3710,8 +3753,12 @@ fn pair_violations_stay_unconditional_but_group_references_follow_element_ids() 
     );
 
     let mut reference_store = default_editor_store();
-    reference_store.key_positions.get_mut("4key").unwrap()[0].group_id =
-        Some("missing".to_string());
+    reference_store
+        .legacy_mut()
+        .key_positions
+        .get_mut("4key")
+        .unwrap()[0]
+        .group_id = Some("missing".to_string());
     let reference_document = EditorDocumentV1::from_store(&reference_store);
     let mut reordered_reference = reference_document.clone();
     reordered_reference.keys.get_mut("4key").unwrap().swap(0, 1);

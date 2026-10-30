@@ -165,7 +165,7 @@ fn run_history_operation(
                 }
             }
             Some(HistoryAuxChange::Mode(mode)) => {
-                let keys = state.store.snapshot().keys;
+                let keys = state.store.snapshot().legacy().keys.clone();
                 state.apply_committed_editor_keys_without_counters(
                     outcome.runtime_publication_generation,
                     &keys,
@@ -472,8 +472,11 @@ mod tests {
 
         let projection = preset_history_event_projection(&snapshot, &restored, &changed_ids);
 
-        assert_eq!(projection.preset_snapshot.keys, restored.keys);
-        assert_eq!(projection.preset_snapshot.positions, restored.key_positions);
+        assert_eq!(projection.preset_snapshot.keys, restored.legacy().keys);
+        assert_eq!(
+            projection.preset_snapshot.positions,
+            restored.legacy().key_positions
+        );
         assert_eq!(
             projection.preset_snapshot.tab_note_overrides,
             restored.tab_note_overrides

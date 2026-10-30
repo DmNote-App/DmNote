@@ -106,8 +106,12 @@ impl CustomTabsHistorySnapshot {
             ),
             // 트리는 커밋 때 맞춰지므로 옛 모양에서 바뀐 탭으로 고른다
             element_tree: crate::state::store::element_tree_snapshot(
-                &before.element_document,
-                crate::models::legacy_layout::changed_modes(before.into(), after.into()).iter(),
+                before.element_document(),
+                crate::models::legacy_layout::changed_modes(
+                    before.legacy().into(),
+                    after.legacy().into(),
+                )
+                .iter(),
             ),
         }
     }
@@ -137,10 +141,10 @@ impl CustomTabsHistorySnapshot {
                 let mut modes: std::collections::BTreeSet<String> =
                     target.element_tree.scenes.keys().cloned().collect();
                 modes.extend(crate::models::legacy_layout::changed_modes(
-                    store.into(),
+                    store.legacy().into(),
                     (&target.document).into(),
                 ));
-                crate::state::store::element_tree_snapshot(&store.element_document, modes.iter())
+                crate::state::store::element_tree_snapshot(store.element_document(), modes.iter())
             },
         }
     }
@@ -239,8 +243,8 @@ impl PresetFullHistorySnapshot {
             },
             tab_css_overrides: store.tab_css_overrides.clone(),
             element_tree: crate::state::store::element_tree_snapshot(
-                &store.element_document,
-                store.element_document.scenes.keys(),
+                store.element_document(),
+                store.element_document().scenes.keys(),
             ),
         }
     }

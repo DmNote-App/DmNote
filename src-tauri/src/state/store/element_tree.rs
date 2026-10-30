@@ -215,16 +215,6 @@ impl IdSource for UuidSource {
     }
 }
 
-fn legacy_changed(before: &AppStoreData, after: &AppStoreData) -> bool {
-    before.keys != after.keys
-        || before.key_positions != after.key_positions
-        || before.stat_positions != after.stat_positions
-        || before.graph_positions != after.graph_positions
-        || before.knob_positions != after.knob_positions
-        || before.sprite_positions != after.sprite_positions
-        || before.layer_groups != after.layer_groups
-}
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct AttachOutcome {
     // 저장할 것이 생김
@@ -249,7 +239,10 @@ pub(crate) fn attach_parsed_document(
     stored: Option<(Document, usize)>,
     projected: Option<&EditorDocumentV1>,
 ) -> Result<AttachOutcome> {
-    let legacy = EditorDocumentV1::from_store(state);
+    // 읽은 옛 모양(고친 사본)은 트리로 옮기고 비운다
+    let legacy = state
+        .take_legacy_edit()
+        .unwrap_or_else(|| state.tree_legacy().clone());
     let mut unreadable = false;
     let stored = stored.map(|(document, dropped)| {
         if dropped > 0 {
@@ -285,7 +278,7 @@ pub(crate) fn attach_parsed_document(
         || stored
             .as_ref()
             .is_some_and(|stored| compact_document(stored) != compact_document(&document));
-    state.element_document = std::sync::Arc::new(document);
+    state.set_element_document(std::sync::Arc::new(document));
 
     Ok(AttachOutcome {
         changed,
@@ -293,20 +286,23 @@ pub(crate) fn attach_parsed_document(
     })
 }
 
-/// 영속 커밋 직전 - 옛 모양이 바뀌었으면 트리에 반영한다
-pub(crate) fn sync_element_document(before: &AppStoreData, after: &mut AppStoreData) -> Result<()> {
-    if !legacy_changed(before, after) {
+/// 영속 커밋 직전 - 옛 모양으로 고친 사본이 있으면 지금 트리의 옛 모양과 견줘 트리에 맞춘다(사본은 비운다)
+pub(crate) fn sync_element_document(state: &mut AppStoreData) -> Result<()> {
+    let Some(edit) = state.take_legacy_edit() else {
+        return Ok(());
+    };
+    if edit == *state.tree_legacy() {
         return Ok(());
     }
     let mut next = reconcile_document(
-        &after.element_document,
-        Some(LegacyRef::from(before)),
-        LegacyRef::from(&*after),
+        state.element_document(),
+        Some(LegacyRef::from(state.tree_legacy())),
+        LegacyRef::from(&edit),
     )
     .context("요소 트리 맞추기 실패")?;
     // 옛 모양에서 빠진 탭의 장면은 버려진다 - 그 탭의 플러그인 인스턴스는 장면 밖에 보존한다
-    carry_plugin_buckets(&after.element_document, &mut next);
-    after.element_document = std::sync::Arc::new(next);
+    carry_plugin_buckets(state.element_document(), &mut next);
+    state.set_element_document(std::sync::Arc::new(next));
     Ok(())
 }
 
@@ -642,8 +638,8 @@ pub(crate) fn apply_full_preset_tree(
     }
     load_document(&mut document);
     // 다시 만든 트리에는 플러그인 인스턴스가 없다 - 지금 버킷을 옮겨 싣는다
-    carry_plugin_buckets(&store.element_document, &mut document);
-    store.element_document = std::sync::Arc::new(document);
+    carry_plugin_buckets(store.element_document(), &mut document);
+    store.set_element_document(std::sync::Arc::new(document));
     Ok(())
 }
 
@@ -662,8 +658,8 @@ pub(crate) fn apply_tab_preset_tree(
         return Ok(());
     };
     graft_preset_scene(preset, &mut scene, &mut || uuid::Uuid::new_v4().to_string());
-    let previous = store.element_document.clone();
-    let document = std::sync::Arc::make_mut(&mut store.element_document);
+    let previous = store.element_document().clone();
+    let document = store.element_document_mut();
     document.scenes.insert(tab_id.to_string(), scene);
     load_document(document);
     // 다시 만든 장면에는 플러그인 인스턴스가 없다 - 지금 버킷을 옮겨 싣는다
@@ -740,7 +736,7 @@ impl AppStore {
         let guard = self.state.read();
         (
             self.element_document_revision(),
-            guard.data.element_document.clone(),
+            guard.data.element_document().clone(),
         )
     }
 
@@ -752,7 +748,7 @@ impl AppStore {
         gesture_id: Option<String>,
     ) -> Result<ElementDocumentCommitPlan> {
         let guard = self.state.read();
-        let document = &guard.data.element_document;
+        let document = guard.data.element_document();
         let kinds = self.kind_registry();
         let engine = Engine {
             kinds: &kinds,
@@ -895,7 +891,7 @@ impl AppStore {
             bundles: &BuiltinBundles,
         };
         if let Some(index) = check_legacy
-            .then(|| first_legacy_op(&engine, &guard.data.element_document, ops))
+            .then(|| first_legacy_op(&engine, guard.data.element_document(), ops))
             .flatten()
         {
             return Ok((
@@ -910,25 +906,21 @@ impl AppStore {
             ));
         }
         let mut scratch = guard.data.clone();
-        let mut changes =
-            match engine.apply(std::sync::Arc::make_mut(&mut scratch.element_document), ops) {
-                Ok(changes) => changes,
-                Err(violations) => return Ok((rejected(VIOLATION, violations), Vec::new())),
-            };
+        let mut changes = match engine.apply(scratch.element_document_mut(), ops) {
+            Ok(changes) => changes,
+            Err(violations) => return Ok((rejected(VIOLATION, violations), Vec::new())),
+        };
         // 빼기·옮기기로 비게 된 트리 전용 그룹은 함께 지운다 (옛 그룹의 빈 그룹 정리와 같다)
-        let prune = empty_tree_groups(&scratch.element_document, changes.scenes.keys());
+        let prune = empty_tree_groups(scratch.element_document(), changes.scenes.keys());
         if !prune.is_empty() {
-            match engine.apply(
-                std::sync::Arc::make_mut(&mut scratch.element_document),
-                &prune,
-            ) {
+            match engine.apply(scratch.element_document_mut(), &prune) {
                 Ok(more) => changes.merge(more),
                 Err(violations) => return Ok((rejected(VIOLATION, violations), Vec::new())),
             }
         }
         // 옛 모양이 그대로인지 확인 - 트리에만 있는 요소만 바뀌었어야 한다
-        let before = project_document(&guard.data.element_document)?;
-        let after = project_document(&scratch.element_document)?;
+        let before = project_document(guard.data.element_document())?;
+        let after = project_document(scratch.element_document())?;
         if before != after {
             return Ok((rejected(MANAGED_ELSEWHERE, Vec::new()), Vec::new()));
         }
@@ -941,18 +933,15 @@ impl AppStore {
         // 옮긴 플러그인 노드는 새 자리에 맞는 zIndex·groupId를 항목에 받는다. 지우기 등도 목록이 바뀌므로
         // 목록 비교로 바뀐 플러그인을 고른다
         let scene_ids: Vec<String> = changes.scenes.keys().cloned().collect();
-        sync_plugin_entries_from_tree(
-            std::sync::Arc::make_mut(&mut scratch.element_document),
-            &scene_ids,
-        );
+        sync_plugin_entries_from_tree(scratch.element_document_mut(), &scene_ids);
         let changed_plugins =
-            changed_plugin_buckets(&guard.data.element_document, &scratch.element_document);
+            changed_plugin_buckets(guard.data.element_document(), scratch.element_document());
         let tree_before =
-            element_tree_snapshot(&guard.data.element_document, changes.scenes.keys());
+            element_tree_snapshot(guard.data.element_document(), changes.scenes.keys());
         // 기록 뼈대가 그대로면(플러그인 노드 옆으로만 자리를 바꿈 등) 트리 몫은 되돌릴 것이 없다 - 빈 기록은
         // 되돌리기를 막는다(HISTORY_TARGET_ALREADY_APPLIED)
         let tree_changed =
-            tree_before != element_tree_snapshot(&scratch.element_document, changes.scenes.keys());
+            tree_before != element_tree_snapshot(scratch.element_document(), changes.scenes.keys());
         let mut plugin_befores = changed_plugins
             .iter()
             .map(|plugin_id| plugin_elements_snapshot(&guard.data, plugin_id))
@@ -994,7 +983,7 @@ impl AppStore {
         self.commit_locked(state, scratch, ())?;
         guard.plugin_model_revision = plugin_model_revision;
         if let Some(plan) = plan {
-            let current = guard.data.element_document.clone();
+            let current = guard.data.element_document().clone();
             let plugins = changed_plugins
                 .iter()
                 // 커밋 뒤라 실패로 돌려보내지 않는다 - id는 버킷에서 온 검증된 값

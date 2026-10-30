@@ -803,12 +803,14 @@ impl AppState {
             let (revision, document) = store.element_document_snapshot();
             crate::services::event_publisher::ElementDocumentPublication::new(revision, document)
         };
-        let keyboard =
-            KeyboardManager::new(snapshot.keys.clone(), snapshot.selected_key_type.clone());
+        let keyboard = KeyboardManager::new(
+            snapshot.legacy().keys.clone(),
+            snapshot.selected_key_type.clone(),
+        );
         let settings = SettingsService::new(store.clone());
 
         let mut initial_key_counters = snapshot.key_counters.clone();
-        Self::sync_counters_with_keys_impl(&mut initial_key_counters, &snapshot.keys);
+        Self::sync_counters_with_keys_impl(&mut initial_key_counters, &snapshot.legacy().keys);
         let key_counters = Arc::new(RwLock::new(initial_key_counters));
         let key_counter_enabled = Arc::new(AtomicBool::new(snapshot.key_counter_enabled));
         // 저장된 출력 백엔드 초기화, 전환 깜빡임 방지
@@ -853,7 +855,9 @@ impl AppState {
                 }
             }),
         ));
-        let key_sound_bindings = Arc::new(build_key_sound_binding_table(&snapshot.key_positions));
+        let key_sound_bindings = Arc::new(build_key_sound_binding_table(
+            &snapshot.legacy().key_positions,
+        ));
         let obs_bridge = Arc::new(ObsBridgeService::new(env!("CARGO_PKG_VERSION")));
         let authorized_css_paths = collect_authorized_css_paths(&snapshot);
         let panel_bounds_persistence =
@@ -1094,12 +1098,12 @@ impl AppState {
                 counter_settings: KeyCounterSettings::default(),
             },
             settings: state.settings_state(),
-            keys: state.keys.clone(),
-            positions: state.key_positions.clone(),
-            stat_positions: state.stat_positions.clone(),
-            graph_positions: state.graph_positions.clone(),
-            knob_positions: state.knob_positions.clone(),
-            sprite_positions: state.sprite_positions.clone(),
+            keys: state.legacy().keys.clone(),
+            positions: state.legacy().key_positions.clone(),
+            stat_positions: state.legacy().stat_positions.clone(),
+            graph_positions: state.legacy().graph_positions.clone(),
+            knob_positions: state.legacy().knob_positions.clone(),
+            sprite_positions: state.legacy().sprite_positions.clone(),
             custom_tabs: state.custom_tabs.clone(),
             tab_order: state.tab_order.clone(),
             bar_count: state.bar_count,
@@ -1114,7 +1118,7 @@ impl AppState {
             key_counters,
             key_counters_session_id: self.key_counters_session_id.clone(),
             key_counters_revision,
-            layer_groups: state.layer_groups.clone(),
+            layer_groups: state.legacy().layer_groups.clone(),
             tab_note_overrides: state.tab_note_overrides.clone(),
             tab_css_overrides: state.tab_css_overrides.clone(),
             editor_revision: state.editor_revision,

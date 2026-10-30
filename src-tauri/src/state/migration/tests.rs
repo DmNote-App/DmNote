@@ -196,7 +196,7 @@ fn store_load_migrates_legacy_sprite_wire_before_deserialization() {
         uuid::Uuid::new_v4()
     ));
     let mut data = AppStoreData::default();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![ReactiveSpritePosition {
             dx: 10.0,
@@ -218,7 +218,7 @@ fn store_load_migrates_legacy_sprite_wire_before_deserialization() {
 
     let loaded = load_store_from_path(&path).unwrap();
     std::fs::remove_file(path).unwrap();
-    let sprite = &loaded.data.sprite_positions["4key"][0];
+    let sprite = &loaded.data.legacy().sprite_positions["4key"][0];
     assert!(loaded.needs_persist);
     assert_eq!((sprite.dx, sprite.dy), (15.0, 18.0));
     assert_eq!((sprite.width, sprite.height), (320.0, 180.0));
@@ -285,9 +285,11 @@ fn absolute_fixture_path(name: &str) -> String {
 
 fn data_with_one_position() -> AppStoreData {
     AppStoreData {
-        key_positions: default_positions().clone(),
         ..AppStoreData::default()
     }
+    .with_legacy(|legacy| {
+        legacy.key_positions = default_positions().clone();
+    })
 }
 
 #[test]
@@ -309,11 +311,17 @@ fn legacy_store_builds_tab_order_and_defaults_bar_count() {
         ],
         ..AppStoreData::default()
     };
-    data.keys.insert("custom-a".to_string(), Vec::new());
-    data.keys.insert("custom-b".to_string(), Vec::new());
-    data.key_positions
+    data.legacy_mut()
+        .keys
         .insert("custom-a".to_string(), Vec::new());
-    data.key_positions
+    data.legacy_mut()
+        .keys
+        .insert("custom-b".to_string(), Vec::new());
+    data.legacy_mut()
+        .key_positions
+        .insert("custom-a".to_string(), Vec::new());
+    data.legacy_mut()
+        .key_positions
         .insert("custom-b".to_string(), Vec::new());
     let mut value = serde_json::to_value(data).unwrap();
     value.as_object_mut().unwrap().remove("tabOrder");
@@ -350,11 +358,17 @@ fn invalid_tab_order_entries_do_not_remove_custom_tabs_during_recovery() {
         ],
         ..AppStoreData::default()
     };
-    data.keys.insert("custom-a".to_string(), Vec::new());
-    data.keys.insert("custom-b".to_string(), Vec::new());
-    data.key_positions
+    data.legacy_mut()
+        .keys
         .insert("custom-a".to_string(), Vec::new());
-    data.key_positions
+    data.legacy_mut()
+        .keys
+        .insert("custom-b".to_string(), Vec::new());
+    data.legacy_mut()
+        .key_positions
+        .insert("custom-a".to_string(), Vec::new());
+    data.legacy_mut()
+        .key_positions
         .insert("custom-b".to_string(), Vec::new());
     let mut value = serde_json::to_value(data).unwrap();
     value.as_object_mut().unwrap().insert(
@@ -393,7 +407,8 @@ fn sprite_collection_recovery_keeps_valid_entries_and_drops_invalid_entries() {
 
 fn store_with_rotation_recovery_sprites() -> AppStoreData {
     let mut data = store_with_each_native_collection();
-    data.sprite_positions.insert(
+    let trigger_id = data.legacy().key_positions["4key"][0].id.clone();
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![
             ReactiveSpritePosition {
@@ -415,7 +430,7 @@ fn store_with_rotation_recovery_sprites() -> AppStoreData {
                 },
                 poses: vec![SpritePose {
                     pose_id: uuid::Uuid::from_u128(9_002).to_string(),
-                    triggers: vec![data.key_positions["4key"][0].id.clone()],
+                    triggers: vec![trigger_id.clone()],
                     transform: SpriteTransform {
                         y: -17.5,
                         rotation: -75.0,
@@ -465,9 +480,15 @@ fn malformed_sprite_rotation_recovers_only_that_field_and_converges() {
         let loaded = load_store_from_path(&path).unwrap();
         assert!(loaded.repaired);
         assert!(loaded.needs_persist);
-        assert_eq!(loaded.data.sprite_positions, expected.sprite_positions);
-        assert_eq!(loaded.data.keys, expected.keys);
-        assert_eq!(loaded.data.key_positions, expected.key_positions);
+        assert_eq!(
+            loaded.data.legacy().sprite_positions,
+            expected.legacy().sprite_positions
+        );
+        assert_eq!(loaded.data.legacy().keys, expected.legacy().keys);
+        assert_eq!(
+            loaded.data.legacy().key_positions,
+            expected.legacy().key_positions
+        );
 
         std::fs::write(&path, serde_json::to_vec(&loaded.data).unwrap()).unwrap();
         let reloaded = load_store_from_path(&path).unwrap();
@@ -483,7 +504,12 @@ fn missing_or_valid_sprite_rotation_needs_no_repair() {
     let path = directory.path().join("store.json");
     for rotation in [None, Some(-180.0), Some(0.0), Some(37.5), Some(180.0)] {
         let mut expected = store_with_rotation_recovery_sprites();
-        expected.sprite_positions.get_mut("4key").unwrap()[0].rotation = rotation.unwrap_or(0.0);
+        expected
+            .legacy_mut()
+            .sprite_positions
+            .get_mut("4key")
+            .unwrap()[0]
+            .rotation = rotation.unwrap_or(0.0);
         let mut fixture = serde_json::to_value(&expected).unwrap();
         if rotation.is_none() {
             fixture["spritePositions"]["4key"][0]
@@ -495,7 +521,10 @@ fn missing_or_valid_sprite_rotation_needs_no_repair() {
         let loaded = load_store_from_path(&path).unwrap();
         assert!(!loaded.repaired);
         assert!(!loaded.needs_persist);
-        assert_eq!(loaded.data.sprite_positions, expected.sprite_positions);
+        assert_eq!(
+            loaded.data.legacy().sprite_positions,
+            expected.legacy().sprite_positions
+        );
     }
 }
 
@@ -507,8 +536,12 @@ fn sprite_rotation_numeric_repair_runs_on_normal_and_partial_loads() {
         for rotation in [-999.0, -180.0, 37.5, 180.0, 999.0] {
             let mut expected = store_with_rotation_recovery_sprites();
             let out_of_range = !(-180.0..=180.0).contains(&rotation);
-            expected.sprite_positions.get_mut("4key").unwrap()[0].rotation =
-                if out_of_range { 0.0 } else { rotation };
+            expected
+                .legacy_mut()
+                .sprite_positions
+                .get_mut("4key")
+                .unwrap()[0]
+                .rotation = if out_of_range { 0.0 } else { rotation };
             let mut fixture = serde_json::to_value(&expected).unwrap();
             fixture["spritePositions"]["4key"][0]["rotation"] = serde_json::json!(rotation);
             if damage_other_field {
@@ -518,7 +551,10 @@ fn sprite_rotation_numeric_repair_runs_on_normal_and_partial_loads() {
             let loaded = load_store_from_path(&path).unwrap();
             assert_eq!(loaded.repaired, damage_other_field || out_of_range);
             assert_eq!(loaded.needs_persist, damage_other_field || out_of_range);
-            assert_eq!(loaded.data.sprite_positions, expected.sprite_positions);
+            assert_eq!(
+                loaded.data.legacy().sprite_positions,
+                expected.legacy().sprite_positions
+            );
         }
     }
 }
@@ -538,8 +574,8 @@ fn sprite_rotation_recovery_does_not_default_other_damaged_fields() {
         assert!(loaded.repaired);
         assert!(loaded.needs_persist);
         assert_eq!(
-            loaded.data.sprite_positions["4key"],
-            expected.sprite_positions["4key"][1..]
+            loaded.data.legacy().sprite_positions["4key"],
+            expected.legacy().sprite_positions["4key"][1..]
         );
     }
 }
@@ -547,7 +583,7 @@ fn sprite_rotation_recovery_does_not_default_other_damaged_fields() {
 #[test]
 fn sprite_trigger_sets_are_sorted_and_deduplicated_during_normalization() {
     let mut data = AppStoreData::default();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![ReactiveSpritePosition {
             poses: vec![SpritePose {
@@ -561,7 +597,7 @@ fn sprite_trigger_sets_are_sorted_and_deduplicated_during_normalization() {
     let normalized = normalize_state(data);
 
     assert_eq!(
-        normalized.sprite_positions["4key"][0].poses[0].triggers,
+        normalized.legacy().sprite_positions["4key"][0].poses[0].triggers,
         ["a", "b"]
     );
 }
@@ -650,12 +686,16 @@ fn load_literal_fixture(version: &str, fixture: &serde_json::Value) -> AppStoreD
 }
 
 fn store_with_each_native_collection() -> AppStoreData {
-    let mut data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
-    data.stat_positions.insert(
+    let mut data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
+    data.legacy_mut().stat_positions.insert(
         "4key".to_string(),
         vec![StatPosition {
             stat_type: StatType::Kps,
@@ -665,7 +705,7 @@ fn store_with_each_native_collection() -> AppStoreData {
             },
         }],
     );
-    data.graph_positions.insert(
+    data.legacy_mut().graph_positions.insert(
         "4key".to_string(),
         vec![GraphPosition {
             stat_type: GraphStatType::Kps,
@@ -679,7 +719,7 @@ fn store_with_each_native_collection() -> AppStoreData {
             },
         }],
     );
-    data.knob_positions.insert(
+    data.legacy_mut().knob_positions.insert(
         "4key".to_string(),
         vec![KnobPosition {
             axis_id: "axis".to_string(),
@@ -730,10 +770,19 @@ fn legacy_store_backfills_all_native_ids_and_reload_preserves_them() {
     let document = crate::models::EditorDocumentV1::from_store(&loaded.data);
     crate::state::native_element_id::validate_document_element_ids(&document).unwrap();
     let first_ids = [
-        loaded.data.key_positions["4key"][0].id.clone(),
-        loaded.data.stat_positions["4key"][0].position.id.clone(),
-        loaded.data.graph_positions["4key"][0].position.id.clone(),
-        loaded.data.knob_positions["4key"][0].position.id.clone(),
+        loaded.data.legacy().key_positions["4key"][0].id.clone(),
+        loaded.data.legacy().stat_positions["4key"][0]
+            .position
+            .id
+            .clone(),
+        loaded.data.legacy().graph_positions["4key"][0]
+            .position
+            .id
+            .clone(),
+        loaded.data.legacy().knob_positions["4key"][0]
+            .position
+            .id
+            .clone(),
     ];
     assert_eq!(
         first_ids
@@ -748,10 +797,19 @@ fn legacy_store_backfills_all_native_ids_and_reload_preserves_them() {
     std::fs::write(&path, serde_json::to_vec_pretty(&loaded.data).unwrap()).unwrap();
     let reloaded = load_store_from_path(&path).unwrap();
     let second_ids = [
-        reloaded.data.key_positions["4key"][0].id.clone(),
-        reloaded.data.stat_positions["4key"][0].position.id.clone(),
-        reloaded.data.graph_positions["4key"][0].position.id.clone(),
-        reloaded.data.knob_positions["4key"][0].position.id.clone(),
+        reloaded.data.legacy().key_positions["4key"][0].id.clone(),
+        reloaded.data.legacy().stat_positions["4key"][0]
+            .position
+            .id
+            .clone(),
+        reloaded.data.legacy().graph_positions["4key"][0]
+            .position
+            .id
+            .clone(),
+        reloaded.data.legacy().knob_positions["4key"][0]
+            .position
+            .id
+            .clone(),
     ];
     assert_eq!(second_ids, first_ids);
     assert!(!reloaded.needs_persist);
@@ -779,13 +837,19 @@ fn missing_note_gradient_multiplier_persists_on_first_load_and_converges() {
 
     // 배율 부재 보정이 유일한 변경이어도 첫 로드는 영속 대상
     let loaded = load_store_from_path(&path).unwrap();
-    assert_eq!(loaded.data.key_positions["4key"][0].note_opacity, 100);
+    assert_eq!(
+        loaded.data.legacy().key_positions["4key"][0].note_opacity,
+        100
+    );
     assert!(loaded.needs_persist);
 
     // 저장 후 재로드는 무변경으로 수렴 - 시작마다 보정 반복 방지
     std::fs::write(&path, serde_json::to_vec_pretty(&loaded.data).unwrap()).unwrap();
     let reloaded = load_store_from_path(&path).unwrap();
-    assert_eq!(reloaded.data.key_positions["4key"][0].note_opacity, 100);
+    assert_eq!(
+        reloaded.data.legacy().key_positions["4key"][0].note_opacity,
+        100
+    );
     assert!(!reloaded.needs_persist);
     let _ = std::fs::remove_file(path);
 }
@@ -836,10 +900,22 @@ fn serialized_undo_history_with_removed_outline_fields_loads_as_opaque_data() {
     let loaded = load_store_from_path(&path).unwrap();
     assert!(!loaded.needs_persist);
     assert!(!loaded.repaired);
-    assert_eq!(loaded.data.key_positions, baseline.key_positions);
-    assert_eq!(loaded.data.stat_positions, baseline.stat_positions);
-    assert_eq!(loaded.data.graph_positions, baseline.graph_positions);
-    assert_eq!(loaded.data.knob_positions, baseline.knob_positions);
+    assert_eq!(
+        loaded.data.legacy().key_positions,
+        baseline.legacy().key_positions
+    );
+    assert_eq!(
+        loaded.data.legacy().stat_positions,
+        baseline.legacy().stat_positions
+    );
+    assert_eq!(
+        loaded.data.legacy().graph_positions,
+        baseline.legacy().graph_positions
+    );
+    assert_eq!(
+        loaded.data.legacy().knob_positions,
+        baseline.legacy().knob_positions
+    );
     assert_eq!(loaded.data.plugin_data.get("history"), Some(&saved_history));
     let _ = std::fs::remove_file(path);
 }
@@ -851,16 +927,16 @@ fn invalid_and_duplicate_ids_are_repaired_without_touching_assets() {
         uuid::Uuid::new_v4()
     ));
     let mut data = store_with_each_native_collection();
-    data.stat_positions.get_mut("4key").unwrap()[0]
+    data.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
         .position
         .active_image = Some("/images/kept.png".to_string());
-    data.stat_positions.get_mut("4key").unwrap()[0]
+    data.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
         .position
         .sound_path = Some("/sounds/kept.wav".to_string());
-    let kept_key_id = data.key_positions["4key"][0].id.clone();
-    let kept_knob_id = data.knob_positions["4key"][0].position.id.clone();
-    let old_stat_id = data.stat_positions["4key"][0].position.id.clone();
-    let old_graph_id = data.graph_positions["4key"][0].position.id.clone();
+    let kept_key_id = data.legacy().key_positions["4key"][0].id.clone();
+    let kept_knob_id = data.legacy().knob_positions["4key"][0].position.id.clone();
+    let old_stat_id = data.legacy().stat_positions["4key"][0].position.id.clone();
+    let old_graph_id = data.legacy().graph_positions["4key"][0].position.id.clone();
     let mut raw = serde_json::to_value(data).unwrap();
     raw["statPositions"]["4key"][0]["id"] = serde_json::json!(kept_key_id);
     raw["graphPositions"]["4key"][0]["id"] = serde_json::json!("");
@@ -870,28 +946,31 @@ fn invalid_and_duplicate_ids_are_repaired_without_touching_assets() {
 
     assert!(loaded.needs_persist);
     assert!(loaded.repaired);
-    assert_eq!(loaded.data.key_positions["4key"][0].id, kept_key_id);
     assert_eq!(
-        loaded.data.knob_positions["4key"][0].position.id,
+        loaded.data.legacy().key_positions["4key"][0].id,
+        kept_key_id
+    );
+    assert_eq!(
+        loaded.data.legacy().knob_positions["4key"][0].position.id,
         kept_knob_id
     );
     assert_ne!(
-        loaded.data.stat_positions["4key"][0].position.id,
+        loaded.data.legacy().stat_positions["4key"][0].position.id,
         old_stat_id
     );
     assert_ne!(
-        loaded.data.graph_positions["4key"][0].position.id,
+        loaded.data.legacy().graph_positions["4key"][0].position.id,
         old_graph_id
     );
     assert_eq!(
-        loaded.data.stat_positions["4key"][0]
+        loaded.data.legacy().stat_positions["4key"][0]
             .position
             .active_image
             .as_deref(),
         Some("/images/kept.png")
     );
     assert_eq!(
-        loaded.data.stat_positions["4key"][0]
+        loaded.data.legacy().stat_positions["4key"][0]
             .position
             .sound_path
             .as_deref(),
@@ -907,9 +986,9 @@ fn recovery_and_pair_padding_preserve_surviving_ids_before_backfill() {
         uuid::Uuid::new_v4()
     ));
     let data = store_with_each_native_collection();
-    let surviving_key_id = data.key_positions["4key"][0].id.clone();
-    let surviving_stat_id = data.stat_positions["4key"][0].position.id.clone();
-    let original_position_len = data.key_positions["4key"].len();
+    let surviving_key_id = data.legacy().key_positions["4key"][0].id.clone();
+    let surviving_stat_id = data.legacy().stat_positions["4key"][0].position.id.clone();
+    let original_position_len = data.legacy().key_positions["4key"].len();
     let mut raw = serde_json::to_value(data).unwrap();
     raw["keys"]["4key"]
         .as_array_mut()
@@ -922,16 +1001,19 @@ fn recovery_and_pair_padding_preserve_surviving_ids_before_backfill() {
 
     assert!(loaded.repaired);
     assert_eq!(
-        loaded.data.key_positions["4key"].len(),
+        loaded.data.legacy().key_positions["4key"].len(),
         original_position_len + 1
     );
-    assert_eq!(loaded.data.key_positions["4key"][0].id, surviving_key_id);
     assert_eq!(
-        loaded.data.stat_positions["4key"][0].position.id,
+        loaded.data.legacy().key_positions["4key"][0].id,
+        surviving_key_id
+    );
+    assert_eq!(
+        loaded.data.legacy().stat_positions["4key"][0].position.id,
         surviving_stat_id
     );
     assert!(crate::state::native_element_id::is_valid_element_id(
-        &loaded.data.key_positions["4key"][original_position_len].id
+        &loaded.data.legacy().key_positions["4key"][original_position_len].id
     ));
     crate::state::native_element_id::validate_document_element_ids(
         &crate::models::EditorDocumentV1::from_store(&loaded.data),
@@ -1270,11 +1352,15 @@ fn legacy_panel_detach_setting_is_removed_without_touching_plugin_data() {
         "dmnote-panel-detach-setting-migration-{}.json",
         uuid::Uuid::new_v4()
     ));
-    let data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
+    let data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
     let mut raw = serde_json::to_value(data).unwrap();
     let raw_object = raw.as_object_mut().unwrap();
     raw_object.insert(
@@ -1324,18 +1410,22 @@ fn legacy_store_without_gradient_fields_preserves_position_bytes() {
         "dmnote-no-gradient-byte-round-trip-{}.json",
         uuid::Uuid::new_v4()
     ));
-    let data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
-    let original_position = data.key_positions["4key"][0].clone();
+    let data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
+    let original_position = data.legacy().key_positions["4key"][0].clone();
     let original = serde_json::to_vec_pretty(&data).unwrap();
     assert!(!String::from_utf8_lossy(&original).contains("Gradient"));
     std::fs::write(&path, &original).unwrap();
 
     let loaded = load_store_from_path(&path).unwrap();
-    let mut reloaded_position = loaded.data.key_positions["4key"][0].clone();
+    let mut reloaded_position = loaded.data.legacy().key_positions["4key"][0].clone();
     reloaded_position.id.clear();
 
     assert!(loaded.needs_persist);
@@ -1350,11 +1440,15 @@ fn noncanonical_gradient_store_repersist_and_reload_is_idempotent() {
         "dmnote-gradient-canonical-reload-{}.json",
         uuid::Uuid::new_v4()
     ));
-    let data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
+    let data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
     let mut raw = serde_json::to_value(data).unwrap();
     let position = &mut raw["keyPositions"]["4key"][0];
     position["backgroundColor"] = serde_json::json!("#BADBAD");
@@ -1384,7 +1478,7 @@ fn noncanonical_gradient_store_repersist_and_reload_is_idempotent() {
     std::fs::write(&path, serde_json::to_vec_pretty(&raw).unwrap()).unwrap();
 
     let loaded = load_store_from_path(&path).unwrap();
-    let position = &loaded.data.key_positions["4key"][0];
+    let position = &loaded.data.legacy().key_positions["4key"][0];
     assert!(loaded.needs_persist);
     assert!(loaded.repaired);
     assert_eq!(
@@ -1418,21 +1512,29 @@ fn combined_normalization_pipeline_preserves_order_and_converges_after_one_persi
         "dmnote-combined-normalization-order-{}.json",
         uuid::Uuid::new_v4()
     ));
-    let mut data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
+    let mut data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
     data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
-    let preserved_id = data.key_positions["4key"][0].id.clone();
+    let preserved_id = data.legacy().key_positions["4key"][0].id.clone();
 
     data.selected_key_type = "missing-mode".to_string();
-    data.keys.get_mut("4key").unwrap().push(KeySlot::from("F5"));
+    data.legacy_mut()
+        .keys
+        .get_mut("4key")
+        .unwrap()
+        .push(KeySlot::from("F5"));
     data.key_counters
         .entry("4key".to_string())
         .or_default()
         .insert("STALE".to_string(), 99);
-    let position = &mut data.key_positions.get_mut("4key").unwrap()[0];
+    let position = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     position.group_id = Some("missing-group".to_string());
     position.font_color = Some("  ".to_string());
     position.image_mode = Some(crate::models::ImageMode::Replace);
@@ -1451,15 +1553,18 @@ fn combined_normalization_pipeline_preserves_order_and_converges_after_one_persi
     assert!(first.needs_persist);
     assert!(first.repaired);
     assert_eq!(first.data.selected_key_type, "4key");
-    assert_eq!(first.data.key_positions["4key"][0].id, preserved_id);
     assert_eq!(
-        first.data.keys["4key"].len(),
-        first.data.key_positions["4key"].len()
+        first.data.legacy().key_positions["4key"][0].id,
+        preserved_id
+    );
+    assert_eq!(
+        first.data.legacy().keys["4key"].len(),
+        first.data.legacy().key_positions["4key"].len()
     );
     assert!(crate::state::native_element_id::is_valid_element_id(
-        &first.data.key_positions["4key"].last().unwrap().id
+        &first.data.legacy().key_positions["4key"].last().unwrap().id
     ));
-    let position = &first.data.key_positions["4key"][0];
+    let position = &first.data.legacy().key_positions["4key"][0];
     assert!(position.group_id.is_none());
     assert!(position.font_color.is_none());
     assert!(position.image_mode.is_none());
@@ -1481,11 +1586,15 @@ fn blank_font_color_normalization_requests_one_canonical_persist() {
         "dmnote-blank-font-color-reload-{}.json",
         uuid::Uuid::new_v4()
     ));
-    let data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
+    let data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
     std::fs::write(&path, serde_json::to_vec_pretty(&data).unwrap()).unwrap();
     let seeded = load_store_from_path(&path).unwrap();
     std::fs::write(&path, serde_json::to_vec_pretty(&seeded.data).unwrap()).unwrap();
@@ -1501,10 +1610,10 @@ fn blank_font_color_normalization_requests_one_canonical_persist() {
     let normalized = load_store_from_path(&path).unwrap();
     assert!(normalized.needs_persist);
     assert!(!normalized.repaired);
-    assert!(normalized.data.key_positions["4key"][0]
+    assert!(normalized.data.legacy().key_positions["4key"][0]
         .font_color
         .is_none());
-    assert!(normalized.data.key_positions["4key"][0]
+    assert!(normalized.data.legacy().key_positions["4key"][0]
         .active_font_color
         .is_none());
 
@@ -1522,11 +1631,15 @@ fn blank_font_gradient_stop_repairs_once_and_converges_on_reload() {
         "dmnote-blank-font-gradient-stop-{}.json",
         uuid::Uuid::new_v4()
     ));
-    let data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
+    let data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
     std::fs::write(&path, serde_json::to_vec_pretty(&data).unwrap()).unwrap();
     let seeded = load_store_from_path(&path).unwrap();
     std::fs::write(&path, serde_json::to_vec_pretty(&seeded.data).unwrap()).unwrap();
@@ -1549,7 +1662,7 @@ fn blank_font_gradient_stop_repairs_once_and_converges_on_reload() {
     let repaired = load_store_from_path(&path).unwrap();
     assert!(repaired.needs_persist);
     assert!(repaired.repaired);
-    assert!(repaired.data.key_positions["4key"][0]
+    assert!(repaired.data.legacy().key_positions["4key"][0]
         .font_gradient
         .is_none());
 
@@ -1581,6 +1694,7 @@ fn knob_note_border_gradient_and_rgba_migration_converge_in_either_order() {
     .unwrap();
     let mut source = AppStoreData::default();
     source
+        .legacy_mut()
         .knob_positions
         .insert("custom".to_string(), vec![knob]);
 
@@ -1599,7 +1713,7 @@ fn knob_note_border_gradient_and_rgba_migration_converge_in_either_order() {
 
     assert_eq!(canonical_first, migration_first);
     assert_eq!(
-        migration_first.knob_positions["custom"][0]
+        migration_first.legacy().knob_positions["custom"][0]
             .position
             .note_border_color
             .as_deref(),
@@ -1657,13 +1771,18 @@ fn invalid_counter_gradient_children_recover_without_losing_counter_siblings() {
     let expected_stat_counter = stat_position.position.counter.clone();
     let expected_stat_glow_color = stat_position.position.note_glow_color.clone();
 
-    let mut data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
-    data.key_positions.get_mut("4key").unwrap()[0] = key_position;
-    data.stat_positions
+    let mut data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
+    data.legacy_mut().key_positions.get_mut("4key").unwrap()[0] = key_position;
+    data.legacy_mut()
+        .stat_positions
         .insert("4key".to_string(), vec![stat_position]);
     let mut raw = serde_json::to_value(data).unwrap();
     raw["keyPositions"]["4key"][0]["noteBorderGradient"] = serde_json::json!({
@@ -1689,37 +1808,41 @@ fn invalid_counter_gradient_children_recover_without_losing_counter_siblings() {
     std::fs::write(&path, serde_json::to_vec_pretty(&raw).unwrap()).unwrap();
 
     let loaded = load_store_from_path(&path).unwrap();
-    let key_counter = &loaded.data.key_positions["4key"][0].counter;
-    let stat_counter = &loaded.data.stat_positions["4key"][0].position.counter;
+    let key_counter = &loaded.data.legacy().key_positions["4key"][0].counter;
+    let stat_counter = &loaded.data.legacy().stat_positions["4key"][0]
+        .position
+        .counter;
 
     assert!(loaded.needs_persist);
     assert!(loaded.repaired);
     assert_eq!(key_counter, &expected_key_counter);
     assert_eq!(stat_counter, &expected_stat_counter);
-    assert!(loaded.data.key_positions["4key"][0].note_gradient.is_none());
+    assert!(loaded.data.legacy().key_positions["4key"][0]
+        .note_gradient
+        .is_none());
     assert_eq!(
-        loaded.data.key_positions["4key"][0].note_color,
+        loaded.data.legacy().key_positions["4key"][0].note_color,
         expected_key_note_color
     );
     assert_eq!(
-        loaded.data.key_positions["4key"][0].note_opacity_top,
+        loaded.data.legacy().key_positions["4key"][0].note_opacity_top,
         Some(23)
     );
     assert_eq!(
-        loaded.data.key_positions["4key"][0].note_opacity_bottom,
+        loaded.data.legacy().key_positions["4key"][0].note_opacity_bottom,
         Some(67)
     );
-    assert!(loaded.data.stat_positions["4key"][0]
+    assert!(loaded.data.legacy().stat_positions["4key"][0]
         .position
         .note_glow_gradient
         .is_none());
     assert_eq!(
-        loaded.data.stat_positions["4key"][0]
+        loaded.data.legacy().stat_positions["4key"][0]
             .position
             .note_glow_color,
         expected_stat_glow_color
     );
-    assert!(loaded.data.key_positions["4key"][0]
+    assert!(loaded.data.legacy().key_positions["4key"][0]
         .note_border_gradient
         .is_none());
     assert!(key_counter.fill_idle_gradient.is_none());
@@ -1733,23 +1856,27 @@ fn invalid_font_gradient_fields_recover_in_place_on_every_position_collection() 
         "dmnote-font-gradient-field-recovery-{}.json",
         uuid::Uuid::new_v4()
     ));
-    let mut data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
-    let mut template = data.key_positions["4key"][0].clone();
+    let mut data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
+    let mut template = data.legacy().key_positions["4key"][0].clone();
     template.font_color = Some("font-sibling".to_string());
     template.active_font_color = Some("active-font-sibling".to_string());
     let key_id = uuid::Uuid::new_v4().to_string();
-    let key = &mut data.key_positions.get_mut("4key").unwrap()[0];
+    let key = &mut data.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     key.id = key_id.clone();
     key.font_color = Some("font-sibling".to_string());
 
     let stat_id = uuid::Uuid::new_v4().to_string();
     let graph_id = uuid::Uuid::new_v4().to_string();
     let knob_id = uuid::Uuid::new_v4().to_string();
-    data.stat_positions.insert(
+    data.legacy_mut().stat_positions.insert(
         "4key".to_string(),
         vec![StatPosition {
             stat_type: StatType::Kps,
@@ -1759,7 +1886,7 @@ fn invalid_font_gradient_fields_recover_in_place_on_every_position_collection() 
             },
         }],
     );
-    data.graph_positions.insert(
+    data.legacy_mut().graph_positions.insert(
         "4key".to_string(),
         vec![GraphPosition {
             stat_type: GraphStatType::Kps,
@@ -1773,7 +1900,7 @@ fn invalid_font_gradient_fields_recover_in_place_on_every_position_collection() 
             },
         }],
     );
-    data.knob_positions.insert(
+    data.legacy_mut().knob_positions.insert(
         "4key".to_string(),
         vec![KnobPosition {
             axis_id: "axis-sibling".to_string(),
@@ -1825,47 +1952,58 @@ fn invalid_font_gradient_fields_recover_in_place_on_every_position_collection() 
     assert!(loaded.needs_persist);
     assert!(loaded.repaired);
     assert_eq!(
-        loaded.data.key_positions["4key"].len(),
-        data.key_positions["4key"].len()
+        loaded.data.legacy().key_positions["4key"].len(),
+        data.legacy().key_positions["4key"].len()
     );
-    assert_eq!(loaded.data.stat_positions["4key"].len(), 1);
-    assert_eq!(loaded.data.graph_positions["4key"].len(), 1);
-    assert_eq!(loaded.data.knob_positions["4key"].len(), 1);
-    assert_eq!(loaded.data.key_positions["4key"][0].id, key_id);
-    assert_eq!(loaded.data.stat_positions["4key"][0].position.id, stat_id);
-    assert_eq!(loaded.data.graph_positions["4key"][0].position.id, graph_id);
-    assert_eq!(loaded.data.knob_positions["4key"][0].position.id, knob_id);
-    assert!(loaded.data.key_positions["4key"][0].font_gradient.is_none());
-    assert!(loaded.data.stat_positions["4key"][0]
+    assert_eq!(loaded.data.legacy().stat_positions["4key"].len(), 1);
+    assert_eq!(loaded.data.legacy().graph_positions["4key"].len(), 1);
+    assert_eq!(loaded.data.legacy().knob_positions["4key"].len(), 1);
+    assert_eq!(loaded.data.legacy().key_positions["4key"][0].id, key_id);
+    assert_eq!(
+        loaded.data.legacy().stat_positions["4key"][0].position.id,
+        stat_id
+    );
+    assert_eq!(
+        loaded.data.legacy().graph_positions["4key"][0].position.id,
+        graph_id
+    );
+    assert_eq!(
+        loaded.data.legacy().knob_positions["4key"][0].position.id,
+        knob_id
+    );
+    assert!(loaded.data.legacy().key_positions["4key"][0]
+        .font_gradient
+        .is_none());
+    assert!(loaded.data.legacy().stat_positions["4key"][0]
         .position
         .active_font_gradient
         .is_none());
-    assert!(loaded.data.graph_positions["4key"][0]
+    assert!(loaded.data.legacy().graph_positions["4key"][0]
         .position
         .font_gradient
         .is_none());
-    assert!(loaded.data.knob_positions["4key"][0]
+    assert!(loaded.data.legacy().knob_positions["4key"][0]
         .position
         .active_font_gradient
         .is_none());
     for position in [
-        &loaded.data.key_positions["4key"][0],
-        &loaded.data.stat_positions["4key"][0].position,
-        &loaded.data.graph_positions["4key"][0].position,
-        &loaded.data.knob_positions["4key"][0].position,
+        &loaded.data.legacy().key_positions["4key"][0],
+        &loaded.data.legacy().stat_positions["4key"][0].position,
+        &loaded.data.legacy().graph_positions["4key"][0].position,
+        &loaded.data.legacy().knob_positions["4key"][0].position,
     ] {
         assert_eq!(position.font_color.as_deref(), Some("font-sibling"));
     }
-    let key = &loaded.data.key_positions["4key"][0];
+    let key = &loaded.data.legacy().key_positions["4key"][0];
     assert_eq!(key.font_weight, Some(400));
     assert_eq!(key.font_bold, None);
-    let stat = &loaded.data.stat_positions["4key"][0].position;
+    let stat = &loaded.data.legacy().stat_positions["4key"][0].position;
     assert_eq!(stat.font_weight, None);
     assert_eq!(stat.font_bold, None);
-    let graph = &loaded.data.graph_positions["4key"][0].position;
+    let graph = &loaded.data.legacy().graph_positions["4key"][0].position;
     assert_eq!(graph.font_weight, Some(400));
     assert_eq!(graph.font_bold, Some(true));
-    let knob = &loaded.data.knob_positions["4key"][0].position;
+    let knob = &loaded.data.legacy().knob_positions["4key"][0].position;
     assert_eq!(knob.font_weight, Some(600));
     assert_eq!(knob.font_bold, None);
     let _ = std::fs::remove_file(path);
@@ -2005,25 +2143,32 @@ fn tauri_era_store_schema_transitions_preserve_editor_data() {
         let loaded = load_literal_fixture(version, &fixture);
         assert_eq!(loaded.editor_revision, 0, "{version}");
         assert_eq!(
-            loaded.keys["fixture-tab"],
+            loaded.legacy().keys["fixture-tab"],
             vec![KeySlot::from("F13")],
             "{version}"
         );
-        assert_eq!(loaded.key_positions["fixture-tab"][0].dx, 13.0, "{version}");
+        assert_eq!(
+            loaded.legacy().key_positions["fixture-tab"][0].dx,
+            13.0,
+            "{version}"
+        );
         assert_eq!(loaded.key_counters["fixture-tab"]["F13"], 17, "{version}");
 
         if version >= "1.4.0" {
             assert_eq!(loaded.plugin_data["plugin:fixture"]["kept"], true);
         }
         if version >= "1.5.1" {
-            assert_eq!(loaded.stat_positions["fixture-tab"].len(), 1);
+            assert_eq!(loaded.legacy().stat_positions["fixture-tab"].len(), 1);
         }
         if version >= "1.6.0" {
-            assert_eq!(loaded.graph_positions["fixture-tab"].len(), 1);
-            assert_eq!(loaded.layer_groups["fixture-tab"][0].id, "fixture-group");
+            assert_eq!(loaded.legacy().graph_positions["fixture-tab"].len(), 1);
+            assert_eq!(
+                loaded.legacy().layer_groups["fixture-tab"][0].id,
+                "fixture-group"
+            );
         }
         if version >= "1.6.1" {
-            assert_eq!(loaded.knob_positions["fixture-tab"].len(), 1);
+            assert_eq!(loaded.legacy().knob_positions["fixture-tab"].len(), 1);
         }
     }
 }
@@ -2150,46 +2295,50 @@ fn normalize_state_drops_blank_font_colors_on_every_position_collection() {
         active_font_color: Some(String::new()),
         ..KeyPosition::default()
     };
-    let data = normalize_state(AppStoreData {
-        key_positions: crate::models::KeyPositions::from([(
-            "custom".to_string(),
-            vec![blank_position("key-id")],
-        )]),
-        stat_positions: crate::models::StatPositions::from([(
-            "custom".to_string(),
-            vec![StatPosition {
-                stat_type: StatType::Kps,
-                position: blank_position("stat-id"),
-            }],
-        )]),
-        graph_positions: crate::models::GraphPositions::from([(
-            "custom".to_string(),
-            vec![GraphPosition {
-                stat_type: GraphStatType::Kps,
-                graph_type: GraphType::Line,
-                graph_speed: 1000,
-                graph_color: "graph".to_string(),
-                show_avg_line: false,
-                position: blank_position("graph-id"),
-            }],
-        )]),
-        knob_positions: crate::models::KnobPositions::from([(
-            "custom".to_string(),
-            vec![KnobPosition {
-                axis_id: "axis".to_string(),
-                sensitivity: 1.0,
-                reverse: false,
-                position: blank_position("knob-id"),
-            }],
-        )]),
-        ..AppStoreData::default()
-    });
+    let data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.key_positions = crate::models::KeyPositions::from([(
+                "custom".to_string(),
+                vec![blank_position("key-id")],
+            )]);
+            legacy.stat_positions = crate::models::StatPositions::from([(
+                "custom".to_string(),
+                vec![StatPosition {
+                    stat_type: StatType::Kps,
+                    position: blank_position("stat-id"),
+                }],
+            )]);
+            legacy.graph_positions = crate::models::GraphPositions::from([(
+                "custom".to_string(),
+                vec![GraphPosition {
+                    stat_type: GraphStatType::Kps,
+                    graph_type: GraphType::Line,
+                    graph_speed: 1000,
+                    graph_color: "graph".to_string(),
+                    show_avg_line: false,
+                    position: blank_position("graph-id"),
+                }],
+            )]);
+            legacy.knob_positions = crate::models::KnobPositions::from([(
+                "custom".to_string(),
+                vec![KnobPosition {
+                    axis_id: "axis".to_string(),
+                    sensitivity: 1.0,
+                    reverse: false,
+                    position: blank_position("knob-id"),
+                }],
+            )]);
+        }),
+    );
 
     for position in [
-        &data.key_positions["custom"][0],
-        &data.stat_positions["custom"][0].position,
-        &data.graph_positions["custom"][0].position,
-        &data.knob_positions["custom"][0].position,
+        &data.legacy().key_positions["custom"][0],
+        &data.legacy().stat_positions["custom"][0].position,
+        &data.legacy().graph_positions["custom"][0].position,
+        &data.legacy().knob_positions["custom"][0].position,
     ] {
         assert!(position.font_color.is_none());
         assert!(position.active_font_color.is_none());
@@ -2198,28 +2347,32 @@ fn normalize_state_drops_blank_font_colors_on_every_position_collection() {
 
 #[test]
 fn normalize_state_folds_replace_image_mode_to_sparse_none() {
-    let data = normalize_state(AppStoreData {
-        key_positions: crate::models::KeyPositions::from([(
-            "custom".to_string(),
-            vec![
-                KeyPosition {
-                    id: "replace".to_string(),
-                    image_mode: Some(crate::models::ImageMode::Replace),
-                    ..KeyPosition::default()
-                },
-                KeyPosition {
-                    id: "overlay".to_string(),
-                    image_mode: Some(crate::models::ImageMode::Overlay),
-                    ..KeyPosition::default()
-                },
-            ],
-        )]),
-        ..AppStoreData::default()
-    });
+    let data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.key_positions = crate::models::KeyPositions::from([(
+                "custom".to_string(),
+                vec![
+                    KeyPosition {
+                        id: "replace".to_string(),
+                        image_mode: Some(crate::models::ImageMode::Replace),
+                        ..KeyPosition::default()
+                    },
+                    KeyPosition {
+                        id: "overlay".to_string(),
+                        image_mode: Some(crate::models::ImageMode::Overlay),
+                        ..KeyPosition::default()
+                    },
+                ],
+            )]);
+        }),
+    );
 
-    assert_eq!(data.key_positions["custom"][0].image_mode, None);
+    assert_eq!(data.legacy().key_positions["custom"][0].image_mode, None);
     assert_eq!(
-        data.key_positions["custom"][1].image_mode,
+        data.legacy().key_positions["custom"][1].image_mode,
         Some(crate::models::ImageMode::Overlay)
     );
 }
@@ -2237,22 +2390,26 @@ fn normalize_state_keeps_single_count_and_separates_any_all_counters() {
             match_mode: SlotMatch::All,
         },
     ];
-    let data = normalize_state(AppStoreData {
-        keys: KeyMappings::from([("4key".to_string(), keys)]),
-        key_positions: crate::models::KeyPositions::from([(
-            "4key".to_string(),
-            vec![KeyPosition::default(); 3],
-        )]),
-        key_counters: crate::models::KeyCounters::from([(
-            "4key".to_string(),
-            std::collections::HashMap::from([
-                ("A".to_string(), 9),
-                ("A|B".to_string(), 4),
-                ("stale".to_string(), 7),
-            ]),
-        )]),
-        ..AppStoreData::default()
-    });
+    let data = normalize_state(
+        AppStoreData {
+            key_counters: crate::models::KeyCounters::from([(
+                "4key".to_string(),
+                std::collections::HashMap::from([
+                    ("A".to_string(), 9),
+                    ("A|B".to_string(), 4),
+                    ("stale".to_string(), 7),
+                ]),
+            )]),
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = KeyMappings::from([("4key".to_string(), keys)]);
+            legacy.key_positions = crate::models::KeyPositions::from([(
+                "4key".to_string(),
+                vec![KeyPosition::default(); 3],
+            )]);
+        }),
+    );
 
     assert_eq!(data.key_counters["4key"]["A"], 9);
     assert_eq!(data.key_counters["4key"]["A|B"], 4);
@@ -2266,23 +2423,27 @@ fn load_repairs_unsafe_editor_revision_without_touching_editor_data() {
         "dmnote-unsafe-editor-revision-{}.json",
         uuid::Uuid::new_v4()
     ));
-    let mut data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
+    let mut data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
     data.editor_revision = crate::state::editor::MAX_SAFE_WIRE_REVISION + 1;
-    data.key_positions.get_mut("4key").unwrap()[0].dx = 12_345.0;
+    data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx = 12_345.0;
     data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
-    let expected_keys = data.keys.clone();
-    let expected_positions = data.key_positions.clone();
+    let expected_keys = data.legacy().keys.clone();
+    let expected_positions = data.legacy().key_positions.clone();
     std::fs::write(&path, serde_json::to_vec_pretty(&data).unwrap()).unwrap();
 
     let loaded = load_store_from_path(&path).unwrap();
 
     assert_eq!(loaded.data.editor_revision, 0);
-    assert_eq!(loaded.data.keys, expected_keys);
-    assert_eq!(loaded.data.key_positions, expected_positions);
+    assert_eq!(loaded.data.legacy().keys, expected_keys);
+    assert_eq!(loaded.data.legacy().key_positions, expected_positions);
     assert!(loaded.needs_persist);
     assert!(loaded.repaired);
     let _ = std::fs::remove_file(path);
@@ -2294,11 +2455,15 @@ fn load_preserves_max_safe_editor_revision() {
         "dmnote-max-safe-editor-revision-{}.json",
         uuid::Uuid::new_v4()
     ));
-    let mut data = normalize_state(AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
-        ..AppStoreData::default()
-    });
+    let mut data = normalize_state(
+        AppStoreData {
+            ..AppStoreData::default()
+        }
+        .with_legacy(|legacy| {
+            legacy.keys = default_keys().clone();
+            legacy.key_positions = default_positions().clone();
+        }),
+    );
     data.editor_revision = crate::state::editor::MAX_SAFE_WIRE_REVISION;
     std::fs::write(&path, serde_json::to_vec_pretty(&data).unwrap()).unwrap();
 
@@ -2320,8 +2485,8 @@ fn clear_dangling_group_ids_removes_ghosts_and_keeps_valid_ones() {
         list[0].group_id = Some("ghost-group".to_string());
         list[1].group_id = Some("real-group".to_string());
     }
-    data.key_positions = positions;
-    data.layer_groups.insert(
+    data.legacy_mut().key_positions = positions;
+    data.legacy_mut().layer_groups.insert(
         "4key".to_string(),
         vec![LayerGroupDef {
             id: "real-group".to_string(),
@@ -2330,7 +2495,7 @@ fn clear_dangling_group_ids_removes_ghosts_and_keeps_valid_ones() {
     );
 
     assert!(super::clear_dangling_group_ids(&mut data));
-    let list = &data.key_positions["4key"];
+    let list = &data.legacy().key_positions["4key"];
     assert_eq!(list[0].group_id, None);
     assert_eq!(list[1].group_id.as_deref(), Some("real-group"));
 
@@ -2347,12 +2512,14 @@ fn normalize_state_preserves_group_ids_saved_before_group_definitions() {
     if let Some(list) = positions.get_mut("4key") {
         list[0].group_id = Some("group-created-just-now".to_string());
     }
-    data.key_positions = positions;
+    data.legacy_mut().key_positions = positions;
     // layerGroups 정의는 아직 저장 전 (다음 커맨드에서 도착)
 
     let normalized = normalize_state(data);
     assert_eq!(
-        normalized.key_positions["4key"][0].group_id.as_deref(),
+        normalized.legacy().key_positions["4key"][0]
+            .group_id
+            .as_deref(),
         Some("group-created-just-now")
     );
 }
@@ -2368,11 +2535,11 @@ fn load_clears_dangling_group_ids_from_disk() {
     if let Some(list) = positions.get_mut("4key") {
         list[0].group_id = Some("ghost-group".to_string());
     }
-    data.key_positions = positions;
+    data.legacy_mut().key_positions = positions;
     std::fs::write(&path, serde_json::to_vec_pretty(&data).unwrap()).unwrap();
 
     let loaded = load_store_from_path(&path).unwrap();
-    assert_eq!(loaded.data.key_positions["4key"][0].group_id, None);
+    assert_eq!(loaded.data.legacy().key_positions["4key"][0].group_id, None);
     // 정리 결과가 디스크에도 영속되도록 재저장 필요 플래그가 올라가야 함
     assert!(loaded.needs_persist);
 
@@ -2386,37 +2553,45 @@ fn load_pads_every_key_position_length_mismatch_without_compaction() {
         uuid::Uuid::new_v4()
     ));
     let mut data = AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
         ..AppStoreData::default()
-    };
-    data.keys.get_mut("4key").unwrap().push("F5".into());
+    }
+    .with_legacy(|legacy| {
+        legacy.keys = default_keys().clone();
+        legacy.key_positions = default_positions().clone();
+    });
+    data.legacy_mut()
+        .keys
+        .get_mut("4key")
+        .unwrap()
+        .push("F5".into());
     let preserved_position = KeyPosition {
         dx: 987.0,
         ..KeyPosition::default()
     };
-    data.key_positions
+    data.legacy_mut()
+        .key_positions
         .get_mut("5key")
         .unwrap()
         .push(preserved_position.clone());
-    data.keys
+    data.legacy_mut()
+        .keys
         .insert("keys-only".to_string(), vec!["A".into(), "B".into()]);
-    data.key_positions.insert(
+    data.legacy_mut().key_positions.insert(
         "positions-only".to_string(),
         vec![preserved_position.clone()],
     );
     data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
-    let preserved_position = data.key_positions["5key"].last().unwrap().clone();
+    let preserved_position = data.legacy().key_positions["5key"].last().unwrap().clone();
     std::fs::write(&path, serde_json::to_vec_pretty(&data).unwrap()).unwrap();
 
     let loaded = load_store_from_path(&path).unwrap();
     assert!(!loaded.repaired);
     assert!(loaded.needs_persist);
     assert_eq!(
-        loaded.data.keys["4key"].last().unwrap(),
+        loaded.data.legacy().keys["4key"].last().unwrap(),
         &KeySlot::from("F5")
     );
-    let padded_position = loaded.data.key_positions["4key"].last().unwrap();
+    let padded_position = loaded.data.legacy().key_positions["4key"].last().unwrap();
     assert!(crate::state::native_element_id::is_valid_element_id(
         &padded_position.id
     ));
@@ -2424,23 +2599,35 @@ fn load_pads_every_key_position_length_mismatch_without_compaction() {
     padded_without_id.id.clear();
     assert_eq!(padded_without_id, KeyPosition::default());
     assert_eq!(
-        loaded.data.key_positions["5key"].last().unwrap(),
+        loaded.data.legacy().key_positions["5key"].last().unwrap(),
         &preserved_position
     );
-    assert!(loaded.data.keys["5key"].last().unwrap().is_unassigned());
-    assert_eq!(loaded.data.key_positions["keys-only"].len(), 2);
-    assert_eq!(loaded.data.keys["positions-only"], vec![KeySlot::default()]);
+    assert!(loaded.data.legacy().keys["5key"]
+        .last()
+        .unwrap()
+        .is_unassigned());
+    assert_eq!(loaded.data.legacy().key_positions["keys-only"].len(), 2);
+    assert_eq!(
+        loaded.data.legacy().keys["positions-only"],
+        vec![KeySlot::default()]
+    );
 
     let modes = loaded
         .data
+        .legacy()
         .keys
         .keys()
-        .chain(loaded.data.key_positions.keys())
+        .chain(loaded.data.legacy().key_positions.keys())
         .collect::<std::collections::HashSet<_>>();
     for mode in modes {
         assert_eq!(
-            loaded.data.keys.get(mode).map_or(0, Vec::len),
-            loaded.data.key_positions.get(mode).map_or(0, Vec::len),
+            loaded.data.legacy().keys.get(mode).map_or(0, Vec::len),
+            loaded
+                .data
+                .legacy()
+                .key_positions
+                .get(mode)
+                .map_or(0, Vec::len),
             "mode {mode}"
         );
     }
@@ -2477,7 +2664,7 @@ fn normal_load_preserves_unbound_knobs_while_repairing_invalid_fonts() {
             weight_ranges: Vec::new(),
         },
     ];
-    data.knob_positions.insert(
+    data.legacy_mut().knob_positions.insert(
         "4key".to_string(),
         vec![
             KnobPosition {
@@ -2505,9 +2692,14 @@ fn normal_load_preserves_unbound_knobs_while_repairing_invalid_fonts() {
     assert_eq!(local.id, "local-font");
     assert!(!local.enabled);
     assert_eq!(local.local_path, None);
-    assert_eq!(loaded.data.knob_positions["4key"].len(), 2);
-    assert!(loaded.data.knob_positions["4key"][0].axis_id.is_empty());
-    assert_eq!(loaded.data.knob_positions["4key"][1].axis_id, "axis-valid");
+    assert_eq!(loaded.data.legacy().knob_positions["4key"].len(), 2);
+    assert!(loaded.data.legacy().knob_positions["4key"][0]
+        .axis_id
+        .is_empty());
+    assert_eq!(
+        loaded.data.legacy().knob_positions["4key"][1].axis_id,
+        "axis-valid"
+    );
 
     let _ = std::fs::remove_file(path);
 }
@@ -2519,11 +2711,13 @@ fn unbound_knob_survives_load_normalize_and_resave() {
         uuid::Uuid::new_v4()
     ));
     let mut data = AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_positions().clone(),
         ..AppStoreData::default()
-    };
-    data.knob_positions.insert(
+    }
+    .with_legacy(|legacy| {
+        legacy.keys = default_keys().clone();
+        legacy.key_positions = default_positions().clone();
+    });
+    data.legacy_mut().knob_positions.insert(
         "4key".to_string(),
         vec![KnobPosition {
             axis_id: String::new(),
@@ -2536,14 +2730,18 @@ fn unbound_knob_survives_load_normalize_and_resave() {
 
     let first = load_store_from_path(&path).unwrap();
     assert!(!first.repaired);
-    assert!(first.data.knob_positions["4key"][0].axis_id.is_empty());
+    assert!(first.data.legacy().knob_positions["4key"][0]
+        .axis_id
+        .is_empty());
 
     let normalized = normalize_state(first.data);
     std::fs::write(&path, serde_json::to_vec_pretty(&normalized).unwrap()).unwrap();
     let second = load_store_from_path(&path).unwrap();
     assert!(!second.repaired);
-    assert_eq!(second.data.knob_positions["4key"].len(), 1);
-    assert!(second.data.knob_positions["4key"][0].axis_id.is_empty());
+    assert_eq!(second.data.legacy().knob_positions["4key"].len(), 1);
+    assert!(second.data.legacy().knob_positions["4key"][0]
+        .axis_id
+        .is_empty());
 
     let _ = std::fs::remove_file(path);
 }
@@ -2670,7 +2868,7 @@ fn invalid_field_recovery_preserves_every_other_store_field() {
         obs_token: Some("obs-token-sentinel".to_string()),
         ..AppStoreData::default()
     };
-    expected.layer_groups.insert(
+    expected.legacy_mut().layer_groups.insert(
         "4key".to_string(),
         vec![LayerGroupDef {
             id: "layer-group-sentinel".to_string(),
@@ -2686,7 +2884,7 @@ fn invalid_field_recovery_preserves_every_other_store_field() {
         json!({ "sentinel": "obs-settings" }),
     );
     expected.grid_settings.grid_snap_size = 9;
-    expected.knob_positions.insert(
+    expected.legacy_mut().knob_positions.insert(
         "4key".to_string(),
         vec![KnobPosition {
             axis_id: "knob-axis-sentinel".to_string(),
@@ -2915,12 +3113,18 @@ fn electron_1_2_store_preserves_tabs_keys_settings_and_window_position() {
         }]
     );
     assert_eq!(
-        loaded.data.keys["legacy-tab"],
+        loaded.data.legacy().keys["legacy-tab"],
         vec![KeySlot::from("A"), KeySlot::from("B")]
     );
-    assert_eq!(loaded.data.key_positions["legacy-tab"].len(), 2);
-    assert_eq!(loaded.data.key_positions["legacy-tab"][0].dx, 777.0);
-    assert_eq!(loaded.data.key_positions["legacy-tab"][1].dx, 888.0);
+    assert_eq!(loaded.data.legacy().key_positions["legacy-tab"].len(), 2);
+    assert_eq!(
+        loaded.data.legacy().key_positions["legacy-tab"][0].dx,
+        777.0
+    );
+    assert_eq!(
+        loaded.data.legacy().key_positions["legacy-tab"][1].dx,
+        888.0
+    );
     assert_eq!(loaded.data.note_settings.speed, 321);
     assert_eq!(loaded.data.note_settings.track_height, 123);
     assert!(loaded.data.note_settings.reverse);
@@ -3003,11 +3207,14 @@ fn tauri_1_3_store_preserves_custom_layout_without_repair_fallback() {
     assert!(!loaded.repaired);
     assert_eq!(loaded.data.selected_key_type, "tauri-legacy-tab");
     assert_eq!(
-        loaded.data.keys["tauri-legacy-tab"],
+        loaded.data.legacy().keys["tauri-legacy-tab"],
         vec![KeySlot::from("Q")]
     );
-    assert_eq!(loaded.data.key_positions["tauri-legacy-tab"].len(), 1);
-    let position = &loaded.data.key_positions["tauri-legacy-tab"][0];
+    assert_eq!(
+        loaded.data.legacy().key_positions["tauri-legacy-tab"].len(),
+        1
+    );
+    let position = &loaded.data.legacy().key_positions["tauri-legacy-tab"][0];
     assert_eq!(position.dx, 654.0);
     assert_eq!(position.width, 91.0);
     assert_eq!(
@@ -3088,7 +3295,7 @@ fn custom_tabs_and_keys_recover_without_compacting_parallel_arrays() {
     );
     assert_eq!(loaded.data.selected_key_type, "alpha-tab");
     assert_eq!(
-        loaded.data.keys["alpha-tab"],
+        loaded.data.legacy().keys["alpha-tab"],
         vec![
             KeySlot::default(),
             KeySlot::from("A"),
@@ -3097,11 +3304,14 @@ fn custom_tabs_and_keys_recover_without_compacting_parallel_arrays() {
             KeySlot::default(),
         ]
     );
-    assert_eq!(loaded.data.keys["beta-tab"], vec![KeySlot::from("D")]);
-    assert!(loaded.data.keys["empty-mode"].is_empty());
-    assert_eq!(loaded.data.keys["4key"], default_keys()["4key"]);
     assert_eq!(
-        loaded.data.key_positions["alpha-tab"]
+        loaded.data.legacy().keys["beta-tab"],
+        vec![KeySlot::from("D")]
+    );
+    assert!(loaded.data.legacy().keys["empty-mode"].is_empty());
+    assert_eq!(loaded.data.legacy().keys["4key"], default_keys()["4key"]);
+    assert_eq!(
+        loaded.data.legacy().key_positions["alpha-tab"]
             .iter()
             .map(|position| position.dx)
             .collect::<Vec<_>>(),
@@ -3407,21 +3617,21 @@ fn custom_tab_whole_mode_damage_recovers_parallel_shape_only() {
     assert!(loaded.needs_persist);
     assert_eq!(loaded.data.selected_key_type, "positions-damaged");
     assert_eq!(
-        loaded.data.keys["keys-damaged"],
+        loaded.data.legacy().keys["keys-damaged"],
         vec![KeySlot::default(), KeySlot::default()]
     );
     assert_eq!(
-        loaded.data.key_positions["keys-damaged"]
+        loaded.data.legacy().key_positions["keys-damaged"]
             .iter()
             .map(|position| position.dx)
             .collect::<Vec<_>>(),
         vec![111.0, 222.0]
     );
     assert_eq!(
-        loaded.data.keys["positions-damaged"],
+        loaded.data.legacy().keys["positions-damaged"],
         vec![KeySlot::from("A"), KeySlot::from("B"), KeySlot::from("C")]
     );
-    assert!(loaded.data.key_positions["positions-damaged"]
+    assert!(loaded.data.legacy().key_positions["positions-damaged"]
         .iter()
         .all(|position| {
             let mut position = position.clone();
@@ -3429,12 +3639,15 @@ fn custom_tab_whole_mode_damage_recovers_parallel_shape_only() {
             position == KeyPosition::default()
         }));
     assert_eq!(
-        loaded.data.keys["valid-mismatch"],
+        loaded.data.legacy().keys["valid-mismatch"],
         vec![KeySlot::from("Q"), KeySlot::default()]
     );
-    assert_eq!(loaded.data.key_positions["valid-mismatch"].len(), 2);
-    assert!(loaded.data.keys["missing-both"].is_empty());
-    assert!(loaded.data.key_positions["missing-both"].is_empty());
+    assert_eq!(
+        loaded.data.legacy().key_positions["valid-mismatch"].len(),
+        2
+    );
+    assert!(loaded.data.legacy().keys["missing-both"].is_empty());
+    assert!(loaded.data.legacy().key_positions["missing-both"].is_empty());
 }
 
 #[test]
@@ -3457,8 +3670,8 @@ fn custom_tab_missing_modes_are_repaired_on_an_otherwise_valid_store() {
     assert!(loaded.repaired);
     assert!(loaded.needs_persist);
     assert_eq!(loaded.data.selected_key_type, "missing-modes");
-    assert!(loaded.data.keys["missing-modes"].is_empty());
-    assert!(loaded.data.key_positions["missing-modes"].is_empty());
+    assert!(loaded.data.legacy().keys["missing-modes"].is_empty());
+    assert!(loaded.data.legacy().key_positions["missing-modes"].is_empty());
 }
 
 #[test]
@@ -3472,6 +3685,7 @@ fn normal_load_rejects_selected_mode_without_a_matching_tab() {
         ..AppStoreData::default()
     };
     fixture
+        .legacy_mut()
         .keys
         .insert("ghost-tab".to_string(), vec!["G".into()]);
     std::fs::write(&path, serde_json::to_vec_pretty(&fixture).unwrap()).unwrap();
@@ -3482,7 +3696,10 @@ fn normal_load_rejects_selected_mode_without_a_matching_tab() {
     assert!(!loaded.repaired);
     assert!(loaded.needs_persist);
     assert_eq!(loaded.data.selected_key_type, "4key");
-    assert_eq!(loaded.data.keys["ghost-tab"], vec![KeySlot::from("G")]);
+    assert_eq!(
+        loaded.data.legacy().keys["ghost-tab"],
+        vec![KeySlot::from("G")]
+    );
 }
 
 #[test]
@@ -3688,13 +3905,22 @@ fn position_widgets_recover_layout_only_with_valid_identity() {
     let loaded = load_store_from_path(&path).unwrap();
     let _ = std::fs::remove_file(path);
 
-    assert_eq!(loaded.data.stat_positions["recovery-mode"].len(), 1);
-    assert_eq!(loaded.data.graph_positions["recovery-mode"].len(), 1);
-    assert_eq!(loaded.data.knob_positions["recovery-mode"].len(), 2);
-    let stat = &loaded.data.stat_positions["recovery-mode"][0];
-    let graph = &loaded.data.graph_positions["recovery-mode"][0];
-    let knob = &loaded.data.knob_positions["recovery-mode"][0];
-    let unbound_knob = &loaded.data.knob_positions["recovery-mode"][1];
+    assert_eq!(
+        loaded.data.legacy().stat_positions["recovery-mode"].len(),
+        1
+    );
+    assert_eq!(
+        loaded.data.legacy().graph_positions["recovery-mode"].len(),
+        1
+    );
+    assert_eq!(
+        loaded.data.legacy().knob_positions["recovery-mode"].len(),
+        2
+    );
+    let stat = &loaded.data.legacy().stat_positions["recovery-mode"][0];
+    let graph = &loaded.data.legacy().graph_positions["recovery-mode"][0];
+    let knob = &loaded.data.legacy().knob_positions["recovery-mode"][0];
+    let unbound_knob = &loaded.data.legacy().knob_positions["recovery-mode"][1];
     assert_eq!(stat.stat_type, StatType::Kps);
     assert_eq!(graph.graph_type, GraphType::Line);
     assert_eq!(knob.axis_id, "axis-recoverable");
@@ -3730,7 +3956,10 @@ fn repaired_selection_falls_back_without_deleting_orphaned_mode_data() {
     assert!(loaded.repaired);
     assert!(loaded.data.custom_tabs.is_empty());
     assert_eq!(loaded.data.selected_key_type, "4key");
-    assert_eq!(loaded.data.keys["ghost-tab"], vec![KeySlot::from("G")]);
+    assert_eq!(
+        loaded.data.legacy().keys["ghost-tab"],
+        vec![KeySlot::from("G")]
+    );
 }
 
 #[test]
@@ -3864,13 +4093,17 @@ fn nested_user_settings_recover_valid_siblings_only() {
         AppStoreData::default().note_settings.track_height
     );
     assert_eq!(
-        loaded.data.layer_groups["alpha-tab"]
+        loaded.data.legacy().layer_groups["alpha-tab"]
             .iter()
             .map(|group| group.id.as_str())
             .collect::<Vec<_>>(),
         vec!["group-a", "group-c"]
     );
-    assert!(!loaded.data.layer_groups.contains_key("invalid-mode"));
+    assert!(!loaded
+        .data
+        .legacy()
+        .layer_groups
+        .contains_key("invalid-mode"));
     assert_eq!(loaded.data.key_counters["alpha-tab"]["A"], 7);
     assert_eq!(loaded.data.key_counters["alpha-tab"]["B"], 0);
     assert_eq!(loaded.data.key_counters["alpha-tab"]["C"], 9);
@@ -4047,7 +4280,7 @@ fn asset_position_collections_recover_valid_entries_only() {
 
     assert!(loaded.repaired);
     assert!(loaded.needs_persist);
-    let recovered_key_positions = &loaded.data.key_positions["partial-mode"];
+    let recovered_key_positions = &loaded.data.legacy().key_positions["partial-mode"];
     assert_eq!(recovered_key_positions.len(), 4);
     let mut recovered_first = recovered_key_positions[0].clone();
     recovered_first.id.clear();
@@ -4073,19 +4306,35 @@ fn asset_position_collections_recover_valid_entries_only() {
     recovered_default.id.clear();
     assert_eq!(recovered_default, KeyPosition::default());
     assert_eq!(recovered_key_positions[3].width, 60.0);
-    let mut recovered_stat = loaded.data.stat_positions["partial-mode"][0].clone();
+    let mut recovered_stat = loaded.data.legacy().stat_positions["partial-mode"][0].clone();
     recovered_stat.position.id.clear();
     assert_eq!(recovered_stat, stat);
-    let mut recovered_graph = loaded.data.graph_positions["partial-mode"][0].clone();
+    let mut recovered_graph = loaded.data.legacy().graph_positions["partial-mode"][0].clone();
     recovered_graph.position.id.clear();
     assert_eq!(recovered_graph, graph);
-    let mut recovered_knob = loaded.data.knob_positions["partial-mode"][0].clone();
+    let mut recovered_knob = loaded.data.legacy().knob_positions["partial-mode"][0].clone();
     recovered_knob.position.id.clear();
     assert_eq!(recovered_knob, knob);
-    assert!(!loaded.data.key_positions.contains_key("invalid-mode"));
-    assert!(!loaded.data.stat_positions.contains_key("invalid-mode"));
-    assert!(!loaded.data.graph_positions.contains_key("invalid-mode"));
-    assert!(!loaded.data.knob_positions.contains_key("invalid-mode"));
+    assert!(!loaded
+        .data
+        .legacy()
+        .key_positions
+        .contains_key("invalid-mode"));
+    assert!(!loaded
+        .data
+        .legacy()
+        .stat_positions
+        .contains_key("invalid-mode"));
+    assert!(!loaded
+        .data
+        .legacy()
+        .graph_positions
+        .contains_key("invalid-mode"));
+    assert!(!loaded
+        .data
+        .legacy()
+        .knob_positions
+        .contains_key("invalid-mode"));
     assert_eq!(loaded.data.font_settings.custom_fonts, vec![font]);
 }
 
@@ -4105,6 +4354,7 @@ fn sprite_passes_editor_validation(sprite: ReactiveSpritePosition) -> bool {
     let current_store = AppStoreData::default();
     let mut candidate_store = current_store.clone();
     candidate_store
+        .legacy_mut()
         .sprite_positions
         .insert("4key".to_string(), vec![sprite]);
     validate_document_transition(
@@ -4120,10 +4370,16 @@ fn repair_single_sprite_numeric_ranges(
     sprite: ReactiveSpritePosition,
 ) -> (bool, ReactiveSpritePosition) {
     let mut data = AppStoreData::default();
-    data.sprite_positions
+    data.legacy_mut()
+        .sprite_positions
         .insert("4key".to_string(), vec![sprite]);
     let repaired = repair_sprite_numeric_ranges(&mut data);
-    let sprite = data.sprite_positions.remove("4key").unwrap().remove(0);
+    let sprite = data
+        .legacy_mut()
+        .sprite_positions
+        .remove("4key")
+        .unwrap()
+        .remove(0);
     (repaired, sprite)
 }
 
@@ -4311,7 +4567,7 @@ fn sprite_validator_and_repair_ranges_follow_shared_fixture_for_every_numeric_fi
 #[test]
 fn sprite_image_normalization_clears_unrenderable_coupled_metadata() {
     let mut data = AppStoreData::default();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![ReactiveSpritePosition {
             base_image: Some("  ".to_string()),
@@ -4345,7 +4601,7 @@ fn sprite_image_normalization_clears_unrenderable_coupled_metadata() {
     );
 
     assert!(normalize_sprite_triggers(&mut data));
-    let sprite = &data.sprite_positions["4key"][0];
+    let sprite = &data.legacy().sprite_positions["4key"][0];
     assert_eq!(sprite.reference_natural_size.as_ref().unwrap().source, None);
     let poses = &sprite.poses;
     assert_eq!(poses[0].image_override_metrics, None);
@@ -4401,7 +4657,7 @@ fn sprite_numeric_repair_is_component_wise_idempotent_and_preserves_collections(
         "duplicate".to_string(),
     ];
     let mut data = AppStoreData::default();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "repair-mode".to_string(),
         vec![ReactiveSpritePosition {
             id: uuid::Uuid::new_v4().to_string(),
@@ -4441,7 +4697,7 @@ fn sprite_numeric_repair_is_component_wise_idempotent_and_preserves_collections(
     );
 
     assert!(repair_sprite_numeric_ranges(&mut data));
-    let sprite = &data.sprite_positions["repair-mode"][0];
+    let sprite = &data.legacy().sprite_positions["repair-mode"][0];
     assert_eq!((sprite.dx, sprite.dy), (0.0, 0.0));
     assert_eq!((sprite.width, sprite.height), (200.0, 200.0));
     assert_eq!(sprite.pivot, SpriteAnchor { x: 0.5, y: 0.25 });
@@ -4503,7 +4759,7 @@ fn sprite_numeric_repair_marks_load_and_converges_without_collection_loss() {
         .map(|pose| pose.pose_id.clone())
         .collect::<Vec<_>>();
     let mut data = store_with_each_native_collection();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![ReactiveSpritePosition {
             id: uuid::Uuid::from_u128(9_999).to_string(),
@@ -4526,7 +4782,7 @@ fn sprite_numeric_repair_marks_load_and_converges_without_collection_loss() {
     let loaded = load_store_from_path(&path).unwrap();
     assert!(loaded.needs_persist);
     assert!(loaded.repaired);
-    let sprite = &loaded.data.sprite_positions["4key"][0];
+    let sprite = &loaded.data.legacy().sprite_positions["4key"][0];
     assert_eq!(sprite.poses.len(), 65);
     assert_eq!(sprite.poses[0].triggers, triggers);
     assert_eq!(
@@ -4545,9 +4801,14 @@ fn sprite_numeric_repair_marks_load_and_converges_without_collection_loss() {
 
     assert!(!reloaded.needs_persist);
     assert!(!reloaded.repaired);
-    assert_eq!(reloaded.data.sprite_positions["4key"][0].poses.len(), 65);
     assert_eq!(
-        reloaded.data.sprite_positions["4key"][0].poses[0].triggers,
+        reloaded.data.legacy().sprite_positions["4key"][0]
+            .poses
+            .len(),
+        65
+    );
+    assert_eq!(
+        reloaded.data.legacy().sprite_positions["4key"][0].poses[0].triggers,
         triggers
     );
 }
@@ -4561,7 +4822,7 @@ fn sprite_numeric_repair_runs_after_field_level_recovery() {
     let pose_id = uuid::Uuid::new_v4().to_string();
     let triggers = vec![String::new(), uuid::Uuid::new_v4().to_string()];
     let mut data = store_with_each_native_collection();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![ReactiveSpritePosition {
             id: uuid::Uuid::new_v4().to_string(),
@@ -4587,7 +4848,7 @@ fn sprite_numeric_repair_runs_after_field_level_recovery() {
 
     let loaded = load_store_from_path(&path).unwrap();
     let _ = std::fs::remove_file(path);
-    let sprite = &loaded.data.sprite_positions["4key"][0];
+    let sprite = &loaded.data.legacy().sprite_positions["4key"][0];
 
     assert!(loaded.needs_persist);
     assert!(loaded.repaired);
@@ -4604,7 +4865,7 @@ fn store_load_round_trips_sprite_activation_and_ignores_removed_match_mode() {
         uuid::Uuid::new_v4()
     ));
     let mut data = store_with_each_native_collection();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![ReactiveSpritePosition {
             id: uuid::Uuid::new_v4().to_string(),
@@ -4653,7 +4914,7 @@ fn store_load_defaults_missing_sprite_activation_and_duration() {
         uuid::Uuid::new_v4()
     ));
     let mut data = store_with_each_native_collection();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![ReactiveSpritePosition {
             id: uuid::Uuid::new_v4().to_string(),
@@ -4676,7 +4937,7 @@ fn store_load_defaults_missing_sprite_activation_and_duration() {
 
     let loaded = load_store_from_path(&path).unwrap();
     let _ = std::fs::remove_file(path);
-    let sprite = &loaded.data.sprite_positions["4key"][0];
+    let sprite = &loaded.data.legacy().sprite_positions["4key"][0];
 
     assert_eq!(
         serde_json::to_value(sprite.activation).unwrap(),
@@ -4772,11 +5033,12 @@ fn element_rotation_repair_handles_nonfinite_values_and_preserves_boundaries() {
     ] {
         let mut data = normalize_state(store_with_each_native_collection());
         let expected = data.clone();
+        let legacy = data.legacy_mut();
         for position in [
-            &mut data.key_positions.get_mut("4key").unwrap()[0],
-            &mut data.stat_positions.get_mut("4key").unwrap()[0].position,
-            &mut data.graph_positions.get_mut("4key").unwrap()[0].position,
-            &mut data.knob_positions.get_mut("4key").unwrap()[0].position,
+            &mut legacy.key_positions.get_mut("4key").unwrap()[0],
+            &mut legacy.stat_positions.get_mut("4key").unwrap()[0].position,
+            &mut legacy.graph_positions.get_mut("4key").unwrap()[0].position,
+            &mut legacy.knob_positions.get_mut("4key").unwrap()[0].position,
         ] {
             position.rotation = rotation;
         }
@@ -4818,8 +5080,8 @@ fn image_settings_recover_in_place_without_removing_positions() {
 
     assert!(loaded.repaired);
     assert!(loaded.needs_persist);
-    assert_eq!(loaded.data.key_positions["recovery-mode"].len(), 2);
-    let recovered = &loaded.data.key_positions["recovery-mode"][0];
+    assert_eq!(loaded.data.legacy().key_positions["recovery-mode"].len(), 2);
+    let recovered = &loaded.data.legacy().key_positions["recovery-mode"][0];
     assert_eq!(recovered.image_mode, None);
     assert_eq!(
         recovered.idle_image_transform,
@@ -4832,7 +5094,11 @@ fn image_settings_recover_in_place_without_removing_positions() {
     );
 
     let mut data = loaded.data;
-    let transform = data.key_positions.get_mut("recovery-mode").unwrap()[0]
+    let transform = data
+        .legacy_mut()
+        .key_positions
+        .get_mut("recovery-mode")
+        .unwrap()[0]
         .active_image_transform
         .insert(ImageTransform {
             offset_x: 10.0,
@@ -4841,11 +5107,14 @@ fn image_settings_recover_in_place_without_removing_positions() {
             scale: f64::NAN,
         });
     assert!(transform.scale.is_nan());
-    let original_len = data.key_positions["recovery-mode"].len();
+    let original_len = data.legacy().key_positions["recovery-mode"].len();
     assert!(repair_native_position_ranges(&mut data));
-    assert_eq!(data.key_positions["recovery-mode"].len(), original_len);
     assert_eq!(
-        data.key_positions["recovery-mode"][0].active_image_transform,
+        data.legacy().key_positions["recovery-mode"].len(),
+        original_len
+    );
+    assert_eq!(
+        data.legacy().key_positions["recovery-mode"][0].active_image_transform,
         Some(ImageTransform {
             offset_x: 10.0,
             offset_y: 20.0,
@@ -5007,7 +5276,7 @@ fn sprite_image_migration_rewrites_coupled_metric_sources() {
     let base_source = base_path.to_string_lossy().into_owned();
     let override_source = override_path.to_string_lossy().into_owned();
     let mut data = AppStoreData::default();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![ReactiveSpritePosition {
             base_image: Some(base_source.clone()),
@@ -5031,7 +5300,7 @@ fn sprite_image_migration_rewrites_coupled_metric_sources() {
 
     assert!(migrate_key_images_to_app_data(&app_data_dir, &mut data));
 
-    let sprite = &data.sprite_positions["4key"][0];
+    let sprite = &data.legacy().sprite_positions["4key"][0];
     let migrated_base = sprite.base_image.as_deref().unwrap();
     let migrated_override = sprite.poses[0].image_override.as_deref().unwrap();
     assert_ne!(migrated_base, base_source);
@@ -5073,7 +5342,7 @@ fn sprite_rehome_rewrites_coupled_metric_sources() {
     let foreign_override =
         r"C:\Users\me\AppData\Roaming\com.dmnote.desktop\images\override.png".to_string();
     let mut data = AppStoreData::default();
-    data.sprite_positions.insert(
+    data.legacy_mut().sprite_positions.insert(
         "4key".to_string(),
         vec![ReactiveSpritePosition {
             base_image: Some(foreign_base.clone()),
@@ -5097,7 +5366,7 @@ fn sprite_rehome_rewrites_coupled_metric_sources() {
 
     assert!(rehome_foreign_asset_references(&dir, &mut data));
 
-    let sprite = &data.sprite_positions["4key"][0];
+    let sprite = &data.legacy().sprite_positions["4key"][0];
     assert_eq!(
         sprite.base_image.as_deref(),
         Some(images_dir.join("base.png").to_string_lossy().as_ref())
@@ -5143,10 +5412,11 @@ fn cross_platform_asset_forms_rehome_to_existing_local_files() {
         .zip(["normal.wav", "verbatim.wav", "unc.wav", "url.wav"])
     {
         let mut data = data_with_one_position();
-        data.key_positions.get_mut("4key").unwrap()[0].sound_path = Some(raw.to_string());
+        data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].sound_path =
+            Some(raw.to_string());
         assert!(rehome_foreign_asset_references(&dir, &mut data));
         assert_eq!(
-            data.key_positions["4key"][0].sound_path.as_deref(),
+            data.legacy().key_positions["4key"][0].sound_path.as_deref(),
             Some(sounds_dir.join(name).to_string_lossy().as_ref())
         );
     }
@@ -5166,10 +5436,11 @@ fn missing_external_and_traversal_asset_references_remain_unchanged() {
         r"C:\Users\me\com.dmnote.desktop\sounds\..",
     ] {
         let mut data = data_with_one_position();
-        data.key_positions.get_mut("4key").unwrap()[0].sound_path = Some(raw.to_string());
+        data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].sound_path =
+            Some(raw.to_string());
         assert!(!rehome_foreign_asset_references(&dir, &mut data));
         assert_eq!(
-            data.key_positions["4key"][0].sound_path.as_deref(),
+            data.legacy().key_positions["4key"][0].sound_path.as_deref(),
             Some(raw)
         );
     }
@@ -5186,12 +5457,16 @@ fn normalized_unicode_file_name_rehomes_only_on_unique_match() {
     let actual_path = images_dir.join(&nfd_name);
     std::fs::write(&actual_path, b"image").unwrap();
     let mut data = data_with_one_position();
-    data.key_positions.get_mut("4key").unwrap()[0].active_image =
+    data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].active_image =
         Some(format!(r"C:\Users\me\com.dmnote.desktop\images\{nfc_name}"));
 
     assert!(rehome_foreign_asset_references(&dir, &mut data));
-    let rehomed =
-        std::path::PathBuf::from(data.key_positions["4key"][0].active_image.as_ref().unwrap());
+    let rehomed = std::path::PathBuf::from(
+        data.legacy().key_positions["4key"][0]
+            .active_image
+            .as_ref()
+            .unwrap(),
+    );
     assert!(rehomed.is_file());
     assert_eq!(
         rehomed
@@ -5405,14 +5680,14 @@ fn 플러그인_인스턴스_버킷은_처음_불러올_때_트리로_한_번_�
         .data
         .plugin_data
         .contains_key("plugin_data_alpha/instances"));
-    let element = loaded.data.element_document.scenes["4key"]
+    let element = loaded.data.element_document().scenes["4key"]
         .element(&format!("alpha::{id}"))
         .unwrap();
     assert_eq!(element.kind, "plugin:alpha");
     assert_eq!(element.frame.x, 7.0);
     assert!(loaded
         .data
-        .element_document
+        .element_document()
         .extra
         .contains_key("pluginInstancesImported"));
 

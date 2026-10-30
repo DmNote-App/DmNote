@@ -213,7 +213,7 @@ impl AppStore {
                 }
                 HistorySnapshot::ElementTree(before) => {
                     let current_snapshot = super::element_tree::element_tree_snapshot(
-                        &current_store.element_document,
+                        current_store.element_document(),
                         before.scenes.keys(),
                     );
                     if current_snapshot == before {
@@ -225,12 +225,13 @@ impl AppStore {
                             .prepare_element_tree_entry(current_snapshot, None)?,
                     )?;
                     let mut scratch = current_store;
-                    scratch.element_document =
-                        std::sync::Arc::new(super::element_tree::restore_element_tree(
-                            &scratch.element_document,
+                    scratch.set_element_document(std::sync::Arc::new(
+                        super::element_tree::restore_element_tree(
+                            scratch.element_document(),
                             &before,
                             false,
-                        ));
+                        ),
+                    ));
                     self.commit_locked(&mut guard, scratch, ())
                         .map_err(|error| error.to_string())?;
                     (opposite, None, None)
@@ -257,7 +258,7 @@ impl AppStore {
                             HistorySnapshot::ElementTree(before) => {
                                 opposite_snapshots.push(HistorySnapshot::ElementTree(
                                     super::element_tree::element_tree_snapshot(
-                                        &current_store.element_document,
+                                        current_store.element_document(),
                                         before.scenes.keys(),
                                     ),
                                 ));
@@ -413,16 +414,17 @@ impl AppStore {
         let mut element_tree_changed = false;
         if let Some(target) = element_tree_target {
             let current = super::element_tree::element_tree_snapshot(
-                &scratch.element_document,
+                scratch.element_document(),
                 target.scenes.keys(),
             );
             if current != *target {
-                scratch.element_document =
-                    std::sync::Arc::new(super::element_tree::restore_element_tree(
-                        &scratch.element_document,
+                scratch.set_element_document(std::sync::Arc::new(
+                    super::element_tree::restore_element_tree(
+                        scratch.element_document(),
                         target,
                         false,
-                    ));
+                    ),
+                ));
                 element_tree_changed = true;
             }
         }
@@ -540,11 +542,11 @@ impl AppStore {
             &target.document.keys,
         );
         target.apply_override_patches(&mut scratch);
-        scratch.element_document = Arc::new(super::element_tree::restore_element_tree(
-            &scratch.element_document,
+        scratch.set_element_document(Arc::new(super::element_tree::restore_element_tree(
+            scratch.element_document(),
             &target.element_tree,
             true,
-        ));
+        )));
         crate::state::migration::canonicalize_gradient_pairs(&mut scratch);
         crate::state::migration::canonicalize_image_modes(&mut scratch);
         crate::state::migration::normalize_sprite_triggers(&mut scratch);
@@ -653,16 +655,16 @@ impl AppStore {
         .map_err(crate::services::settings::settings_patch_validation_error)?;
         // 옛 요소 id 세대가 달라 지금 장면에 끼울 수 없으므로 되돌릴 옛 모양에서 장면을 새로
         // 만들고 기록한 트리 전용 노드를 끼운다
-        scratch.element_document = Arc::new(
+        scratch.set_element_document(Arc::new(
             super::element_tree::restore_scenes_from_legacy(
-                &scratch.element_document,
+                scratch.element_document(),
                 &target.element_tree,
                 &target.document,
             )
             .map_err(|error| {
                 EditorCommitError::validation("INVALID_HISTORY_TREE", error.to_string())
             })?,
-        );
+        ));
         crate::state::migration::canonicalize_gradient_pairs(&mut scratch);
         crate::state::migration::canonicalize_image_modes(&mut scratch);
         crate::state::migration::normalize_sprite_triggers(&mut scratch);

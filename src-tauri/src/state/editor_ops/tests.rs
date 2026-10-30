@@ -107,13 +107,15 @@ fn sprite_resize_scale_math_matches_shared_fixture_bits() {
 
 fn base_store() -> AppStoreData {
     let mut store = AppStoreData {
-        keys: default_keys().clone(),
-        key_positions: default_keys()
+        ..AppStoreData::default()
+    }
+    .with_legacy(|legacy| {
+        legacy.keys = default_keys().clone();
+        legacy.key_positions = default_keys()
             .iter()
             .map(|(mode, keys)| (mode.clone(), vec![KeyPosition::default(); keys.len()]))
-            .collect(),
-        ..AppStoreData::default()
-    };
+            .collect();
+    });
     store.edit_legacy(backfill_store_element_ids);
     store
 }
@@ -121,6 +123,7 @@ fn base_store() -> AppStoreData {
 fn store_with_sprite() -> AppStoreData {
     let mut store = base_store();
     store
+        .legacy_mut()
         .sprite_positions
         .insert("4key".to_string(), vec![ReactiveSpritePosition::default()]);
     store.edit_legacy(backfill_store_element_ids);
@@ -149,7 +152,7 @@ fn insert_op(store: &AppStoreData) -> EditorOpV1 {
         }],
         z_updates: vec![EditorZUpdateV1 {
             element_type: EditorElementTypeV1::Key,
-            id: store.key_positions["4key"][0].id.clone(),
+            id: store.legacy().key_positions["4key"][0].id.clone(),
             z_index: 1,
         }],
     }
@@ -157,14 +160,14 @@ fn insert_op(store: &AppStoreData) -> EditorOpV1 {
 
 fn store_with_every_reorder_type() -> AppStoreData {
     let mut store = base_store();
-    store.stat_positions.insert(
+    store.legacy_mut().stat_positions.insert(
         "4key".to_string(),
         vec![StatPosition {
             stat_type: StatType::Kps,
             position: KeyPosition::default(),
         }],
     );
-    store.graph_positions.insert(
+    store.legacy_mut().graph_positions.insert(
         "4key".to_string(),
         vec![GraphPosition {
             stat_type: GraphStatType::Kps,
@@ -175,7 +178,7 @@ fn store_with_every_reorder_type() -> AppStoreData {
             position: KeyPosition::default(),
         }],
     );
-    store.knob_positions.insert(
+    store.legacy_mut().knob_positions.insert(
         "4key".to_string(),
         vec![KnobPosition {
             axis_id: "axis".to_string(),
@@ -185,6 +188,7 @@ fn store_with_every_reorder_type() -> AppStoreData {
         }],
     );
     store
+        .legacy_mut()
         .sprite_positions
         .insert("4key".to_string(), vec![ReactiveSpritePosition::default()]);
     store.edit_legacy(backfill_store_element_ids);
@@ -196,35 +200,35 @@ fn complete_reorder_op(store: &AppStoreData) -> EditorOpV1 {
     for (element_type, ids) in [
         (
             EditorElementTypeV1::Key,
-            store.key_positions["4key"]
+            store.legacy().key_positions["4key"]
                 .iter()
                 .map(|position| position.id.clone())
                 .collect::<Vec<_>>(),
         ),
         (
             EditorElementTypeV1::Stat,
-            store.stat_positions["4key"]
+            store.legacy().stat_positions["4key"]
                 .iter()
                 .map(|position| position.position.id.clone())
                 .collect(),
         ),
         (
             EditorElementTypeV1::Graph,
-            store.graph_positions["4key"]
+            store.legacy().graph_positions["4key"]
                 .iter()
                 .map(|position| position.position.id.clone())
                 .collect(),
         ),
         (
             EditorElementTypeV1::Knob,
-            store.knob_positions["4key"]
+            store.legacy().knob_positions["4key"]
                 .iter()
                 .map(|position| position.position.id.clone())
                 .collect(),
         ),
         (
             EditorElementTypeV1::Sprite,
-            store.sprite_positions["4key"]
+            store.legacy().sprite_positions["4key"]
                 .iter()
                 .map(|position| position.id.clone())
                 .collect(),
@@ -427,7 +431,7 @@ fn property_patch_validation_precedence_and_synced_note_noop_are_stable() {
         &[
             patch_property_op(
                 EditorElementTypeV1::Key,
-                &store.key_positions["4key"][0].id,
+                &store.legacy().key_positions["4key"][0].id,
                 EditorElementPropertyPatchV1::Hidden(true),
             ),
             patch_property_op(
@@ -446,8 +450,12 @@ fn property_patch_validation_precedence_and_synced_note_noop_are_stable() {
     assert_eq!(store, original);
 
     let mut synced_store = base_store();
-    let id = synced_store.key_positions["4key"][0].id.clone();
-    let position = &mut synced_store.key_positions.get_mut("4key").unwrap()[0];
+    let id = synced_store.legacy().key_positions["4key"][0].id.clone();
+    let position = &mut synced_store
+        .legacy_mut()
+        .key_positions
+        .get_mut("4key")
+        .unwrap()[0];
     position.note_color = NoteColor::Solid("same-note".to_string());
     position.note_gradient = None;
     position.note_glow_sync_paint = true;
@@ -811,11 +819,14 @@ fn patch_target_type_matrix() -> Vec<PatchTargetMatrixRow> {
 fn patch_target_type_matrix_pins_all_variant_constraints() {
     let store = store_with_every_reorder_type();
     let target_id = |element_type: EditorElementTypeV1| match element_type {
-        EditorElementTypeV1::Key => store.key_positions["4key"][0].id.clone(),
-        EditorElementTypeV1::Stat => store.stat_positions["4key"][0].position.id.clone(),
-        EditorElementTypeV1::Graph => store.graph_positions["4key"][0].position.id.clone(),
-        EditorElementTypeV1::Knob => store.knob_positions["4key"][0].position.id.clone(),
-        EditorElementTypeV1::Sprite => store.sprite_positions["4key"][0].id.clone(),
+        EditorElementTypeV1::Key => store.legacy().key_positions["4key"][0].id.clone(),
+        EditorElementTypeV1::Stat => store.legacy().stat_positions["4key"][0].position.id.clone(),
+        EditorElementTypeV1::Graph => store.legacy().graph_positions["4key"][0]
+            .position
+            .id
+            .clone(),
+        EditorElementTypeV1::Knob => store.legacy().knob_positions["4key"][0].position.id.clone(),
+        EditorElementTypeV1::Sprite => store.legacy().sprite_positions["4key"][0].id.clone(),
     };
     let rows = patch_target_type_matrix();
 
@@ -894,7 +905,7 @@ fn patch_target_type_matrix_pins_all_variant_constraints() {
 #[test]
 fn sprite_patch_element_allows_only_generic_properties() {
     let mut store = store_with_sprite();
-    let sprite_id = store.sprite_positions["4key"][0].id.clone();
+    let sprite_id = store.legacy().sprite_positions["4key"][0].id.clone();
     for patch in [
         EditorElementPropertyPatchV1::Hidden(true),
         EditorElementPropertyPatchV1::LayerName(Some("sprite layer".to_string())),
@@ -918,7 +929,7 @@ fn sprite_patch_element_allows_only_generic_properties() {
         store = transition.scratch;
     }
 
-    let sprite = &store.sprite_positions["4key"][0];
+    let sprite = &store.legacy().sprite_positions["4key"][0];
     assert!(sprite.hidden);
     assert_eq!(sprite.layer_name.as_deref(), Some("sprite layer"));
     assert_eq!(sprite.class_name.as_deref(), Some("sprite-class"));
@@ -976,7 +987,7 @@ fn resize_sprite_wire_uses_only_kind_id_and_bounds() {
 #[test]
 fn resize_sprite_scales_uniform_and_nonuniform_content() {
     let mut store = store_with_sprite();
-    let position = &mut store.sprite_positions.get_mut("4key").unwrap()[0];
+    let position = &mut store.legacy_mut().sprite_positions.get_mut("4key").unwrap()[0];
     position.dx = 10.0;
     position.dy = 20.0;
     position.width = 200.0;
@@ -1061,7 +1072,7 @@ fn resize_sprite_scales_uniform_and_nonuniform_content() {
 #[test]
 fn resize_sprite_clamps_scaled_offsets_at_contract_boundaries() {
     let mut store = store_with_sprite();
-    let position = &mut store.sprite_positions.get_mut("4key").unwrap()[0];
+    let position = &mut store.legacy_mut().sprite_positions.get_mut("4key").unwrap()[0];
     position.width = 1.0;
     position.height = 1.0;
     position.idle_transform = SpriteTransform {
@@ -1179,7 +1190,7 @@ fn resize_sprite_preserves_pivot_image_metadata() {
 #[test]
 fn resize_sprite_reports_missing_and_no_change_with_bounds_contract() {
     let store = store_with_sprite();
-    let position = &store.sprite_positions["4key"][0];
+    let position = &store.legacy().sprite_positions["4key"][0];
     let current_bounds = sprite_bounds(position);
     let current_document = EditorDocumentV1::from_store(&store);
 
@@ -1243,7 +1254,7 @@ fn missing_bounds_targets_still_reject_invalid_bounds() {
 #[test]
 fn sequential_sprite_resizes_use_candidate_bounds_for_each_ratio() {
     let mut store = store_with_sprite();
-    let position = &mut store.sprite_positions.get_mut("4key").unwrap()[0];
+    let position = &mut store.legacy_mut().sprite_positions.get_mut("4key").unwrap()[0];
     position.width = 200.0;
     position.height = 100.0;
     position.idle_transform = SpriteTransform {
@@ -1311,8 +1322,8 @@ fn sequential_sprite_resizes_use_candidate_bounds_for_each_ratio() {
 fn resize_sprite_type_mismatch_rejects_the_whole_mixed_batch() {
     let store = base_store();
     let before = store.clone();
-    let first_id = store.key_positions["4key"][0].id.clone();
-    let second_id = store.key_positions["4key"][1].id.clone();
+    let first_id = store.legacy().key_positions["4key"][0].id.clone();
+    let second_id = store.legacy().key_positions["4key"][1].id.clone();
     let error = prepare_editor_ops_transition(
         &store,
         &[
@@ -1345,7 +1356,7 @@ fn resize_sprite_type_mismatch_rejects_the_whole_mixed_batch() {
 #[test]
 fn sprite_set_bounds_updates_activity_bounds() {
     let store = store_with_sprite();
-    let sprite_id = store.sprite_positions["4key"][0].id.clone();
+    let sprite_id = store.legacy().sprite_positions["4key"][0].id.clone();
     let bounds = EditorBoundsV1 {
         dx: 24.0,
         dy: -12.0,
@@ -1372,9 +1383,10 @@ fn sprite_set_bounds_updates_activity_bounds() {
 #[test]
 fn sprite_delete_element_removes_sprite_and_its_empty_group() {
     let mut store = store_with_sprite();
-    let sprite_id = store.sprite_positions["4key"][0].id.clone();
-    store.sprite_positions.get_mut("4key").unwrap()[0].group_id = Some("sprite-group".to_string());
-    store.layer_groups.insert(
+    let sprite_id = store.legacy().sprite_positions["4key"][0].id.clone();
+    store.legacy_mut().sprite_positions.get_mut("4key").unwrap()[0].group_id =
+        Some("sprite-group".to_string());
+    store.legacy_mut().layer_groups.insert(
         "4key".to_string(),
         vec![LayerGroupDef {
             id: "sprite-group".to_string(),
@@ -1402,7 +1414,7 @@ fn sprite_delete_element_removes_sprite_and_its_empty_group() {
 #[test]
 fn sprite_reorder_elements_updates_z_index() {
     let store = store_with_sprite();
-    let sprite_id = store.sprite_positions["4key"][0].id.clone();
+    let sprite_id = store.legacy().sprite_positions["4key"][0].id.clone();
     let transition = prepare_editor_ops_transition(
         &store,
         &[EditorOpV1::ReorderElements {
@@ -1431,7 +1443,7 @@ fn sprite_reorder_elements_updates_z_index() {
 #[test]
 fn sprite_set_element_groups_creates_and_assigns_group() {
     let store = store_with_sprite();
-    let sprite_id = store.sprite_positions["4key"][0].id.clone();
+    let sprite_id = store.legacy().sprite_positions["4key"][0].id.clone();
     let transition = prepare_editor_ops_transition(
         &store,
         &[EditorOpV1::SetElementGroups {
@@ -1469,7 +1481,7 @@ fn sprite_insert_frozen_elements_inserts_and_replays_idempotently() {
         id: sprite_id.clone(),
         poses: vec![SpritePose {
             pose_id: uuid::Uuid::new_v4().to_string(),
-            triggers: vec![store.key_positions["4key"][0].id.clone()],
+            triggers: vec![store.legacy().key_positions["4key"][0].id.clone()],
             ..SpritePose::default()
         }],
         ..ReactiveSpritePosition::default()
@@ -1507,7 +1519,7 @@ fn sprite_insert_frozen_elements_rejects_invalid_pose_id() {
         id: uuid::Uuid::new_v4().to_string(),
         poses: vec![SpritePose {
             pose_id: "not-a-uuid".to_string(),
-            triggers: vec![store.key_positions["4key"][0].id.clone()],
+            triggers: vec![store.legacy().key_positions["4key"][0].id.clone()],
             ..SpritePose::default()
         }],
         ..ReactiveSpritePosition::default()
@@ -1528,16 +1540,16 @@ fn sprite_insert_frozen_elements_rejects_invalid_pose_id() {
 fn sprite_insert_frozen_elements_rejects_cross_mode_duplicate_pose_id() {
     let mut store = store_with_sprite();
     let duplicate_pose_id = uuid::Uuid::new_v4().to_string();
-    store.sprite_positions.get_mut("4key").unwrap()[0].poses = vec![SpritePose {
+    store.legacy_mut().sprite_positions.get_mut("4key").unwrap()[0].poses = vec![SpritePose {
         pose_id: duplicate_pose_id.clone(),
-        triggers: vec![store.key_positions["4key"][0].id.clone()],
+        triggers: vec![store.legacy().key_positions["4key"][0].id.clone()],
         ..SpritePose::default()
     }];
     let sprite = ReactiveSpritePosition {
         id: uuid::Uuid::new_v4().to_string(),
         poses: vec![SpritePose {
             pose_id: duplicate_pose_id,
-            triggers: vec![store.key_positions["5key"][0].id.clone()],
+            triggers: vec![store.legacy().key_positions["5key"][0].id.clone()],
             ..SpritePose::default()
         }],
         ..ReactiveSpritePosition::default()
@@ -1558,7 +1570,7 @@ fn sprite_insert_frozen_elements_rejects_cross_mode_duplicate_pose_id() {
 fn frozen_insert_appends_key_pair_group_and_existing_z_as_one_transition() {
     let store = base_store();
     let op = insert_op(&store);
-    let before_len = store.key_positions["4key"].len();
+    let before_len = store.legacy().key_positions["4key"].len();
 
     let transition = prepare_editor_ops_transition(&store, std::slice::from_ref(&op)).unwrap();
 
@@ -1614,7 +1626,7 @@ fn frozen_insert_group_needs_a_native_or_plugin_member() {
         }],
         z_updates: vec![EditorZUpdateV1 {
             element_type: EditorElementTypeV1::Key,
-            id: store.key_positions["4key"][0].id.clone(),
+            id: store.legacy().key_positions["4key"][0].id.clone(),
             z_index: 1,
         }],
     };
@@ -1657,6 +1669,7 @@ fn frozen_insert_rejects_partial_or_different_existing_plan() {
         .unwrap()
         .scratch;
     partial
+        .legacy_mut()
         .key_positions
         .get_mut("4key")
         .unwrap()
@@ -1666,7 +1679,10 @@ fn frozen_insert_rejects_partial_or_different_existing_plan() {
 
     let error = prepare_editor_ops_transition(&partial, &[op]).unwrap_err();
     assert_eq!(validation_code(&error), Some("FROZEN_INSERT_CONFLICT"));
-    assert_eq!(partial.key_positions["4key"].last().unwrap().width, 91.0);
+    assert_eq!(
+        partial.legacy().key_positions["4key"].last().unwrap().width,
+        91.0
+    );
 }
 
 #[test]
@@ -1731,7 +1747,7 @@ fn frozen_insert_appends_every_native_element_kind() {
 #[test]
 fn frozen_insert_rejects_preexisting_group_as_partial_plan() {
     let mut store = base_store();
-    store.layer_groups.insert(
+    store.legacy_mut().layer_groups.insert(
         "4key".to_string(),
         vec![LayerGroupDef {
             id: "frozen-group".to_string(),
@@ -1784,7 +1800,7 @@ fn frozen_insert_z_targets_are_exact_existing_type_and_mode() {
 fn frozen_insert_does_not_repair_a_malformed_key_pair() {
     let mut store = base_store();
     let op = insert_op(&store);
-    store.keys.remove("4key");
+    store.legacy_mut().keys.remove("4key");
     let before = store.clone();
 
     let error = prepare_editor_ops_transition(&store, &[op]).unwrap_err();
@@ -1798,7 +1814,7 @@ fn frozen_insert_does_not_repair_a_malformed_key_pair() {
 #[test]
 fn frozen_insert_z_only_exact_plan_is_no_change() {
     let store = base_store();
-    let target = &store.key_positions["4key"][0];
+    let target = &store.legacy().key_positions["4key"][0];
     let op = EditorOpV1::InsertFrozenElements {
         mode: "4key".to_string(),
         elements: Vec::new(),
@@ -1820,11 +1836,12 @@ fn frozen_insert_z_only_exact_plan_is_no_change() {
 #[test]
 fn complete_reorder_updates_every_native_type_and_cleans_empty_groups() {
     let mut store = store_with_every_reorder_type();
-    let keys_before = store.keys.clone();
-    let target_id = store.key_positions["4key"][0].id.clone();
-    let reassigned_id = store.key_positions["4key"][1].id.clone();
-    store.key_positions.get_mut("4key").unwrap()[0].group_id = Some("source-group".to_string());
-    store.layer_groups.insert(
+    let keys_before = store.legacy().keys.clone();
+    let target_id = store.legacy().key_positions["4key"][0].id.clone();
+    let reassigned_id = store.legacy().key_positions["4key"][1].id.clone();
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].group_id =
+        Some("source-group".to_string());
+    store.legacy_mut().layer_groups.insert(
         "4key".to_string(),
         vec![
             LayerGroupDef {
@@ -1896,23 +1913,28 @@ fn complete_reorder_updates_every_native_type_and_cleans_empty_groups() {
 #[test]
 fn group_structural_transition_is_frozen_atomic_and_cleans_only_empty_definitions() {
     let mut store = store_with_every_reorder_type();
-    let key_id = store.key_positions["4key"][0].id.clone();
-    let newcomer_id = store.key_positions["4key"][1].id.clone();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
-    let graph_id = store.graph_positions["4key"][0].position.id.clone();
-    let knob_id = store.knob_positions["4key"][0].position.id.clone();
-    store.key_positions.get_mut("4key").unwrap()[0].group_id = Some("source-group".to_string());
-    store.key_positions.get_mut("4key").unwrap()[1].group_id = Some("source-group".to_string());
-    store.stat_positions.get_mut("4key").unwrap()[0]
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    let newcomer_id = store.legacy().key_positions["4key"][1].id.clone();
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
+    let graph_id = store.legacy().graph_positions["4key"][0]
+        .position
+        .id
+        .clone();
+    let knob_id = store.legacy().knob_positions["4key"][0].position.id.clone();
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].group_id =
+        Some("source-group".to_string());
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[1].group_id =
+        Some("source-group".to_string());
+    store.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
         .position
         .group_id = Some("source-group".to_string());
-    store.graph_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().graph_positions.get_mut("4key").unwrap()[0]
         .position
         .group_id = Some("source-group".to_string());
-    store.knob_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().knob_positions.get_mut("4key").unwrap()[0]
         .position
         .group_id = Some("source-group".to_string());
-    store.layer_groups.insert(
+    store.legacy_mut().layer_groups.insert(
         "4key".to_string(),
         vec![
             LayerGroupDef {
@@ -2032,6 +2054,7 @@ fn group_structural_transition_is_frozen_atomic_and_cleans_only_empty_definition
 
     let mut cleanup_store = transition.scratch.clone();
     cleanup_store
+        .legacy_mut()
         .layer_groups
         .get_mut("4key")
         .unwrap()
@@ -2080,9 +2103,10 @@ fn group_structural_transition_is_frozen_atomic_and_cleans_only_empty_definition
 #[test]
 fn group_structural_transition_rejects_conflicts_and_reports_missing_atomically() {
     let mut store = store_with_every_reorder_type();
-    let key_id = store.key_positions["4key"][0].id.clone();
-    store.key_positions.get_mut("4key").unwrap()[0].group_id = Some("existing-group".to_string());
-    store.layer_groups.insert(
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].group_id =
+        Some("existing-group".to_string());
+    store.legacy_mut().layer_groups.insert(
         "4key".to_string(),
         vec![LayerGroupDef {
             id: "existing-group".to_string(),
@@ -2168,14 +2192,14 @@ fn group_structural_transition_rejects_conflicts_and_reports_missing_atomically(
 #[test]
 fn rename_layer_group_is_mode_scoped_raw_and_reports_missing() {
     let mut store = store_with_every_reorder_type();
-    store.layer_groups.insert(
+    store.legacy_mut().layer_groups.insert(
         "4key".to_string(),
         vec![LayerGroupDef {
             id: "legacy group".to_string(),
             name: "Old".to_string(),
         }],
     );
-    store.layer_groups.insert(
+    store.legacy_mut().layer_groups.insert(
         "5key".to_string(),
         vec![LayerGroupDef {
             id: "legacy group".to_string(),
@@ -2221,9 +2245,9 @@ fn rename_layer_group_is_mode_scoped_raw_and_reports_missing() {
 #[test]
 fn partial_reorder_preserves_groups_and_treats_raw_z_storage_as_state() {
     let mut store = base_store();
-    let id = store.key_positions["4key"][0].id.clone();
-    store.key_positions.get_mut("4key").unwrap()[0].z_index = None;
-    store.layer_groups.insert(
+    let id = store.legacy().key_positions["4key"][0].id.clone();
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].z_index = None;
+    store.legacy_mut().layer_groups.insert(
         "4key".to_string(),
         vec![LayerGroupDef {
             id: "empty-group".to_string(),
@@ -2247,7 +2271,7 @@ fn partial_reorder_preserves_groups_and_treats_raw_z_storage_as_state() {
         EditorOpResultStatusV1::Applied
     );
     assert_eq!(applied.candidate.key_positions["4key"][0].z_index, Some(0));
-    assert_eq!(applied.candidate.layer_groups, store.layer_groups);
+    assert_eq!(applied.candidate.layer_groups, store.legacy().layer_groups);
 
     let replay =
         prepare_editor_ops_transition(&applied.scratch, std::slice::from_ref(&op)).unwrap();
@@ -2261,7 +2285,7 @@ fn partial_reorder_preserves_groups_and_treats_raw_z_storage_as_state() {
 #[test]
 fn reorder_rejects_incomplete_missing_wrong_mode_type_and_group_atomically() {
     let mut store = store_with_every_reorder_type();
-    store.layer_groups.insert(
+    store.legacy_mut().layer_groups.insert(
         "4key".to_string(),
         vec![LayerGroupDef {
             id: "known-group".to_string(),
@@ -2335,7 +2359,7 @@ fn reorder_rejects_incomplete_missing_wrong_mode_type_and_group_atomically() {
 #[test]
 fn reorder_does_not_repair_a_malformed_key_pair() {
     let mut store = base_store();
-    let id = store.key_positions["4key"][0].id.clone();
+    let id = store.legacy().key_positions["4key"][0].id.clone();
     let op = EditorOpV1::ReorderElements {
         mode: "4key".to_string(),
         complete_mode_order: false,
@@ -2346,7 +2370,7 @@ fn reorder_does_not_repair_a_malformed_key_pair() {
         }],
         group_updates: Vec::new(),
     };
-    store.keys.remove("4key");
+    store.legacy_mut().keys.remove("4key");
     let before = store.clone();
 
     let error = prepare_editor_ops_transition(&store, &[op]).unwrap_err();
@@ -2360,10 +2384,13 @@ fn reorder_does_not_repair_a_malformed_key_pair() {
 #[test]
 fn property_patches_apply_all_native_types_in_order_and_skip_missing_targets() {
     let store = store_with_every_reorder_type();
-    let key_id = store.key_positions["4key"][0].id.clone();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
-    let graph_id = store.graph_positions["4key"][0].position.id.clone();
-    let knob_id = store.knob_positions["4key"][0].position.id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
+    let graph_id = store.legacy().graph_positions["4key"][0]
+        .position
+        .id
+        .clone();
+    let knob_id = store.legacy().knob_positions["4key"][0].position.id.clone();
     let missing_id = uuid::Uuid::new_v4().to_string();
     let ops = vec![
         patch_hidden_op(EditorElementTypeV1::Key, key_id, true),
@@ -2435,10 +2462,13 @@ fn property_patches_apply_all_native_types_in_order_and_skip_missing_targets() {
 #[test]
 fn layer_name_patches_apply_exact_values_and_clear_without_touching_other_fields() {
     let store = store_with_every_reorder_type();
-    let key_id = store.key_positions["4key"][0].id.clone();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
-    let graph_id = store.graph_positions["4key"][0].position.id.clone();
-    let knob_id = store.knob_positions["4key"][0].position.id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
+    let graph_id = store.legacy().graph_positions["4key"][0]
+        .position
+        .id
+        .clone();
+    let knob_id = store.legacy().knob_positions["4key"][0].position.id.clone();
     let missing_id = uuid::Uuid::new_v4().to_string();
     let already_clear = prepare_editor_ops_transition(
         &store,
@@ -2533,7 +2563,7 @@ fn layer_name_patches_apply_exact_values_and_clear_without_touching_other_fields
 #[test]
 fn graph_type_patch_is_graph_only_and_preserves_other_graph_fields() {
     let store = store_with_every_reorder_type();
-    let graph = &store.graph_positions["4key"][0];
+    let graph = &store.legacy().graph_positions["4key"][0];
     let graph_id = graph.position.id.clone();
     let missing_id = uuid::Uuid::new_v4().to_string();
     let ops = [
@@ -2569,7 +2599,7 @@ fn graph_type_patch_is_graph_only_and_preserves_other_graph_fields() {
         EditorOpResultStatusV1::NoChange
     );
 
-    let key_id = store.key_positions["4key"][0].id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
     let error = prepare_editor_ops_transition(
         &store,
         &[
@@ -2584,7 +2614,7 @@ fn graph_type_patch_is_graph_only_and_preserves_other_graph_fields() {
 #[test]
 fn graph_color_patch_preserves_raw_string_and_other_graph_fields() {
     let store = store_with_every_reorder_type();
-    let graph = &store.graph_positions["4key"][0];
+    let graph = &store.legacy().graph_positions["4key"][0];
     let graph_id = graph.position.id.clone();
     let raw_color = "color(display-p3 1 0 0 / 0.5)";
     let ops = [
@@ -2624,7 +2654,7 @@ fn graph_color_patch_preserves_raw_string_and_other_graph_fields() {
         EditorOpResultStatusV1::NoChange
     );
 
-    let key_id = store.key_positions["4key"][0].id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
     let error = prepare_editor_ops_transition(
         &store,
         &[
@@ -2639,15 +2669,15 @@ fn graph_color_patch_preserves_raw_string_and_other_graph_fields() {
 #[test]
 fn graph_and_knob_literal_patches_are_typed_leaf_intents() {
     let mut store = store_with_every_reorder_type();
-    let graph_template = store.graph_positions["4key"][0].clone();
-    let knob_template = store.knob_positions["4key"][0].clone();
+    let graph_template = store.legacy().graph_positions["4key"][0].clone();
+    let knob_template = store.legacy().knob_positions["4key"][0].clone();
     let graph_ids = (0..3)
         .map(|_| uuid::Uuid::new_v4().to_string())
         .collect::<Vec<_>>();
     let knob_ids = (0..3)
         .map(|_| uuid::Uuid::new_v4().to_string())
         .collect::<Vec<_>>();
-    store.graph_positions.insert(
+    store.legacy_mut().graph_positions.insert(
         "4key".to_string(),
         graph_ids
             .iter()
@@ -2661,7 +2691,7 @@ fn graph_and_knob_literal_patches_are_typed_leaf_intents() {
             })
             .collect(),
     );
-    store.knob_positions.insert(
+    store.legacy_mut().knob_positions.insert(
         "4key".to_string(),
         knob_ids
             .iter()
@@ -2768,7 +2798,7 @@ fn graph_and_knob_literal_patches_are_typed_leaf_intents() {
         ]
     );
 
-    let key_id = store.key_positions["4key"][0].id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
     for patch in [
         EditorElementPropertyPatchV1::ShowAvgLine(false),
         EditorElementPropertyPatchV1::GraphAnimationEnabled(false),
@@ -2800,32 +2830,35 @@ fn graph_and_knob_literal_patches_are_typed_leaf_intents() {
 #[test]
 fn inline_style_patch_preserves_raw_option_semantics_for_every_element_type() {
     let mut store = store_with_every_reorder_type();
-    store.key_positions.get_mut("4key").unwrap()[0].use_inline_styles = None;
-    store.stat_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].use_inline_styles = None;
+    store.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
         .position
         .use_inline_styles = None;
-    store.graph_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().graph_positions.get_mut("4key").unwrap()[0]
         .position
         .use_inline_styles = None;
-    store.knob_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().knob_positions.get_mut("4key").unwrap()[0]
         .position
         .use_inline_styles = None;
     let targets = [
         (
             EditorElementTypeV1::Key,
-            store.key_positions["4key"][0].id.clone(),
+            store.legacy().key_positions["4key"][0].id.clone(),
         ),
         (
             EditorElementTypeV1::Stat,
-            store.stat_positions["4key"][0].position.id.clone(),
+            store.legacy().stat_positions["4key"][0].position.id.clone(),
         ),
         (
             EditorElementTypeV1::Graph,
-            store.graph_positions["4key"][0].position.id.clone(),
+            store.legacy().graph_positions["4key"][0]
+                .position
+                .id
+                .clone(),
         ),
         (
             EditorElementTypeV1::Knob,
-            store.knob_positions["4key"][0].position.id.clone(),
+            store.legacy().knob_positions["4key"][0].position.id.clone(),
         ),
     ];
     let patch = EditorElementPropertyPatchV1::UseInlineStyles(false);
@@ -2912,26 +2945,29 @@ fn inline_style_patch_preserves_raw_option_semantics_for_every_element_type() {
     )
     .unwrap_err();
     assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-    assert_eq!(store.key_positions["4key"][0].use_inline_styles, None);
+    assert_eq!(
+        store.legacy().key_positions["4key"][0].use_inline_styles,
+        None
+    );
 }
 
 #[test]
 fn font_weight_patch_pins_implicit_bold_before_changing_weight() {
     let mut store = store_with_every_reorder_type();
     {
-        let key = &mut store.key_positions.get_mut("4key").unwrap()[0];
+        let key = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
         key.font_weight = Some(700);
         key.font_bold = None;
         key.counter.font_weight = 400;
         key.counter.font_bold = None;
     }
     {
-        let stat = &mut store.stat_positions.get_mut("4key").unwrap()[0].position;
+        let stat = &mut store.legacy_mut().stat_positions.get_mut("4key").unwrap()[0].position;
         stat.font_weight = None;
         stat.font_bold = None;
     }
-    let key_id = store.key_positions["4key"][0].id.clone();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
     let ops = vec![
         patch_property_op(
             EditorElementTypeV1::Key,
@@ -2967,35 +3003,38 @@ fn font_weight_patch_pins_implicit_bold_before_changing_weight() {
 #[test]
 fn font_literal_patches_preserve_raw_options_across_native_types() {
     let mut store = store_with_every_reorder_type();
-    store.key_positions.get_mut("4key").unwrap()[0].font_weight = None;
-    store.key_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].font_weight = None;
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0]
         .counter
         .font_weight = 123;
-    store.stat_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
         .position
         .font_italic = None;
-    store.stat_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
         .position
         .counter
         .font_italic = true;
-    store.graph_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().graph_positions.get_mut("4key").unwrap()[0]
         .position
         .font_underline = None;
-    store.graph_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().graph_positions.get_mut("4key").unwrap()[0]
         .position
         .counter
         .font_underline = true;
-    store.knob_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().knob_positions.get_mut("4key").unwrap()[0]
         .position
         .font_strikethrough = None;
-    store.knob_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().knob_positions.get_mut("4key").unwrap()[0]
         .position
         .counter
         .font_strikethrough = true;
-    let key_id = store.key_positions["4key"][0].id.clone();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
-    let graph_id = store.graph_positions["4key"][0].position.id.clone();
-    let knob_id = store.knob_positions["4key"][0].position.id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
+    let graph_id = store.legacy().graph_positions["4key"][0]
+        .position
+        .id
+        .clone();
+    let knob_id = store.legacy().knob_positions["4key"][0].position.id.clone();
     let ops = vec![
         patch_property_op(
             EditorElementTypeV1::Key,
@@ -3125,46 +3164,49 @@ fn font_literal_patches_preserve_raw_options_across_native_types() {
     )
     .unwrap_err();
     assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-    assert_eq!(store.key_positions["4key"][0].font_weight, None);
+    assert_eq!(store.legacy().key_positions["4key"][0].font_weight, None);
 }
 
 #[test]
 fn font_family_patch_preserves_nested_counter_and_raw_strings_across_native_types() {
     let mut store = store_with_every_reorder_type();
-    store.key_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0]
         .counter
         .font_family = Some("counter-key".to_string());
-    store.stat_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
         .position
         .counter
         .font_family = Some("counter-stat".to_string());
-    store.graph_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().graph_positions.get_mut("4key").unwrap()[0]
         .position
         .counter
         .font_family = Some("counter-graph".to_string());
-    store.knob_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().knob_positions.get_mut("4key").unwrap()[0]
         .position
         .counter
         .font_family = Some("counter-knob".to_string());
     let targets = [
         (
             EditorElementTypeV1::Key,
-            store.key_positions["4key"][0].id.clone(),
+            store.legacy().key_positions["4key"][0].id.clone(),
             " raw-key ",
         ),
         (
             EditorElementTypeV1::Stat,
-            store.stat_positions["4key"][0].position.id.clone(),
+            store.legacy().stat_positions["4key"][0].position.id.clone(),
             "raw-stat",
         ),
         (
             EditorElementTypeV1::Graph,
-            store.graph_positions["4key"][0].position.id.clone(),
+            store.legacy().graph_positions["4key"][0]
+                .position
+                .id
+                .clone(),
             "raw-graph",
         ),
         (
             EditorElementTypeV1::Knob,
-            store.knob_positions["4key"][0].position.id.clone(),
+            store.legacy().knob_positions["4key"][0].position.id.clone(),
             "raw-knob",
         ),
     ];
@@ -3297,17 +3339,18 @@ fn font_family_patch_preserves_nested_counter_and_raw_strings_across_native_type
     )
     .unwrap_err();
     assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-    assert_eq!(store.key_positions["4key"][0].font_family, None);
+    assert_eq!(store.legacy().key_positions["4key"][0].font_family, None);
 }
 
 #[test]
 fn display_text_patch_materializes_raw_strings_across_native_types() {
     let mut store = store_with_every_reorder_type();
+    let legacy = store.legacy_mut();
     for position in [
-        &mut store.key_positions.get_mut("4key").unwrap()[0],
-        &mut store.stat_positions.get_mut("4key").unwrap()[0].position,
-        &mut store.graph_positions.get_mut("4key").unwrap()[0].position,
-        &mut store.knob_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.key_positions.get_mut("4key").unwrap()[0],
+        &mut legacy.stat_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.graph_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.knob_positions.get_mut("4key").unwrap()[0].position,
     ] {
         position.display_text = None;
         position.layer_name = Some("layer-sibling".to_string());
@@ -3318,22 +3361,25 @@ fn display_text_patch_materializes_raw_strings_across_native_types() {
     let targets = [
         (
             EditorElementTypeV1::Key,
-            store.key_positions["4key"][0].id.clone(),
+            store.legacy().key_positions["4key"][0].id.clone(),
             "",
         ),
         (
             EditorElementTypeV1::Stat,
-            store.stat_positions["4key"][0].position.id.clone(),
+            store.legacy().stat_positions["4key"][0].position.id.clone(),
             "  raw stat  ",
         ),
         (
             EditorElementTypeV1::Graph,
-            store.graph_positions["4key"][0].position.id.clone(),
+            store.legacy().graph_positions["4key"][0]
+                .position
+                .id
+                .clone(),
             "raw graph",
         ),
         (
             EditorElementTypeV1::Knob,
-            store.knob_positions["4key"][0].position.id.clone(),
+            store.legacy().knob_positions["4key"][0].position.id.clone(),
             "raw knob",
         ),
     ];
@@ -3427,17 +3473,18 @@ fn display_text_patch_materializes_raw_strings_across_native_types() {
     )
     .unwrap_err();
     assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-    assert_eq!(store.key_positions["4key"][0].display_text, None);
+    assert_eq!(store.legacy().key_positions["4key"][0].display_text, None);
 }
 
 #[test]
 fn class_name_patch_materializes_raw_strings_across_native_types() {
     let mut store = store_with_every_reorder_type();
+    let legacy = store.legacy_mut();
     for position in [
-        &mut store.key_positions.get_mut("4key").unwrap()[0],
-        &mut store.stat_positions.get_mut("4key").unwrap()[0].position,
-        &mut store.graph_positions.get_mut("4key").unwrap()[0].position,
-        &mut store.knob_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.key_positions.get_mut("4key").unwrap()[0],
+        &mut legacy.stat_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.graph_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.knob_positions.get_mut("4key").unwrap()[0].position,
     ] {
         position.class_name = None;
         position.display_text = Some("display-sibling".to_string());
@@ -3448,22 +3495,25 @@ fn class_name_patch_materializes_raw_strings_across_native_types() {
     let targets = [
         (
             EditorElementTypeV1::Key,
-            store.key_positions["4key"][0].id.clone(),
+            store.legacy().key_positions["4key"][0].id.clone(),
             "",
         ),
         (
             EditorElementTypeV1::Stat,
-            store.stat_positions["4key"][0].position.id.clone(),
+            store.legacy().stat_positions["4key"][0].position.id.clone(),
             "  raw stat class  ",
         ),
         (
             EditorElementTypeV1::Graph,
-            store.graph_positions["4key"][0].position.id.clone(),
+            store.legacy().graph_positions["4key"][0]
+                .position
+                .id
+                .clone(),
             "raw graph class",
         ),
         (
             EditorElementTypeV1::Knob,
-            store.knob_positions["4key"][0].position.id.clone(),
+            store.legacy().knob_positions["4key"][0].position.id.clone(),
             "raw knob class",
         ),
     ];
@@ -3557,17 +3607,18 @@ fn class_name_patch_materializes_raw_strings_across_native_types() {
     )
     .unwrap_err();
     assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-    assert_eq!(store.key_positions["4key"][0].class_name, None);
+    assert_eq!(store.legacy().key_positions["4key"][0].class_name, None);
 }
 
 #[test]
 fn numeric_style_patches_preserve_raw_f64_ranges_and_siblings() {
     let mut store = store_with_every_reorder_type();
+    let legacy = store.legacy_mut();
     for position in [
-        &mut store.key_positions.get_mut("4key").unwrap()[0],
-        &mut store.stat_positions.get_mut("4key").unwrap()[0].position,
-        &mut store.graph_positions.get_mut("4key").unwrap()[0].position,
-        &mut store.knob_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.key_positions.get_mut("4key").unwrap()[0],
+        &mut legacy.stat_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.graph_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.knob_positions.get_mut("4key").unwrap()[0].position,
     ] {
         position.border_width = None;
         position.border_radius = None;
@@ -3576,10 +3627,13 @@ fn numeric_style_patches_preserve_raw_f64_ranges_and_siblings() {
         position.display_text = Some("display-sibling".to_string());
         position.counter.font_size = 33;
     }
-    let key_id = store.key_positions["4key"][0].id.clone();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
-    let graph_id = store.graph_positions["4key"][0].position.id.clone();
-    let knob_id = store.knob_positions["4key"][0].position.id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
+    let graph_id = store.legacy().graph_positions["4key"][0]
+        .position
+        .id
+        .clone();
+    let knob_id = store.legacy().knob_positions["4key"][0].position.id.clone();
     let ops = vec![
         patch_property_op(
             EditorElementTypeV1::Key,
@@ -3725,7 +3779,7 @@ fn numeric_style_patches_preserve_raw_f64_ranges_and_siblings() {
     )
     .unwrap_err();
     assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-    assert_eq!(store.key_positions["4key"][0].border_width, None);
+    assert_eq!(store.legacy().key_positions["4key"][0].border_width, None);
 
     let invalid = [
         (
@@ -3779,18 +3833,19 @@ fn numeric_style_patches_preserve_raw_f64_ranges_and_siblings() {
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some(expected_code));
-        assert_eq!(store.key_positions["4key"][0].border_width, None);
+        assert_eq!(store.legacy().key_positions["4key"][0].border_width, None);
     }
 }
 
 #[test]
 fn inactive_image_patch_preserves_asset_siblings_and_raw_empty_across_native_types() {
     let mut store = store_with_every_reorder_type();
+    let legacy = store.legacy_mut();
     for position in [
-        &mut store.key_positions.get_mut("4key").unwrap()[0],
-        &mut store.stat_positions.get_mut("4key").unwrap()[0].position,
-        &mut store.graph_positions.get_mut("4key").unwrap()[0].position,
-        &mut store.knob_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.key_positions.get_mut("4key").unwrap()[0],
+        &mut legacy.stat_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.graph_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.knob_positions.get_mut("4key").unwrap()[0].position,
     ] {
         position.inactive_image = None;
         position.active_image = Some("active-sibling.png".to_string());
@@ -3799,19 +3854,22 @@ fn inactive_image_patch_preserves_asset_siblings_and_raw_empty_across_native_typ
     let targets = [
         (
             EditorElementTypeV1::Key,
-            store.key_positions["4key"][0].id.clone(),
+            store.legacy().key_positions["4key"][0].id.clone(),
         ),
         (
             EditorElementTypeV1::Stat,
-            store.stat_positions["4key"][0].position.id.clone(),
+            store.legacy().stat_positions["4key"][0].position.id.clone(),
         ),
         (
             EditorElementTypeV1::Graph,
-            store.graph_positions["4key"][0].position.id.clone(),
+            store.legacy().graph_positions["4key"][0]
+                .position
+                .id
+                .clone(),
         ),
         (
             EditorElementTypeV1::Knob,
-            store.knob_positions["4key"][0].position.id.clone(),
+            store.legacy().knob_positions["4key"][0].position.id.clone(),
         ),
     ];
     let raw = prepare_editor_ops_transition(
@@ -3905,27 +3963,28 @@ fn inactive_image_patch_preserves_asset_siblings_and_raw_empty_across_native_typ
     )
     .unwrap_err();
     assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-    assert_eq!(store.key_positions["4key"][0].inactive_image, None);
+    assert_eq!(store.legacy().key_positions["4key"][0].inactive_image, None);
 }
 
 #[test]
 fn active_image_patch_is_key_or_knob_only_and_preserves_asset_siblings() {
     let mut store = store_with_every_reorder_type();
-    store.key_positions.get_mut("4key").unwrap()[0].active_image = None;
-    store.knob_positions.get_mut("4key").unwrap()[0]
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].active_image = None;
+    store.legacy_mut().knob_positions.get_mut("4key").unwrap()[0]
         .position
         .active_image = None;
+    let legacy = store.legacy_mut();
     for position in [
-        &mut store.key_positions.get_mut("4key").unwrap()[0],
-        &mut store.knob_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.key_positions.get_mut("4key").unwrap()[0],
+        &mut legacy.knob_positions.get_mut("4key").unwrap()[0].position,
     ] {
         position.inactive_image = Some("idle-sibling.png".to_string());
         position.active_image_fit = Some(crate::models::ImageFit::Contain);
         position.active_transparent = true;
         position.counter.enabled = false;
     }
-    let key_id = store.key_positions["4key"][0].id.clone();
-    let knob_id = store.knob_positions["4key"][0].position.id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    let knob_id = store.legacy().knob_positions["4key"][0].position.id.clone();
     let missing_id = uuid::Uuid::new_v4().to_string();
     let patch = EditorElementPropertyPatchV1::ActiveImage(String::new());
     let ops = vec![
@@ -4011,18 +4070,19 @@ fn active_image_patch_is_key_or_knob_only_and_preserves_asset_siblings() {
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-        assert_eq!(store.key_positions["4key"][0].active_image, None);
+        assert_eq!(store.legacy().key_positions["4key"][0].active_image, None);
     }
 }
 
 #[test]
 fn image_transparency_patches_preserve_opposite_state_and_asset_siblings() {
     let mut store = store_with_every_reorder_type();
+    let legacy = store.legacy_mut();
     for position in [
-        &mut store.key_positions.get_mut("4key").unwrap()[0],
-        &mut store.stat_positions.get_mut("4key").unwrap()[0].position,
-        &mut store.graph_positions.get_mut("4key").unwrap()[0].position,
-        &mut store.knob_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.key_positions.get_mut("4key").unwrap()[0],
+        &mut legacy.stat_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.graph_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.knob_positions.get_mut("4key").unwrap()[0].position,
     ] {
         position.idle_transparent = false;
         position.active_transparent = false;
@@ -4036,19 +4096,22 @@ fn image_transparency_patches_preserve_opposite_state_and_asset_siblings() {
     let targets = [
         (
             EditorElementTypeV1::Key,
-            store.key_positions["4key"][0].id.clone(),
+            store.legacy().key_positions["4key"][0].id.clone(),
         ),
         (
             EditorElementTypeV1::Stat,
-            store.stat_positions["4key"][0].position.id.clone(),
+            store.legacy().stat_positions["4key"][0].position.id.clone(),
         ),
         (
             EditorElementTypeV1::Graph,
-            store.graph_positions["4key"][0].position.id.clone(),
+            store.legacy().graph_positions["4key"][0]
+                .position
+                .id
+                .clone(),
         ),
         (
             EditorElementTypeV1::Knob,
-            store.knob_positions["4key"][0].position.id.clone(),
+            store.legacy().knob_positions["4key"][0].position.id.clone(),
         ),
     ];
     let idle_patch = EditorElementPropertyPatchV1::IdleTransparent(true);
@@ -4181,18 +4244,19 @@ fn image_transparency_patches_preserve_opposite_state_and_asset_siblings() {
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-        assert!(!store.key_positions["4key"][0].idle_transparent);
+        assert!(!store.legacy().key_positions["4key"][0].idle_transparent);
     }
 }
 
 #[test]
 fn image_fit_patches_materialize_state_specific_values_and_preserve_siblings() {
     let mut store = store_with_every_reorder_type();
+    let legacy = store.legacy_mut();
     for position in [
-        &mut store.key_positions.get_mut("4key").unwrap()[0],
-        &mut store.stat_positions.get_mut("4key").unwrap()[0].position,
-        &mut store.graph_positions.get_mut("4key").unwrap()[0].position,
-        &mut store.knob_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.key_positions.get_mut("4key").unwrap()[0],
+        &mut legacy.stat_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.graph_positions.get_mut("4key").unwrap()[0].position,
+        &mut legacy.knob_positions.get_mut("4key").unwrap()[0].position,
     ] {
         position.image_fit = Some(crate::models::ImageFit::Cover);
         position.idle_image_fit = None;
@@ -4206,19 +4270,22 @@ fn image_fit_patches_materialize_state_specific_values_and_preserve_siblings() {
     let targets = [
         (
             EditorElementTypeV1::Key,
-            store.key_positions["4key"][0].id.clone(),
+            store.legacy().key_positions["4key"][0].id.clone(),
         ),
         (
             EditorElementTypeV1::Stat,
-            store.stat_positions["4key"][0].position.id.clone(),
+            store.legacy().stat_positions["4key"][0].position.id.clone(),
         ),
         (
             EditorElementTypeV1::Graph,
-            store.graph_positions["4key"][0].position.id.clone(),
+            store.legacy().graph_positions["4key"][0]
+                .position
+                .id
+                .clone(),
         ),
         (
             EditorElementTypeV1::Knob,
-            store.knob_positions["4key"][0].position.id.clone(),
+            store.legacy().knob_positions["4key"][0].position.id.clone(),
         ),
     ];
     let idle_patch = EditorElementPropertyPatchV1::IdleImageFit(crate::models::ImageFit::Cover);
@@ -4337,7 +4404,7 @@ fn image_fit_patches_materialize_state_specific_values_and_preserve_siblings() {
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-        assert_eq!(store.key_positions["4key"][0].idle_image_fit, None);
+        assert_eq!(store.legacy().key_positions["4key"][0].idle_image_fit, None);
     }
 }
 
@@ -4347,22 +4414,22 @@ fn element_rotation_patches_apply_noop_reset_and_reject_invalid_values() {
     for (element_type, id, field) in [
         (
             EditorElementTypeV1::Key,
-            base.key_positions["4key"][0].id.clone(),
+            base.legacy().key_positions["4key"][0].id.clone(),
             EditorField::KeyPositions,
         ),
         (
             EditorElementTypeV1::Stat,
-            base.stat_positions["4key"][0].position.id.clone(),
+            base.legacy().stat_positions["4key"][0].position.id.clone(),
             EditorField::StatPositions,
         ),
         (
             EditorElementTypeV1::Graph,
-            base.graph_positions["4key"][0].position.id.clone(),
+            base.legacy().graph_positions["4key"][0].position.id.clone(),
             EditorField::GraphPositions,
         ),
         (
             EditorElementTypeV1::Knob,
-            base.knob_positions["4key"][0].position.id.clone(),
+            base.legacy().knob_positions["4key"][0].position.id.clone(),
             EditorField::KnobPositions,
         ),
     ] {
@@ -4423,7 +4490,7 @@ fn element_rotation_patches_apply_noop_reset_and_reject_invalid_values() {
 #[test]
 fn image_transform_patches_seed_noop_reset_and_store_sparse_mode() {
     let store = store_with_every_reorder_type();
-    let key_id = store.key_positions["4key"][0].id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
     let ops = vec![
         patch_property_op(
             EditorElementTypeV1::Key,
@@ -4531,15 +4598,18 @@ fn image_transform_properties_reject_non_keys_and_invalid_ranges() {
         for (element_type, id) in [
             (
                 EditorElementTypeV1::Stat,
-                store.stat_positions["4key"][0].position.id.clone(),
+                store.legacy().stat_positions["4key"][0].position.id.clone(),
             ),
             (
                 EditorElementTypeV1::Graph,
-                store.graph_positions["4key"][0].position.id.clone(),
+                store.legacy().graph_positions["4key"][0]
+                    .position
+                    .id
+                    .clone(),
             ),
             (
                 EditorElementTypeV1::Knob,
-                store.knob_positions["4key"][0].position.id.clone(),
+                store.legacy().knob_positions["4key"][0].position.id.clone(),
             ),
         ] {
             let error = prepare_editor_ops_transition(
@@ -4551,7 +4621,7 @@ fn image_transform_properties_reject_non_keys_and_invalid_ranges() {
         }
     }
 
-    let key_id = store.key_positions["4key"][0].id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
     for patch in [
         ImageTransformLeafPatchV1::OffsetX(-500.1),
         ImageTransformLeafPatchV1::OffsetY(f64::INFINITY),
@@ -4575,7 +4645,7 @@ fn image_transform_properties_reject_non_keys_and_invalid_ranges() {
 #[test]
 fn sound_path_patch_is_key_only_and_preserves_sound_and_asset_siblings() {
     let mut store = store_with_every_reorder_type();
-    for position in store.key_positions.get_mut("4key").unwrap() {
+    for position in store.legacy_mut().key_positions.get_mut("4key").unwrap() {
         position.sound_path = None;
         position.sound_enabled = Some(true);
         position.sound_volume = Some(137.5);
@@ -4583,7 +4653,7 @@ fn sound_path_patch_is_key_only_and_preserves_sound_and_asset_siblings() {
         position.active_image = Some("active-sibling.png".to_string());
         position.counter.enabled = false;
     }
-    let key_ids = store.key_positions["4key"]
+    let key_ids = store.legacy().key_positions["4key"]
         .iter()
         .take(2)
         .map(|position| position.id.clone())
@@ -4669,7 +4739,7 @@ fn sound_path_patch_is_key_only_and_preserves_sound_and_asset_siblings() {
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-        assert!(store.key_positions["4key"]
+        assert!(store.legacy().key_positions["4key"]
             .iter()
             .all(|position| position.sound_path.is_none()));
     }
@@ -4678,12 +4748,13 @@ fn sound_path_patch_is_key_only_and_preserves_sound_and_asset_siblings() {
 #[test]
 fn sound_enabled_patch_materializes_false_and_preserves_siblings_atomically() {
     let mut store = store_with_every_reorder_type();
-    let key_ids = store.key_positions["4key"]
+    let key_ids = store.legacy().key_positions["4key"]
         .iter()
         .take(2)
         .map(|position| position.id.clone())
         .collect::<Vec<_>>();
     for (index, position) in store
+        .legacy_mut()
         .key_positions
         .get_mut("4key")
         .unwrap()
@@ -4765,19 +4836,20 @@ fn sound_enabled_patch_materializes_false_and_preserves_siblings_atomically() {
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-        assert_eq!(store.key_positions["4key"][0].sound_enabled, None);
+        assert_eq!(store.legacy().key_positions["4key"][0].sound_enabled, None);
     }
 }
 
 #[test]
 fn sound_volume_patch_materializes_default_and_validates_range_atomically() {
     let mut store = store_with_every_reorder_type();
-    let key_ids = store.key_positions["4key"]
+    let key_ids = store.legacy().key_positions["4key"]
         .iter()
         .take(2)
         .map(|position| position.id.clone())
         .collect::<Vec<_>>();
     for (index, position) in store
+        .legacy_mut()
         .key_positions
         .get_mut("4key")
         .unwrap()
@@ -4858,7 +4930,7 @@ fn sound_volume_patch_materializes_default_and_validates_range_atomically() {
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-        assert_eq!(store.key_positions["4key"][0].sound_volume, None);
+        assert_eq!(store.legacy().key_positions["4key"][0].sound_volume, None);
     }
     for invalid in [-1.0, 200.1, f64::NAN, f64::INFINITY] {
         let error = prepare_editor_ops_transition(
@@ -4874,7 +4946,7 @@ fn sound_volume_patch_materializes_default_and_validates_range_atomically() {
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("SOUND_VOLUME_OUT_OF_RANGE"));
-        assert_eq!(store.key_positions["4key"][0].sound_volume, None);
+        assert_eq!(store.legacy().key_positions["4key"][0].sound_volume, None);
     }
     for boundary in [0.0, 200.0] {
         prepare_editor_ops_transition(
@@ -4892,11 +4964,11 @@ fn sound_volume_patch_materializes_default_and_validates_range_atomically() {
 #[test]
 fn counter_boolean_patches_preserve_nested_siblings_and_reject_wrong_types_atomically() {
     let mut store = store_with_every_reorder_type();
-    let key_id = store.key_positions["4key"][0].id.clone();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
     let missing_id = uuid::Uuid::new_v4().to_string();
     {
-        let counter = &mut store.key_positions.get_mut("4key").unwrap()[0].counter;
+        let counter = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].counter;
         counter.enabled = true;
         counter.placement = crate::models::KeyCounterPlacement::Outside;
         counter.animation.enabled = true;
@@ -4904,7 +4976,7 @@ fn counter_boolean_patches_preserve_nested_siblings_and_reject_wrong_types_atomi
         counter.animation.scale = 1.75;
     }
     {
-        let counter = &mut store.stat_positions.get_mut("4key").unwrap()[0]
+        let counter = &mut store.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
             .position
             .counter;
         counter.enabled = true;
@@ -5045,9 +5117,9 @@ fn counter_boolean_patches_preserve_nested_siblings_and_reject_wrong_types_atomi
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-        assert!(store.key_positions["4key"][0].counter.enabled);
+        assert!(store.legacy().key_positions["4key"][0].counter.enabled);
         assert!(
-            store.stat_positions["4key"][0]
+            store.legacy().stat_positions["4key"][0]
                 .position
                 .counter
                 .animation
@@ -5059,28 +5131,30 @@ fn counter_boolean_patches_preserve_nested_siblings_and_reject_wrong_types_atomi
 #[test]
 fn counter_layout_patches_change_one_leaf_and_preserve_hidden_siblings_atomically() {
     let mut store = store_with_every_reorder_type();
-    let key_ids = store.key_positions["4key"]
+    let key_ids = store.legacy().key_positions["4key"]
         .iter()
         .take(2)
         .map(|position| position.id.clone())
         .collect::<Vec<_>>();
-    let mut second_stat = store.stat_positions["4key"][0].clone();
+    let mut second_stat = store.legacy().stat_positions["4key"][0].clone();
     second_stat.position.id = uuid::Uuid::new_v4().to_string();
     store
+        .legacy_mut()
         .stat_positions
         .get_mut("4key")
         .unwrap()
         .push(second_stat);
-    let stat_ids = store.stat_positions["4key"]
+    let stat_ids = store.legacy().stat_positions["4key"]
         .iter()
         .take(2)
         .map(|position| position.position.id.clone())
         .collect::<Vec<_>>();
-    for counter in store.key_positions.get_mut("4key").unwrap()[..2]
+    let legacy = store.legacy_mut();
+    for counter in legacy.key_positions.get_mut("4key").unwrap()[..2]
         .iter_mut()
         .map(|position| &mut position.counter)
         .chain(
-            store.stat_positions.get_mut("4key").unwrap()[..2]
+            legacy.stat_positions.get_mut("4key").unwrap()[..2]
                 .iter_mut()
                 .map(|position| &mut position.position.counter),
         )
@@ -5098,10 +5172,16 @@ fn counter_layout_patches_change_one_leaf_and_preserve_hidden_siblings_atomicall
         counter.animation.scale = 1.75;
     }
     let originals = [
-        store.key_positions["4key"][0].counter.clone(),
-        store.key_positions["4key"][1].counter.clone(),
-        store.stat_positions["4key"][0].position.counter.clone(),
-        store.stat_positions["4key"][1].position.counter.clone(),
+        store.legacy().key_positions["4key"][0].counter.clone(),
+        store.legacy().key_positions["4key"][1].counter.clone(),
+        store.legacy().stat_positions["4key"][0]
+            .position
+            .counter
+            .clone(),
+        store.legacy().stat_positions["4key"][1]
+            .position
+            .counter
+            .clone(),
     ];
     let placement =
         EditorElementPropertyPatchV1::CounterPlacement(crate::models::KeyCounterPlacement::Outside);
@@ -5199,34 +5279,43 @@ fn counter_layout_patches_change_one_leaf_and_preserve_hidden_siblings_atomicall
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-        assert_eq!(store.key_positions["4key"][0].counter, originals[0]);
+        assert_eq!(
+            store.legacy().key_positions["4key"][0].counter,
+            originals[0]
+        );
     }
 }
 
 #[test]
 fn counter_typography_patches_preserve_siblings_and_validate_types_and_ranges_atomically() {
     let mut store = store_with_every_reorder_type();
-    let key_ids = store.key_positions["4key"]
+    let key_ids = store.legacy().key_positions["4key"]
         .iter()
         .take(2)
         .map(|position| position.id.clone())
         .collect::<Vec<_>>();
-    let first_stat = store.stat_positions["4key"][0].clone();
+    let first_stat = store.legacy().stat_positions["4key"][0].clone();
     for _ in 0..3 {
         let mut stat = first_stat.clone();
         stat.position.id = uuid::Uuid::new_v4().to_string();
-        store.stat_positions.get_mut("4key").unwrap().push(stat);
+        store
+            .legacy_mut()
+            .stat_positions
+            .get_mut("4key")
+            .unwrap()
+            .push(stat);
     }
-    let stat_ids = store.stat_positions["4key"]
+    let stat_ids = store.legacy().stat_positions["4key"]
         .iter()
         .take(4)
         .map(|position| position.position.id.clone())
         .collect::<Vec<_>>();
-    for counter in store.key_positions.get_mut("4key").unwrap()[..2]
+    let legacy = store.legacy_mut();
+    for counter in legacy.key_positions.get_mut("4key").unwrap()[..2]
         .iter_mut()
         .map(|position| &mut position.counter)
         .chain(
-            store.stat_positions.get_mut("4key").unwrap()[..4]
+            legacy.stat_positions.get_mut("4key").unwrap()[..4]
                 .iter_mut()
                 .map(|position| &mut position.position.counter),
         )
@@ -5242,20 +5331,32 @@ fn counter_typography_patches_preserve_siblings_and_validate_types_and_ranges_at
         counter.placement = crate::models::KeyCounterPlacement::Outside;
         counter.animation.preset_id = Some("builtin-linear".to_string());
     }
-    store.stat_positions.get_mut("4key").unwrap()[3]
+    store.legacy_mut().stat_positions.get_mut("4key").unwrap()[3]
         .position
         .counter
         .font_family = None;
-    store.stat_positions.get_mut("4key").unwrap()[3]
+    store.legacy_mut().stat_positions.get_mut("4key").unwrap()[3]
         .position
         .font_family = Some("top-level-font-sibling".to_string());
     let originals = [
-        store.key_positions["4key"][0].counter.clone(),
-        store.key_positions["4key"][1].counter.clone(),
-        store.stat_positions["4key"][0].position.counter.clone(),
-        store.stat_positions["4key"][1].position.counter.clone(),
-        store.stat_positions["4key"][2].position.counter.clone(),
-        store.stat_positions["4key"][3].position.counter.clone(),
+        store.legacy().key_positions["4key"][0].counter.clone(),
+        store.legacy().key_positions["4key"][1].counter.clone(),
+        store.legacy().stat_positions["4key"][0]
+            .position
+            .counter
+            .clone(),
+        store.legacy().stat_positions["4key"][1]
+            .position
+            .counter
+            .clone(),
+        store.legacy().stat_positions["4key"][2]
+            .position
+            .counter
+            .clone(),
+        store.legacy().stat_positions["4key"][3]
+            .position
+            .counter
+            .clone(),
     ];
     let patches = [
         EditorElementPropertyPatchV1::CounterFontSize(72),
@@ -5376,7 +5477,10 @@ fn counter_typography_patches_preserve_siblings_and_validate_types_and_ranges_at
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-        assert_eq!(store.key_positions["4key"][0].counter, originals[0]);
+        assert_eq!(
+            store.legacy().key_positions["4key"][0].counter,
+            originals[0]
+        );
     }
 
     for (patch, code) in [
@@ -5406,7 +5510,10 @@ fn counter_typography_patches_preserve_siblings_and_validate_types_and_ranges_at
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some(code));
-        assert_eq!(store.key_positions["4key"][0].counter, originals[0]);
+        assert_eq!(
+            store.legacy().key_positions["4key"][0].counter,
+            originals[0]
+        );
     }
 
     let lower_boundaries = prepare_editor_ops_transition(
@@ -5443,17 +5550,18 @@ fn counter_typography_patches_preserve_siblings_and_validate_types_and_ranges_at
 #[test]
 fn counter_fill_intents_apply_atomic_pairs_and_reject_noncanonical_plans() {
     let mut store = store_with_every_reorder_type();
-    let key_ids = store.key_positions["4key"]
+    let key_ids = store.legacy().key_positions["4key"]
         .iter()
         .take(2)
         .map(|position| position.id.clone())
         .collect::<Vec<_>>();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
-    for counter in store.key_positions.get_mut("4key").unwrap()[..2]
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
+    let legacy = store.legacy_mut();
+    for counter in legacy.key_positions.get_mut("4key").unwrap()[..2]
         .iter_mut()
         .map(|position| &mut position.counter)
         .chain(std::iter::once(
-            &mut store.stat_positions.get_mut("4key").unwrap()[0]
+            &mut legacy.stat_positions.get_mut("4key").unwrap()[0]
                 .position
                 .counter,
         ))
@@ -5491,9 +5599,12 @@ fn counter_fill_intents_apply_atomic_pairs_and_reject_noncanonical_plans() {
         counter.animation.preset_id = Some("builtin-linear".to_string());
     }
     let originals = [
-        store.key_positions["4key"][0].counter.clone(),
-        store.key_positions["4key"][1].counter.clone(),
-        store.stat_positions["4key"][0].position.counter.clone(),
+        store.legacy().key_positions["4key"][0].counter.clone(),
+        store.legacy().key_positions["4key"][1].counter.clone(),
+        store.legacy().stat_positions["4key"][0]
+            .position
+            .counter
+            .clone(),
     ];
     let idle_gradient = counter_fill_gradient(
         "rgba(170,187,204,1)",
@@ -5622,7 +5733,10 @@ fn counter_fill_intents_apply_atomic_pairs_and_reject_noncanonical_plans() {
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some(code));
-        assert_eq!(store.key_positions["4key"][0].counter, originals[0]);
+        assert_eq!(
+            store.legacy().key_positions["4key"][0].counter,
+            originals[0]
+        );
     }
 
     for (element_type, patch) in [
@@ -5648,7 +5762,10 @@ fn counter_fill_intents_apply_atomic_pairs_and_reject_noncanonical_plans() {
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-        assert_eq!(store.key_positions["4key"][0].counter, originals[0]);
+        assert_eq!(
+            store.legacy().key_positions["4key"][0].counter,
+            originals[0]
+        );
     }
 }
 
@@ -5665,11 +5782,11 @@ fn counter_animation_preset_patch_uses_current_library_and_preserves_unmasked_fi
         duration_ms: 420,
     };
     store.counter_animation_presets.push(preset.clone());
-    let key_id = store.key_positions["4key"][0].id.clone();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
     let missing_id = uuid::Uuid::new_v4().to_string();
     {
-        let animation = &mut store.key_positions.get_mut("4key").unwrap()[0]
+        let animation = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0]
             .counter
             .animation;
         animation.enabled = false;
@@ -5791,7 +5908,7 @@ fn counter_animation_preset_patch_uses_current_library_and_preserves_unmasked_fi
         Some("COUNTER_ANIMATION_PRESET_MISMATCH")
     );
     assert_eq!(
-        store.key_positions["4key"][0]
+        store.legacy().key_positions["4key"][0]
             .counter
             .animation
             .preset_id
@@ -5891,9 +6008,10 @@ fn counter_animation_preset_patch_uses_current_library_and_preserves_unmasked_fi
 #[test]
 fn stat_type_patch_is_stat_only_and_preserves_embedded_position() {
     let mut store = store_with_every_reorder_type();
-    store.graph_positions.get_mut("4key").unwrap()[0].stat_type = GraphStatType::KpsMax;
-    let stat = store.stat_positions["4key"][0].clone();
-    let graph = store.graph_positions["4key"][0].clone();
+    store.legacy_mut().graph_positions.get_mut("4key").unwrap()[0].stat_type =
+        GraphStatType::KpsMax;
+    let stat = store.legacy().stat_positions["4key"][0].clone();
+    let graph = store.legacy().graph_positions["4key"][0].clone();
     let stat_id = stat.position.id.clone();
     let missing_id = uuid::Uuid::new_v4().to_string();
     let patch = EditorElementPropertyPatchV1::StatType(StatType::Total);
@@ -5948,14 +6066,15 @@ fn stat_type_patch_is_stat_only_and_preserves_embedded_position() {
     )
     .unwrap_err();
     assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-    assert_eq!(store.stat_positions["4key"][0], stat);
-    assert_eq!(store.graph_positions["4key"][0], graph);
+    assert_eq!(store.legacy().stat_positions["4key"][0], stat);
+    assert_eq!(store.legacy().graph_positions["4key"][0], graph);
 }
 
 #[test]
 fn note_literal_patches_are_key_only_and_preserve_border_side_raw_state() {
     let mut store = base_store();
     let ids = store
+        .legacy()
         .key_positions
         .values()
         .flat_map(|positions| positions.iter().map(|position| position.id.clone()))
@@ -5963,6 +6082,7 @@ fn note_literal_patches_are_key_only_and_preserve_border_side_raw_state() {
         .collect::<Vec<_>>();
     assert_eq!(ids.len(), 5);
     let legacy_id = store
+        .legacy_mut()
         .key_positions
         .values_mut()
         .flat_map(|positions| positions.iter_mut())
@@ -6083,19 +6203,24 @@ fn note_literal_patches_are_key_only_and_preserve_border_side_raw_state() {
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
     }
-    assert!(store.key_positions.values().flatten().all(|position| {
-        position.note_effect_enabled
-            && !position.note_glow_enabled
-            && position.note_auto_y_correction
-            && (position.id == legacy_id || position.note_border_side.is_none())
-    }));
+    assert!(store
+        .legacy()
+        .key_positions
+        .values()
+        .flatten()
+        .all(|position| {
+            position.note_effect_enabled
+                && !position.note_glow_enabled
+                && position.note_auto_y_correction
+                && (position.id == legacy_id || position.note_border_side.is_none())
+        }));
 }
 
 #[test]
 fn note_glow_sync_enable_mirrors_body_paint_and_replays_as_no_change() {
     let mut store = base_store();
-    let id = store.key_positions["4key"][0].id.clone();
-    let position = &mut store.key_positions.get_mut("4key").unwrap()[0];
+    let id = store.legacy().key_positions["4key"][0].id.clone();
+    let position = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     position.note_color = NoteColor::Gradient {
         top: "#112233".to_string(),
         bottom: "#445566".to_string(),
@@ -6138,8 +6263,8 @@ fn note_glow_sync_enable_mirrors_body_paint_and_replays_as_no_change() {
 #[test]
 fn synced_note_paint_variants_mirror_every_body_paint_field() {
     let mut store = base_store();
-    let id = store.key_positions["4key"][0].id.clone();
-    let position = &mut store.key_positions.get_mut("4key").unwrap()[0];
+    let id = store.legacy().key_positions["4key"][0].id.clone();
+    let position = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     position.note_glow_sync_paint = true;
     position.note_color = NoteColor::Gradient {
         top: "#010203".to_string(),
@@ -6216,8 +6341,8 @@ fn synced_note_paint_variants_mirror_every_body_paint_field() {
 #[test]
 fn synced_note_glow_paint_rejects_the_whole_transition() {
     let mut store = base_store();
-    let id = store.key_positions["4key"][0].id.clone();
-    let position = &mut store.key_positions.get_mut("4key").unwrap()[0];
+    let id = store.legacy().key_positions["4key"][0].id.clone();
+    let position = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     position.note_glow_sync_paint = true;
     assert!(position.mirror_note_body_to_glow());
     let original = store.clone();
@@ -6248,8 +6373,8 @@ fn synced_note_glow_paint_rejects_the_whole_transition() {
 #[test]
 fn note_glow_sync_disable_preserves_the_mirrored_paint() {
     let mut store = base_store();
-    let id = store.key_positions["4key"][0].id.clone();
-    let position = &mut store.key_positions.get_mut("4key").unwrap()[0];
+    let id = store.legacy().key_positions["4key"][0].id.clone();
+    let position = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     position.note_glow_sync_paint = true;
     position.note_color = NoteColor::Solid("#123456".to_string());
     position.note_opacity = 73;
@@ -6282,8 +6407,8 @@ fn note_glow_sync_disable_preserves_the_mirrored_paint() {
 #[test]
 fn unsynced_note_paint_preserves_glow_paint() {
     let mut store = base_store();
-    let id = store.key_positions["4key"][0].id.clone();
-    let position = &mut store.key_positions.get_mut("4key").unwrap()[0];
+    let id = store.legacy().key_positions["4key"][0].id.clone();
+    let position = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     position.note_glow_sync_paint = false;
     position.note_glow_color = Some(NoteColor::Solid("glow".to_string()));
     position.note_glow_opacity = 71;
@@ -6318,8 +6443,8 @@ fn unsynced_note_paint_preserves_glow_paint() {
 #[test]
 fn note_glow_size_is_key_only_bounded_and_preserves_note_siblings() {
     let mut store = base_store();
-    let id = store.key_positions["4key"][0].id.clone();
-    let position = &mut store.key_positions.get_mut("4key").unwrap()[0];
+    let id = store.legacy().key_positions["4key"][0].id.clone();
+    let position = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     position.note_glow_size = 20.0;
     position.note_glow_enabled = true;
     position.note_glow_opacity = 71;
@@ -6386,7 +6511,7 @@ fn note_glow_size_is_key_only_bounded_and_preserves_note_siblings() {
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("NOTE_GLOW_SIZE_OUT_OF_RANGE"));
-        assert_eq!(store.key_positions["4key"][0], original);
+        assert_eq!(store.legacy().key_positions["4key"][0], original);
     }
 
     let lower = prepare_editor_ops_transition(
@@ -6431,15 +6556,15 @@ fn note_glow_size_is_key_only_bounded_and_preserves_note_siblings() {
         )
         .unwrap_err();
         assert_eq!(validation_code(&error), Some("ELEMENT_TYPE_MISMATCH"));
-        assert_eq!(store.key_positions["4key"][0], original);
+        assert_eq!(store.legacy().key_positions["4key"][0], original);
     }
 }
 
 #[test]
 fn note_gradient_descriptor_and_legacy_transitions_are_atomic() {
     let mut store = base_store();
-    let id = store.key_positions["4key"][0].id.clone();
-    let position = &mut store.key_positions.get_mut("4key").unwrap()[0];
+    let id = store.legacy().key_positions["4key"][0].id.clone();
+    let position = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     position.note_color = NoteColor::Solid("legacy".to_string());
     position.note_opacity = 90;
     position.note_opacity_top = Some(30);
@@ -6563,7 +6688,7 @@ fn note_gradient_descriptor_and_legacy_transitions_are_atomic() {
 #[test]
 fn note_gradient_descriptor_rejects_semantic_mismatches() {
     let store = base_store();
-    let id = store.key_positions["4key"][0].id.clone();
+    let id = store.legacy().key_positions["4key"][0].id.clone();
     let gradient = |first: &str| crate::models::EditorPaintGradientV1 {
         angle: 45.0,
         stops: vec![
@@ -6644,13 +6769,13 @@ fn note_gradient_descriptor_rejects_semantic_mismatches() {
 fn note_paint_masks_preserve_siblings_materialize_options_and_reject_invalid_plans() {
     let mut store = base_store();
     let ids = [
-        store.key_positions["4key"][0].id.clone(),
-        store.key_positions["4key"][1].id.clone(),
-        store.key_positions["4key"][2].id.clone(),
-        store.key_positions["4key"][3].id.clone(),
-        store.key_positions["5key"][0].id.clone(),
+        store.legacy().key_positions["4key"][0].id.clone(),
+        store.legacy().key_positions["4key"][1].id.clone(),
+        store.legacy().key_positions["4key"][2].id.clone(),
+        store.legacy().key_positions["4key"][3].id.clone(),
+        store.legacy().key_positions["5key"][0].id.clone(),
     ];
-    let positions = store.key_positions.get_mut("4key").unwrap();
+    let positions = store.legacy_mut().key_positions.get_mut("4key").unwrap();
     positions[0].note_color = NoteColor::Solid("old-note".to_string());
     positions[0].note_opacity = 41;
     positions[0].note_opacity_top = Some(42);
@@ -6672,7 +6797,7 @@ fn note_paint_masks_preserve_siblings_materialize_options_and_reject_invalid_pla
         ]
     }))
     .unwrap();
-    let full = &mut store.key_positions.get_mut("5key").unwrap()[0];
+    let full = &mut store.legacy_mut().key_positions.get_mut("5key").unwrap()[0];
     full.note_glow_opacity = 65;
     full.note_glow_opacity_top = None;
     full.note_glow_opacity_bottom = None;
@@ -6851,8 +6976,8 @@ fn note_paint_masks_preserve_siblings_materialize_options_and_reject_invalid_pla
 #[test]
 fn note_border_gradient_patch_is_atomic_canonical_and_strict() {
     let mut store = base_store();
-    let id = store.key_positions["4key"][0].id.clone();
-    let position = &mut store.key_positions.get_mut("4key").unwrap()[0];
+    let id = store.legacy().key_positions["4key"][0].id.clone();
+    let position = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     position.note_border_color = Some("#000000".to_string());
     position.note_border_opacity = 25;
     position.note_border_side = Some("vertical".to_string());
@@ -6983,22 +7108,22 @@ fn note_border_gradient_patch_is_atomic_canonical_and_strict() {
 fn note_numeric_patches_preserve_raw_options_bounds_and_siblings() {
     let mut store = base_store();
     let ids = [
-        store.key_positions["4key"][0].id.clone(),
-        store.key_positions["4key"][1].id.clone(),
-        store.key_positions["4key"][2].id.clone(),
-        store.key_positions["4key"][3].id.clone(),
-        store.key_positions["5key"][0].id.clone(),
+        store.legacy().key_positions["4key"][0].id.clone(),
+        store.legacy().key_positions["4key"][1].id.clone(),
+        store.legacy().key_positions["4key"][2].id.clone(),
+        store.legacy().key_positions["4key"][3].id.clone(),
+        store.legacy().key_positions["5key"][0].id.clone(),
     ];
-    for position in store.key_positions.values_mut().flatten() {
+    for position in store.legacy_mut().key_positions.values_mut().flatten() {
         position.note_color = crate::models::NoteColor::Solid("note-sibling".to_string());
         position.note_glow_size = 17.5;
         position.note_glow_opacity = 63;
     }
-    store.key_positions.get_mut("4key").unwrap()[0].note_offset_x = Some(7.5);
-    store.key_positions.get_mut("4key").unwrap()[1].note_offset_y = None;
-    store.key_positions.get_mut("4key").unwrap()[2].note_width = Some(31.5);
-    store.key_positions.get_mut("4key").unwrap()[3].note_border_width = None;
-    store.key_positions.get_mut("5key").unwrap()[0].note_border_radius = None;
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[0].note_offset_x = Some(7.5);
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[1].note_offset_y = None;
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[2].note_width = Some(31.5);
+    store.legacy_mut().key_positions.get_mut("4key").unwrap()[3].note_border_width = None;
+    store.legacy_mut().key_positions.get_mut("5key").unwrap()[0].note_border_radius = None;
     let original = store.clone();
 
     let ops = vec![
@@ -7052,11 +7177,11 @@ fn note_numeric_patches_preserve_raw_options_bounds_and_siblings() {
         ]
     );
     let mut expected = original.clone();
-    expected.key_positions.get_mut("4key").unwrap()[0].note_offset_x = None;
-    expected.key_positions.get_mut("4key").unwrap()[1].note_offset_y = Some(-12.5);
-    expected.key_positions.get_mut("4key").unwrap()[2].note_width = None;
-    expected.key_positions.get_mut("4key").unwrap()[3].note_border_width = Some(0.0);
-    expected.key_positions.get_mut("5key").unwrap()[0].note_border_radius = Some(4.0);
+    expected.legacy_mut().key_positions.get_mut("4key").unwrap()[0].note_offset_x = None;
+    expected.legacy_mut().key_positions.get_mut("4key").unwrap()[1].note_offset_y = Some(-12.5);
+    expected.legacy_mut().key_positions.get_mut("4key").unwrap()[2].note_width = None;
+    expected.legacy_mut().key_positions.get_mut("4key").unwrap()[3].note_border_width = Some(0.0);
+    expected.legacy_mut().key_positions.get_mut("5key").unwrap()[0].note_border_radius = Some(4.0);
     assert_eq!(transition.scratch, expected);
 
     let replay = prepare_editor_ops_transition(&transition.scratch, &ops).unwrap();
@@ -7217,12 +7342,15 @@ fn note_numeric_patches_preserve_raw_options_bounds_and_siblings() {
 #[test]
 fn paint_descriptors_apply_pairs_preserve_active_fallbacks_and_reject_invalid_plans() {
     let mut store = store_with_every_reorder_type();
-    let key_id = store.key_positions["4key"][0].id.clone();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
-    let graph_id = store.graph_positions["4key"][0].position.id.clone();
-    let knob_id = store.knob_positions["4key"][0].position.id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
+    let graph_id = store.legacy().graph_positions["4key"][0]
+        .position
+        .id
+        .clone();
+    let knob_id = store.legacy().knob_positions["4key"][0].position.id.clone();
 
-    let key = &mut store.key_positions.get_mut("4key").unwrap()[0];
+    let key = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     key.background_color = Some(" key idle ".to_string());
     key.background_gradient = None;
     key.active_background_color = None;
@@ -7230,17 +7358,17 @@ fn paint_descriptors_apply_pairs_preserve_active_fallbacks_and_reject_invalid_pl
     key.border_color = Some("key-border-sibling".to_string());
     key.font_color = Some("key-font-sibling".to_string());
 
-    let stat = &mut store.stat_positions.get_mut("4key").unwrap()[0].position;
+    let stat = &mut store.legacy_mut().stat_positions.get_mut("4key").unwrap()[0].position;
     stat.border_color = Some("stat-old".to_string());
     stat.border_gradient = None;
     stat.active_border_color = Some("stat-active-sibling".to_string());
 
-    let graph = &mut store.graph_positions.get_mut("4key").unwrap()[0].position;
+    let graph = &mut store.legacy_mut().graph_positions.get_mut("4key").unwrap()[0].position;
     graph.background_color = None;
     graph.background_gradient = None;
     graph.active_background_color = Some("graph-active-sibling".to_string());
 
-    let knob = &mut store.knob_positions.get_mut("4key").unwrap()[0].position;
+    let knob = &mut store.legacy_mut().knob_positions.get_mut("4key").unwrap()[0].position;
     knob.border_color = Some("stale-knob-base".to_string());
     knob.border_gradient = Some(GradientSpec::from_canonical_parts(
         90.0,
@@ -7324,9 +7452,12 @@ fn paint_descriptors_apply_pairs_preserve_active_fallbacks_and_reject_invalid_pl
     assert!(key.active_background_gradient.is_none());
     assert_eq!(
         key.border_color,
-        original.key_positions["4key"][0].border_color
+        original.legacy().key_positions["4key"][0].border_color
     );
-    assert_eq!(key.font_color, original.key_positions["4key"][0].font_color);
+    assert_eq!(
+        key.font_color,
+        original.legacy().key_positions["4key"][0].font_color
+    );
 
     let stat = &transition.candidate.stat_positions["4key"][0].position;
     assert_eq!(stat.border_color.as_deref(), Some("stat-new"));
@@ -7349,7 +7480,9 @@ fn paint_descriptors_apply_pairs_preserve_active_fallbacks_and_reject_invalid_pl
     assert_eq!(knob.active_border_color.as_deref(), Some("stale-knob-base"));
     assert_eq!(
         knob.active_border_gradient,
-        original.knob_positions["4key"][0].position.border_gradient
+        original.legacy().knob_positions["4key"][0]
+            .position
+            .border_gradient
     );
     assert_eq!(
         knob.background_color.as_deref(),
@@ -7408,7 +7541,7 @@ fn paint_descriptors_apply_pairs_preserve_active_fallbacks_and_reject_invalid_pl
     );
     assert!(fallback_replay.changed_fields.is_empty());
 
-    let key_active_id = store.key_positions["4key"][1].id.clone();
+    let key_active_id = store.legacy().key_positions["4key"][1].id.clone();
     let active_ops = [
         patch_property_op(
             EditorElementTypeV1::Key,
@@ -7440,17 +7573,29 @@ fn paint_descriptors_apply_pairs_preserve_active_fallbacks_and_reject_invalid_pl
     );
 
     let mut explicit_active_store = store.clone();
-    explicit_active_store.key_positions.get_mut("4key").unwrap()[1].active_background_color =
-        Some("explicit-active".to_string());
-    explicit_active_store.key_positions.get_mut("4key").unwrap()[1].active_background_gradient =
-        None;
-    explicit_active_store.key_positions.get_mut("4key").unwrap()[1].background_color =
-        Some("old-idle".to_string());
+    explicit_active_store
+        .legacy_mut()
+        .key_positions
+        .get_mut("4key")
+        .unwrap()[1]
+        .active_background_color = Some("explicit-active".to_string());
+    explicit_active_store
+        .legacy_mut()
+        .key_positions
+        .get_mut("4key")
+        .unwrap()[1]
+        .active_background_gradient = None;
+    explicit_active_store
+        .legacy_mut()
+        .key_positions
+        .get_mut("4key")
+        .unwrap()[1]
+        .background_color = Some("old-idle".to_string());
     let explicit_active = prepare_editor_ops_transition(
         &explicit_active_store,
         &[patch_property_op(
             EditorElementTypeV1::Key,
-            &explicit_active_store.key_positions["4key"][1].id,
+            &explicit_active_store.legacy().key_positions["4key"][1].id,
             EditorElementPropertyPatchV1::BackgroundPaint(paint_descriptor("new-idle", None)),
         )],
     )
@@ -7532,7 +7677,7 @@ fn paint_descriptors_apply_pairs_preserve_active_fallbacks_and_reject_invalid_pl
         &store,
         &[patch_property_op(
             EditorElementTypeV1::Key,
-            &store.key_positions["4key"][2].id,
+            &store.legacy().key_positions["4key"][2].id,
             EditorElementPropertyPatchV1::BorderPaint(paint_descriptor(
                 "a",
                 Some((0.0, &[("a", 0.0), ("equal", 0.0), ("b", 1.0)])),
@@ -7573,9 +7718,9 @@ fn paint_descriptors_apply_pairs_preserve_active_fallbacks_and_reject_invalid_pl
 #[test]
 fn blank_font_paint_normalizes_to_none_and_blank_gradient_stops_are_rejected() {
     let mut store = store_with_every_reorder_type();
-    let key_id = store.key_positions["4key"][0].id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
     {
-        let key = &mut store.key_positions.get_mut("4key").unwrap()[0];
+        let key = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
         key.font_color = Some("stale-idle".to_string());
         key.font_gradient = None;
         key.active_font_color = Some("stale-active".to_string());
@@ -7624,13 +7769,16 @@ fn blank_font_paint_normalizes_to_none_and_blank_gradient_stops_are_rejected() {
 #[test]
 fn font_paint_patches_preserve_state_pairs_and_enforce_target_types() {
     let mut store = store_with_every_reorder_type();
-    let key_ids = store.key_positions["4key"]
+    let key_ids = store.legacy().key_positions["4key"]
         .iter()
         .map(|position| position.id.clone())
         .collect::<Vec<_>>();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
-    let graph_id = store.graph_positions["4key"][0].position.id.clone();
-    let knob_id = store.knob_positions["4key"][0].position.id.clone();
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
+    let graph_id = store.legacy().graph_positions["4key"][0]
+        .position
+        .id
+        .clone();
+    let knob_id = store.legacy().knob_positions["4key"][0].position.id.clone();
 
     let idle_gradient = paint_descriptor(
         "idle-first",
@@ -7646,7 +7794,7 @@ fn font_paint_patches_preserve_state_pairs_and_enforce_target_types() {
     .gradient
     .unwrap()
     .to_gradient_spec();
-    let keys = store.key_positions.get_mut("4key").unwrap();
+    let keys = store.legacy_mut().key_positions.get_mut("4key").unwrap();
     keys[0].font_color = None;
     keys[0].font_gradient = Some(idle_gradient.clone());
     keys[0].active_font_color = None;
@@ -7846,11 +7994,11 @@ fn font_paint_patches_preserve_state_pairs_and_enforce_target_types() {
 #[test]
 fn shadow_masks_seed_current_defaults_preserve_siblings_and_reject_invalid_plans() {
     let mut store = store_with_every_reorder_type();
-    let key_id = store.key_positions["4key"][0].id.clone();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
-    let knob_id = store.knob_positions["4key"][0].position.id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
+    let knob_id = store.legacy().knob_positions["4key"][0].position.id.clone();
 
-    let key = &mut store.key_positions.get_mut("4key").unwrap()[0];
+    let key = &mut store.legacy_mut().key_positions.get_mut("4key").unwrap()[0];
     key.inactive_image = Some(" image.png ".to_string());
     key.shadow = None;
     key.active_shadow = Some(ElementShadowSpec {
@@ -7860,7 +8008,7 @@ fn shadow_masks_seed_current_defaults_preserve_siblings_and_reject_invalid_plans
         offset_y: -8.5,
         blur: 19.5,
     });
-    let stat = &mut store.stat_positions.get_mut("4key").unwrap()[0].position;
+    let stat = &mut store.legacy_mut().stat_positions.get_mut("4key").unwrap()[0].position;
     stat.shadow = Some(ElementShadowSpec {
         enabled: false,
         color: "stat-color-sibling".to_string(),
@@ -7875,7 +8023,7 @@ fn shadow_masks_seed_current_defaults_preserve_siblings_and_reject_invalid_plans
         offset_y: 11.0,
         blur: 12.0,
     });
-    let knob = &mut store.knob_positions.get_mut("4key").unwrap()[0].position;
+    let knob = &mut store.legacy_mut().knob_positions.get_mut("4key").unwrap()[0].position;
     knob.shadow = None;
     knob.active_shadow = None;
     knob.idle_transparent = true;
@@ -7938,7 +8086,7 @@ fn shadow_masks_seed_current_defaults_preserve_siblings_and_reject_invalid_plans
     assert_eq!((key.offset_x, key.offset_y, key.blur), (0.0, 4.0, 10.0));
     assert_eq!(
         transition.candidate.key_positions["4key"][0].active_shadow,
-        original.key_positions["4key"][0].active_shadow
+        original.legacy().key_positions["4key"][0].active_shadow
     );
     let stat = transition.candidate.stat_positions["4key"][0]
         .position
@@ -7953,7 +8101,9 @@ fn shadow_masks_seed_current_defaults_preserve_siblings_and_reject_invalid_plans
         transition.candidate.stat_positions["4key"][0]
             .position
             .active_shadow,
-        original.stat_positions["4key"][0].position.active_shadow
+        original.legacy().stat_positions["4key"][0]
+            .position
+            .active_shadow
     );
     let knob = &transition.candidate.knob_positions["4key"][0].position;
     let idle = knob.shadow.as_ref().unwrap();
@@ -7984,10 +8134,14 @@ fn shadow_masks_seed_current_defaults_preserve_siblings_and_reject_invalid_plans
     );
 
     let mut stat_master_store = store.clone();
-    stat_master_store.stat_positions.get_mut("4key").unwrap()[0]
+    stat_master_store
+        .legacy_mut()
+        .stat_positions
+        .get_mut("4key")
+        .unwrap()[0]
         .position
         .shadow = None;
-    let stat_active_before = stat_master_store.stat_positions["4key"][0]
+    let stat_active_before = stat_master_store.legacy().stat_positions["4key"][0]
         .position
         .active_shadow
         .clone();
@@ -8026,12 +8180,20 @@ fn shadow_masks_seed_current_defaults_preserve_siblings_and_reject_invalid_plans
         let mut seeded_store = store_with_every_reorder_type();
         let (id, position) = match element_type {
             EditorElementTypeV1::Key => {
-                let position = &mut seeded_store.key_positions.get_mut("4key").unwrap()[0];
+                let position = &mut seeded_store
+                    .legacy_mut()
+                    .key_positions
+                    .get_mut("4key")
+                    .unwrap()[0];
                 (position.id.clone(), position)
             }
             EditorElementTypeV1::Knob => {
-                let position =
-                    &mut seeded_store.knob_positions.get_mut("4key").unwrap()[0].position;
+                let position = &mut seeded_store
+                    .legacy_mut()
+                    .knob_positions
+                    .get_mut("4key")
+                    .unwrap()[0]
+                    .position;
                 (position.id.clone(), position)
             }
             _ => unreachable!(),
@@ -8135,9 +8297,14 @@ fn shadow_masks_seed_current_defaults_preserve_siblings_and_reject_invalid_plans
 #[test]
 fn set_key_slot_follows_position_id_and_preserves_the_pair() {
     let mut store = base_store();
-    store.keys.get_mut("4key").unwrap().swap(0, 1);
-    store.key_positions.get_mut("4key").unwrap().swap(0, 1);
-    let id = store.key_positions["4key"][1].id.clone();
+    store.legacy_mut().keys.get_mut("4key").unwrap().swap(0, 1);
+    store
+        .legacy_mut()
+        .key_positions
+        .get_mut("4key")
+        .unwrap()
+        .swap(0, 1);
+    let id = store.legacy().key_positions["4key"][1].id.clone();
     let op = EditorOpV1::SetKeySlot {
         id,
         slot: EditorFrozenKeySlotV1::Multi(crate::models::EditorFrozenMultiKeySlotV1 {
@@ -8154,7 +8321,10 @@ fn set_key_slot_follows_position_id_and_preserves_the_pair() {
             match_mode: crate::models::SlotMatch::All,
         }
     );
-    assert_eq!(transition.candidate.key_positions, store.key_positions);
+    assert_eq!(
+        transition.candidate.key_positions,
+        store.legacy().key_positions
+    );
     assert_eq!(transition.changed_fields, [EditorField::Keys]);
     assert_eq!(
         transition.op_results[0].status,
@@ -8173,8 +8343,8 @@ fn set_key_slot_follows_position_id_and_preserves_the_pair() {
 fn property_and_slot_type_mismatches_reject_the_whole_request() {
     let store = store_with_every_reorder_type();
     let before = store.clone();
-    let key_id = store.key_positions["4key"][0].id.clone();
-    let stat_id = store.stat_positions["4key"][0].position.id.clone();
+    let key_id = store.legacy().key_positions["4key"][0].id.clone();
+    let stat_id = store.legacy().stat_positions["4key"][0].position.id.clone();
 
     let property_error = prepare_editor_ops_transition(
         &store,

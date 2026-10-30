@@ -69,19 +69,21 @@ fn populated_custom_tab_store() -> AppStoreData {
         ..AppStoreData::default()
     };
     store
+        .legacy_mut()
         .keys
         .insert(TARGET_TAB.to_string(), vec![KeySlot::from("KeyD")]);
     store
+        .legacy_mut()
         .key_positions
         .insert(TARGET_TAB.to_string(), vec![position.clone()]);
-    store.stat_positions.insert(
+    store.legacy_mut().stat_positions.insert(
         TARGET_TAB.to_string(),
         vec![StatPosition {
             stat_type: StatType::Kps,
             position: position.clone(),
         }],
     );
-    store.graph_positions.insert(
+    store.legacy_mut().graph_positions.insert(
         TARGET_TAB.to_string(),
         vec![GraphPosition {
             stat_type: GraphStatType::Kps,
@@ -92,7 +94,7 @@ fn populated_custom_tab_store() -> AppStoreData {
             position: position.clone(),
         }],
     );
-    store.knob_positions.insert(
+    store.legacy_mut().knob_positions.insert(
         TARGET_TAB.to_string(),
         vec![KnobPosition {
             axis_id: "axis".to_string(),
@@ -101,7 +103,7 @@ fn populated_custom_tab_store() -> AppStoreData {
             position,
         }],
     );
-    store.layer_groups.insert(
+    store.legacy_mut().layer_groups.insert(
         TARGET_TAB.to_string(),
         vec![LayerGroupDef {
             id: "group".to_string(),
@@ -131,12 +133,12 @@ fn deleting_selected_custom_tab_clears_all_tab_scoped_data() {
     delete_custom_tab_data(&mut store, TARGET_TAB, &plan);
 
     assert!(!store.custom_tabs.iter().any(|tab| tab.id == TARGET_TAB));
-    assert!(!store.keys.contains_key(TARGET_TAB));
-    assert!(!store.key_positions.contains_key(TARGET_TAB));
-    assert!(!store.stat_positions.contains_key(TARGET_TAB));
-    assert!(!store.graph_positions.contains_key(TARGET_TAB));
-    assert!(!store.knob_positions.contains_key(TARGET_TAB));
-    assert!(!store.layer_groups.contains_key(TARGET_TAB));
+    assert!(!store.legacy().keys.contains_key(TARGET_TAB));
+    assert!(!store.legacy().key_positions.contains_key(TARGET_TAB));
+    assert!(!store.legacy().stat_positions.contains_key(TARGET_TAB));
+    assert!(!store.legacy().graph_positions.contains_key(TARGET_TAB));
+    assert!(!store.legacy().knob_positions.contains_key(TARGET_TAB));
+    assert!(!store.legacy().layer_groups.contains_key(TARGET_TAB));
     assert!(!store.tab_css_overrides.contains_key(TARGET_TAB));
     assert!(!store.tab_note_overrides.contains_key(TARGET_TAB));
     assert!(!store.key_counters.contains_key(TARGET_TAB));
@@ -391,8 +393,10 @@ fn reorder_history_undo_restores_tab_order_and_bar_count_together() {
         id: tab_id.clone(),
         name: "Reorder".to_string(),
     });
-    data.keys.insert(tab_id.clone(), Vec::new());
-    data.key_positions.insert(tab_id.clone(), Vec::new());
+    data.legacy_mut().keys.insert(tab_id.clone(), Vec::new());
+    data.legacy_mut()
+        .key_positions
+        .insert(tab_id.clone(), Vec::new());
     data.tab_order = ["4key", "5key", "6key", "8key", tab_id.as_str()]
         .map(str::to_string)
         .to_vec();
@@ -487,10 +491,13 @@ fn reset_all_clears_knob_positions_and_zeroes_default_counters() {
         default_stat_positions(),
     );
 
-    assert!(store.knob_positions.is_empty());
+    assert!(store.legacy().knob_positions.is_empty());
     assert!(store.custom_tabs.is_empty());
     assert_eq!(store.selected_key_type, "4key");
-    assert_eq!(store.stat_positions.len(), default_stat_positions().len());
+    assert_eq!(
+        store.legacy().stat_positions.len(),
+        default_stat_positions().len()
+    );
     assert!(store
         .key_counters
         .values()
@@ -508,12 +515,18 @@ fn reset_all_issues_a_fresh_globally_unique_id_generation_each_time() {
         default_stat_positions(),
     );
     let first = store
+        .legacy()
         .key_positions
         .values()
         .flatten()
         .map(|position| position.id.clone())
         .collect::<HashSet<_>>();
-    let first_count = store.key_positions.values().map(Vec::len).sum::<usize>();
+    let first_count = store
+        .legacy()
+        .key_positions
+        .values()
+        .map(Vec::len)
+        .sum::<usize>();
 
     reset_all_editor_data(
         &mut store,
@@ -522,6 +535,7 @@ fn reset_all_issues_a_fresh_globally_unique_id_generation_each_time() {
         default_stat_positions(),
     );
     let second = store
+        .legacy()
         .key_positions
         .values()
         .flatten()
@@ -554,11 +568,13 @@ fn reset_all_migrates_default_data_url_images_immediately() {
     );
 
     let positions = store
+        .legacy()
         .key_positions
         .values()
         .flatten()
         .chain(
             store
+                .legacy()
                 .stat_positions
                 .values()
                 .flatten()
@@ -566,6 +582,7 @@ fn reset_all_migrates_default_data_url_images_immediately() {
         )
         .chain(
             store
+                .legacy()
                 .graph_positions
                 .values()
                 .flatten()
@@ -573,6 +590,7 @@ fn reset_all_migrates_default_data_url_images_immediately() {
         )
         .chain(
             store
+                .legacy()
                 .knob_positions
                 .values()
                 .flatten()
@@ -591,6 +609,7 @@ fn reset_all_migrates_default_data_url_images_immediately() {
         .iter()
         .all(|image| std::path::Path::new(image.as_str()).is_file()));
     assert!(store
+        .legacy()
         .stat_positions
         .values()
         .flatten()
@@ -609,12 +628,12 @@ fn custom_mode_reset_is_supported_and_preserves_tab_identity() {
     reset_mode_data(&mut store, TARGET_TAB, kind.unwrap());
 
     assert_eq!(store.custom_tabs, tabs_before);
-    assert!(store.keys[TARGET_TAB].is_empty());
-    assert!(store.key_positions[TARGET_TAB].is_empty());
-    assert!(store.stat_positions[TARGET_TAB].is_empty());
-    assert!(store.graph_positions[TARGET_TAB].is_empty());
-    assert!(store.knob_positions[TARGET_TAB].is_empty());
-    assert!(!store.layer_groups.contains_key(TARGET_TAB));
+    assert!(store.legacy().keys[TARGET_TAB].is_empty());
+    assert!(store.legacy().key_positions[TARGET_TAB].is_empty());
+    assert!(store.legacy().stat_positions[TARGET_TAB].is_empty());
+    assert!(store.legacy().graph_positions[TARGET_TAB].is_empty());
+    assert!(store.legacy().knob_positions[TARGET_TAB].is_empty());
+    assert!(!store.legacy().layer_groups.contains_key(TARGET_TAB));
     assert!(!store.tab_css_overrides.contains_key(TARGET_TAB));
     assert!(!store.tab_note_overrides.contains_key(TARGET_TAB));
     assert!(store.key_counters[TARGET_TAB].is_empty());
@@ -623,16 +642,16 @@ fn custom_mode_reset_is_supported_and_preserves_tab_identity() {
 #[test]
 fn default_mode_reset_clears_knob_positions() {
     let mut store = AppStoreData::default();
-    store.knob_positions.insert(
+    store.legacy_mut().knob_positions.insert(
         "4key".to_string(),
-        populated_custom_tab_store().knob_positions[TARGET_TAB].clone(),
+        populated_custom_tab_store().legacy().knob_positions[TARGET_TAB].clone(),
     );
 
     reset_mode_data(&mut store, "4key", ModeResetKind::Default);
 
-    assert!(store.knob_positions["4key"].is_empty());
+    assert!(store.legacy().knob_positions["4key"].is_empty());
     assert_eq!(
-        store.stat_positions["4key"].len(),
+        store.legacy().stat_positions["4key"].len(),
         default_stat_positions()["4key"].len()
     );
 }
@@ -644,9 +663,10 @@ fn ghost_mode_request_leaves_store_keyboard_and_events_unchanged() {
         ..AppStoreData::default()
     };
     store
+        .legacy_mut()
         .keys
         .insert("ghost-mode".to_string(), vec![KeySlot::from("KeyA")]);
-    let keyboard = KeyboardManager::new(store.keys.clone(), "8key");
+    let keyboard = KeyboardManager::new(store.legacy().keys.clone(), "8key");
     let commit_calls = Cell::new(0);
     let emit_calls = Cell::new(0);
 
@@ -679,7 +699,7 @@ fn absent_mode_request_remains_a_no_op() {
         selected_key_type: "8key".to_string(),
         ..AppStoreData::default()
     };
-    let keyboard = KeyboardManager::new(store.keys.clone(), "8key");
+    let keyboard = KeyboardManager::new(store.legacy().keys.clone(), "8key");
     let commit_calls = Cell::new(0);
     let emit_calls = Cell::new(0);
 
@@ -721,7 +741,7 @@ fn selection_after_concurrent_delete_uses_locked_store_state() {
     assert!(!success);
     assert_eq!(selected, selected_after_delete);
     assert_eq!(locked_store.selected_key_type, selected_after_delete);
-    assert!(!locked_store.keys.contains_key(TARGET_TAB));
+    assert!(!locked_store.legacy().keys.contains_key(TARGET_TAB));
 }
 
 #[test]
@@ -736,7 +756,7 @@ fn reset_mode_with_changed_keys_preserves_other_live_mode_counters() {
             EditorCommitOrigin::LegacyAdapter("reset-test-setup".to_string()),
             &[EditorField::Keys, EditorField::KeyPositions],
             |data| {
-                data.keys.get_mut("4key").unwrap()[0] = KeySlot::from("QA RESET KEY");
+                data.legacy_mut().keys.get_mut("4key").unwrap()[0] = KeySlot::from("QA RESET KEY");
                 Ok(())
             },
         )
@@ -745,9 +765,9 @@ fn reset_mode_with_changed_keys_preserves_other_live_mode_counters() {
     let state = AppState::initialize(store).unwrap();
     let emitter = NoopCounterEmitter;
     let reset_mode = "4key";
-    let reset_key = state.store.snapshot().keys[reset_mode][0].canonical();
+    let reset_key = state.store.snapshot().legacy().keys[reset_mode][0].canonical();
     let preserved_mode = "5key";
-    let preserved_key = state.store.snapshot().keys[preserved_mode][0].canonical();
+    let preserved_key = state.store.snapshot().legacy().keys[preserved_mode][0].canonical();
     for expected in 1..=3 {
         assert_eq!(
             state.increment_key_counter_and_emit(&emitter, reset_mode, &reset_key),
@@ -823,7 +843,7 @@ fn reset_mode_with_default_keys_applies_counter_only_reset_to_runtime() {
     let state = AppState::initialize(store).unwrap();
     let emitter = NoopCounterEmitter;
     let mode = "4key";
-    let key = state.store.snapshot().keys[mode][0].canonical();
+    let key = state.store.snapshot().legacy().keys[mode][0].canonical();
     for expected in 1..=7 {
         assert_eq!(
             state.increment_key_counter_and_emit(&emitter, mode, &key),
@@ -878,9 +898,9 @@ fn reset_mode_replays_queued_increment_for_unchanged_mapping() {
     let state = AppState::initialize(store).unwrap();
     let emitter = NoopCounterEmitter;
     let reset_mode = "4key";
-    let reset_key = state.store.snapshot().keys[reset_mode][0].canonical();
+    let reset_key = state.store.snapshot().legacy().keys[reset_mode][0].canonical();
     let preserved_mode = "5key";
-    let preserved_key = state.store.snapshot().keys[preserved_mode][0].canonical();
+    let preserved_key = state.store.snapshot().legacy().keys[preserved_mode][0].canonical();
     for expected in 1..=3 {
         assert_eq!(
             state.increment_key_counter_and_emit(&emitter, reset_mode, &reset_key),
@@ -957,7 +977,7 @@ fn reset_mode_drops_queued_increment_for_replaced_key() {
             EditorCommitOrigin::LegacyAdapter("reset-queue-test-setup".to_string()),
             &[EditorField::Keys, EditorField::KeyPositions],
             |data| {
-                data.keys.get_mut(mode).unwrap()[0] = KeySlot::from(replaced_key);
+                data.legacy_mut().keys.get_mut(mode).unwrap()[0] = KeySlot::from(replaced_key);
                 Ok(())
             },
         )
@@ -1023,8 +1043,12 @@ fn reset_all_drops_queued_increment_for_removed_custom_mode() {
                     id: mode.to_string(),
                     name: "Removed during reset".to_string(),
                 });
-                data.keys.insert(mode.to_string(), vec![KeySlot::from(key)]);
-                data.key_positions.insert(mode.to_string(), vec![position]);
+                data.legacy_mut()
+                    .keys
+                    .insert(mode.to_string(), vec![KeySlot::from(key)]);
+                data.legacy_mut()
+                    .key_positions
+                    .insert(mode.to_string(), vec![position]);
                 data.selected_key_type = mode.to_string();
                 Ok(())
             },
@@ -1087,7 +1111,7 @@ fn reset_all_with_default_keys_applies_counter_only_reset_to_runtime() {
     let state = AppState::initialize(store).unwrap();
     let emitter = NoopCounterEmitter;
     let mode = "4key";
-    let key = state.store.snapshot().keys[mode][0].canonical();
+    let key = state.store.snapshot().legacy().keys[mode][0].canonical();
     for expected in 1..=7 {
         assert_eq!(
             state.increment_key_counter_and_emit(&emitter, mode, &key),
@@ -1156,7 +1180,8 @@ fn reset_all_with_changed_keys_zeroes_every_live_counter() {
             EditorCommitOrigin::LegacyAdapter("reset-all-test-setup".to_string()),
             &[EditorField::Keys, EditorField::KeyPositions],
             |data| {
-                data.keys.get_mut("4key").unwrap()[0] = KeySlot::from("QA RESET ALL KEY");
+                data.legacy_mut().keys.get_mut("4key").unwrap()[0] =
+                    KeySlot::from("QA RESET ALL KEY");
                 Ok(())
             },
         )
@@ -1165,7 +1190,7 @@ fn reset_all_with_changed_keys_zeroes_every_live_counter() {
     let state = AppState::initialize(store).unwrap();
     let emitter = NoopCounterEmitter;
     for mode in ["4key", "5key"] {
-        let key = state.store.snapshot().keys[mode][0].canonical();
+        let key = state.store.snapshot().legacy().keys[mode][0].canonical();
         for expected in 1..=7 {
             assert_eq!(
                 state.increment_key_counter_and_emit(&emitter, mode, &key),

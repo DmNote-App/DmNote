@@ -146,7 +146,7 @@ pub(super) fn migrate_legacy_sprite_positions_value(value: &mut Value) -> bool {
 pub(super) fn migrate_legacy_knob_sensitivity(data: &mut AppStoreData) -> bool {
     const LEGACY_DEFAULT: f64 = 1.40625; // 360 / 256
     let mut changed = false;
-    for positions in data.knob_positions.values_mut() {
+    for positions in data.legacy_mut().knob_positions.values_mut() {
         for knob in positions.iter_mut() {
             if knob.sensitivity == LEGACY_DEFAULT {
                 knob.sensitivity = 1.0;
@@ -243,27 +243,28 @@ pub(crate) fn normalize_state(mut data: AppStoreData) -> AppStoreData {
     data.tab_order = normalize_tab_order(&data.tab_order, &data.custom_tabs);
     data.bar_count = normalize_bar_count(data.bar_count, &data.tab_order);
 
-    if data.keys.is_empty() {
-        data.keys = default_keys().clone();
+    if data.legacy().keys.is_empty() {
+        data.legacy_mut().keys = default_keys().clone();
     } else {
-        merge_default_modes(&mut data.keys, default_keys());
+        merge_default_modes(&mut data.legacy_mut().keys, default_keys());
     }
 
-    if data.key_positions.is_empty() {
-        data.key_positions = default_positions().clone();
+    if data.legacy().key_positions.is_empty() {
+        data.legacy_mut().key_positions = default_positions().clone();
     } else {
-        merge_default_positions(&mut data.key_positions, default_positions());
+        merge_default_positions(&mut data.legacy_mut().key_positions, default_positions());
     }
 
     if !has_valid_selected_key_type(&data) {
         data.selected_key_type = "4key".to_string();
     }
 
-    pad_key_position_lengths(&mut data.keys, &mut data.key_positions);
+    let legacy = data.legacy_mut();
+    pad_key_position_lengths(&mut legacy.keys, &mut legacy.key_positions);
 
     // 레거시 마이그레이션: 전역 noteSettings.borderRadius → 키별 noteBorderRadius
     if let Some(legacy_border_radius) = data.note_settings.border_radius.take() {
-        for positions in data.key_positions.values_mut() {
+        for positions in data.legacy_mut().key_positions.values_mut() {
             for pos in positions.iter_mut() {
                 pos.note_border_radius = Some(legacy_border_radius as f64);
             }
@@ -282,7 +283,8 @@ pub(crate) fn normalize_state(mut data: AppStoreData) -> AppStoreData {
         tab.migrate_fade_position();
     }
 
-    merge_default_counters(&mut data.key_counters, &data.keys);
+    let keys = data.legacy().keys.clone();
+    merge_default_counters(&mut data.key_counters, &keys);
 
     data.counter_animation_presets =
         crate::models::normalize_user_counter_animation_presets(data.counter_animation_presets);
@@ -304,7 +306,7 @@ pub(crate) fn normalize_state(mut data: AppStoreData) -> AppStoreData {
 
 pub(crate) fn normalize_sprite_triggers(data: &mut AppStoreData) -> bool {
     let mut changed = false;
-    for sprite in data.sprite_positions.values_mut().flatten() {
+    for sprite in data.legacy_mut().sprite_positions.values_mut().flatten() {
         if !is_renderable_image_ref(sprite.base_image.as_deref()) {
             if let Some(reference) = sprite.reference_natural_size.as_mut() {
                 changed |= reference.source.take().is_some();
@@ -437,7 +439,7 @@ pub(super) fn repair_sprite_numeric_ranges(data: &mut AppStoreData) -> bool {
     }
 
     let mut repaired = false;
-    for position in data.sprite_positions.values_mut().flatten() {
+    for position in data.legacy_mut().sprite_positions.values_mut().flatten() {
         repaired |= repair_position(position);
     }
     repaired
@@ -581,7 +583,7 @@ pub(super) fn repair_editor_revision(data: &mut AppStoreData) -> bool {
 
 pub(super) fn has_valid_selected_key_type(data: &AppStoreData) -> bool {
     default_keys().contains_key(&data.selected_key_type)
-        || (data.keys.contains_key(&data.selected_key_type)
+        || (data.legacy().keys.contains_key(&data.selected_key_type)
             && data
                 .custom_tabs
                 .iter()
@@ -597,6 +599,7 @@ pub(super) fn has_valid_selected_key_type(data: &AppStoreData) -> bool {
 pub(crate) fn clear_dangling_group_ids(data: &mut AppStoreData) -> bool {
     // 요소 컬렉션을 가변으로 도는 동안 layerGroups를 빌릴 수 없어 id만 복제
     let valid_ids: HashMap<String, HashSet<String>> = data
+        .legacy()
         .layer_groups
         .iter()
         .map(|(tab, groups)| {

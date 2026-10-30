@@ -162,7 +162,7 @@ pub(crate) fn sync_key_counters(counters: &mut KeyCounters, keys: &KeyMappings) 
 
 pub(crate) fn repair_selected_mode(store: &mut AppStoreData) {
     let selected_is_valid = default_keys().contains_key(&store.selected_key_type)
-        || (store.keys.contains_key(&store.selected_key_type)
+        || (store.legacy().keys.contains_key(&store.selected_key_type)
             && store
                 .custom_tabs
                 .iter()

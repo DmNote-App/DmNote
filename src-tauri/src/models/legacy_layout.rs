@@ -109,20 +109,6 @@ impl<'a> From<&'a EditorDocumentV1> for LegacyRef<'a> {
     }
 }
 
-impl<'a> From<&'a super::AppStoreData> for LegacyRef<'a> {
-    fn from(store: &'a super::AppStoreData) -> Self {
-        Self {
-            keys: &store.keys,
-            key_positions: &store.key_positions,
-            stat_positions: &store.stat_positions,
-            graph_positions: &store.graph_positions,
-            knob_positions: &store.knob_positions,
-            sprite_positions: &store.sprite_positions,
-            layer_groups: &store.layer_groups,
-        }
-    }
-}
-
 // 종류별 배열 길이, (id, zIndex, groupId), 그룹 목록, 키 매핑 유무
 type ModeStructure<'a> = (
     Vec<(usize, Option<usize>)>,

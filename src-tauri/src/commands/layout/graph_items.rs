@@ -12,7 +12,7 @@ use crate::{
 #[tauri::command]
 pub async fn graph_positions_get(app: AppHandle) -> CmdResult<GraphPositions> {
     run_blocking(app, |_, state| {
-        Ok(state.store.snapshot().legacy().graph_positions)
+        Ok(state.store.snapshot().legacy().graph_positions.clone())
     })
     .await
 }

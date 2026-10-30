@@ -4,12 +4,11 @@ use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 use super::{
-    copy_element_collections, visit_collection_of, visit_collections, AppStoreData,
-    CollectionVisitor, EditorFieldTarget, ElementCollection, ElementItem, GradientSpec,
-    GradientStop, GraphPosition, GraphPositions, GraphType, ImageFit, ImageMode, KeyCounterAlign,
-    KeyCounterAlignMode, KeyCounterPlacement, KeyCounters, KeyMappings, KeyPosition, KeyPositions,
-    KeySlot, KnobPosition, KnobPositions, LayerGroups, NoteAlignment, SlotMatch, SpritePositions,
-    StatPosition, StatPositions, StatType,
+    visit_collection_of, visit_collections, AppStoreData, CollectionVisitor, EditorFieldTarget,
+    ElementCollection, ElementItem, GradientSpec, GradientStop, GraphPosition, GraphPositions,
+    GraphType, ImageFit, ImageMode, KeyCounterAlign, KeyCounterAlignMode, KeyCounterPlacement,
+    KeyCounters, KeyMappings, KeyPosition, KeyPositions, KeySlot, KnobPosition, KnobPositions,
+    LayerGroups, NoteAlignment, SlotMatch, SpritePositions, StatPosition, StatPositions, StatType,
 };
 
 pub const EDITOR_SCHEMA_VERSION: u16 = 1;
@@ -44,22 +43,11 @@ pub struct EditorDocumentV1 {
 
 impl EditorDocumentV1 {
     pub fn from_store(store: &AppStoreData) -> Self {
-        Self {
-            schema_version: EDITOR_SCHEMA_VERSION,
-            keys: store.keys.clone(),
-            key_positions: store.key_positions.clone(),
-            stat_positions: store.stat_positions.clone(),
-            graph_positions: store.graph_positions.clone(),
-            knob_positions: store.knob_positions.clone(),
-            sprite_positions: store.sprite_positions.clone(),
-            layer_groups: store.layer_groups.clone(),
-        }
+        store.legacy().clone()
     }
 
     pub fn apply_to_store(&self, store: &mut AppStoreData) {
-        store.keys = self.keys.clone();
-        copy_element_collections(self, store);
-        store.layer_groups = self.layer_groups.clone();
+        *store.legacy_mut() = self.clone();
     }
 
     pub fn apply_patch(&mut self, patch: &EditorPatchV1) {

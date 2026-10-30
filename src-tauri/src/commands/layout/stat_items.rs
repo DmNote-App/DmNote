@@ -12,7 +12,7 @@ use crate::{
 #[tauri::command]
 pub async fn stat_positions_get(app: AppHandle) -> CmdResult<StatPositions> {
     run_blocking(app, |_, state| {
-        Ok(state.store.snapshot().legacy().stat_positions)
+        Ok(state.store.snapshot().legacy().stat_positions.clone())
     })
     .await
 }

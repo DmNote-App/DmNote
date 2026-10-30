@@ -212,8 +212,8 @@ fn preset_mapping_commit_drops_queued_increment_for_replaced_key() {
     let state = Arc::new(AppState::initialize(store).unwrap());
     let emitter = NoopCounterEmitter;
     let mode = state.store.snapshot().selected_key_type;
-    let replaced_key = state.store.snapshot().keys[&mode][0].canonical();
-    let preserved_key = state.store.snapshot().keys[&mode][1].canonical();
+    let replaced_key = state.store.snapshot().legacy().keys[&mode][0].canonical();
+    let preserved_key = state.store.snapshot().legacy().keys[&mode][1].canonical();
     for expected in 1..=7 {
         assert_eq!(
             state.increment_key_counter_and_emit(&emitter, &mode, &preserved_key),
@@ -241,7 +241,8 @@ fn preset_mapping_commit_drops_queued_increment_for_replaced_key() {
                 release_commit_rx
                     .recv_timeout(Duration::from_secs(3))
                     .unwrap();
-                data.keys.get_mut(&commit_mode).unwrap()[0] = KeySlot::from(replacement_key);
+                data.legacy_mut().keys.get_mut(&commit_mode).unwrap()[0] =
+                    KeySlot::from(replacement_key);
                 Ok(())
             },
         )
@@ -449,8 +450,8 @@ fn custom_tab_create_preserves_unflushed_runtime_counters() {
     state.key_counter_enabled.store(true, Ordering::SeqCst);
     let emitter = NoopCounterEmitter;
     let snapshot = state.store.snapshot();
-    let mode = snapshot.selected_key_type;
-    let preserved_key = snapshot.keys[&mode][0].canonical();
+    let mode = snapshot.selected_key_type.clone();
+    let preserved_key = snapshot.legacy().keys[&mode][0].canonical();
 
     for expected in 1..=7 {
         assert_eq!(
@@ -483,8 +484,11 @@ fn custom_tab_create_preserves_unflushed_runtime_counters() {
                             id: tab_id.clone(),
                             name: "Counter".to_string(),
                         });
-                        store.keys.insert(tab_id.clone(), Vec::new());
-                        store.key_positions.insert(tab_id.clone(), Vec::new());
+                        store.legacy_mut().keys.insert(tab_id.clone(), Vec::new());
+                        store
+                            .legacy_mut()
+                            .key_positions
+                            .insert(tab_id.clone(), Vec::new());
                         store.selected_key_type = tab_id.clone();
                         Ok(())
                     },
@@ -554,8 +558,8 @@ fn custom_tab_delete_preserves_unflushed_runtime_counters() {
     state.key_counter_enabled.store(true, Ordering::SeqCst);
     let emitter = NoopCounterEmitter;
     let snapshot = state.store.snapshot();
-    let mode = snapshot.selected_key_type;
-    let preserved_key = snapshot.keys[&mode][0].canonical();
+    let mode = snapshot.selected_key_type.clone();
+    let preserved_key = snapshot.legacy().keys[&mode][0].canonical();
     let tab_id = "qa-counter-delete-tab".to_string();
     let create = state
         .store
@@ -569,8 +573,11 @@ fn custom_tab_delete_preserves_unflushed_runtime_counters() {
                     id: tab_id.clone(),
                     name: "Delete".to_string(),
                 });
-                store.keys.insert(tab_id.clone(), Vec::new());
-                store.key_positions.insert(tab_id.clone(), Vec::new());
+                store.legacy_mut().keys.insert(tab_id.clone(), Vec::new());
+                store
+                    .legacy_mut()
+                    .key_positions
+                    .insert(tab_id.clone(), Vec::new());
                 store.selected_key_type = tab_id.clone();
                 Ok(())
             },
@@ -613,12 +620,12 @@ fn custom_tab_delete_preserves_unflushed_runtime_counters() {
                     runtime_counters,
                     |store| {
                         store.custom_tabs.retain(|tab| tab.id != tab_id);
-                        store.keys.remove(&tab_id);
-                        store.key_positions.remove(&tab_id);
-                        store.stat_positions.remove(&tab_id);
-                        store.graph_positions.remove(&tab_id);
-                        store.knob_positions.remove(&tab_id);
-                        store.layer_groups.remove(&tab_id);
+                        store.legacy_mut().keys.remove(&tab_id);
+                        store.legacy_mut().key_positions.remove(&tab_id);
+                        store.legacy_mut().stat_positions.remove(&tab_id);
+                        store.legacy_mut().graph_positions.remove(&tab_id);
+                        store.legacy_mut().knob_positions.remove(&tab_id);
+                        store.legacy_mut().layer_groups.remove(&tab_id);
                         store.key_counters.remove(&tab_id);
                         store.selected_key_type = mode.clone();
                         Ok(())
@@ -670,8 +677,8 @@ fn custom_tab_restore_history_preserves_unflushed_runtime_counters() {
     state.key_counter_enabled.store(true, Ordering::SeqCst);
     let emitter = NoopCounterEmitter;
     let snapshot = state.store.snapshot();
-    let mode = snapshot.selected_key_type;
-    let preserved_key = snapshot.keys[&mode][0].canonical();
+    let mode = snapshot.selected_key_type.clone();
+    let preserved_key = snapshot.legacy().keys[&mode][0].canonical();
     let tab_id = "qa-counter-restore-tab".to_string();
     let create = state
         .store
@@ -685,8 +692,11 @@ fn custom_tab_restore_history_preserves_unflushed_runtime_counters() {
                     id: tab_id.clone(),
                     name: "Before".to_string(),
                 });
-                store.keys.insert(tab_id.clone(), Vec::new());
-                store.key_positions.insert(tab_id.clone(), Vec::new());
+                store.legacy_mut().keys.insert(tab_id.clone(), Vec::new());
+                store
+                    .legacy_mut()
+                    .key_positions
+                    .insert(tab_id.clone(), Vec::new());
                 Ok(())
             },
         )
@@ -921,6 +931,7 @@ fn committed_key_positions_refresh_key_sound_binding_cache() {
             &[EditorField::KeyPositions],
             move |store| {
                 let position = store
+                    .legacy_mut()
                     .key_positions
                     .get_mut(&mode)
                     .unwrap()
@@ -2376,8 +2387,8 @@ fn sigterm_preserves_pending_state_and_allows_retry_after_canceled_flush() {
         );
         state.key_counter_enabled.store(true, Ordering::SeqCst);
         let snapshot = state.store.snapshot();
-        let key_mode = snapshot.selected_key_type;
-        let key = snapshot.keys[&key_mode][0].canonical();
+        let key_mode = snapshot.selected_key_type.clone();
+        let key = snapshot.legacy().keys[&key_mode][0].canonical();
         for expected in 1..=9 {
             assert_eq!(
                 state.increment_key_counter_and_emit(&NoopCounterEmitter, &key_mode, &key),
@@ -2474,7 +2485,7 @@ fn sigterm_preserves_pending_state_and_allows_retry_after_canceled_flush() {
                 &directory.path().join("store-v2.json"),
             ))
             .unwrap();
-        let key = persisted.keys[&persisted.selected_key_type][0].canonical();
+        let key = persisted.legacy().keys[&persisted.selected_key_type][0].canonical();
         let counter = persisted.key_counters[&persisted.selected_key_type][&key];
         let x = persisted.overlay_bounds.as_ref().map(|bounds| bounds.x);
         eprintln!(

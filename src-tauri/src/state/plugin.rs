@@ -400,11 +400,11 @@ pub(crate) fn plugin_group_refs_from_store(
 // 플러그인 인스턴스 버킷 - 인스턴스 목록(저장 모양 배열)을 읽고 쓰는 단일 입구.
 // 저장 위치는 트리 장면(플러그인 종류 요소, state::plugin_tree) - 플러그인 런타임은 같은 목록을 주고받는다
 pub(crate) fn plugin_instance_bucket_ids(data: &AppStoreData) -> Vec<String> {
-    crate::state::plugin_tree::plugin_bucket_ids(&data.element_document)
+    crate::state::plugin_tree::plugin_bucket_ids(data.element_document())
 }
 
 pub(crate) fn read_plugin_instance_bucket(data: &AppStoreData, plugin_id: &str) -> Option<Value> {
-    crate::state::plugin_tree::project_plugin_bucket(&data.element_document, plugin_id)
+    crate::state::plugin_tree::project_plugin_bucket(data.element_document(), plugin_id)
 }
 
 pub(crate) fn write_plugin_instance_bucket(
@@ -413,7 +413,7 @@ pub(crate) fn write_plugin_instance_bucket(
     value: Option<Value>,
 ) {
     crate::state::plugin_tree::apply_plugin_bucket(
-        std::sync::Arc::make_mut(&mut data.element_document),
+        data.element_document_mut(),
         plugin_id,
         value.as_ref(),
     );
@@ -429,7 +429,7 @@ pub(crate) fn migrate_plugin_buckets_into_tree(data: &mut AppStoreData) -> bool 
         .filter(|key| is_plugin_instances_storage_key(key))
         .cloned()
         .collect::<Vec<_>>();
-    if data.element_document.extra.contains_key(IMPORTED) {
+    if data.element_document().extra.contains_key(IMPORTED) {
         if !keys.is_empty() {
             log::warn!("[Store] Ignoring plugin instance buckets left after import: {keys:?}");
         }
@@ -449,7 +449,7 @@ pub(crate) fn migrate_plugin_buckets_into_tree(data: &mut AppStoreData) -> bool 
             write_plugin_instance_bucket(data, &plugin_id, Some(value));
         }
     }
-    std::sync::Arc::make_mut(&mut data.element_document)
+    data.element_document_mut()
         .extra
         .insert(IMPORTED.into(), Value::from(1));
     true

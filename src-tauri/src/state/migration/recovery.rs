@@ -83,7 +83,8 @@ pub(super) fn repair_custom_tab_key_layout_pairs(
                     "[Store] Rebuilding invalid keys mode '{mode}' with {} unassigned entries during recovery",
                     positions.len()
                 );
-                data.keys
+                data.legacy_mut()
+                    .keys
                     .insert(mode, vec![KeySlot::default(); positions.len()]);
                 repaired = true;
             }
@@ -92,7 +93,8 @@ pub(super) fn repair_custom_tab_key_layout_pairs(
                     "[Store] Rebuilding invalid keyPositions mode '{mode}' with {} default entries during recovery",
                     keys.len()
                 );
-                data.key_positions
+                data.legacy_mut()
+                    .key_positions
                     .insert(mode, vec![KeyPosition::default(); keys.len()]);
                 repaired = true;
             }
@@ -100,8 +102,8 @@ pub(super) fn repair_custom_tab_key_layout_pairs(
                 log::warn!(
                     "[Store] Initializing missing keys and keyPositions modes '{mode}' during recovery"
                 );
-                data.keys.insert(mode.clone(), Vec::new());
-                data.key_positions.insert(mode, Vec::new());
+                data.legacy_mut().keys.insert(mode.clone(), Vec::new());
+                data.legacy_mut().key_positions.insert(mode, Vec::new());
                 repaired = true;
             }
         }
