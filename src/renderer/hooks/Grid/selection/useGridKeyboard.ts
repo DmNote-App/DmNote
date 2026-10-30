@@ -202,6 +202,23 @@ export function useGridKeyboard({
         return;
       }
 
+      // ] [ 한 칸 앞·뒤 - 트리로 옮긴 옛 종류 하나도 옛 계획으로 옮기므로 옛 선택이 비어도 넘긴다
+      // ] 키로 앞으로 이동
+      if (e.key === ']' && typeof onMoveForward === 'function') {
+        e.preventDefault();
+        markGridKeyHandled(e);
+        void Promise.resolve(onMoveForward()).catch(reportElementOpError);
+        return;
+      }
+
+      // [ 키로 뒤로 이동
+      if (e.key === '[' && typeof onMoveBackward === 'function') {
+        e.preventDefault();
+        markGridKeyHandled(e);
+        void Promise.resolve(onMoveBackward()).catch(reportElementOpError);
+        return;
+      }
+
       // 선택된 요소가 없으면 무시
       if (selectedElements.length === 0) return;
 
@@ -263,21 +280,6 @@ export function useGridKeyboard({
         return;
       }
 
-      // ] 키로 앞으로 이동
-      if (e.key === ']' && typeof onMoveForward === 'function') {
-        e.preventDefault();
-        markGridKeyHandled(e);
-        void Promise.resolve(onMoveForward()).catch(reportElementOpError);
-        return;
-      }
-
-      // [ 키로 뒤로 이동
-      if (e.key === '[' && typeof onMoveBackward === 'function') {
-        e.preventDefault();
-        markGridKeyHandled(e);
-        void Promise.resolve(onMoveBackward()).catch(reportElementOpError);
-        return;
-      }
     };
 
     // 리스너 순서와 무관하게 옛 종류가 먼저, 트리 요소가 다음
