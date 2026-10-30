@@ -293,14 +293,15 @@ pub(crate) fn sync_element_document(before: &AppStoreData, after: &mut AppStoreD
     if !legacy_changed(before, after) {
         return Ok(());
     }
-    after.element_document = std::sync::Arc::new(
-        reconcile_document(
-            &after.element_document,
-            Some(LegacyRef::from(before)),
-            LegacyRef::from(&*after),
-        )
-        .context("요소 트리 맞추기 실패")?,
-    );
+    let mut next = reconcile_document(
+        &after.element_document,
+        Some(LegacyRef::from(before)),
+        LegacyRef::from(&*after),
+    )
+    .context("요소 트리 맞추기 실패")?;
+    // 옛 모양에서 빠진 탭의 장면은 버려진다 - 그 탭의 플러그인 인스턴스는 장면 밖에 보존한다
+    carry_plugin_buckets(&after.element_document, &mut next);
+    after.element_document = std::sync::Arc::new(next);
     Ok(())
 }
 
@@ -908,6 +909,16 @@ impl AppStore {
             return Ok(ElementDocumentCommitResult::Committed { revision, changes });
         }
         let before = element_tree_snapshot(&guard.data.element_document, changes.scenes.keys());
+        // 기록 뼈대가 그대로면(플러그인 노드 옆으로만 자리를 바꿈 등) 되돌릴 것이 없다 - 빈 기록은
+        // 되돌리기를 막는다(HISTORY_TARGET_ALREADY_APPLIED)
+        if before == element_tree_snapshot(&scratch.element_document, changes.scenes.keys()) {
+            let state = &mut *guard;
+            self.commit_locked(state, scratch, ())?;
+            return Ok(ElementDocumentCommitResult::Committed {
+                revision: self.element_document_revision(),
+                changes,
+            });
+        }
         let plan = guard
             .history
             .prepare_element_tree_entry(before, gesture_id)

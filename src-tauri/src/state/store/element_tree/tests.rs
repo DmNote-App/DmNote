@@ -2013,3 +2013,79 @@ fn 프리셋_트리_정보에는_플러그인_인스턴스를_싣지_않고_전�
         before
     );
 }
+
+#[test]
+fn 플러그인_노드_옆으로만_자리를_바꾼_트리_커밋은_빈_되돌리기_기록을_남기지_않는다() {
+    let (dir, store) = open_store();
+    let insert: Op = serde_json::from_value(serde_json::json!({
+        "op": "insert", "scene": "4key", "parent": null, "index": null,
+        "node": { "type": "element", "id": "tracker-1", "kind": "cursorTracker",
+                  "frame": { "x": 5, "y": 5, "width": 120, "height": 120 } }
+    }))
+    .unwrap();
+    store.commit_element_document(&[insert]).unwrap();
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        crate::state::plugin::write_plugin_instance_bucket(
+            &mut scratch,
+            "demo",
+            Some(
+                serde_json::json!([{ "instanceId": "00000000-0000-4000-8000-0000000000a1",
+                "position": { "x": 0, "y": 0 }, "tabId": "4key" }]),
+            ),
+        );
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let undo_entries = |store: &crate::state::AppStore| {
+        let status = store.history_status();
+        (status.history_revision, status.can_undo, status.can_redo)
+    };
+    let before = undo_entries(&store);
+    // 맨 위가 [트래커, 플러그인] - 트래커를 맨 위로 올리면 플러그인 노드 옆으로만 바뀐다
+    let raise: Op = serde_json::from_value(serde_json::json!({
+        "op": "move", "scene": "4key", "ids": ["tracker-1"], "parent": null, "index": null
+    }))
+    .unwrap();
+    assert!(matches!(
+        store.commit_element_document(&[raise]).unwrap(),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    assert_eq!(undo_entries(&store), before);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 옛_모양에서_탭이_빠져_장면이_버려져도_그_탭의_플러그인_인스턴스는_보존된다() {
+    let mut before = default_state();
+    // 사용자 탭 하나 - 옛 모양에서 빠지면 장면이 버려진다
+    let keys = before.keys["4key"].clone();
+    let positions = before.key_positions["4key"]
+        .iter()
+        .map(|position| crate::models::KeyPosition {
+            id: uuid::Uuid::new_v4().to_string(),
+            ..position.clone()
+        })
+        .collect::<Vec<_>>();
+    before.keys.insert("custom-x".into(), keys);
+    before.key_positions.insert("custom-x".into(), positions);
+    crate::state::store::attach_loaded_document(&mut before, None).unwrap();
+    assert!(before.element_document.scenes.contains_key("custom-x"));
+    let instances = serde_json::json!([{ "instanceId": "00000000-0000-4000-8000-0000000000a2",
+        "position": { "x": 0, "y": 0 }, "tabId": "custom-x" }]);
+    crate::state::plugin::write_plugin_instance_bucket(
+        &mut before,
+        "demo",
+        Some(instances.clone()),
+    );
+    let mut after = before.clone();
+    after.keys.remove("custom-x");
+    after.key_positions.remove("custom-x");
+    sync_element_document(&before, &mut after).unwrap();
+    assert!(!after.element_document.scenes.contains_key("custom-x"));
+    assert_eq!(
+        crate::state::plugin::read_plugin_instance_bucket(&after, "demo"),
+        Some(instances)
+    );
+}
