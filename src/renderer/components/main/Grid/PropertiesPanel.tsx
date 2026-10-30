@@ -42,7 +42,9 @@ import PanelToggleButton from './PropertiesPanel/navigation/PanelToggleButton';
 import { EditSessionScope } from '@src/renderer/contexts/EditSessionScope';
 import DocumentElementPanel from './PropertiesPanel/document/DocumentElementPanel';
 import DocumentBatchPanel from './PropertiesPanel/document/DocumentBatchPanel';
+import TreeKnobPanel from './PropertiesPanel/document/TreeKnobPanel';
 import { useDocumentSelectionStore } from './document/useDocumentSelectionStore';
+import { useDocumentElement } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { previewSingleGraphColor } from './PropertiesPanel/selection/previewPatchForwarders';
 import PluginSettingsForm from './PropertiesPanel/plugin/PluginSettingsForm';
 import { usePropertiesPanelSelection } from './PropertiesPanel/selection/usePropertiesPanelSelection';
@@ -207,6 +209,10 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const documentElementId = useDocumentSelectionStore(
     (state) => state.selectedIds[0] ?? null,
   );
+  const documentElementKind = useDocumentElement(
+    documentSceneId ?? '',
+    documentElementId ?? '',
+  )?.kind;
   const documentSelectedIds = useDocumentSelectionStore(
     (state) => state.selectedIds,
   );
@@ -1183,6 +1189,36 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             elementIds={documentSelectedIds}
             panelElement={panelElement}
             setPanelElement={setPanelElement}
+            t={t}
+          />
+        </EditSessionScope>
+      );
+    }
+
+    // 트리로 옮긴 노브 - 옛 노브 패널을 그대로 쓰고 커밋은 트리로
+    if (
+      documentSceneId &&
+      documentElementId &&
+      documentElementKind === 'knob'
+    ) {
+      return (
+        <EditSessionScope>
+          <TreeKnobPanel
+            key={`${documentSceneId}:${documentElementId}`}
+            sceneId={documentSceneId}
+            elementId={documentElementId}
+            setPanelElement={setPanelElement}
+            panelElement={panelElement}
+            singleScrollRefFor={singleScrollRefFor}
+            useCustomCSS={useCustomCSS}
+            onStylePropertyPreview={stableStylePropertyPreviewHandler(
+              'knob',
+              documentElementId,
+            )}
+            onPaintPreview={stablePaintPreviewHandler(
+              'knob',
+              documentElementId,
+            )}
             t={t}
           />
         </EditSessionScope>

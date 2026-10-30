@@ -14,4 +14,6 @@ export interface ElementRenderProps<Values> {
   // 오버레이·OBS에서 동작 코드를 돌린다. 편집 화면은 false - 정의의 미리보기 상태로 그린다
   live: boolean;
   inputs: ElementRenderInputs;
+  // 편집 화면에서 골랐는지 - 옛 겉모습이 선택 상태를 그릴 때
+  selected?: boolean;
 }

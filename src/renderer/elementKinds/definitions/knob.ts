@@ -1,5 +1,6 @@
 import OverlayKnobItem from '@components/overlay/counters/OverlayKnobItem';
 import { defineElementKind } from '../defineElementKind';
+import KnobEditorFace from './knob/KnobEditorFace';
 
 // 노브 - HID 축 값을 회전으로 그린다
 export const knobKind = defineElementKind(
@@ -17,7 +18,8 @@ export const knobKind = defineElementKind(
     fallbackSize: { width: 60, height: 60 },
   },
   {
-    // 오버레이·OBS는 트리에서 옛 노브(축 입력·회전)를 그대로 그린다. 편집 화면은 아직 옛 경로
+    // 편집 화면은 옛 노브 겉모습, 오버레이·OBS는 옛 노브(축 입력·회전)를 트리에서 그대로 그린다
+    render: KnobEditorFace as never,
     legacyOverlay: OverlayKnobItem as never,
   },
 );
