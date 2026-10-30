@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { spriteResizeValues } from './spriteResizeValues';
 
 const transform = (x: number, y: number) => ({
@@ -46,5 +47,28 @@ describe('스프라이트 크기 조절 값', () => {
         height: 200,
       }),
     ).toBeNull();
+  });
+
+  it('이동값은 옛 스토어 값(패널 편집이 먼저 반영된다)을 쓴다', () => {
+    useSpriteStore.setState({
+      positions: {
+        '4key': [
+          {
+            id: 's1',
+            idleTransform: transform(50, 0),
+            poses: [],
+          } as never,
+        ],
+      },
+    });
+    const values = spriteResizeValues(sprite as never, {
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 200,
+    }) as { idleTransform: { x: number }; poses: unknown[] };
+    expect(values.idleTransform.x).toBe(100);
+    expect(values.poses).toEqual([]);
+    useSpriteStore.setState({ positions: {} });
   });
 });

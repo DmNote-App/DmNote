@@ -2,13 +2,18 @@ import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import type { JsonValue } from '@src/types/generated/elementDocument';
 import type { SpriteTransform } from '@src/types/key/sprites';
 import { projectSpriteResize } from '@utils/sprite/resizeProjection';
+import { useSpriteStore } from '@stores/data/useSpriteStore';
 
 /** 크기를 바꾸면 기본·자세 이동값을 같은 비율로 (옛 resizeSprite와 같은 계산 - projectSpriteResize 하나) */
 export const spriteResizeValues = (
   element: ElementNode,
   bounds: { x: number; y: number; width: number; height: number },
 ): Record<string, JsonValue> | null => {
-  const values = (element.values ?? {}) as {
+  // 이동값은 옛 스토어에서 - 패널의 자세·기준점 편집은 옛 경로로 먼저 반영돼 트리 값보다 새롭다
+  const legacy = Object.values(useSpriteStore.getState().positions)
+    .flat()
+    .find((position) => position.id === element.id);
+  const values = (legacy ?? element.values ?? {}) as {
     idleTransform?: SpriteTransform;
     poses?: Array<{ transform: SpriteTransform }>;
   };
