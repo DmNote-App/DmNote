@@ -306,6 +306,12 @@ const Grid = ({
   );
   const { statPositions } = collections;
   const panelSelection = usePanelSelection(selectedKeyType);
+  // 트리에서 그리는 키의 바깥 카운터는 트리 틀을 따라간다
+  const keyCounterPositions = useTreeFramedPositions(
+    'key',
+    positions[selectedKeyType] ?? [],
+    selectedKeyType,
+  );
   // 트리에서 그리는 스탯의 바깥 카운터는 트리 틀을 따라간다
   const statCounterPositions = useTreeFramedPositions(
     'stat',
@@ -1027,9 +1033,10 @@ const Grid = ({
           {/* Outside 카운터 미리보기 레이어 */}
           {keyCounterEnabled && (
             <KeyCounterPreviewLayer
-              positions={positions[selectedKeyType]}
+              positions={keyCounterPositions}
               previewValue={0}
-              selectedElements={selectedElements}
+              // 일괄 미리보기는 패널이 편집하는 선택(트리로 옮긴 키 포함)
+              selectedElements={panelSelection}
             />
           )}
           <StatCounterLayer

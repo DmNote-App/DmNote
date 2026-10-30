@@ -4,7 +4,7 @@ import CounterPreviewLayer, {
 } from './CounterPreviewLayer';
 
 interface KeyCounterPreviewLayerProps {
-  positions: CounterPreviewPosition[];
+  positions: readonly CounterPreviewPosition[];
   previewValue?: number;
   selectedElements?: SelectedElement[];
 }
