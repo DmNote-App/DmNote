@@ -6,7 +6,9 @@ import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import {
   isKeepingOtherSelection,
+  notifyOtherSelectionChanged,
   setOtherSelectionClearer,
+  setOtherSelectionReader,
   setOtherSelectionRouter,
 } from '@stores/grid/keepOtherSelection';
 
@@ -77,4 +79,15 @@ setOtherSelectionRouter((ids, mode) => {
           current,
         ),
   );
+});
+
+// 편집 세션·편집 제스처가 트리 요소 선택 전환도 알아채도록
+setOtherSelectionReader(() => useDocumentSelectionStore.getState().selectedIds);
+useDocumentSelectionStore.subscribe((state, previous) => {
+  if (
+    state.selectedIds !== previous.selectedIds ||
+    state.sceneId !== previous.sceneId
+  ) {
+    notifyOtherSelectionChanged();
+  }
 });

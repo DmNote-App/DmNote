@@ -45,3 +45,25 @@ export const routeOtherMembers = (
   ids: readonly string[],
   mode: OtherMembersMode,
 ) => keepOtherSelection(() => routeOther(ids, mode));
+
+// 다른 쪽(트리 요소) 선택 id 읽기·바뀜 알림 - 트리 선택 스토어가 건다.
+// 편집 세션 지문·편집 제스처 취소가 옛 종류 선택과 함께 본다
+let readOther: () => readonly string[] = () => [];
+const otherSelectionListeners = new Set<() => void>();
+
+export const setOtherSelectionReader = (read: () => readonly string[]) => {
+  readOther = read;
+};
+
+export const readOtherSelectionIds = () => readOther();
+
+export const notifyOtherSelectionChanged = () => {
+  otherSelectionListeners.forEach((listener) => listener());
+};
+
+export const subscribeOtherSelection = (listener: () => void) => {
+  otherSelectionListeners.add(listener);
+  return () => {
+    otherSelectionListeners.delete(listener);
+  };
+};

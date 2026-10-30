@@ -8,6 +8,10 @@ import { previewApi } from '@api/modules/editor/previewApi';
 import { readAuthorityPositions } from '../../model/elementStores';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import {
+  readOtherSelectionIds,
+  subscribeOtherSelection,
+} from '@stores/grid/keepOtherSelection';
+import {
   ELEMENT_TYPE_BY_PREVIEW_DOMAIN,
   PREVIEW_SCHEMA_VERSION,
   type PreviewDomain,
@@ -377,16 +381,26 @@ if (typeof window !== 'undefined') {
           return leftId < rightId ? -1 : 1;
         }),
     );
-  let lastSelectionFingerprint = identityFingerprint(
-    useGridSelectionStore.getState().selectedElements,
-  );
-  unsubscribeSelectionChange = useGridSelectionStore.subscribe((state) => {
-    const nextFingerprint = identityFingerprint(state.selectedElements);
+  // 옛 종류 선택과 트리 요소 선택(트리로 옮긴 옛 종류 포함)을 함께
+  const currentFingerprint = () =>
+    identityFingerprint([
+      ...useGridSelectionStore.getState().selectedElements,
+      ...readOtherSelectionIds().map((id) => ({ type: 'document', id })),
+    ]);
+  let lastSelectionFingerprint = currentFingerprint();
+  const onSelectionChange = () => {
+    const nextFingerprint = currentFingerprint();
     if (nextFingerprint !== lastSelectionFingerprint) {
       lastSelectionFingerprint = nextFingerprint;
       editGestureController.cancel();
     }
-  });
+  };
+  const unsubscribeLegacy = useGridSelectionStore.subscribe(onSelectionChange);
+  const unsubscribeOther = subscribeOtherSelection(onSelectionChange);
+  unsubscribeSelectionChange = () => {
+    unsubscribeLegacy();
+    unsubscribeOther();
+  };
 }
 
 // 개발 중 모듈 교체에서도 활성 게스처와 로컬 프리뷰를 함께 회수

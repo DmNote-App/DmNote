@@ -1,7 +1,6 @@
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-
-import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
+import { readOtherSelectionIds } from '@stores/grid/keepOtherSelection';
 
 // 편집 세션이 붙어 있는 대상의 지문.
 //
@@ -16,7 +15,7 @@ import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 // 갱신이 sync lane을 벗어나 언마운트 cleanup이 예약 작업보다 늦어질 수 있다
 export const formatEditSessionTarget = (
   mode: string,
-  selectedElements: readonly SelectedElement[],
+  selectedElements: readonly { type: string; id: string }[],
 ): string => {
   const targets = selectedElements
     .map((element) => [element.type, element.id] as const)
@@ -43,8 +42,9 @@ export const formatEditSessionTarget = (
 export const getEditSessionMode = (): string =>
   useKeyStore.getState().selectedKeyType;
 
+// 옛 종류 선택과 트리 요소 선택(트리로 옮긴 옛 종류 포함)을 함께
 export const getEditSessionTarget = (): string =>
-  formatEditSessionTarget(
-    useKeyStore.getState().selectedKeyType,
-    useGridSelectionStore.getState().selectedElements,
-  );
+  formatEditSessionTarget(useKeyStore.getState().selectedKeyType, [
+    ...useGridSelectionStore.getState().selectedElements,
+    ...readOtherSelectionIds().map((id) => ({ type: 'document', id })),
+  ]);
