@@ -1,13 +1,13 @@
 /**
- * DraggableKey 상태 프리뷰 계약 테스트
+ * 키 얼굴(KeyFaceView) 상태 프리뷰 계약 테스트
  * 편집 상태 프리뷰 스토어 발행만으로(그라데이션 세션 없이) 키가 입력 상태
  * 시각으로 렌더되는지 고정한다 - 단색·그림자·이미지 편집의 캔버스 동기 근거
  */
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import DraggableKey from '@components/shared/key/Key';
+import KeyFaceView from '@components/shared/key/KeyFaceView';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { useEditStatePreviewStore } from '@stores/grid/useEditStatePreviewStore';
 import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
@@ -15,28 +15,6 @@ import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
-
-vi.mock('@utils/core/platform', () => ({ isMac: () => false }));
-
-// 공용 상호작용 훅은 배럴이 아니라 소스 모듈을 직접 쓴다
-vi.mock('@hooks/Grid/drag/useDraggable', () => ({
-  useDraggable: () => ({
-    ref: () => {},
-    dx: 0,
-    dy: 0,
-    wasMoved: false,
-    isDragging: false,
-    recentPressMovedRef: { current: false },
-  }),
-}));
-
-vi.mock('@hooks/Grid/drag/useSelectionDrag', () => ({
-  useSelectionDrag: () => ({
-    handlePointerDown: () => {},
-    movedDuringPressRef: { current: false },
-    pressMovedRef: { current: false },
-  }),
-}));
 
 const KEY_ID = '00000000-0000-4000-8000-000000000701';
 const OTHER_ID = '00000000-0000-4000-8000-000000000702';
@@ -47,8 +25,8 @@ let root: Root;
 const renderKey = (options: { isSelected?: boolean } = {}) => {
   act(() => {
     root.render(
-      <DraggableKey
-        index={0}
+      <KeyFaceView
+        anchorKind="key"
         elementId={KEY_ID}
         position={{
           ...createDefaultKeyPosition(),
@@ -60,8 +38,8 @@ const renderKey = (options: { isSelected?: boolean } = {}) => {
           activeBackgroundColor: '#f0f0f0',
         }}
         keyName="A"
-        onPositionChange={() => {}}
         isSelected={options.isSelected ?? false}
+        placement={{ dx: 0, dy: 0, zIndex: 0 }}
       />,
     );
   });
@@ -97,7 +75,7 @@ afterEach(() => {
   useEditStatePreviewStore.setState({ entries: [] });
 });
 
-describe('DraggableKey 상태 프리뷰', () => {
+describe('키 얼굴 상태 프리뷰', () => {
   it('스토어 발행만으로 입력 상태 시각으로 전환하고 회수 시 복귀한다', () => {
     const node = renderKey();
     expect(node.getAttribute('data-state')).toBe('inactive');

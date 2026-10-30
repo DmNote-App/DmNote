@@ -19,10 +19,7 @@ import {
   commitStableLayerZOrder,
   orderStableZTargetsForBatch,
 } from '@src/renderer/editor/runtime/intent/layerZOrderIntent';
-import {
-  reportElementOpError,
-  reportElementOpSkipped,
-} from '@src/renderer/editor/runtime/intent/elementIntent';
+import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
 import {
   resolveElementById,
   type NativeElementType,
@@ -70,7 +67,6 @@ import {
   useGridSelectionStore,
   type SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
-import { openPropertiesPanelForSelection } from '@stores/grid/usePanelHostStore';
 import { useUIStore } from '@stores/useUIStore';
 import { useSmartGuidesStore } from '@stores/grid/useSmartGuidesStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
@@ -96,7 +92,6 @@ import {
   groupSelectedElements,
   ungroupSelectedElements,
 } from '@utils/grid/groupActions';
-import { expandGroupSelection } from '@utils/grid/groupSelection';
 import {
   composeItemPreviewCollections,
   getPreviewOverlayVersion,
@@ -109,7 +104,6 @@ import {
   shouldOpenMixedSelectionMenu,
 } from './gridContextMenuModel';
 import DuplicateElementGhost from './DuplicateElementGhost';
-import NativeGridElements from './NativeGridElements';
 import GridSelectionOverlays from '../overlays/GridSelectionOverlays';
 import DocumentContextMenu from '../document/DocumentContextMenu';
 import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
@@ -140,7 +134,6 @@ import {
   copyDocumentSelection,
   pasteDocumentClipboard,
 } from '../document/documentClipboard';
-import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { setCompanionSelectionReader } from '@stores/grid/companionSelection';
 import { executeNativeContextMenuAction } from './nativeContextMenuActions';
 import { useSelectedElementDragLifecycle } from '@hooks/Grid/drag/useSelectedElementDragLifecycle';
@@ -263,19 +256,7 @@ const Grid = ({
   const selectedElements = useGridSelectionStore(
     (state) => state.selectedElements,
   );
-  const toggleSelection = useGridSelectionStore(
-    (state) => state.toggleSelection,
-  );
   const clearSelection = useGridSelectionStore((state) => state.clearSelection);
-  const setSelectedElements = useGridSelectionStore(
-    (state) => state.setSelectedElements,
-  );
-  const lastSelectedKeyBounds = useGridSelectionStore(
-    (state) => state.lastSelectedKeyBounds,
-  );
-  const setLastSelectedKeyBounds = useGridSelectionStore(
-    (state) => state.setLastSelectedKeyBounds,
-  );
 
   // 클립보드 상태 (복사/붙여넣기용)
   const _clipboard = useGridSelectionStore((state) => state.clipboard);
@@ -723,72 +704,6 @@ const Grid = ({
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // 요소 클릭 시 그룹 멤버 자동 선택
-  const selectElementWithGroup = (type: NativeElementType, index: number) => {
-    if (isContextOpen) {
-      setIsContextOpen(false);
-      setContextPosition(null);
-    }
-    const modeArrays = modeArraysOf(
-      { ...captureElementCollections(), keyPositions: positions },
-      selectedKeyType,
-    );
-
-    const clicked = modeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]][index];
-    // stat·graph·knob·sprite는 렌더 클로저가 아니라 live 스토어를 읽는다. 렌더와
-    // 클릭 사이에 배열이 줄면 대상이 없을 수 있어 fail-closed로 닫는다
-    if (!clicked) {
-      reportElementOpSkipped('group selection (target missing)');
-      return;
-    }
-    // 같은 그룹의 native·플러그인 멤버 전체 확장 (공용 헬퍼)
-    const groupSource = {
-      mode: selectedKeyType,
-      ...modeArrays,
-      pluginElements: usePluginDisplayElementStore.getState().elements,
-      modeGroups:
-        useLayerGroupStore.getState().layerGroups[selectedKeyType] || [],
-    };
-    const nextSelection = expandGroupSelection(
-      { type, id: clicked.id, index },
-      groupSource,
-    );
-    // 그룹 멤버 수와 무관하게 선택 Store 알림·React render를 1회로 유지
-    // (트리로 옮긴 옛 종류 멤버는 선택 스토어가 트리 선택으로 보낸다)
-    setSelectedElements(nextSelection);
-  };
-
-  const toggleNativeElementSelection = (
-    type: NativeElementType,
-    index: number,
-  ) => {
-    const elementId = (
-      type === 'key'
-        ? positions[selectedKeyType]
-        : getItemStoreState(type).positions[selectedKeyType]
-    )[index].id;
-    // 넣고 빼기 - 트리 요소 선택을 지킨다
-    keepOtherSelection(() => toggleSelection({ type, id: elementId, index }));
-  };
-
-  // 더블클릭 편집 진입 — 대상이 다중 선택의 멤버면 선택을 보존해 배치 편집으로,
-  // 아니면 해당 요소(+그룹)만 선택해 단일 편집으로 property 페이지를 연다
-  const openElementEditor = (type: NativeElementType, index: number) => {
-    const { selectedElements: currentSelection } =
-      useGridSelectionStore.getState();
-    const positionsForType =
-      collections[EDITOR_ELEMENT_POSITION_FIELDS[type]][selectedKeyType];
-    const targetId = positionsForType?.[index]?.id;
-    const isMultiMember =
-      currentSelection.length > 1 &&
-      typeof targetId === 'string' &&
-      currentSelection.some((el) => el.type === type && el.id === targetId);
-    if (!isMultiMember) {
-      selectElementWithGroup(type, index);
-    }
-    openPropertiesPanelForSelection();
-  };
-
   // 요소 컨텍스트 메뉴 열기
   const openElementContextMenu = (
     type: NativeElementType,
@@ -1016,30 +931,6 @@ const Grid = ({
             onElementContextMenu={openDocumentElementContextMenu}
             legacyZIndexes={legacyZIndexes}
             mixedDrag={documentMixedDrag}
-          />
-          <NativeGridElements
-            mode={selectedKeyType}
-            modeArrays={currentModeArrays}
-            keyMappings={keyMappings[selectedKeyType]}
-            pluginElements={pluginElements}
-            selectedElements={selectedElements}
-            activeTool={activeTool}
-            zoom={zoom}
-            panX={panX}
-            panY={panY}
-            isViewportTransforming={isTransforming}
-            keyCounterEnabled={keyCounterEnabled}
-            lastSelectedKeyBounds={lastSelectedKeyBounds}
-            onSelectElement={selectElementWithGroup}
-            onToggleElement={toggleNativeElementSelection}
-            onClearSelection={clearSelection}
-            onSetSelectedElements={setSelectedElements}
-            onSetLastSelectedKeyBounds={setLastSelectedKeyBounds}
-            onMoveSelection={moveSelectedElementsDrag}
-            onMultiDragStart={beginSelectedPluginInstancesDrag}
-            onMultiDragEnd={commitSelectedElementsDrag}
-            onOpenElementEditor={openElementEditor}
-            onOpenElementContextMenu={openElementContextMenu}
           />
           {/* Outside 카운터 미리보기 레이어 */}
           {keyCounterEnabled && (

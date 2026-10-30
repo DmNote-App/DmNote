@@ -160,12 +160,12 @@ const loadHarness = async () => {
     import('@stores/data/useSpriteStore'),
     import('@src/renderer/editor/runtime/coordinator/editorStateCoordinator'),
     import('@hooks/Grid/drag/dragSession'),
-    import('../layers/SpriteItem'),
+    import('../layers/SpriteFaceView'),
     import('@stores/grid/useSpriteEditPreviewStore'),
   ]);
   return {
     SpriteCanvasHandles: handles.default,
-    SpriteItem: spriteItem.default,
+    SpriteFaceView: spriteItem.default,
     useSpriteEditPreviewStore: editPreview.useSpriteEditPreviewStore,
     SingleSpritePanel: panel.SingleSpritePanel,
     composePreviewPositions: overlay.composePreviewPositions,
@@ -203,13 +203,10 @@ describe('자세 핸들 저장 후 실제 팝업 닫기와 재개방', () => {
     return (
       <>
         <div data-testid="grid-background" />
-        <harness.SpriteItem
-          index={0}
+        <harness.SpriteFaceView
           elementId={SPRITE_ID}
           position={position}
-          onPositionChange={() => {}}
           isSelected={isSelected}
-          activeTool="move"
         />
         {isSelected ? (
           <harness.SingleSpritePanel

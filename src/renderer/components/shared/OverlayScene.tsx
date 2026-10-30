@@ -1,6 +1,6 @@
 import React, { Fragment, Suspense, lazy } from 'react';
 import { isLegacyOverlayType } from '@src/types/elementKinds';
-import { Key } from '@components/shared/key/Key';
+import { Key } from '@components/shared/key/LiveKey';
 import { isMac } from '@utils/core/platform';
 import KeyCounterLayer from '@components/overlay/counters/KeyCounterLayer';
 import StatCounterLayer from '@components/overlay/counters/StatCounterLayer';

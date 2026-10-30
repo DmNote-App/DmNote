@@ -194,7 +194,7 @@ describe('기본 요소 눌림 섀도 계약', () => {
     }
 
     for (const file of [
-      'src/renderer/components/main/Grid/layers/KnobItem.tsx',
+      'src/renderer/components/main/Grid/layers/KnobFaceView.tsx',
       'src/renderer/components/overlay/counters/OverlayKnobItem.tsx',
     ]) {
       const source = readFileSync(resolve(process.cwd(), file), 'utf8');

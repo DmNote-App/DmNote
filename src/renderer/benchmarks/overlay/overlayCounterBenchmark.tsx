@@ -2,7 +2,7 @@
 // 실제 오버레이 컴포넌트(Key + KeyCounterLayer)를 마운트하고 Preact signal을 직접 밀어
 // press(DOWN → counter → UP)를 재현한다. 프레임은 rAF 스텁 큐를 수동으로 배출해 측정한다.
 import React, { Profiler } from 'react';
-import { Key } from '@components/shared/key/Key';
+import { Key } from '@components/shared/key/LiveKey';
 import KeyCounterLayer from '@components/overlay/counters/KeyCounterLayer';
 import type { BenchmarkLayout } from './overlayCounterBenchmarkSupport';
 
