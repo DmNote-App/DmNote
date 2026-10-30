@@ -6,7 +6,7 @@ import { usePopupPresence } from '@hooks/ui/usePopupPresence';
 import { useRetainedWhileOpen } from '@hooks/ui/useRetainedValue';
 import { useLenis } from '@hooks/useLenis';
 import { usePanelHost } from '@contexts/PanelHostContext';
-import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
+import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
 import ListPopup, {
   type ListItem,
 } from '@components/main/Modal/listPopup/ListPopup';
@@ -94,18 +94,19 @@ const LayerTabContent = ({
   const toggleCollapsed = useLayerCollapseStore((state) => state.toggle);
   const rows = documentLayerRows(scene, collapsed);
 
-  // 이름이 비었을 때의 기본 이름 - 옛 컬렉션의 슬롯·종류 이름
-  const keyPositions = useKeyStore((state) => state.positions);
-  const keyMappings = useKeyStore((state) => state.keyMappings);
-  const items = useItemElementCollections();
+  // 이름이 비었을 때의 기본 이름 - 트리의 슬롯·종류 이름 (지금 값)
+  const records = treePanelRecords(scene, sceneId);
   const pluginElements = usePluginDisplayElementStore(
     selectPropertyPanelPluginElements,
   );
   const labels = buildLayerLabels({
     selectedKeyType: sceneId,
-    positions: keyPositions,
-    keyMappings,
-    ...items,
+    positions: records.canonicalPositions as never,
+    keyMappings: records.keyMappings as never,
+    statPositions: records.canonicalStatItemPositions as never,
+    graphPositions: records.canonicalGraphItemPositions as never,
+    knobPositions: records.canonicalKnobItemPositions as never,
+    spritePositions: records.canonicalSpritePositions as never,
     pluginElements,
   });
 
