@@ -45,7 +45,7 @@ describe('collectElementsInKeyRange', () => {
       'plugin:plugin:one',
       'stat:stat:one',
       'graph:graph:one',
-      // 노브는 트리 편집기로 옮겨 옛 범위 선택에서 빠진다
+      'knob:knob:one',
       'sprite:sprite:one',
     ]);
   });

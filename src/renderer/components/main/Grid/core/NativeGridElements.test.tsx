@@ -205,7 +205,7 @@ describe('NativeGridElements', () => {
     host.remove();
   });
 
-  it('키·통계·그래프·스프라이트를 기존 순서와 표시 모델로 렌더하고 트리로 옮긴 노브는 그리지 않는다', () => {
+  it('키·통계·그래프·노브·스프라이트를 기존 순서와 표시 모델로 렌더한다', () => {
     renderScene();
 
     const elements = [...host.querySelectorAll('[data-native-kind]')];
@@ -213,11 +213,12 @@ describe('NativeGridElements', () => {
       'KeyA',
       'Total',
       'graph',
+      'knob',
       'sprite',
     ]);
     expect(
       elements.map((element) => element.getAttribute('data-selected')),
-    ).toEqual(['false', 'false', 'true', 'false']);
+    ).toEqual(['false', 'false', 'true', 'false', 'false']);
   });
 
   it('스프라이트도 같은 공통 핸들러로 위치 커밋·삭제·메뉴를 라우팅한다', () => {
@@ -253,6 +254,8 @@ describe('NativeGridElements', () => {
     const key = host.querySelector(`[data-element-id="${KEY_ID}"]`)!;
     const stat = host.querySelector(`[data-element-id="${STAT_ID}"]`)!;
     const graph = host.querySelector(`[data-element-id="${GRAPH_ID}"]`)!;
+    const knob = host.querySelector(`[data-element-id="${KNOB_ID}"]`)!;
+
     dispatchMouse(key, 'click');
     expect(callbacks.select).toHaveBeenCalledWith('key', 0);
     expect(callbacks.setLastBounds).toHaveBeenCalledWith({
@@ -268,6 +271,14 @@ describe('NativeGridElements', () => {
     dispatchMouse(key, 'click', { shiftKey: true });
     expect(callbacks.clear).toHaveBeenCalledTimes(1);
     expect(callbacks.toggle).toHaveBeenCalledWith('key', 0);
+
+    dispatchMouse(knob, 'mousedown');
+    expect(operationMocks.commitPosition).toHaveBeenCalledWith(
+      'knob',
+      KNOB_ID,
+      12,
+      34,
+    );
 
     dispatchMouse(graph, 'contextmenu', { clientX: 7, clientY: 9 });
     expect(callbacks.openContext).toHaveBeenCalledWith('graph', 0, 7, 9, graph);
@@ -296,6 +307,7 @@ describe('NativeGridElements', () => {
       `key:${KEY_ID}`,
       `stat:${STAT_ID}`,
       `graph:${GRAPH_ID}`,
+      `knob:${KNOB_ID}`,
       `sprite:${SPRITE_ID}`,
     ]);
   });
