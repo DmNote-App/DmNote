@@ -1,17 +1,11 @@
-import { useSpriteStore } from '@stores/data/useSpriteStore';
-import { spriteResizePatch } from '@utils/sprite/resizeProjection';
 import { isNativeElementId } from '../../model/elementId';
 import type { NativeElementType } from '../../model/elementIdMap';
+import { type PropertyIntents } from '../intent/elementIntent';
 import {
-  applyPropertyIntentsEagerly,
-  type ElementIntentReceipt,
-  type PropertyIntents,
-} from '../intent/elementIntent';
-import {
+  captureEditorDocument,
   commitGeneratedSemanticOps,
   commitSemanticOps,
 } from './editorSemanticOps';
-import { captureEditorDocument } from '../coordinator/editorStateCoordinator';
 import {
   computeBatchGeometryPlan,
   type BatchGeometryOperation,
@@ -97,73 +91,6 @@ export const elementBoundsOp = (
   elementType === 'sprite'
     ? { kind: 'resizeSprite', id, bounds }
     : { kind: 'setBounds', elementType, id, bounds };
-
-// 스프라이트 리사이즈 eager intent - 로컬 스토어의 현재 콘텐츠를 projection
-// 으로 스케일해 bounds와 함께 싣는다. 백엔드는 최신 base에 같은 수학을
-// 재적용한다 (resizeProjection 하나가 양측 계약 소유). 로컬에 없으면 eager
-// 적용 대상도 없으므로 bounds만 남긴다
-const spriteResizeEagerIntent = (
-  id: string,
-  bounds: EditorBoundsV1,
-): Record<string, unknown> => {
-  const record = useSpriteStore.getState().positions ?? {};
-  for (const positions of Object.values(record)) {
-    const current = positions?.find((position) => position.id === id);
-    if (current) {
-      return spriteResizePatch(current, bounds);
-    }
-  }
-  return { ...bounds };
-};
-
-// bounds intent 맵 조립 - 이동 계열은 부분 patch, 스프라이트는 full bounds를
-// 실어야 eager 적용이 콘텐츠 스케일까지 소유한다. 단일 배치와 혼합 배치가
-// 같은 규칙을 쓰되 스프라이트 bounds를 찾는 키(계획 key vs op id)만 다르다
-export const buildNativeBoundsIntents = <
-  TTarget extends { id: string; type: NativeElementType },
->(
-  updates: readonly { key: string; patch: Record<string, unknown> }[],
-  targetForKey: (key: string) => TTarget | undefined,
-  spriteBoundsFor: (target: TTarget, key: string) => EditorBoundsV1 | undefined,
-): PropertyIntents => {
-  const intents = new Map<
-    NativeElementType,
-    Map<string, Record<string, unknown>>
-  >();
-  for (const { key, patch } of updates) {
-    const target = targetForKey(key);
-    if (!target) continue;
-    const byId = intents.get(target.type) ?? new Map();
-    const spriteBounds =
-      target.type === 'sprite' ? spriteBoundsFor(target, key) : undefined;
-    byId.set(
-      target.id,
-      (spriteBounds ? { ...spriteBounds } : patch) as Record<string, unknown>,
-    );
-    intents.set(target.type, byId);
-  }
-  return intents;
-};
-
-// bounds intent의 eager 적용 - 스프라이트 항목은 projection 결과(콘텐츠
-// 포함)로 치환해 receipt가 스케일 필드까지 소유하게 한다
-export const applyBoundsIntentsEagerly = (
-  intents: PropertyIntents,
-): ElementIntentReceipt | null => {
-  let eagerIntents = intents;
-  const spriteIntents = intents.get('sprite');
-  if (spriteIntents && spriteIntents.size > 0) {
-    const projectedById = new Map<string, Record<string, unknown>>();
-    for (const [id, patch] of spriteIntents) {
-      const bounds = patch as unknown as EditorBoundsV1;
-      projectedById.set(id, spriteResizeEagerIntent(id, bounds));
-    }
-    const next = new Map(intents);
-    next.set('sprite', projectedById);
-    eagerIntents = next;
-  }
-  return applyPropertyIntentsEagerly(eagerIntents);
-};
 
 const planBatchGeometry = (
   base: CanonicalEditorDocumentV1,

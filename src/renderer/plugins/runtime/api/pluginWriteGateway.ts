@@ -1,12 +1,14 @@
 /**
  * 플러그인 발신 keys·editor 쓰기 게이트웨이 (계약 §10)
  * provenance는 전역 상태가 아니라 플러그인 프록시가 이 모듈을 명시 호출하는
- * 것으로 결정된다. keys 쓰기는 coordinator의 공유 snapshot 병합에 합류하지
- * 않고 단일 직렬 큐의 격리 커밋으로 처리한다.
+ * 것으로 결정된다. 쓰기는 호환 큐의 격리 커밋(지금 revision으로 보내는 옛 모양 패치)으로 처리한다.
  */
 
 import { editorCommitRaw } from '@api/modules/editor/editorApi';
-import { editorCoordinator } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
+import {
+  commitLegacyEditorPatchForDocument,
+  runSerializedLegacyCommit,
+} from '@src/renderer/editor/runtime/lifecycle/legacyEditorMutation';
 import { EDITOR_SCHEMA_VERSION } from '@src/types/editor';
 import type {
   EditorCommitResult,
@@ -54,7 +56,7 @@ export const pluginKeysUpdate = async (
   mappings: KeyMappings,
   options?: PluginWriteOptions,
 ): Promise<KeyMappings> => {
-  const document = await editorCoordinator.commitIsolatedPluginPatch(
+  const document = await commitLegacyEditorPatchForDocument(
     { schemaVersion: 1, keys: normalizeMappings(mappings) },
     { multiKey: options?.multiKey === true },
   );
@@ -66,7 +68,7 @@ export const pluginKeysUpdateWithPositions = async (
   positions: KeyPositions,
   options?: PluginWriteOptions,
 ): Promise<{ keys: KeyMappings; positions: KeyPositions }> => {
-  const document = await editorCoordinator.commitIsolatedPluginPatch(
+  const document = await commitLegacyEditorPatchForDocument(
     {
       schemaVersion: 1,
       keys: normalizeMappings(mappings),
@@ -144,15 +146,15 @@ export const pluginPositionsUpdate = async <T>(
   field: PluginPositionField,
   positions: Record<string, T[]>,
 ): Promise<Record<string, T[]>> => {
-  const document = await editorCoordinator.commitIsolatedPluginPatch(
+  const document = await commitLegacyEditorPatchForDocument(
     { schemaVersion: 1, [field]: positions },
     { multiKey: false },
   );
   return document[field] as Record<string, T[]>;
 };
 
-// 플러그인의 직접 editor_commit. keys를 포함하면 coordinator 큐로 직렬화해
-// 예약된 자사 변경보다 먼저 lock을 잡는 경합을 차단하고, 검증한 wire snapshot만
+// 플러그인의 직접 editor_commit. keys를 포함하면 호환 큐로 직렬화해
+// 먼저 줄 선 자사 쓰기보다 먼저 lock을 잡는 경합을 차단하고, 검증한 wire snapshot만
 // 전달한다 (multiKey는 플러그인이 선언한 값만 백엔드 게이트에 도달)
 export const pluginEditorCommit = async (
   request: PluginEditorCommitRequest,
@@ -164,9 +166,7 @@ export const pluginEditorCommit = async (
     throw new TypeError('editor.commit changes.schemaVersion must be 1');
   }
   if (wireRequest.changes.keys !== undefined) {
-    return editorCoordinator.runSerializedPluginCommit(() =>
-      editorCommitRaw(wireRequest),
-    );
+    return runSerializedLegacyCommit(() => editorCommitRaw(wireRequest));
   }
   return editorCommitRaw(wireRequest);
 };

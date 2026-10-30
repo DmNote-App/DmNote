@@ -10,7 +10,6 @@ import {
   cancelUncommittedMixedGestureTransaction,
 } from '@plugins/runtime/displayElement/gestureTransaction';
 import { createPluginPositionDragReceipt } from '@plugins/runtime/displayElement/pluginElementActions';
-import { createNativePositionDragReceipt } from '@src/renderer/editor/runtime/intent/elementIntent';
 
 // 함께 고른 다른 선택(트리 요소)의 끌기 - 증분 이동, 끝낼 때 커밋, 취소 때 되돌리기
 export interface CompanionDragReceipt {
@@ -34,10 +33,7 @@ export const useSelectedElementDragLifecycle = ({
   createCompanionReceipt,
 }: UseSelectedElementDragLifecycleOptions) => {
   const gestureIdRef = useRef<string | null>(null);
-  // 드래그 시작값 영수증 - 취소된 제스처는 네이티브·플러그인 위치를 되돌린다
-  const nativeReceiptRef = useRef<ReturnType<
-    typeof createNativePositionDragReceipt
-  > | null>(null);
+  // 드래그 시작값 영수증 - 취소된 제스처는 플러그인 위치를 되돌린다 (옛 선택은 플러그인 요소만)
   const pluginReceiptRef = useRef<ReturnType<
     typeof createPluginPositionDragReceipt
   > | null>(null);
@@ -47,13 +43,8 @@ export const useSelectedElementDragLifecycle = ({
     companionReceiptRef.current?.move(deltaX, deltaY);
     const move = () => moveSelectedElements(deltaX, deltaY);
     const pluginReceipt = pluginReceiptRef.current;
-    const movePlugins = () => {
-      if (pluginReceipt) pluginReceipt.apply(move);
-      else move();
-    };
-    const nativeReceipt = nativeReceiptRef.current;
-    if (nativeReceipt) nativeReceipt.apply(movePlugins);
-    else movePlugins();
+    if (pluginReceipt) pluginReceipt.apply(move);
+    else move();
   };
 
   const beginSelectedElementsDrag = () => {
@@ -61,12 +52,6 @@ export const useSelectedElementDragLifecycle = ({
     gestureIdRef.current = gestureId;
     freezeSelectionForGesture();
     const frozenSelection = useGridSelectionStore.getState().selectedElements;
-    const nativeReceipt = createNativePositionDragReceipt(
-      frozenSelection.flatMap(({ type, id }) =>
-        type === 'plugin' ? [] : [{ type, id }],
-      ),
-    );
-    nativeReceiptRef.current = nativeReceipt;
     const selectedPluginElementIds = new Set(
       frozenSelection
         .filter((element) => element.type === 'plugin')
@@ -98,7 +83,6 @@ export const useSelectedElementDragLifecycle = ({
     return (commit = true) => {
       if (!commit) {
         companionReceipt?.rollback();
-        nativeReceipt.rollback();
         cancelUncommittedMixedGestureTransaction(gestureId, {
           discardPendingSave: true,
           beforeDiscard: pluginReceipt.rollback,
@@ -110,7 +94,6 @@ export const useSelectedElementDragLifecycle = ({
       cancelUncommittedMixedGestureTransaction(gestureId);
       if (gestureIdRef.current === gestureId) {
         gestureIdRef.current = null;
-        nativeReceiptRef.current = null;
         pluginReceiptRef.current = null;
         companionReceiptRef.current = null;
       }

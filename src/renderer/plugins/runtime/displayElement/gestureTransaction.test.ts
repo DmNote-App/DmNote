@@ -63,12 +63,9 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: { commitGesture: mocks.commitGesture },
-  }),
-);
+vi.mock('@src/renderer/editor/runtime/lifecycle/editorGestureCommit', () => ({
+  commitEditorGesture: mocks.commitGesture,
+}));
 
 vi.mock('@api/modules/editor/gestureApi', () => ({
   gestureApi: { commit: mocks.commitApi },
@@ -190,15 +187,13 @@ describe('mixed gesture transaction lifecycle', () => {
     }>();
     mocks.drainQueues.mockReturnValueOnce(queueDrain.promise);
     mocks.commitApi.mockReturnValueOnce(apiCommit.promise);
-    mocks.commitGesture.mockImplementationOnce(
-      async (_changes, _gestureId, commit) => {
-        await commit({
-          editorBaseRevision: 2,
-          mutationId: 'mutation-a',
-          editorChanges: { schemaVersion: 1, statPositions: {} },
-        });
-      },
-    );
+    mocks.commitGesture.mockImplementationOnce(async (_changes, commit) => {
+      await commit({
+        editorBaseRevision: 2,
+        mutationId: 'mutation-a',
+        editorChanges: { schemaVersion: 1, statPositions: {} },
+      });
+    });
     mocks.elements = [
       {
         definitionId: 'plugin-a',
@@ -255,12 +250,10 @@ describe('mixed gesture transaction lifecycle', () => {
           editorChanges: { schemaVersion: 1; statPositions: object };
         }) => Promise<{ revision: number; changedFields: [] }>)
       | undefined;
-    mocks.commitGesture.mockImplementationOnce(
-      (_changes, _gestureId, commit) => {
-        executeCommit = commit;
-        return coordinatorDone.promise;
-      },
-    );
+    mocks.commitGesture.mockImplementationOnce((_changes, commit) => {
+      executeCommit = commit;
+      return coordinatorDone.promise;
+    });
     mocks.commitApi.mockResolvedValueOnce({
       editorRevision: 2,
       changedFields: [],
@@ -308,23 +301,21 @@ describe('mixed gesture transaction lifecycle', () => {
 
   it('안정 bounds 혼합 transaction은 editor ops와 ordered 결과를 보존한다', async () => {
     let coordinatorResult: unknown;
-    mocks.commitGesture.mockImplementationOnce(
-      async (_changes, _gestureId, commit) => {
-        coordinatorResult = await commit({
-          editorBaseRevision: 2,
-          mutationId: 'mutation-ops',
-          editorOpsVersion: EDITOR_OPS_VERSION,
-          editorOps: [
-            {
-              kind: 'setBounds',
-              elementType: 'key',
-              id: 'id-a',
-              bounds: { dx: 1, dy: 2, width: 3, height: 4 },
-            },
-          ],
-        });
-      },
-    );
+    mocks.commitGesture.mockImplementationOnce(async (_changes, commit) => {
+      coordinatorResult = await commit({
+        editorBaseRevision: 2,
+        mutationId: 'mutation-ops',
+        editorOpsVersion: EDITOR_OPS_VERSION,
+        editorOps: [
+          {
+            kind: 'setBounds',
+            elementType: 'key',
+            id: 'id-a',
+            bounds: { dx: 1, dy: 2, width: 3, height: 4 },
+          },
+        ],
+      });
+    });
     mocks.commitApi.mockResolvedValueOnce({
       editorRevision: 3,
       changedFields: ['keyPositions'],

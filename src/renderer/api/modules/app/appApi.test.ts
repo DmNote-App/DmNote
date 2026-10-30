@@ -1,18 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { invoke, coordinatorFlush, drainEditorWrites } = vi.hoisted(() => ({
+const { invoke, drainEditorWrites } = vi.hoisted(() => ({
   invoke: vi.fn(),
-  coordinatorFlush: vi.fn(),
   drainEditorWrites: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: { flush: coordinatorFlush },
-  }),
-);
 vi.mock('@src/renderer/editor/runtime/lifecycle/editorWriteBarrier', () => ({
   beginEditorWriteBarrier: () => drainEditorWrites,
 }));
@@ -47,27 +40,25 @@ describe('runAfterEditorFlush', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     invoke.mockReset();
-    coordinatorFlush.mockReset();
     drainEditorWrites.mockReset();
     delete window.__dmn_window_type;
   });
 
-  it('runs a lifecycle action only after pending editor state is saved', async () => {
+  it('runs a lifecycle action only after pending editor writes are saved', async () => {
     const order: string[] = [];
-    const flush = vi.fn(async () => {
-      order.push('flush');
+    drainEditorWrites.mockImplementation(async () => {
+      order.push('drain');
+      return true;
     });
     const run = vi.fn(async () => {
       order.push('quit');
       return 'done';
     });
 
-    const result = await runAfterEditorFlush('app quit', run, async () => ({
-      editorCoordinator: { flush },
-    }));
+    const result = await runAfterEditorFlush('app quit', run);
 
     expect(result).toBe('done');
-    expect(order).toEqual(['flush', 'quit']);
+    expect(order).toEqual(['drain', 'quit']);
   });
 
   it('bootstrap native ID가 canonical일 때만 payload를 반환한다', async () => {
@@ -110,27 +101,23 @@ describe('runAfterEditorFlush', () => {
 
   it('cancels the lifecycle action when saving fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const error = new Error('disk unavailable');
+    drainEditorWrites.mockResolvedValue(false);
     const run = vi.fn(async () => undefined);
 
-    await expect(
-      runAfterEditorFlush('window close', run, async () => ({
-        editorCoordinator: {
-          flush: vi.fn().mockRejectedValue(error),
-        },
-      })),
-    ).rejects.toBe(error);
+    await expect(runAfterEditorFlush('window close', run)).rejects.toThrow(
+      'pending window writes failed to drain',
+    );
 
     expect(run).not.toHaveBeenCalled();
     expect(console.error).toHaveBeenCalledWith(
       '[Editor] window close canceled because saving failed',
-      error,
+      expect.any(Error),
     );
   });
 
   it('installs the update after the editor flush without restarting', async () => {
     window.__dmn_window_type = 'main';
-    coordinatorFlush.mockResolvedValue(undefined);
+    drainEditorWrites.mockResolvedValue(true);
     const updateResult = {
       previousVersion: '1.6.1',
       updatedTo: '1.7.0',
@@ -140,13 +127,12 @@ describe('runAfterEditorFlush', () => {
 
     await expect(appApi.autoUpdate('1.7.0')).resolves.toEqual(updateResult);
 
-    expect(coordinatorFlush).toHaveBeenCalledOnce();
+    expect(drainEditorWrites).toHaveBeenCalledOnce();
     // 재시작은 호출자(useUpdateStore)가 appApi.restart()로 별도 요청
     expect(invoke.mock.calls).toEqual([['app_auto_update', { tag: '1.7.0' }]]);
   });
 
   it('acks lifecycle only after the editor write queue drains', async () => {
-    coordinatorFlush.mockResolvedValue(undefined);
     let releaseEditor!: (value: boolean) => void;
     drainEditorWrites.mockReturnValue(
       new Promise<boolean>((resolve) => {
@@ -172,7 +158,6 @@ describe('runAfterEditorFlush', () => {
 
   it('does not ack lifecycle when the editor queue fails to drain', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    coordinatorFlush.mockResolvedValue(undefined);
     drainEditorWrites.mockResolvedValue(false);
 
     await expect(
@@ -188,7 +173,7 @@ describe('runAfterEditorFlush', () => {
     await expect(appApi.autoUpdate('1.7.0')).rejects.toThrow(
       'automatic update is only available in the main window',
     );
-    expect(coordinatorFlush).not.toHaveBeenCalled();
+    expect(drainEditorWrites).not.toHaveBeenCalled();
     expect(invoke).not.toHaveBeenCalled();
   });
 });

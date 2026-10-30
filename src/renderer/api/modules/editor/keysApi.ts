@@ -2,9 +2,10 @@ import { invokeEditorWrite } from './invokeEditorWrite';
 import { invoke } from '@tauri-apps/api/core';
 import { subscribe } from '../shared';
 import { rawKeyEventBus } from '@utils/input/rawKeyEventBus';
-import { enqueueEditorCompatibilityWrite } from '@src/renderer/editor/runtime/lifecycle/editorCompatibilityQueue';
-import { editorCoordinator } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
-import { runExclusiveLegacyMutation } from '@src/renderer/editor/runtime/lifecycle/legacyEditorMutation';
+import {
+  commitLegacyEditorPatch,
+  runExclusiveLegacyMutation,
+} from '@src/renderer/editor/runtime/lifecycle/legacyEditorMutation';
 import { setKeyMode } from './keyModeApi';
 
 import type {
@@ -53,37 +54,22 @@ export const updateMappingsAndPositionsWithGesture = (
   positions: KeyPositions,
   gestureId?: string,
 ) =>
-  enqueueEditorCompatibilityWrite(
-    () =>
-      editorCoordinator.commitPatch(
-        {
-          schemaVersion: 1,
-          keys: mappings,
-          keyPositions: positions,
-        },
-        gestureMeta(gestureId),
-      ),
-    () => ({
-      keys: structuredClone(mappings),
-      positions: structuredClone(positions),
-    }),
-  );
+  commitLegacyEditorPatch(
+    { schemaVersion: 1, keys: mappings, keyPositions: positions },
+    gestureMeta(gestureId),
+  ).then(() => ({
+    keys: structuredClone(mappings),
+    positions: structuredClone(positions),
+  }));
 
 export const updatePositionsWithGesture = (
   positions: KeyPositions,
   gestureId?: string,
 ) =>
-  enqueueEditorCompatibilityWrite(
-    () =>
-      editorCoordinator.commitPatch(
-        {
-          schemaVersion: 1,
-          keyPositions: positions,
-        },
-        gestureMeta(gestureId),
-      ),
-    () => structuredClone(positions),
-  );
+  commitLegacyEditorPatch(
+    { schemaVersion: 1, keyPositions: positions },
+    gestureMeta(gestureId),
+  ).then(() => structuredClone(positions));
 
 export const keysApi = {
   get: () => invoke<KeyMappings>('keys_get'),
@@ -91,9 +77,8 @@ export const keysApi = {
   // 자사 UI 전용 경로. 플러그인 발신 keys 쓰기는 플러그인 프록시가
   // pluginWriteGateway로 별도 라우팅한다 (계약 §10)
   update: (mappings: KeyMappings) =>
-    enqueueEditorCompatibilityWrite(
-      () => editorCoordinator.commitPatch({ schemaVersion: 1, keys: mappings }),
-      () => structuredClone(mappings),
+    commitLegacyEditorPatch({ schemaVersion: 1, keys: mappings }).then(() =>
+      structuredClone(mappings),
     ),
   updateWithPositions: (mappings: KeyMappings, positions: KeyPositions) =>
     updateMappingsAndPositionsWithGesture(mappings, positions),

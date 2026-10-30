@@ -10,12 +10,10 @@ const {
   editorCommitRaw: vi.fn(),
 }));
 
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: { commitIsolatedPluginPatch, runSerializedPluginCommit },
-  }),
-);
+vi.mock('@src/renderer/editor/runtime/lifecycle/legacyEditorMutation', () => ({
+  commitLegacyEditorPatchForDocument: commitIsolatedPluginPatch,
+  runSerializedLegacyCommit: runSerializedPluginCommit,
+}));
 vi.mock('@api/modules/editor/editorApi', () => ({ editorCommitRaw }));
 
 import {

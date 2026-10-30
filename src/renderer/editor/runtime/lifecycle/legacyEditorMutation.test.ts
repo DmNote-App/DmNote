@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const order = vi.hoisted(() => ({
+  get: vi.fn(),
+  commit: vi.fn(),
   calls: [] as string[],
   settleResult: true,
   activeIds: [] as Array<string | null>,
@@ -12,10 +14,6 @@ const order = vi.hoisted(() => ({
   cancel: vi.fn(() => {
     order.calls.push('cancel');
   }),
-  exclusive: vi.fn(async (mutation: () => Promise<unknown>) => {
-    order.calls.push('exclusive');
-    return mutation();
-  }),
 }));
 
 vi.mock('../gesture/editGestureController', () => ({
@@ -25,12 +23,16 @@ vi.mock('../gesture/editGestureController', () => ({
     cancel: order.cancel,
   },
 }));
-vi.mock('../coordinator/editorStateCoordinator', () => ({
-  editorCoordinator: { runExclusiveLegacyMutation: order.exclusive },
+vi.mock('@api/modules/editor/editorApi', () => ({
+  editorApi: { get: order.get },
+  editorCommitRaw: order.commit,
 }));
 
 import { enqueueEditorCompatibilityWrite } from './editorCompatibilityQueue';
-import { runExclusiveLegacyMutation } from './legacyEditorMutation';
+import {
+  commitLegacyEditorPatch,
+  runExclusiveLegacyMutation,
+} from './legacyEditorMutation';
 
 describe('runExclusiveLegacyMutation', () => {
   beforeEach(() => {
@@ -49,7 +51,7 @@ describe('runExclusiveLegacyMutation', () => {
     });
 
     expect(result).toBe('ok');
-    expect(order.calls).toEqual(['settle', 'exclusive', 'mutation']);
+    expect(order.calls).toEqual(['settle', 'mutation']);
   });
 
   it('정산 실패로 되살아난 같은 게스처만 폐기 후 진행한다', async () => {
@@ -58,9 +60,12 @@ describe('runExclusiveLegacyMutation', () => {
     order.settleResult = false;
     order.activeIds = ['gesture-a', 'gesture-a'];
 
-    await runExclusiveLegacyMutation(async () => 'ok');
+    await runExclusiveLegacyMutation(async () => {
+      order.calls.push('mutation');
+      return 'ok';
+    });
 
-    expect(order.calls).toEqual(['settle', 'cancel', 'exclusive']);
+    expect(order.calls).toEqual(['settle', 'cancel', 'mutation']);
   });
 
   it('정산 대기 중 시작된 새 게스처는 폐기하지 않는다', async () => {
@@ -103,7 +108,10 @@ describe('runExclusiveLegacyMutation', () => {
       () => undefined,
     );
 
-    const pending = runExclusiveLegacyMutation(async () => 'done');
+    const pending = runExclusiveLegacyMutation(async () => {
+      order.calls.push('exclusive');
+      return 'done';
+    });
     await Promise.resolve();
     await Promise.resolve();
     expect(order.calls).not.toContain('exclusive');
@@ -114,5 +122,44 @@ describe('runExclusiveLegacyMutation', () => {
     expect(order.calls.indexOf('prior-write')).toBeLessThan(
       order.calls.indexOf('exclusive'),
     );
+  });
+});
+
+describe('commitLegacyEditorPatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('지금 revision으로 보내고 revision이 겹치면 다시 받아 보낸다', async () => {
+    order.get
+      .mockResolvedValueOnce({ revision: 3 })
+      .mockResolvedValueOnce({ revision: 4 });
+    order.commit
+      .mockRejectedValueOnce({ errorCode: 'REVISION_CONFLICT' })
+      .mockResolvedValueOnce({ revision: 5, changedFields: ['keys'] });
+
+    const result = await commitLegacyEditorPatch(
+      { schemaVersion: 1, keys: { '4key': ['A'] } },
+      { multiKey: false, gestureId: 'g1' },
+    );
+
+    expect(result.revision).toBe(5);
+    expect(order.commit.mock.calls.map(([request]) => request)).toEqual([
+      expect.objectContaining({
+        baseRevision: 3,
+        multiKey: false,
+        gestureId: 'g1',
+      }),
+      expect.objectContaining({ baseRevision: 4 }),
+    ]);
+  });
+
+  it('다른 오류는 그대로 올린다', async () => {
+    order.get.mockResolvedValue({ revision: 1 });
+    order.commit.mockRejectedValue({ errorCode: 'VALIDATION_FAILED' });
+    await expect(
+      commitLegacyEditorPatch({ schemaVersion: 1, keys: {} }),
+    ).rejects.toEqual({ errorCode: 'VALIDATION_FAILED' });
+    expect(order.commit).toHaveBeenCalledOnce();
   });
 });

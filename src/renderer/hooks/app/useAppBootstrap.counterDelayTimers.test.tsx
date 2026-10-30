@@ -159,22 +159,9 @@ vi.mock('@api/modules/app/appApi', () => ({
   acknowledgeLifecycleAfterEditorFlush: vi.fn(),
   cancelLifecycleEditorFlush: vi.fn(),
 }));
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: {
-      subscribe: vi.fn(() => vi.fn()),
-      getState: vi.fn(() => ({
-        conflict: null,
-        failureKind: null,
-        error: null,
-      })),
-      resolveConflict: vi.fn(),
-      start: vi.fn(),
-      sync: vi.fn(),
-    },
-  }),
-);
+vi.mock('@src/renderer/editor/runtime/lifecycle/editorEventWiring', () => ({
+  startEditorEventWiring: vi.fn(() => vi.fn()),
+}));
 vi.mock('@api/modules/window/panelWindowApi', () => ({
   panelWindowApi: {
     onVisibility: vi.fn(() => vi.fn()),

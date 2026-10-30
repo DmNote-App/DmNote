@@ -9,15 +9,8 @@ const api = vi.hoisted(() => ({
   lastAck: null as CanonicalEditorDocumentV1 | null,
 }));
 
-vi.mock('../coordinator/editorStateCoordinator', () => ({
-  editorCoordinator: {
-    commitGeneratedPatch: api.commitGeneratedPatch,
-    getState: () => ({ lastAck: api.lastAck }),
-  },
-  captureEditorDocument: api.captureEditorDocument,
-}));
-
 vi.mock('./editorSemanticOps', () => ({
+  captureEditorDocument: api.captureEditorDocument,
   commitGeneratedSemanticOps: api.commitGeneratedSemanticOps,
   commitSemanticOps: api.commitSemanticOps,
   // 트리 문서 없이 옛 경로만 시험한다

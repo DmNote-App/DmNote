@@ -17,12 +17,9 @@ import {
 } from './batchGeometryPlan';
 import {
   ElementIntentAbort,
-  combineReceipts,
   type ElementIntentReceipt,
 } from '../intent/elementIntent';
 import {
-  applyBoundsIntentsEagerly,
-  buildNativeBoundsIntents,
   commitBatchGeometryByIds,
   elementBoundsOp,
   type BatchGeometryDescriptor,
@@ -35,7 +32,7 @@ import {
 } from '@src/types/editor';
 import type { CanonicalEditorDocumentV1, EditorOpV1 } from '@src/types/editor';
 import type { NativeElementType } from '../../model/elementIdMap';
-import { readAuthorityPositions } from '../../model/elementStores';
+import { captureEditorDocument } from '../operations/editorSemanticOps';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
 const MAX_BATCH_GEOMETRY_TARGETS = 4096;
@@ -67,8 +64,9 @@ type PositionSlice = Record<
   ReadonlyArray<Record<string, unknown>> | undefined
 >;
 
+// 지금 트리 값 - 시작 계획의 바탕
 const readStorePositions = (type: NativeElementType): PositionSlice =>
-  readAuthorityPositions(type) as unknown as PositionSlice;
+  readDocumentPositions(captureEditorDocument())(type);
 
 const readDocumentPositions =
   (base: CanonicalEditorDocumentV1) =>
@@ -317,12 +315,6 @@ export const commitMixedBatchGeometry = (
     return Promise.resolve(false);
   }
 
-  const targetByKey = new Map(
-    frozenDescriptor.targets.map(
-      (target) => [nativeLayoutKey(target.type, target.id), target] as const,
-    ),
-  );
-
   const projectDesiredPlugins = (
     projection: readonly PluginDisplayElementInternal[],
     positions: ReadonlyMap<string, { x: number; y: number }>,
@@ -348,32 +340,8 @@ export const commitMixedBatchGeometry = (
         rotatePluginInstancesEditSession(pluginId, gestureId),
       );
 
-      // eager: native 기하 필드 CAS + 플러그인 position CAS.
-      // 스프라이트는 full bounds projection이 콘텐츠까지 소유한다
-      const spriteBoundsById = new Map(
-        initialPlanned.nativeOps.flatMap((op) =>
-          op.kind === 'resizeSprite' ? [[op.id, op.bounds] as const] : [],
-        ),
-      );
-      const nativeIntents = buildNativeBoundsIntents(
-        initialPlanned.updates,
-        (key) => targetByKey.get(key),
-        (target) => spriteBoundsById.get(target.id),
-      );
-      const nativeReceipt =
-        nativeIntents.size > 0
-          ? applyBoundsIntentsEagerly(nativeIntents)
-          : null;
-      let pluginReceipt: ElementIntentReceipt | null = null;
-      try {
-        pluginReceipt = applyPluginPositionsEagerly(
-          initialPlanned.pluginPositions,
-        );
-      } catch (error) {
-        nativeReceipt?.rollback();
-        throw error;
-      }
-      receipt = combineReceipts(nativeReceipt, pluginReceipt);
+      // eager: 플러그인 position CAS (옛 종류 몫은 트리 커밋이 낙관 반영한다)
+      receipt = applyPluginPositionsEagerly(initialPlanned.pluginPositions);
 
       runnerStarted = true;
       const result = await runMixedGestureElementIntent({
@@ -425,7 +393,6 @@ export const commitMixedBatchGeometry = (
           };
         },
         skipContext: 'mixed batch geometry settlement',
-        retryEditorOnly: false,
       });
       return result.committed;
     } catch (error) {

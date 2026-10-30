@@ -19,12 +19,6 @@ import { acknowledgeLifecycleAfterEditorFlush } from '../app/appApi';
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }));
 vi.mock('../shared', () => ({ subscribe: vi.fn() }));
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: { flush: vi.fn(async () => {}) },
-  }),
-);
 
 const writes: [string, () => Promise<unknown>][] = [
   ['overlay_set_visible', () => overlayApi.setVisible(true)],

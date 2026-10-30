@@ -3,7 +3,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import type { BootstrapPayload } from '@src/types/app';
-import type { EditorCoordinatorState } from '@src/renderer/editor/runtime/coordinator/editorCoordinator';
 import {
   isHistoryEditorFlushLocked,
   subscribeHistoryEditorFlushStart,
@@ -43,7 +42,6 @@ const mocks = vi.hoisted(() => ({
   dialogAlert: vi.fn<(message: string, options?: unknown) => Promise<void>>(
     () => Promise.resolve(),
   ),
-  editorStateListener: null as null | ((state: EditorCoordinatorState) => void),
   closeListener: null as
     | null
     | ((payload: { handshakeId: string; action: 'history' | 'quit' }) => void),
@@ -51,11 +49,6 @@ const mocks = vi.hoisted(() => ({
   settle: vi.fn(),
   ack: vi.fn(),
   cancel: vi.fn(),
-  editorState: {
-    conflict: null,
-    failureKind: null,
-    error: null,
-  } as EditorCoordinatorState,
   keyState: {
     selectedKeyType: '4key',
     isBootstrapped: true,
@@ -155,21 +148,9 @@ vi.mock('@api/modules/app/appApi', () => ({
   cancelLifecycleEditorFlush: mocks.cancel,
   windowApi: { showMain: vi.fn(async () => {}) },
 }));
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: {
-      subscribe: vi.fn((listener: (state: EditorCoordinatorState) => void) => {
-        mocks.editorStateListener = listener;
-        return vi.fn();
-      }),
-      getState: vi.fn(() => mocks.editorState),
-      resolveConflict: vi.fn(),
-      start: vi.fn(),
-      sync: vi.fn(),
-    },
-  }),
-);
+vi.mock('@src/renderer/editor/runtime/lifecycle/editorEventWiring', () => ({
+  startEditorEventWiring: vi.fn(() => vi.fn()),
+}));
 vi.mock('@api/modules/window/panelWindowApi', () => ({
   panelWindowApi: {
     onVisibility: vi.fn(() => vi.fn()),
@@ -372,17 +353,11 @@ describe('모드 전환 선택 리셋', () => {
     mocks.customTabsListener = null;
     mocks.presetSnapshotListener = null;
     mocks.dialogAlert.mockClear();
-    mocks.editorStateListener = null;
     mocks.closeListener = null;
     mocks.releaseListener = null;
     mocks.settle.mockReset().mockResolvedValue(true);
     mocks.ack.mockReset().mockResolvedValue(undefined);
     mocks.cancel.mockReset().mockResolvedValue(undefined);
-    mocks.editorState = {
-      conflict: null,
-      failureKind: null,
-      error: null,
-    } as EditorCoordinatorState;
     mocks.keyState = {
       selectedKeyType: '4key',
       isBootstrapped: false,
@@ -517,38 +492,6 @@ describe('모드 전환 선택 리셋', () => {
     }
   });
 
-  it('재시도할 초안이 없는 transient 오류도 한 번 안내한다', () => {
-    const state = {
-      ...mocks.editorState,
-      phase: 'error',
-      dirty: false,
-      failureKind: 'transient',
-      error: { errorCode: 'IO_ERROR', message: 'failed', retryable: true },
-    } as EditorCoordinatorState;
-    act(() => {
-      mocks.editorStateListener?.(state);
-      mocks.editorStateListener?.(state);
-    });
-    expect(mocks.dialogAlert).toHaveBeenCalledOnce();
-    expect(mocks.dialogAlert.mock.calls[0][0]).toContain(
-      '편집 저장 중 문제가 생겼습니다',
-    );
-  });
-
-  it('보존된 transient 초안은 상태 안내에 맡기고 대화상자를 중복 표시하지 않는다', () => {
-    const state = {
-      ...mocks.editorState,
-      phase: 'error',
-      dirty: true,
-      failureKind: 'transient',
-      error: { errorCode: 'IO_ERROR', message: 'failed', retryable: true },
-    } as EditorCoordinatorState;
-    act(() => {
-      mocks.editorStateListener?.(state);
-    });
-    expect(mocks.dialogAlert).not.toHaveBeenCalled();
-  });
-
   it('customTabs만 바뀌고 모드가 같으면 선택을 건드리지 않는다', () => {
     act(() => {
       mocks.customTabsListener?.(
@@ -655,75 +598,5 @@ describe('모드 전환 선택 리셋', () => {
     });
 
     expect(clearSelection).not.toHaveBeenCalled();
-  });
-
-  it('영구 저장 실패를 짧은 두 줄 문구로 한 번 알린다', async () => {
-    useSettingsStore.setState({ language: 'ko' });
-    const error = new Error('invalid editor document');
-    const permanentState = {
-      ...mocks.editorState,
-      phase: 'error',
-      failureKind: 'permanent',
-      error,
-    } as EditorCoordinatorState;
-
-    act(() => {
-      mocks.editorStateListener?.(permanentState);
-      mocks.editorStateListener?.(permanentState);
-    });
-
-    expect(mocks.dialogAlert).toHaveBeenCalledOnce();
-    expect(mocks.dialogAlert).toHaveBeenCalledWith(
-      '저장하지 못해 변경 내용을 되돌렸습니다.\n방금 바꾼 값을 확인해 주세요.',
-      { confirmText: '확인' },
-    );
-  });
-
-  it('저장 한도 실패는 원인에 맞는 짧은 문구로 알린다', async () => {
-    useSettingsStore.setState({ language: 'ko' });
-    const permanentState = {
-      ...mocks.editorState,
-      phase: 'error',
-      failureKind: 'permanent',
-      error: {
-        errorCode: 'VALIDATION_FAILED',
-        message: 'collection too large',
-        details: { validationCode: 'COLLECTION_TOO_LARGE' },
-        retryable: false,
-      },
-    } as EditorCoordinatorState;
-
-    act(() => {
-      mocks.editorStateListener?.(permanentState);
-    });
-
-    expect(mocks.dialogAlert).toHaveBeenCalledWith(
-      '저장 한도를 넘어 변경을 되돌렸습니다.\n일부 요소를 줄이고 다시 시도해 주세요.',
-      { confirmText: '확인' },
-    );
-  });
-
-  it('알 수 없는 검증 코드는 일반 저장 실패 문구로 알린다', async () => {
-    useSettingsStore.setState({ language: 'ko' });
-    const permanentState = {
-      ...mocks.editorState,
-      phase: 'error',
-      failureKind: 'permanent',
-      error: {
-        errorCode: 'VALIDATION_FAILED',
-        message: 'unknown validation',
-        details: { validationCode: 'NEW_VALIDATION_CODE' },
-        retryable: false,
-      },
-    } as EditorCoordinatorState;
-
-    act(() => {
-      mocks.editorStateListener?.(permanentState);
-    });
-
-    expect(mocks.dialogAlert).toHaveBeenCalledWith(
-      '저장하지 못해 변경 내용을 되돌렸습니다.\n방금 바꾼 값을 확인해 주세요.',
-      { confirmText: '확인' },
-    );
   });
 });

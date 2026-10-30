@@ -9,7 +9,6 @@ import {
   assertEditorOpsV1,
   assertSafeEditorRevision,
 } from '@src/types/editor';
-import { EditorReadOnlyError } from '@src/renderer/editor/runtime/coordinator/editorCoordinator';
 
 import type {
   EditorCommitRequest,
@@ -19,6 +18,14 @@ import type {
   EditorGetResult,
   PluginEditorCommitRequest,
 } from '@src/types/editor';
+
+// OBS 브릿지 창은 읽기 전용 - 편집 쓰기를 보내지 않는다
+export class EditorReadOnlyError extends Error {
+  constructor() {
+    super('editor is read-only');
+    this.name = 'EditorReadOnlyError';
+  }
+}
 
 // envelope 무가공 전송. 플러그인 게이트웨이 전용 - multiKey 기본값을 주입하지
 // 않아 플러그인이 선언한 값만 백엔드 게이트에 도달한다 (계약 §10)

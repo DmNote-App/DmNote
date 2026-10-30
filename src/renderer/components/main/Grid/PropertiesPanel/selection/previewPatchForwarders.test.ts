@@ -42,29 +42,6 @@ vi.mock('@api/modules/editor/previewApi', () => ({
   },
 }));
 
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: {
-      commitPatch: vi.fn().mockResolvedValue(undefined),
-      commitGeneratedPatch: vi.fn(),
-      runExclusiveLegacyMutation: vi.fn(
-        async (mutation: () => Promise<unknown>) => mutation(),
-      ),
-      getState: () => ({ revision: null }),
-    },
-    // 프로덕션과 동일하게 canonical 스토어를 문서로 캡처 (대기 중인 트리 편집 없음)
-    captureEditorView: () => ({
-      schemaVersion: 1,
-      keys: {},
-      keyPositions: useKeyStore.getState().canonicalPositions,
-      statPositions: useStatItemStore.getState().positions,
-      graphPositions: useGraphItemStore.getState().positions,
-      knobPositions: useKnobItemStore.getState().positions,
-    }),
-  }),
-);
-
 const keyFixture = (): CanonicalEditorDocumentV1['keyPositions'] =>
   ({
     '4key': [

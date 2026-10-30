@@ -1,6 +1,6 @@
 import { gestureApi } from '@api/modules/editor/gestureApi';
 import { editorApi } from '@api/modules/editor/editorApi';
-import { editorCoordinator } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
+import { commitEditorGesture } from '@src/renderer/editor/runtime/lifecycle/editorGestureCommit';
 import { trackEditorWrite } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
 import { ElementIntentAbort } from '@src/renderer/editor/runtime/intent/elementIntent';
 import { stableStringify } from '@utils/core/stableStringify';
@@ -30,7 +30,7 @@ import { EDITOR_OPS_VERSION } from '@src/types/editor';
 import type {
   EditorGestureOpsMutation,
   EditorPatchGenerator,
-} from '@src/renderer/editor/runtime/coordinator/editorCoordinator';
+} from '@src/renderer/editor/runtime/lifecycle/editorGestureCommit';
 import type {
   CanonicalEditorDocumentV1,
   EditorOpV1,
@@ -159,7 +159,6 @@ export const commitMixedGestureIntent = (options: {
   // 실패 시 staged 해제·canonical pull 전에 동기 실행 - eager receipt
   // 복원의 소유 지점 (해제 후 복원은 stagedSavePending 재저장과 경합)
   onFailureBeforeSettle?: (error: unknown) => void;
-  retryEditorOnly?: boolean;
   expectedAuthorityGeneration?: number;
 }): Promise<void> => {
   const assertAuthorityGeneration = () => {
@@ -181,7 +180,6 @@ export const commitMixedGestureIntent = (options: {
 
   let sealedProjection: readonly PluginDisplayElementInternal[] = [];
   let lastGeneration: MixedIntentGeneration | null = null;
-  let editorOnlyCommit = false;
 
   const prepare = async (): Promise<void> => {
     // 고정점: drain 중 나타난 신규 definition을 stage하고 다시 drain.
@@ -220,189 +218,183 @@ export const commitMixedGestureIntent = (options: {
 
   let commitWork: Promise<void>;
   try {
-    commitWork = editorCoordinator
-      .commitGesture(
-        (base) => {
-          assertAuthorityGeneration();
-          const generation = options.generate({
-            base,
-            pluginProjection: sealedProjection,
-          });
-          lastGeneration = generation;
-          if (generation.kind === 'patch') return generation.patch ?? null;
-          if (generation.kind === 'ops') {
-            return {
-              opsVersion: EDITOR_OPS_VERSION,
-              ops: generation.ops ?? [],
-            };
-          }
-          return null;
-        },
-        gestureId,
-        async (context) => {
-          assertAuthorityGeneration();
-          const projectionSource =
-            lastGeneration?.desiredPluginProjection ?? sealedProjection;
-          const scopeIds = normalizePluginIds([...scope]);
-          if (scopeIds.length === 0) {
-            editorOnlyCommit = true;
-            if ('editorOps' in context) {
-              const result = await editorApi.commit({
-                baseRevision: context.editorBaseRevision,
-                mutationId: context.mutationId,
-                opsVersion: context.editorOpsVersion,
-                ops: context.editorOps,
-                gestureId,
-              });
-              assertAuthorityGeneration();
-              return result;
-            }
-            if (!context.editorChanges) {
-              return {
-                revision: context.editorBaseRevision,
-                changedFields: [],
-              };
-            }
+    commitWork = commitEditorGesture(
+      (base) => {
+        assertAuthorityGeneration();
+        const generation = options.generate({
+          base,
+          pluginProjection: sealedProjection,
+        });
+        lastGeneration = generation;
+        if (generation.kind === 'patch') return generation.patch ?? null;
+        if (generation.kind === 'ops') {
+          return {
+            opsVersion: EDITOR_OPS_VERSION,
+            ops: generation.ops ?? [],
+          };
+        }
+        return null;
+      },
+      async (context) => {
+        assertAuthorityGeneration();
+        const projectionSource =
+          lastGeneration?.desiredPluginProjection ?? sealedProjection;
+        const scopeIds = normalizePluginIds([...scope]);
+        if (scopeIds.length === 0) {
+          if ('editorOps' in context) {
             const result = await editorApi.commit({
               baseRevision: context.editorBaseRevision,
               mutationId: context.mutationId,
-              changes: context.editorChanges,
+              opsVersion: context.editorOpsVersion,
+              ops: context.editorOps,
               gestureId,
             });
             assertAuthorityGeneration();
             return result;
           }
-          const pluginElements = new Map(
-            scopeIds.map((pluginId) => [
-              pluginId,
-              projectionSource.filter(
-                (element) => element.definitionId === pluginId,
-              ),
-            ]),
-          );
-          const pluginChanges = scopeIds.map((pluginId) => ({
-            pluginId,
-            instances: buildSavedPluginInstances(
-              pluginElements.get(pluginId) ?? [],
-              pluginId,
-            ),
-          }));
-          notePluginInstancesMutation(context.mutationId);
-          const result = await gestureApi.commit({
-            gestureId,
+          if (!context.editorChanges) {
+            return {
+              revision: context.editorBaseRevision,
+              changedFields: [],
+            };
+          }
+          const result = await editorApi.commit({
+            baseRevision: context.editorBaseRevision,
             mutationId: context.mutationId,
-            editorBaseRevision: context.editorBaseRevision,
-            pluginBaseRevision: getBackendPluginRevision(),
-            observedHistoryEpoch: useHistoryStatusStore.getState().historyEpoch,
-            authorityGeneration:
-              options.expectedAuthorityGeneration ??
-              getPluginAuthorityGeneration(),
-            ...('editorOps' in context
-              ? {
-                  editorOpsVersion: context.editorOpsVersion,
-                  editorOps: context.editorOps,
-                }
-              : context.editorChanges
-              ? { editorChanges: context.editorChanges }
-              : {}),
-            pluginChanges,
+            changes: context.editorChanges,
+            gestureId,
           });
           assertAuthorityGeneration();
-          noteBackendPluginRevision(result.pluginModelRevision);
-          return {
-            revision: result.editorRevision,
-            changedFields: result.changedFields,
-            ...('editorOps' in context
-              ? { opResults: result.editorOpResults }
-              : {}),
-          };
-        },
-        {
-          onEnrolled: options.onEnrolled,
-          prepare,
-          reconcileRetryableEditorIntent: () =>
-            editorOnlyCommit && options.retryEditorOnly !== false,
-        },
-      )
-      .then(() => {
-        assertAuthorityGeneration();
-        // prepare가 동적으로 편입한 plugin의 재계산 상태를 main store에도
-        // 정렬 - 자기 mutation 이벤트는 무시되므로 여기서 반영하지 않으면
-        // main·overlay·backend가 갈라진다. 3-way 정렬의 소유 단위는 영속
-        // 필드(defineElement의 saved projection)다 - 전체 객체 비교는
-        // 봉인 후 state·핸들러 갱신만으로 소유 판정을 깨뜨린다.
-        // membership 삭제(봉인에 있었고 desired에 없음)는 커밋된 canonical
-        // 사실이라 소유 증명 없이 제거하고, 봉인 후 신규 요소는 보존한다
-        const PERSISTED_FIELDS = [
-          'position',
-          'settings',
-          'measuredSize',
-          'tabId',
-          'hidden',
-          'zIndex',
-          'groupId',
-        ] as const;
-        const desired = lastGeneration?.desiredPluginProjection;
-        if (desired) {
-          const store = usePluginDisplayElementStore.getState();
-          const scopeIds = new Set(scope);
-          const desiredById = new Map(
-            desired.map((element) => [element.fullId, element]),
-          );
-          const sealedById = new Map(
-            sealedProjection.map((element) => [element.fullId, element]),
-          );
-          let touched = false;
-          const merged: PluginDisplayElementInternal[] = [];
-          for (const element of store.elements) {
-            if (!element.definitionId || !scopeIds.has(element.definitionId)) {
-              merged.push(element);
-              continue;
-            }
-            const want = desiredById.get(element.fullId);
-            if (!want) {
-              if (sealedById.has(element.fullId)) {
-                // 커밋된 삭제 - 재주입 잔존 제거
-                touched = true;
-                continue;
-              }
-              merged.push(element);
-              continue;
-            }
-            const sealed = sealedById.get(element.fullId);
-            if (!sealed) {
-              merged.push(element);
-              continue;
-            }
-            // 영속 필드별 CAS: 의도가 실제로 바꾼 필드만, 현재 값이 봉인과
-            // 같을 때(우리 소유 증명) desired로
-            let next = element;
-            let changed = false;
-            for (const field of PERSISTED_FIELDS) {
-              const sealedValue = (sealed as Record<string, unknown>)[field];
-              const wantValue = (want as Record<string, unknown>)[field];
-              if (stableStringify(sealedValue) === stableStringify(wantValue)) {
-                continue;
-              }
-              const currentValue = (element as Record<string, unknown>)[field];
-              if (
-                stableStringify(currentValue) !== stableStringify(sealedValue)
-              ) {
-                continue;
-              }
-              next = { ...next, [field]: wantValue };
-              changed = true;
-            }
-            if (changed) touched = true;
-            merged.push(next);
-          }
-          if (touched) {
-            // overlay까지 정렬 - skipSync로 main만 갱신하면 삭제 재주입의
-            // ghost가 overlay에 남는다
-            store.setElements(merged);
-          }
+          return result;
         }
-      });
+        const pluginElements = new Map(
+          scopeIds.map((pluginId) => [
+            pluginId,
+            projectionSource.filter(
+              (element) => element.definitionId === pluginId,
+            ),
+          ]),
+        );
+        const pluginChanges = scopeIds.map((pluginId) => ({
+          pluginId,
+          instances: buildSavedPluginInstances(
+            pluginElements.get(pluginId) ?? [],
+            pluginId,
+          ),
+        }));
+        notePluginInstancesMutation(context.mutationId);
+        const result = await gestureApi.commit({
+          gestureId,
+          mutationId: context.mutationId,
+          editorBaseRevision: context.editorBaseRevision,
+          pluginBaseRevision: getBackendPluginRevision(),
+          observedHistoryEpoch: useHistoryStatusStore.getState().historyEpoch,
+          authorityGeneration:
+            options.expectedAuthorityGeneration ??
+            getPluginAuthorityGeneration(),
+          ...('editorOps' in context
+            ? {
+                editorOpsVersion: context.editorOpsVersion,
+                editorOps: context.editorOps,
+              }
+            : context.editorChanges
+            ? { editorChanges: context.editorChanges }
+            : {}),
+          pluginChanges,
+        });
+        assertAuthorityGeneration();
+        noteBackendPluginRevision(result.pluginModelRevision);
+        return {
+          revision: result.editorRevision,
+          changedFields: result.changedFields,
+          ...('editorOps' in context
+            ? { opResults: result.editorOpResults }
+            : {}),
+        };
+      },
+      {
+        onEnrolled: options.onEnrolled,
+        prepare,
+      },
+    ).then(() => {
+      assertAuthorityGeneration();
+      // prepare가 동적으로 편입한 plugin의 재계산 상태를 main store에도
+      // 정렬 - 자기 mutation 이벤트는 무시되므로 여기서 반영하지 않으면
+      // main·overlay·backend가 갈라진다. 3-way 정렬의 소유 단위는 영속
+      // 필드(defineElement의 saved projection)다 - 전체 객체 비교는
+      // 봉인 후 state·핸들러 갱신만으로 소유 판정을 깨뜨린다.
+      // membership 삭제(봉인에 있었고 desired에 없음)는 커밋된 canonical
+      // 사실이라 소유 증명 없이 제거하고, 봉인 후 신규 요소는 보존한다
+      const PERSISTED_FIELDS = [
+        'position',
+        'settings',
+        'measuredSize',
+        'tabId',
+        'hidden',
+        'zIndex',
+        'groupId',
+      ] as const;
+      const desired = lastGeneration?.desiredPluginProjection;
+      if (desired) {
+        const store = usePluginDisplayElementStore.getState();
+        const scopeIds = new Set(scope);
+        const desiredById = new Map(
+          desired.map((element) => [element.fullId, element]),
+        );
+        const sealedById = new Map(
+          sealedProjection.map((element) => [element.fullId, element]),
+        );
+        let touched = false;
+        const merged: PluginDisplayElementInternal[] = [];
+        for (const element of store.elements) {
+          if (!element.definitionId || !scopeIds.has(element.definitionId)) {
+            merged.push(element);
+            continue;
+          }
+          const want = desiredById.get(element.fullId);
+          if (!want) {
+            if (sealedById.has(element.fullId)) {
+              // 커밋된 삭제 - 재주입 잔존 제거
+              touched = true;
+              continue;
+            }
+            merged.push(element);
+            continue;
+          }
+          const sealed = sealedById.get(element.fullId);
+          if (!sealed) {
+            merged.push(element);
+            continue;
+          }
+          // 영속 필드별 CAS: 의도가 실제로 바꾼 필드만, 현재 값이 봉인과
+          // 같을 때(우리 소유 증명) desired로
+          let next = element;
+          let changed = false;
+          for (const field of PERSISTED_FIELDS) {
+            const sealedValue = (sealed as Record<string, unknown>)[field];
+            const wantValue = (want as Record<string, unknown>)[field];
+            if (stableStringify(sealedValue) === stableStringify(wantValue)) {
+              continue;
+            }
+            const currentValue = (element as Record<string, unknown>)[field];
+            if (
+              stableStringify(currentValue) !== stableStringify(sealedValue)
+            ) {
+              continue;
+            }
+            next = { ...next, [field]: wantValue };
+            changed = true;
+          }
+          if (changed) touched = true;
+          merged.push(next);
+        }
+        if (touched) {
+          // overlay까지 정렬 - skipSync로 main만 갱신하면 삭제 재주입의
+          // ghost가 overlay에 남는다
+          store.setElements(merged);
+        }
+      }
+    });
   } catch (error) {
     commitWork = Promise.reject(error);
   }
@@ -452,59 +444,56 @@ export const commitMixedGestureTransaction = (
   let commitWork: Promise<void>;
 
   try {
-    commitWork = editorCoordinator
-      .commitGesture(
-        editorChanges,
-        gestureId,
-        async (context) => {
-          await drainPluginInstancesCommitQueues(normalizedPluginIds);
-          const { elements } = usePluginDisplayElementStore.getState();
-          const stagedAtCommit = stagedGestures.get(gestureId);
-          const pluginElements = new Map(
-            normalizedPluginIds.map((pluginId) => [
-              pluginId,
-              stagedAtCommit?.sealedPluginElements.get(pluginId) ??
-                elements.filter((element) => element.definitionId === pluginId),
-            ]),
-          );
-          const pluginChanges = normalizedPluginIds.map((pluginId) => ({
+    commitWork = commitEditorGesture(
+      editorChanges,
+      async (context) => {
+        await drainPluginInstancesCommitQueues(normalizedPluginIds);
+        const { elements } = usePluginDisplayElementStore.getState();
+        const stagedAtCommit = stagedGestures.get(gestureId);
+        const pluginElements = new Map(
+          normalizedPluginIds.map((pluginId) => [
             pluginId,
-            instances: buildSavedPluginInstances(
-              pluginElements.get(pluginId) ?? [],
-              pluginId,
-            ),
-          }));
-          notePluginInstancesMutation(context.mutationId);
-          const request = {
-            gestureId,
-            mutationId: context.mutationId,
-            editorBaseRevision: context.editorBaseRevision,
-            pluginBaseRevision: getBackendPluginRevision(),
-            observedHistoryEpoch: useHistoryStatusStore.getState().historyEpoch,
-            authorityGeneration: getPluginAuthorityGeneration(),
-            ...('editorOps' in context
-              ? {
-                  editorOpsVersion: context.editorOpsVersion,
-                  editorOps: context.editorOps,
-                }
-              : context.editorChanges
-              ? { editorChanges: context.editorChanges }
-              : {}),
-            pluginChanges,
-          };
-          const result = await gestureApi.commit(request);
-          noteBackendPluginRevision(result.pluginModelRevision);
-          return {
-            revision: result.editorRevision,
-            changedFields: result.changedFields,
-            ...('editorOps' in context
-              ? { opResults: result.editorOpResults }
-              : {}),
-          };
-        },
-        meta,
-      )
-      .then(() => undefined);
+            stagedAtCommit?.sealedPluginElements.get(pluginId) ??
+              elements.filter((element) => element.definitionId === pluginId),
+          ]),
+        );
+        const pluginChanges = normalizedPluginIds.map((pluginId) => ({
+          pluginId,
+          instances: buildSavedPluginInstances(
+            pluginElements.get(pluginId) ?? [],
+            pluginId,
+          ),
+        }));
+        notePluginInstancesMutation(context.mutationId);
+        const request = {
+          gestureId,
+          mutationId: context.mutationId,
+          editorBaseRevision: context.editorBaseRevision,
+          pluginBaseRevision: getBackendPluginRevision(),
+          observedHistoryEpoch: useHistoryStatusStore.getState().historyEpoch,
+          authorityGeneration: getPluginAuthorityGeneration(),
+          ...('editorOps' in context
+            ? {
+                editorOpsVersion: context.editorOpsVersion,
+                editorOps: context.editorOps,
+              }
+            : context.editorChanges
+            ? { editorChanges: context.editorChanges }
+            : {}),
+          pluginChanges,
+        };
+        const result = await gestureApi.commit(request);
+        noteBackendPluginRevision(result.pluginModelRevision);
+        return {
+          revision: result.editorRevision,
+          changedFields: result.changedFields,
+          ...('editorOps' in context
+            ? { opResults: result.editorOpResults }
+            : {}),
+        };
+      },
+      meta,
+    );
   } catch (error) {
     commitWork = Promise.reject(error);
   }

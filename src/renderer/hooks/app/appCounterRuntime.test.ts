@@ -54,14 +54,12 @@ describe('appCounterRuntime 재동기화 수명주기', () => {
     );
     const loadBootstrap = vi.fn(() => bootstrapPromise);
     const applySnapshot = vi.fn();
-    const syncEditor = vi.fn(async () => undefined);
     const runtime = createAppCounterRuntime(true);
     runtime.markInitialApplied();
 
     const resyncPromise = runtime.runResync({
       loadBootstrap,
       applySnapshot,
-      syncEditor,
     });
     runtime.handleCounterChanged({
       mode: '4key',
@@ -79,11 +77,10 @@ describe('appCounterRuntime 재동기화 수명주기', () => {
     await expect(resyncPromise).resolves.toBeUndefined();
     vi.runAllTimers();
     expect(applySnapshot).not.toHaveBeenCalled();
-    expect(syncEditor).not.toHaveBeenCalled();
     expect(mocks.applyCounterSnapshot).not.toHaveBeenCalled();
     expect(mocks.setKeyCounter).not.toHaveBeenCalled();
 
-    await runtime.runResync({ loadBootstrap, applySnapshot, syncEditor });
+    await runtime.runResync({ loadBootstrap, applySnapshot });
     expect(loadBootstrap).toHaveBeenCalledTimes(1);
   });
 
@@ -92,9 +89,8 @@ describe('appCounterRuntime 재동기화 수명주기', () => {
       .fn<() => Promise<CanonicalBootstrapPayload>>()
       .mockResolvedValue({} as CanonicalBootstrapPayload);
     const applySnapshot = vi.fn();
-    const syncEditor = vi.fn(async () => undefined);
     const runtime = createAppCounterRuntime(true);
-    const options = { loadBootstrap, applySnapshot, syncEditor };
+    const options = { loadBootstrap, applySnapshot };
 
     await runtime.runResync(options);
     await runtime.runResync(options);
@@ -106,7 +102,6 @@ describe('appCounterRuntime 재동기화 수명주기', () => {
 
     expect(loadBootstrap).toHaveBeenCalledTimes(1);
     expect(applySnapshot).toHaveBeenCalledTimes(1);
-    expect(syncEditor).toHaveBeenCalledTimes(1);
     runtime.dispose();
   });
 });

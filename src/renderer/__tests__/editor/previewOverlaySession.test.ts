@@ -22,13 +22,6 @@ const STAT_ID_A = '00000000-0000-4000-8000-000000000201';
 const GRAPH_ID_A = '00000000-0000-4000-8000-000000000301';
 const KNOB_ID_A = '00000000-0000-4000-8000-000000000401';
 
-const { commitPatchMock, commitGeneratedPatchMock, generatedPatches } =
-  vi.hoisted(() => ({
-    commitPatchMock: vi.fn().mockResolvedValue(undefined),
-    commitGeneratedPatchMock: vi.fn(),
-    generatedPatches: [] as Array<unknown>,
-  }));
-
 // 트리 문서 - 미리보기 확정은 트리 커밋 하나로 간다
 const tree = vi.hoisted(() => ({
   elements: new Map<string, unknown>(),
@@ -50,20 +43,6 @@ vi.mock('@api/modules/editor/previewApi', () => ({
     cancel: vi.fn().mockResolvedValue(undefined),
   },
 }));
-
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: {
-      commitPatch: commitPatchMock,
-      commitGeneratedPatch: commitGeneratedPatchMock,
-      runExclusiveLegacyMutation: vi.fn(
-        async (mutation: () => Promise<unknown>) => mutation(),
-      ),
-      getState: () => ({ revision: null }),
-    },
-  }),
-);
 
 const basePosition = (dx: number, id: string) => ({
   ...createDefaultKeyPosition(),
@@ -317,28 +296,6 @@ describe('previewOverlay', () => {
 describe('editGestureController', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    generatedPatches.length = 0;
-    // 슬롯 시점 base = 호출 시점 스토어 상태. 대기 중 재정렬·삭제 시뮬레이션은
-    // 테스트가 commitPendingAsync 호출 전에 스토어를 바꿔 재현한다
-    commitGeneratedPatchMock.mockImplementation(
-      async (generate: (base: unknown) => unknown) => {
-        const base = {
-          schemaVersion: 1,
-          keys: {},
-          keyPositions: structuredClone(
-            useKeyStore.getState().canonicalPositions,
-          ),
-          statPositions: structuredClone(useStatItemStore.getState().positions),
-          graphPositions: structuredClone(
-            useGraphItemStore.getState().positions,
-          ),
-          knobPositions: structuredClone(useKnobItemStore.getState().positions),
-          layerGroups: {},
-        };
-        generatedPatches.push(generate(base));
-        return base;
-      },
-    );
     editGestureController.cancel();
     previewOverlay.clearAll();
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {

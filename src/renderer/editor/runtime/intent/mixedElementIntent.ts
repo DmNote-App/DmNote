@@ -64,7 +64,6 @@ export const runMixedGestureElementIntent = async (options: {
     pluginProjection: readonly PluginDisplayElementInternal[];
   }) => MixedIntentGeneration;
   skipContext: string;
-  retryEditorOnly?: boolean;
   expectedAuthorityGeneration?: number;
 }): Promise<{ committed: boolean; satisfied: boolean }> => {
   let enrolled = false;
@@ -93,7 +92,6 @@ export const runMixedGestureElementIntent = async (options: {
         // stagedSavePending 재저장을 예약하기 전에 동기 복원
         if (!enrolled || isElementIntentAbort(error)) rollbackOnce();
       },
-      retryEditorOnly: options.retryEditorOnly,
       expectedAuthorityGeneration: options.expectedAuthorityGeneration,
     });
     if (lastKind === 'satisfied') {

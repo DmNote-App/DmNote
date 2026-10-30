@@ -5,7 +5,6 @@ import {
 } from './useMainDialogRuntime';
 import { useTranslation } from '@contexts/useTranslation';
 import TitleBar from '@components/main/TitleBar';
-import EditorSaveNotice from '@components/main/EditorSaveNotice';
 import { useCustomCssInjection } from '@hooks/app/useCustomCssInjection';
 import { USER_CSS_SCOPE_SELECTOR } from '@utils/css/scopeUserCss';
 import { useCustomJsInjection } from '@hooks/app/useCustomJsInjection';
@@ -422,7 +421,6 @@ export default function App() {
   return (
     <div className="bg-app w-full h-full flex flex-col overflow-hidden rounded-[8px]">
       <TitleBar />
-      <EditorSaveNotice />
       <div className="flex-1 bg-panel overflow-hidden flex relative">
         {isSettingsOpen ? (
           <div className="h-full w-full overflow-y-auto">

@@ -10,7 +10,7 @@ interface CommittedApplyState {
   bump: (origin: string | undefined) => void;
 }
 
-/** editorStateCoordinator의 onCommittedApplied에서 bump */
+/** 편집 커밋 이벤트마다 bump (editorEventWiring) */
 export const useCommittedApplyStore = create<CommittedApplyState>((set) => ({
   commitTick: 0,
   historyTick: 0,

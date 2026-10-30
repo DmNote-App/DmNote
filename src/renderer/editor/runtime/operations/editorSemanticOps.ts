@@ -20,11 +20,22 @@ import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
 import type { PropertyIntents } from '../intent/elementIntent';
 import { reportElementOpSkipped } from '../intent/elementIntent';
 import { trackEditorWrite } from '../lifecycle/editorWriteBarrier';
-import type {
-  EditorSemanticCommitMeta,
-  EditorSemanticCommitOutcome,
-  EditorSemanticOpsGenerator,
-} from '../coordinator/semanticCommitAttemptRuntime';
+import type { EditorOpResultV1 } from '@src/types/editor';
+
+export interface EditorSemanticCommitOutcome {
+  document: CanonicalEditorDocumentV1;
+  opResults: EditorOpResultV1[];
+}
+
+export interface EditorSemanticCommitMeta {
+  gestureId?: string;
+  onEnrolled?: () => void;
+  preflight?: () => void;
+}
+
+export type EditorSemanticOpsGenerator = (
+  base: CanonicalEditorDocumentV1,
+) => readonly EditorOpV1[] | null;
 
 // 지금 옛 칸 보기 - 트리 값(트리 낙관 적용 포함, 미리보기 제외)
 const viewPositionOf = (

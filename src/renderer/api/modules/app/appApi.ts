@@ -14,31 +14,13 @@ import type {
   CanonicalBootstrapPayload,
 } from '@src/types/app';
 
-interface FlushableEditorCoordinator {
-  flush(): Promise<unknown>;
-}
-
-export type EditorCoordinatorLoader = () => Promise<{
-  editorCoordinator: FlushableEditorCoordinator;
-}>;
-
-const loadEditorCoordinator: EditorCoordinatorLoader = () =>
-  import('@src/renderer/editor/runtime/coordinator/editorStateCoordinator');
-
 export async function runAfterEditorFlush<T>(
   action: string,
   run: () => Promise<T>,
-  load: EditorCoordinatorLoader = loadEditorCoordinator,
 ): Promise<T> {
   try {
-    const drainWrites = beginEditorWriteBarrier();
-    let writesCommitted: boolean;
-    try {
-      const { editorCoordinator } = await load();
-      await editorCoordinator.flush();
-    } finally {
-      writesCommitted = await drainWrites();
-    }
+    // 줄 선 편집 쓰기(트리·호환 큐)가 모두 저장될 때까지
+    const writesCommitted = await beginEditorWriteBarrier()();
     if (!writesCommitted) {
       throw new Error('pending window writes failed to drain');
     }

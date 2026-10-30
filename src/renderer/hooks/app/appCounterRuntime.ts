@@ -40,7 +40,6 @@ interface RunCounterResyncOptions {
     bootstrap: CanonicalBootstrapPayload,
     context: CounterResyncContext,
   ) => void;
-  syncEditor: () => Promise<unknown>;
 }
 
 export const resolveCounterDelayMs = (
@@ -340,7 +339,6 @@ export const createAppCounterRuntime = (isOverlayWindow: boolean) => {
   const runResync = async ({
     loadBootstrap,
     applySnapshot,
-    syncEditor,
   }: RunCounterResyncOptions) => {
     if (disposed) return;
     if (!initialApplied || resyncInFlight) {
@@ -356,7 +354,6 @@ export const createAppCounterRuntime = (isOverlayWindow: boolean) => {
         if (disposed) return;
         applySnapshot(bootstrap, counterContext);
         releaseCounterResync(counterContext);
-        await syncEditor();
       } catch (error) {
         console.error('OBS 재동기화 실패', error);
       } finally {

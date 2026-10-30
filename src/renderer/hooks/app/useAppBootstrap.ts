@@ -17,7 +17,7 @@ import {
 } from '@api/modules/app/appApi';
 import { stableStringify } from '@utils/core/stableStringify';
 import { useTranslation } from '@contexts/useTranslation';
-import { editorCoordinator } from '@src/renderer/editor/runtime/coordinator/editorStateCoordinator';
+import { startEditorEventWiring } from '@src/renderer/editor/runtime/lifecycle/editorEventWiring';
 import { panelWindowApi } from '@api/modules/window/panelWindowApi';
 import {
   detachPropertiesPanel,
@@ -38,7 +38,6 @@ import {
 } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 import type { CanonicalBootstrapPayload } from '@src/types/app';
 import type { CustomTab, KeyCounters } from '@src/types/key/keys';
-import type { EditorCoordinatorState } from '@src/renderer/editor/runtime/coordinator/editorCoordinator';
 import type { TabNoteOverrides } from '@src/types/settings/noteSettings';
 import type {
   SettingsDiff,
@@ -53,7 +52,6 @@ import {
   initializeCursorSystem,
   refreshCursorSettings,
 } from '@utils/grid/cursorUtils';
-import { isEditorCapacityFailure } from '@src/types/editor';
 import type { CustomJs, JsPlugin } from '@src/types/plugin/js';
 import {
   createAppCounterRuntime,
@@ -137,8 +135,6 @@ export function useAppBootstrap() {
 
   useEffect(() => {
     let disposed = false;
-    let editorCoordinatorRetryTimer: ReturnType<typeof setTimeout> | null =
-      null;
     const isOverlayWindow = window.__dmn_window_type === 'overlay';
 
     // authoritative 모드 변경 시 창 로컬 선택 무효화 - 이전 모드의 index가
@@ -180,137 +176,12 @@ export function useAppBootstrap() {
       }
     };
 
-    let conflictDialogOpen = false;
-    let lastShownEditorError: unknown = null;
-
-    const scheduleEditorCoordinatorRecovery = () => {
-      if (disposed || editorCoordinatorRetryTimer !== null) return;
-
-      editorCoordinatorRetryTimer = setTimeout(() => {
-        editorCoordinatorRetryTimer = null;
-        if (disposed) return;
-
-        void editorCoordinator
-          .start()
-          .then(() => editorCoordinator.sync())
-          .catch(() => scheduleEditorCoordinatorRecovery());
-      }, 1_000);
-    };
-
     const { setAll, merge } = useSettingsStore.getState();
 
     const getEditorCopy = (key: string, korean: string, english: string) => {
       const translated = translationRef.current(key);
       if (translated && translated !== key) return translated;
       return useSettingsStore.getState().language === 'ko' ? korean : english;
-    };
-
-    const handleEditorConflict = (state: EditorCoordinatorState) => {
-      if (disposed || !state.conflict || conflictDialogOpen) return;
-      conflictDialogOpen = true;
-
-      const resolve = async () => {
-        try {
-          if (isOverlayWindow) {
-            await editorCoordinator.resolveConflict('acceptCanonical');
-            return;
-          }
-
-          let keepLocal = true;
-          try {
-            const confirm = window.api.ui?.dialog?.confirm;
-            if (typeof confirm === 'function') {
-              keepLocal = await confirm(
-                getEditorCopy(
-                  'editorConflict.message',
-                  "현재 편집 내용과 외부 변경이 겹쳤습니다. '내 편집 유지'는 지금 편집한 내용을 다시 적용하고, '외부 변경 수용'은 저장되지 않은 내 편집을 취소합니다.",
-                  "Your edit overlaps an external change. 'Keep My Edit' reapplies your edit, while 'Accept External Change' discards the unsaved local edit.",
-                ),
-                {
-                  confirmText: getEditorCopy(
-                    'editorConflict.keepLocal',
-                    '내 편집 유지',
-                    'Keep My Edit',
-                  ),
-                  cancelText: getEditorCopy(
-                    'editorConflict.acceptExternal',
-                    '외부 변경 수용',
-                    'Accept External Change',
-                  ),
-                },
-              );
-            }
-          } catch (dialogError) {
-            console.warn(
-              '편집 충돌 대화상자를 열지 못해 내 편집을 유지합니다',
-              dialogError,
-            );
-          }
-          await editorCoordinator.resolveConflict(
-            keepLocal ? 'keepLocal' : 'acceptCanonical',
-          );
-        } catch (error) {
-          console.error('편집 충돌 해결 실패', error);
-        } finally {
-          conflictDialogOpen = false;
-          const latest = editorCoordinator.getState();
-          if (!disposed && latest.conflict) {
-            queueMicrotask(() => handleEditorConflict(latest));
-          }
-        }
-      };
-
-      void resolve();
-    };
-
-    const handleEditorFailure = (state: EditorCoordinatorState) => {
-      const transient = state.failureKind === 'transient';
-      if (
-        disposed ||
-        isOverlayWindow ||
-        (state.failureKind !== 'permanent' && (!transient || state.dirty)) ||
-        !state.error ||
-        state.error === lastShownEditorError
-      ) {
-        return;
-      }
-
-      lastShownEditorError = state.error;
-      console.error(
-        transient
-          ? '편집 저장 중 문제가 생겼습니다'
-          : '저장할 수 없는 편집 내용을 마지막 저장 상태로 되돌렸습니다',
-        state.error,
-      );
-      const message = transient
-        ? getEditorCopy(
-            'editorSave.transientFailure',
-            '편집 저장 중 문제가 생겼습니다.\n현재 값을 확인하고 다시 시도해 주세요.',
-            'There was a problem saving your edit.\nCheck the current value and try again.',
-          )
-        : isEditorCapacityFailure(state.error)
-        ? getEditorCopy(
-            'editorSave.capacityFailure',
-            '저장 한도를 넘어 변경을 되돌렸습니다.\n일부 요소를 줄이고 다시 시도해 주세요.',
-            'This edit exceeded the save limit and was undone.\nRemove some elements and try again.',
-          )
-        : getEditorCopy(
-            'editorSave.permanentFailure',
-            '저장하지 못해 변경 내용을 되돌렸습니다.\n방금 바꾼 값을 확인해 주세요.',
-            "Couldn't save this edit, so it was undone.\nCheck the value you just changed.",
-          );
-      void window.api.ui.dialog
-        .alert(message, {
-          confirmText: getEditorCopy('common.ok', '확인', 'OK'),
-        })
-        .catch((error) => {
-          console.error('편집 저장 실패 안내를 표시하지 못했습니다', error);
-        });
-    };
-
-    const handleEditorCoordinatorState = (state: EditorCoordinatorState) => {
-      handleEditorConflict(state);
-      handleEditorFailure(state);
     };
 
     const finalizeBootstrap = () =>
@@ -460,7 +331,6 @@ export function useAppBootstrap() {
       counterRuntime.runResync({
         loadBootstrap: () => window.api.app.bootstrap(),
         applySnapshot: applyResyncSnapshot,
-        syncEditor: () => editorCoordinator.sync(),
       });
 
     const initialCounterContext = counterRuntime.beginCounterResync();
@@ -516,18 +386,6 @@ export function useAppBootstrap() {
         // macOS 커서 시스템 초기화 (시스템 설정 반영)
         initializeCursorSystem().catch(() => {});
 
-        // 정식 이벤트를 먼저 구독한 뒤 최신 revision을 다시 읽어
-        // bootstrap 도중 발생한 편집도 빠짐없이 반영
-        try {
-          await editorCoordinator.start();
-          // 플러그인이 bootstrap보다 먼저 coordinator를 시작했어도
-          // 늦게 도착한 bootstrap 스냅샷이 최신 편집 화면을 덮지 않게 재적용
-          await editorCoordinator.sync({ reapply: true });
-        } catch (error) {
-          console.error('편집 상태 초기화 실패', error);
-          scheduleEditorCoordinatorRecovery();
-        }
-
         // 백엔드 undo authority 상태 초기 조회
         if (window.__dmn_runtime !== 'obs') {
           void syncHistoryStatus();
@@ -570,7 +428,8 @@ export function useAppBootstrap() {
         : null;
 
     const unsubscribers = [
-      editorCoordinator.subscribe(handleEditorCoordinatorState),
+      // 다른 창 미리보기 받기·커밋 반영 신호
+      startEditorEventWiring(),
       // undo/redo 가능 여부 projection (revision 역전은 스토어가 무시)
       historyApi.onStatus((status) => {
         useHistoryStatusStore.getState().applyStatus(status);
@@ -607,13 +466,7 @@ export function useAppBootstrap() {
                 await overlayApi.setVisible(true);
               }
             }
-            const state = editorCoordinator.getState();
-            if (
-              !disposed &&
-              !isOverlayWindow &&
-              (!state.error || state.error !== lastShownEditorError) &&
-              !state.conflict
-            ) {
+            if (!disposed && !isOverlayWindow) {
               await window.api.ui.dialog.alert(
                 action === 'history'
                   ? getEditorCopy(
@@ -759,8 +612,6 @@ export function useAppBootstrap() {
       }),
     ];
 
-    handleEditorCoordinatorState(editorCoordinator.getState());
-
     const handleWindowFocus = () => {
       refreshCursorSettings().catch(() => {});
     };
@@ -772,10 +623,6 @@ export function useAppBootstrap() {
     return () => {
       disposed = true;
       counterRuntime.markDisposed();
-      if (editorCoordinatorRetryTimer !== null) {
-        clearTimeout(editorCoordinatorRetryTimer);
-        editorCoordinatorRetryTimer = null;
-      }
       resetHistoryEditorFlushLock();
       stopPluginInstancesUndoSync?.();
       stopPluginGroupRefsMirror?.();

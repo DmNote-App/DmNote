@@ -7,14 +7,8 @@ import { flushFocusedEditor } from '@src/renderer/editor/runtime/lifecycle/lifec
 import { settingsApi } from './settingsApi';
 import { acknowledgeLifecycleAfterEditorFlush } from './appApi';
 
-const mocks = vi.hoisted(() => ({ invoke: vi.fn(), flush: vi.fn() }));
+const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }));
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: { flush: mocks.flush },
-  }),
-);
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
@@ -36,7 +30,6 @@ describe('설정 저장과 lifecycle 응답', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     mocks.invoke.mockReset().mockResolvedValue(undefined);
-    mocks.flush.mockReset().mockResolvedValue(undefined);
     vi.spyOn(console, 'error').mockImplementation(() => {});
     iframe = document.createElement('iframe');
     document.body.append(iframe);
@@ -121,30 +114,7 @@ describe('설정 저장과 lifecycle 응답', () => {
     await expect(settlement).resolves.toBe(false);
   });
 
-  it('coordinator flush 중 끝난 설정 실패가 뒤늦은 ack로 바뀌지 않는다', async () => {
-    const coordinatorFlush = deferred<void>();
-    mocks.flush.mockReturnValue(coordinatorFlush.promise);
-    const write = arrangeWrite();
-    const ack = acknowledgeLifecycleAfterEditorFlush('late-failure');
-    const acknowledged = ack.then(
-      () => true,
-      () => false,
-    );
-    await vi.waitFor(() => expect(mocks.flush).toHaveBeenCalledOnce());
-    const saving = settingsApi.update({ noteEffect: true }).catch(() => {});
-    write.reject(new Error('failed during coordinator flush'));
-    await saving;
-    coordinatorFlush.resolve();
-
-    await expect(acknowledged).resolves.toBe(false);
-    expect(
-      mocks.invoke.mock.calls.filter(
-        ([command]) => command === 'app_quit_after_editor_flush',
-      ),
-    ).toHaveLength(0);
-  });
-
-  it('ack 진입 전에 시작된 저장도 coordinator를 기다리는 동안 추적한다', async () => {
+  it('ack 진입 전에 시작된 저장도 추적한다', async () => {
     const write = arrangeWrite();
     const saving = settingsApi.update({ noteEffect: true }).catch(() => {});
     const ack = acknowledgeLifecycleAfterEditorFlush('already-saving');

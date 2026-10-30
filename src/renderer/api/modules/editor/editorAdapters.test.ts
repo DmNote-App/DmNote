@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 
-const { commitPatch, commitGeneratedPatch } = vi.hoisted(() => ({
+const { commitPatch, commitTreeLegacyFields } = vi.hoisted(() => ({
   commitPatch: vi.fn(),
-  commitGeneratedPatch: vi.fn(),
+  commitTreeLegacyFields: vi.fn(),
 }));
 
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: { commitPatch, commitGeneratedPatch },
-  }),
-);
+vi.mock('@src/renderer/editor/runtime/lifecycle/legacyEditorMutation', () => ({
+  commitLegacyEditorPatch: commitPatch,
+  runExclusiveLegacyMutation: (mutation: () => Promise<unknown>) => mutation(),
+}));
+vi.mock('@src/renderer/editor/runtime/operations/editorSemanticOps', () => ({
+  commitTreeLegacyFields,
+}));
 
 import { keysApi, updatePositionsWithGesture } from './keysApi';
 import {
@@ -23,10 +24,8 @@ import {
 } from './itemsApi';
 
 import type {
-  CanonicalEditorDocumentV1,
   CanonicalReactiveSpritePosition,
   EditorDocumentV1,
-  EditorPatchV1,
 } from '@src/types/editor';
 import type { KeyPositions } from '@src/types/key/keys';
 
@@ -68,8 +67,7 @@ describe('editor API compatibility adapters', () => {
   beforeEach(() => {
     commitPatch.mockReset();
     commitPatch.mockResolvedValue(structuredClone(document));
-    commitGeneratedPatch.mockReset();
-    commitGeneratedPatch.mockResolvedValue(structuredClone(document));
+    commitTreeLegacyFields.mockReset();
   });
 
   it('routes key writers through editor_commit and preserves return shapes', async () => {
@@ -129,123 +127,19 @@ describe('editor API compatibility adapters', () => {
     ]);
   });
 
-  it('sprite patchPosition은 슬롯 안 최신 base에서 대상만 패치해 생성한다', async () => {
-    const spriteA = spriteFixture('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
-    const spriteB = spriteFixture('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
-    const base = {
-      ...structuredClone(document),
-      spritePositions: { '4key': [spriteA, spriteB] },
-    } as CanonicalEditorDocumentV1;
-    const generated: Array<EditorPatchV1 | null> = [];
-    commitGeneratedPatch.mockImplementation(
-      async (generate: (base: CanonicalEditorDocumentV1) => unknown) => {
-        generated.push(generate(base) as EditorPatchV1 | null);
-        return structuredClone(document);
-      },
-    );
-
-    // patch가 명시 null layerName·groupId를 실어 와도 wire 형태로 정규화
-    await expect(
-      spriteItemsApi.patchPosition('4key', spriteA.id, {
-        baseImage: 'hand.png',
-        layerName: null,
-        groupId: null,
-      }),
-    ).resolves.toBe('committed');
-
-    expect(commitGeneratedPatch).toHaveBeenCalledWith(
-      expect.any(Function),
-      undefined,
-    );
-    // 최신 base 기준으로 대상 필드만 갱신, 같은 모드 이웃은 그대로
-    expect(generated[0]).toEqual({
-      schemaVersion: 1,
-      spritePositions: {
-        '4key': [{ ...spriteA, baseImage: 'hand.png' }, spriteB],
-      },
-    });
-    const patched = (generated[0] as EditorPatchV1).spritePositions?.[
-      '4key'
-    ]?.[0] as CanonicalReactiveSpritePosition;
-    expect('layerName' in patched).toBe(false);
-    expect('groupId' in patched).toBe(false);
-  });
-
-  it('sprite patchPosition은 대상 소실이면 무커밋 targetMissing이다', async () => {
-    const emptyBase = structuredClone(document) as CanonicalEditorDocumentV1;
-    const generated: Array<EditorPatchV1 | null> = [];
-    commitGeneratedPatch.mockImplementation(
-      async (generate: (base: CanonicalEditorDocumentV1) => unknown) => {
-        generated.push(generate(emptyBase) as EditorPatchV1 | null);
-        return structuredClone(document);
-      },
-    );
-
-    await expect(
-      spriteItemsApi.patchPosition(
-        '4key',
-        'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-        { baseImage: 'hand.png' },
-      ),
-    ).resolves.toBe('targetMissing');
-    expect(generated[0]).toBeNull();
-  });
-
-  it('sprite patchPosition은 대기 뒤 최신 대상에서 의도 patch를 다시 계산한다', async () => {
-    const sprite = {
-      ...spriteFixture('cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
-      poses: [
-        {
-          poseId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-          triggers: ['ffffffff-ffff-4fff-8fff-ffffffffffff'],
-          transform: { x: 42, y: 7, rotation: 0, scale: 1 },
-          imageOverride: null,
-          imageOverrideMetrics: null,
-          pivot: { x: 0.4, y: 0.6 },
-        },
-      ],
-    };
-    const base = {
-      ...structuredClone(document),
-      spritePositions: { '4key': [sprite] },
-    } as CanonicalEditorDocumentV1;
-    let generated: EditorPatchV1 | null = null;
-    commitGeneratedPatch.mockImplementation(
-      async (generate: (base: CanonicalEditorDocumentV1) => unknown) => {
-        generated = generate(base) as EditorPatchV1 | null;
-        return structuredClone(document);
-      },
-    );
-
-    const stalePoses = structuredClone(sprite.poses);
-    stalePoses[0].transform.x = -100;
-    await spriteItemsApi.patchPosition(
-      '4key',
-      sprite.id,
-      { poses: stalePoses },
-      undefined,
-      (current) => ({
-        pivot: { x: 0.25, y: 0.75 },
-        poses: current.poses,
-      }),
-    );
-
-    const patched = generated?.spritePositions?.['4key']?.[0];
-    expect(patched?.pivot).toEqual({ x: 0.25, y: 0.75 });
-    expect(patched?.poses[0].transform.x).toBe(42);
-  });
-
-  it('sprite patchPosition은 최신 상태에서 의도를 적용할 수 없으면 건너뛴다', async () => {
+  it('sprite patchPosition은 지금 값에서 패치를 만들어 트리로 보낸다', async () => {
     const sprite = spriteFixture('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
-    const base = {
-      ...structuredClone(document),
-      spritePositions: { '4key': [sprite] },
-    } as CanonicalEditorDocumentV1;
-    let generated: EditorPatchV1 | null = null;
-    commitGeneratedPatch.mockImplementation(
-      async (generate: (base: CanonicalEditorDocumentV1) => unknown) => {
-        generated = generate(base) as EditorPatchV1 | null;
-        return structuredClone(document);
+    commitTreeLegacyFields.mockImplementation(
+      (
+        _type: string,
+        _mode: string,
+        _id: string,
+        makeFields: (current: unknown) => Record<string, unknown> | null,
+      ) => {
+        expect(makeFields({ ...sprite, layerName: 'old' })).toEqual({
+          layerName: 'new',
+        });
+        return Promise.resolve('committed');
       },
     );
 
@@ -253,71 +147,24 @@ describe('editor API compatibility adapters', () => {
       spriteItemsApi.patchPosition(
         '4key',
         sprite.id,
-        { hidden: true },
-        undefined,
-        () => null,
+        { layerName: 'new' },
+        'g1',
       ),
-    ).resolves.toBe('skipped');
-    expect(generated).toBeNull();
+    ).resolves.toBe('committed');
+    expect(commitTreeLegacyFields).toHaveBeenCalledWith(
+      'sprite',
+      '4key',
+      sprite.id,
+      expect.any(Function),
+      'g1',
+    );
   });
 
-  it('sprite patchPosition은 gestureId를 editor_commit 메타로 실어 보낸다', async () => {
-    // 수동 mock은 generate를 실행하지 않아 typed 결과는 targetMissing 유지
+  it('sprite patchPosition은 지금 장면 트리에 없으면 무커밋 targetMissing이다', async () => {
+    commitTreeLegacyFields.mockReturnValue(null);
     await expect(
-      spriteItemsApi.patchPosition(
-        '4key',
-        'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-        { hidden: true },
-        '6f9c2f6a-0b1d-4e5f-8a3c-2d7e9b4c1a50',
-      ),
+      spriteItemsApi.patchPosition('4key', 'missing', { layerName: 'x' }),
     ).resolves.toBe('targetMissing');
-
-    expect(commitGeneratedPatch).toHaveBeenCalledWith(expect.any(Function), {
-      gestureId: '6f9c2f6a-0b1d-4e5f-8a3c-2d7e9b4c1a50',
-    });
-  });
-
-  it('preserves each legacy caller return value when writes are queued together', async () => {
-    const first = { '4key': ['B'] };
-    const second = { '4key': ['C'] };
-    let resolveFirst!: (value: EditorDocumentV1) => void;
-    const firstCommit = new Promise<EditorDocumentV1>((resolve) => {
-      resolveFirst = resolve;
-    });
-    commitPatch
-      .mockImplementationOnce(() => firstCommit)
-      .mockResolvedValueOnce({ ...document, keys: second });
-
-    const firstWrite = keysApi.update(first);
-    const secondWrite = keysApi.update(second);
-
-    await vi.waitFor(() => expect(commitPatch).toHaveBeenCalledOnce());
-    resolveFirst({ ...document, keys: first });
-    await expect(firstWrite).resolves.toEqual(first);
-    await vi.waitFor(() => expect(commitPatch).toHaveBeenCalledTimes(2));
-    await expect(secondWrite).resolves.toEqual(second);
-  });
-
-  it('does not reject an acknowledged legacy write when the next queued write fails', async () => {
-    const first = { '4key': ['B'] };
-    const second = { '4key': ['C'] };
-    const secondError = new Error('second write failed');
-    let resolveFirst!: (value: EditorDocumentV1) => void;
-    const firstCommit = new Promise<EditorDocumentV1>((resolve) => {
-      resolveFirst = resolve;
-    });
-    commitPatch
-      .mockImplementationOnce(() => firstCommit)
-      .mockRejectedValueOnce(secondError);
-
-    const firstWrite = keysApi.update(first);
-    const secondWrite = keysApi.update(second);
-    const secondOutcome = secondWrite.catch((error) => error);
-
-    await vi.waitFor(() => expect(commitPatch).toHaveBeenCalledOnce());
-    resolveFirst({ ...document, keys: first });
-    await expect(firstWrite).resolves.toEqual(first);
-    await vi.waitFor(() => expect(commitPatch).toHaveBeenCalledTimes(2));
-    await expect(secondOutcome).resolves.toBe(secondError);
+    expect(commitPatch).not.toHaveBeenCalled();
   });
 });

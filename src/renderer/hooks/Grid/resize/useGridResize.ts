@@ -9,7 +9,6 @@ import type { EditorElementTypeV1, EditorOpV1 } from '@src/types/editor';
 import { runMixedElementOpsIntent } from '@src/renderer/editor/runtime/intent/mixedElementIntent';
 import { sendBridgeMessageBestEffort } from '@utils/plugin/bridgeMessages';
 import {
-  applyBoundsIntentsEagerly,
   commitElementBoundsById,
   commitSingleElementBoundsById,
   elementBoundsOp,
@@ -432,8 +431,7 @@ export function useGridResize({
         groupSettlement = {
           kind: 'intents',
           stableIntents: stableBoundsIntents,
-          // 스프라이트는 projection이 콘텐츠 스케일까지 eager·receipt에 싣는다
-          receipt: applyBoundsIntentsEagerly(stableBoundsIntents),
+          receipt: null,
         };
       }
 

@@ -30,17 +30,6 @@ vi.mock(
   }),
 );
 
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: {
-      flush: vi.fn(),
-      getState: vi.fn(() => ({ revision: 1 })),
-      sync: vi.fn(),
-    },
-  }),
-);
-
 // 키 순번은 패널이 보는 트리 순서 - 옛 키 스토어 값으로 트리 장면을 만든다
 vi.mock(
   '@src/renderer/editor/document/elementDocumentRuntime',

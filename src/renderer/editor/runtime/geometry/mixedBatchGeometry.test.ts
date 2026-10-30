@@ -52,89 +52,85 @@ vi.mock('@api/modules/plugin/pluginInstancesApi', () => ({
   },
 }));
 
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: {
-      // 실제 순서 재현: prepare → generator 평가 → onEnrolled → transaction callback
-      commitGesture: vi.fn(
-        async (
-          changes: unknown,
-          _gestureId: string,
-          commit: (context: {
-            editorBaseRevision: number;
-            mutationId: string;
-            editorChanges?: unknown;
-            editorOpsVersion?: typeof EDITOR_OPS_VERSION;
-            editorOps?: unknown[];
-          }) => Promise<unknown>,
-          meta?: { onEnrolled?: () => void; prepare?: () => Promise<void> },
-        ) => {
-          await meta?.prepare?.();
-          // 슬롯 재계획 generator를 위해 현재 스토어로 canonical base 구성
-          const [
-            keyStore,
-            statStore,
-            graphStore,
-            knobStore,
-            spriteStore,
-            groupStore,
-          ] = await Promise.all([
-            import('@stores/data/useKeyStore'),
-            import('@stores/data/useStatItemStore'),
-            import('@stores/data/useGraphItemStore'),
-            import('@stores/data/useKnobItemStore'),
-            import('@stores/data/useSpriteStore'),
-            import('@stores/data/useLayerGroupStore'),
-          ]);
-          const base = {
-            schemaVersion: 1,
-            keys: keyStore.useKeyStore.getState().keyMappings,
-            keyPositions: keyStore.useKeyStore.getState().canonicalPositions,
-            statPositions: statStore.useStatItemStore.getState().positions,
-            graphPositions: graphStore.useGraphItemStore.getState().positions,
-            knobPositions: knobStore.useKnobItemStore.getState().positions,
-            spritePositions: spriteStore.useSpriteStore.getState().positions,
-            layerGroups: groupStore.useLayerGroupStore.getState().layerGroups,
-          };
-          const mutation =
-            typeof changes === 'function'
-              ? (changes as (base: unknown) => unknown)(base)
-              : changes;
-          const isOps =
-            typeof mutation === 'object' &&
-            mutation !== null &&
-            'opsVersion' in mutation;
-          meta?.onEnrolled?.();
-          await commit({
-            editorBaseRevision: 0,
-            mutationId: 'mutation-1',
-            ...(isOps
-              ? {
-                  editorOpsVersion: EDITOR_OPS_VERSION,
-                  editorOps: (mutation as unknown as { ops: unknown[] }).ops,
-                }
-              : mutation
-              ? { editorChanges: mutation }
-              : {}),
-          });
-          return {};
-        },
-      ),
-      getState: () => ({ lastAck: null }),
-    },
-    captureEditorDocument: () => ({
+// 바탕 문서 - 지금 스토어 값 (트리 투영 대역). vi.mock보다 먼저 올라가야 한다
+const { documentFromStores } = vi.hoisted(() => ({
+  documentFromStores: async () => {
+    const [
+      keyStore,
+      statStore,
+      graphStore,
+      knobStore,
+      spriteStore,
+      groupStore,
+    ] = await Promise.all([
+      import('@stores/data/useKeyStore'),
+      import('@stores/data/useStatItemStore'),
+      import('@stores/data/useGraphItemStore'),
+      import('@stores/data/useKnobItemStore'),
+      import('@stores/data/useSpriteStore'),
+      import('@stores/data/useLayerGroupStore'),
+    ]);
+    return () => ({
       schemaVersion: 1,
-      keys: {},
-      keyPositions: {},
-      statPositions: {},
-      graphPositions: {},
-      knobPositions: {},
-      spritePositions: {},
-      layerGroups: {},
-    }),
+      keys: keyStore.useKeyStore.getState().keyMappings,
+      keyPositions: keyStore.useKeyStore.getState().canonicalPositions,
+      statPositions: statStore.useStatItemStore.getState().positions,
+      graphPositions: graphStore.useGraphItemStore.getState().positions,
+      knobPositions: knobStore.useKnobItemStore.getState().positions,
+      spritePositions: spriteStore.useSpriteStore.getState().positions,
+      layerGroups: groupStore.useLayerGroupStore.getState().layerGroups,
+    });
+  },
+}));
+
+vi.mock(
+  '@src/renderer/editor/runtime/operations/editorSemanticOps',
+  async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    captureEditorDocument: await documentFromStores(),
   }),
 );
+
+vi.mock('@src/renderer/editor/runtime/lifecycle/editorGestureCommit', () => ({
+  // 실제 순서 재현: prepare → generator 평가 → onEnrolled → transaction callback
+  commitEditorGesture: vi.fn(
+    async (
+      changes: unknown,
+      commit: (context: {
+        editorBaseRevision: number;
+        mutationId: string;
+        editorChanges?: unknown;
+        editorOpsVersion?: typeof EDITOR_OPS_VERSION;
+        editorOps?: unknown[];
+      }) => Promise<unknown>,
+      meta?: { onEnrolled?: () => void; prepare?: () => Promise<void> },
+    ) => {
+      await meta?.prepare?.();
+      const base = (await documentFromStores())();
+      const mutation =
+        typeof changes === 'function'
+          ? (changes as (base: unknown) => unknown)(base)
+          : changes;
+      const isOps =
+        typeof mutation === 'object' &&
+        mutation !== null &&
+        'opsVersion' in mutation;
+      meta?.onEnrolled?.();
+      await commit({
+        editorBaseRevision: 0,
+        mutationId: 'mutation-1',
+        ...(isOps
+          ? {
+              editorOpsVersion: EDITOR_OPS_VERSION,
+              editorOps: (mutation as unknown as { ops: unknown[] }).ops,
+            }
+          : mutation
+          ? { editorChanges: mutation }
+          : {}),
+      });
+    },
+  ),
+}));
 
 vi.mock(
   '@src/renderer/editor/runtime/operations/elementOps',
@@ -334,7 +330,7 @@ describe('commitMixedBatchGeometry', () => {
 
   // 혼합 배치의 스프라이트는 계획 key가 아니라 op id로 full bounds를 찾는다.
   // 조회 키가 어긋나면 width·height 없는 부분 patch가 eager projection에 흘러든다
-  it('혼합 배치의 스프라이트는 resizeSprite op과 full bounds eager를 싣는다', async () => {
+  it('혼합 배치의 스프라이트는 resizeSprite op에 full bounds를 싣는다', async () => {
     seedStores({
       sprite: makeCanonicalSpritePosition({
         id: SPRITE_ID,
@@ -368,12 +364,6 @@ describe('commitMixedBatchGeometry', () => {
       id: SPRITE_ID,
       bounds: { dx: 0, dy: 0, width: 80, height: 40 },
     });
-
-    // eager 저장소에도 full bounds가 실려야 한다 (부분 patch였다면 크기가 사라진다)
-    const eager = useSpriteStore.getState().positions['4key'][0];
-    expect(eager).toMatchObject({ dx: 0, dy: 0, width: 80, height: 40 });
-    // 이동만이라 배율 1 - 콘텐츠는 그대로다
-    expect(eager.idleTransform).toEqual({ x: 10, y: 4, rotation: 0, scale: 1 });
   });
 
   it('desired projection은 plugin position만 바꾸고 다른 영속 필드는 보존한다', async () => {

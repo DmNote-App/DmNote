@@ -48,57 +48,51 @@ vi.mock('@api/modules/editor/editorApi', () => ({
   editorApi: { commit: mocks.editorCommit },
 }));
 
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: {
-      // 실제 순서 재현: prepare → generator 평가 → onEnrolled → transaction callback
-      commitGesture: vi.fn(
-        async (
-          changes: unknown,
-          _gestureId: string,
-          commit: (context: {
-            editorBaseRevision: number;
-            mutationId: string;
-            editorChanges?: unknown;
-            editorOpsVersion?: typeof EDITOR_OPS_VERSION;
-            editorOps?: unknown[];
-          }) => Promise<unknown>,
-          meta?: { onEnrolled?: () => void; prepare?: () => Promise<void> },
-        ) => {
-          await meta?.prepare?.();
-          const mutation =
-            typeof changes === 'function'
-              ? (changes as (base: unknown) => unknown)({ schemaVersion: 1 })
-              : changes;
-          const isOps =
-            typeof mutation === 'object' &&
-            mutation !== null &&
-            'opsVersion' in mutation;
-          meta?.onEnrolled?.();
-          await commit({
-            editorBaseRevision: 0,
-            mutationId: 'mutation-1',
-            ...(isOps
-              ? {
-                  editorOpsVersion: EDITOR_OPS_VERSION,
-                  editorOps: (mutation as unknown as { ops: unknown[] }).ops,
-                }
-              : mutation
-              ? {
-                  editorChanges: {
-                    ...(mutation as Record<string, unknown>),
-                    schemaVersion: 2,
-                  },
-                }
-              : {}),
-          });
-          return {};
-        },
-      ),
+vi.mock('@src/renderer/editor/runtime/lifecycle/editorGestureCommit', () => ({
+  // 실제 순서 재현: prepare → generator 평가 → onEnrolled → transaction callback
+  commitEditorGesture: vi.fn(
+    async (
+      changes: unknown,
+      commit: (context: {
+        editorBaseRevision: number;
+        mutationId: string;
+        editorChanges?: unknown;
+        editorOpsVersion?: typeof EDITOR_OPS_VERSION;
+        editorOps?: unknown[];
+      }) => Promise<unknown>,
+      meta?: { onEnrolled?: () => void; prepare?: () => Promise<void> },
+    ) => {
+      await meta?.prepare?.();
+      const mutation =
+        typeof changes === 'function'
+          ? (changes as (base: unknown) => unknown)({ schemaVersion: 1 })
+          : changes;
+      const isOps =
+        typeof mutation === 'object' &&
+        mutation !== null &&
+        'opsVersion' in mutation;
+      meta?.onEnrolled?.();
+      await commit({
+        editorBaseRevision: 0,
+        mutationId: 'mutation-1',
+        ...(isOps
+          ? {
+              editorOpsVersion: EDITOR_OPS_VERSION,
+              editorOps: (mutation as unknown as { ops: unknown[] }).ops,
+            }
+          : mutation
+          ? {
+              editorChanges: {
+                ...(mutation as Record<string, unknown>),
+                schemaVersion: 2,
+              },
+            }
+          : {}),
+      });
+      return {};
     },
-  }),
-);
+  ),
+}));
 
 vi.mock('@src/renderer/editor/runtime/lifecycle/editorWriteBarrier', () => ({
   trackEditorWrite: <T>(promise: T) => promise,

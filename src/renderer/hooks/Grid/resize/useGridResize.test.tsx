@@ -174,16 +174,6 @@ vi.mock('@stores/data/useKnobItemStore', () => ({
   },
 }));
 
-vi.mock(
-  '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
-  () => ({
-    editorCoordinator: {
-      commitPatch: mocks.commitPatch,
-      getState: () => ({ lastAck: null }),
-    },
-  }),
-);
-
 type ResizeApi = ReturnType<typeof useGridResize>;
 
 interface HarnessProps {
@@ -924,7 +914,7 @@ describe('useGridResize plugin gesture lifecycle', () => {
     },
   );
 
-  it('그룹 resize의 sprite는 resizeSprite op으로 bounds와 콘텐츠를 함께 스케일한다', async () => {
+  it('그룹 resize의 sprite는 resizeSprite op으로 bounds를 보낸다', async () => {
     const original = spriteAt(STABLE_SPRITE);
     useSpriteStore.setState({ positions: { '4key': [original] } });
     mocks.elements = [{ fullId: 'plugin-a:one', pluginId: 'plugin-a' }];
@@ -972,18 +962,6 @@ describe('useGridResize plugin gesture lifecycle', () => {
       ['plugin-a'],
       expect.anything(),
     );
-    // eager: 200x120 → 100x60 (sx=sy=0.5)로 콘텐츠까지 비례 스케일.
-    // pivot은 정규화 좌표라 불변 (참조까지 보존)
-    const eager = useSpriteStore.getState().positions['4key'][0];
-    expect(eager).toMatchObject({ dx: 10, dy: 20, width: 100, height: 60 });
-    expect(eager.idleTransform).toEqual({ x: 0, y: 0, rotation: 0, scale: 1 });
-    expect(eager.poses[0].transform).toEqual({
-      x: 6,
-      y: -3,
-      rotation: 15,
-      scale: 1.2,
-    });
-    expect(eager.pivot).toBe(original.pivot);
   });
 
   it('비율 고정 리사이즈는 기준 축의 크기 일치만 받고 반대 축을 같은 배율로 놓는다', async () => {
