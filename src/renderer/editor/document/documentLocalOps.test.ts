@@ -107,7 +107,7 @@ describe('편집 창 낙관 적용', () => {
     const after = applyLocalOps(before, [
       { op: 'setFrame', scene: 's', id: 'missing', frame: { x: 1 } },
       { op: 'setFrame', scene: 'none', id: 'a', frame: { x: 1 } },
-      { op: 'setInput', scene: 's', id: 'a', input: null },
+      { op: 'setInput', scene: 's', id: 'missing', input: null },
       { op: 'ungroup', scene: 's', id: 'missing' },
     ]);
     expect(after.scenes.s).toBe(before.scenes.s);

@@ -5,6 +5,9 @@ import { getElementDocumentStore } from '@src/renderer/editor/document/elementDo
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import { elementKindData } from '@src/renderer/elementKinds/defineElementKind';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
+import { legacyPatchOps } from '@src/renderer/elementKinds/runtime/legacyPosition';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
+import type { KeySlot } from '@src/types/key/keys';
 import type {
   FramePatch,
   JsonValue,
@@ -81,6 +84,54 @@ export const insertDocumentElement = (
         values,
       },
     },
+  ]).then((result) => (result?.status === 'committed' ? id : null));
+};
+
+/** 옛 위치 모양의 새 요소(키·스탯 등의 생성 기본값) - 넣기와 같은 커밋에 옛 칸 → 트리 연산
+ * 대응(legacyPatchOps)으로 값·묶음·공통 정보를 싣는다. 키는 입력 슬롯도 */
+export const insertLegacyShapedElement = (
+  sceneId: string,
+  kind: string,
+  position: Record<string, unknown>,
+  slot?: KeySlot,
+) => {
+  const id =
+    typeof position.id === 'string' && position.id ? position.id : newId();
+  const node: ElementNode = {
+    type: 'element',
+    id,
+    kind,
+    frame: {
+      x: Math.round(Number(position.dx ?? 0)),
+      y: Math.round(Number(position.dy ?? 0)),
+      width: Number(position.width ?? 60),
+      height: Number(position.height ?? 60),
+      rotation: Number(position.rotation ?? 0),
+    },
+  };
+  const {
+    id: _id,
+    dx: _dx,
+    dy: _dy,
+    width: _width,
+    height: _height,
+    rotation: _rotation,
+    ...fields
+  } = position;
+  const { ops } = legacyPatchOps(sceneId, node, fields);
+  return editDocument([
+    { op: 'insert', scene: sceneId, parent: null, index: null, node },
+    ...ops,
+    ...(slot !== undefined
+      ? [
+          {
+            op: 'setInput' as const,
+            scene: sceneId,
+            id,
+            input: { type: 'key' as const, slot: slot as JsonValue },
+          },
+        ]
+      : []),
   ]).then((result) => (result?.status === 'committed' ? id : null));
 };
 

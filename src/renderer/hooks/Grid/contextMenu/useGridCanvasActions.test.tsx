@@ -2,25 +2,17 @@ import React, { act, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// 새 요소는 트리에 넣는다 - 넣기 입구에 생성 기본값(옛 위치 모양)을 넘기는지 본다
 const core = vi.hoisted(() => ({
-  addStatAt: vi.fn((_mode: string, _position: unknown) =>
-    Promise.resolve(true),
-  ),
-  addKeyAt: vi.fn((_mode: string, _dx: number, _dy: number) =>
-    Promise.resolve(true),
-  ),
-  addGraphAt: vi.fn((_mode: string, _position: unknown) =>
-    Promise.resolve(true),
-  ),
-  addKnobAt: vi.fn((_mode: string, _position: unknown) =>
-    Promise.resolve(true),
-  ),
-  addSpriteAt: vi.fn((_mode: string, _position: unknown) =>
-    Promise.resolve(true),
+  insert: vi.fn(
+    (_scene: string, _kind: string, _position: unknown, _slot?: unknown) =>
+      Promise.resolve('new-id'),
   ),
 }));
 
-vi.mock('@src/renderer/editor/runtime/operations/elementOps', () => core);
+vi.mock('@components/main/Grid/document/documentEditActions', () => ({
+  insertLegacyShapedElement: core.insert,
+}));
 
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import {
@@ -92,7 +84,7 @@ describe('useGridCanvasActions create', () => {
     container.remove();
   });
 
-  it('add 4종은 기존 기본 payload와 zIndex 부재를 frozen helper에 전달한다', () => {
+  it('키와 키 외 종류는 생성 기본값을 트리 넣기 입구로 보낸다 (키는 빈 슬롯, zIndex 없음)', () => {
     act(() => {
       actions.addKeyAtPosition(7, 8);
       actions.addItemAtPosition('stat', 1, 2);
@@ -100,13 +92,23 @@ describe('useGridCanvasActions create', () => {
       actions.addItemAtPosition('knob', 5, 6);
     });
 
-    expect(core.addKeyAt).toHaveBeenCalledWith('4key', 7, 8);
-    expect(core.addStatAt).toHaveBeenCalledWith(
+    expect(core.insert).toHaveBeenNthCalledWith(
+      1,
       '4key',
+      'key',
+      expect.objectContaining({ dx: 7, dy: 8 }),
+      '',
+    );
+    expect(core.insert).toHaveBeenNthCalledWith(
+      2,
+      '4key',
+      'stat',
       expect.objectContaining({ statType: 'kps', dx: 1, dy: 2 }),
     );
-    expect(core.addGraphAt).toHaveBeenCalledWith(
+    expect(core.insert).toHaveBeenNthCalledWith(
+      3,
       '4key',
+      'graph',
       expect.objectContaining({
         graphType: 'line',
         graphSpeed: 1000,
@@ -114,12 +116,14 @@ describe('useGridCanvasActions create', () => {
         dy: 4,
       }),
     );
-    expect(core.addKnobAt).toHaveBeenCalledWith(
+    expect(core.insert).toHaveBeenNthCalledWith(
+      4,
       '4key',
+      'knob',
       expect.objectContaining({ sensitivity: 1, dx: 5, dy: 6 }),
     );
-    for (const mock of [core.addStatAt, core.addGraphAt, core.addKnobAt]) {
-      expect(mock.mock.calls[0][1]).not.toHaveProperty('zIndex');
+    for (const call of core.insert.mock.calls.slice(1)) {
+      expect(call[2]).not.toHaveProperty('zIndex');
     }
   });
 
@@ -128,12 +132,14 @@ describe('useGridCanvasActions create', () => {
       actions.addItemAtPosition('sprite', 11, 22);
     });
 
-    expect(core.addSpriteAt).toHaveBeenCalledTimes(1);
-    const [mode, payload] = core.addSpriteAt.mock.calls[0] as [
+    expect(core.insert).toHaveBeenCalledTimes(1);
+    const [mode, kind, payload] = core.insert.mock.calls[0] as unknown as [
+      string,
       string,
       ReactiveSpritePosition & { id: string },
     ];
     expect(mode).toBe('4key');
+    expect(kind).toBe('sprite');
     expect(typeof payload.id).toBe('string');
     expect(payload.id.length).toBeGreaterThan(0);
     expect(payload).toMatchObject({
@@ -165,10 +171,12 @@ describe('useGridCanvasActions create', () => {
       );
     });
 
-    expect(core.addKeyAt).toHaveBeenCalledTimes(1);
-    expect(core.addStatAt).toHaveBeenCalledTimes(1);
-    expect(core.addGraphAt).toHaveBeenCalledTimes(1);
-    expect(core.addKnobAt).toHaveBeenCalledTimes(1);
-    expect(core.addSpriteAt).toHaveBeenCalledTimes(1);
+    expect(core.insert.mock.calls.map((call) => call[1])).toEqual([
+      'key',
+      'stat',
+      'graph',
+      'knob',
+      'sprite',
+    ]);
   });
 });

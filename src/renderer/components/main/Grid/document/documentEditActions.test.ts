@@ -23,6 +23,7 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 import {
   groupDocumentElements,
   insertDocumentElement,
+  insertLegacyShapedElement,
   moveDocumentElementTo,
   stepDocumentElements,
 } from './documentEditActions';
@@ -31,6 +32,42 @@ describe('트리 문서 편집 동작', () => {
   beforeEach(() => {
     mocks.edit.mockClear();
     mocks.scene = undefined;
+  });
+
+  it('옛 위치 모양의 새 요소는 넣기와 같은 커밋에 값·공통 정보·키 슬롯을 싣는다', async () => {
+    const id = await insertLegacyShapedElement(
+      '4key',
+      'key',
+      {
+        id: 'k-new',
+        dx: 7.4,
+        dy: 8.6,
+        width: 60,
+        height: 50,
+        rotation: 0,
+        hidden: false,
+        layerName: '새 키',
+        zIndex: 3,
+      },
+      'KeyA',
+    );
+    expect(id).toBe('k-new');
+    const ops = mocks.edit.mock.calls[0][0];
+    expect(ops[0]).toMatchObject({
+      op: 'insert',
+      parent: null,
+      index: null,
+      node: { id: 'k-new', kind: 'key', frame: { x: 7, y: 9, width: 60 } },
+    });
+    expect(ops).toContainEqual(
+      expect.objectContaining({ op: 'setCommon', id: 'k-new', name: '새 키' }),
+    );
+    expect(ops.at(-1)).toEqual({
+      op: 'setInput',
+      scene: '4key',
+      id: 'k-new',
+      input: { type: 'key', slot: 'KeyA' },
+    });
   });
 
   it('새 요소는 정의의 기본값을 채워 보내 응답 전에도 제대로 그린다', async () => {

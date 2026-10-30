@@ -1,6 +1,6 @@
 // 편집 창 낙관 적용 - 백엔드 응답 전에 화면에 먼저 반영할 편집만 JS로 적용한다
 // 검사·정리는 백엔드 엔진(element_document::ops)이 맡고, 그 결과 패치가 오면 이 계산을 대신한다.
-// 입력·장면 연산은 여기서 다루지 않는다 (패치를 기다린다)
+// 장면 연산은 여기서 다루지 않는다 (패치를 기다린다)
 import type {
   Document,
   Node,
@@ -280,6 +280,11 @@ const applyToNodes = (nodes: Node[], op: Op): Node[] => {
       });
       return withChildren(without, parent, next);
     }
+    case 'setInput':
+      return mapElement(nodes, op.id, (element) => ({
+        ...element,
+        input: op.input,
+      }));
     case 'ungroup':
       return mapGroup(nodes, op.id, (group) => group.children);
     case 'setGroup':

@@ -1,10 +1,4 @@
 import { newElementId } from '@src/renderer/editor/model/elementId';
-import {
-  addGraphAt,
-  addKnobAt,
-  addSpriteAt,
-  addStatAt,
-} from '@src/renderer/editor/runtime/operations/elementOps';
 import type { CanonicalPositionOf, ItemElementType } from '@src/types/editor';
 import { DEFAULT_ELEMENT_ROTATION } from '@src/types/key/rotation';
 import {
@@ -28,7 +22,6 @@ import { toSpriteWireShape } from '@utils/sprite/spriteWireShape';
 interface ItemCanvasRules<K extends ItemElementType> {
   // 새 요소 기본값
   create: (dx: number, dy: number) => CanonicalPositionOf<K>;
-  add: (mode: string, position: CanonicalPositionOf<K>) => Promise<unknown>;
 }
 
 // 노트 기본값 - KeyPosition 기반 아이템 공통
@@ -71,7 +64,6 @@ export const ITEM_CANVAS_RULES: {
       className: '',
       counter: createDefaultCounterSettings(),
     }),
-    add: addStatAt,
   },
   graph: {
     create: (dx, dy) => ({
@@ -105,7 +97,6 @@ export const ITEM_CANVAS_RULES: {
       useInlineStyles: false,
       displayText: '',
     }),
-    add: addGraphAt,
   },
   knob: {
     create: (dx, dy) => ({
@@ -129,7 +120,6 @@ export const ITEM_CANVAS_RULES: {
       backgroundColor: DEFAULT_ELEMENT_BG,
       activeBackgroundColor: DEFAULT_ELEMENT_ACTIVE_BG,
     }),
-    add: addKnobAt,
   },
   sprite: {
     // wire 정규화: nullish layerName·groupId는 키 부재로 맞춰 ack와 일치
@@ -158,6 +148,5 @@ export const ITEM_CANVAS_RULES: {
         // 기준 크기는 첫 이미지를 고를 때 패널이 채운다
         referenceNaturalSize: null,
       }),
-    add: addSpriteAt,
   },
 };
