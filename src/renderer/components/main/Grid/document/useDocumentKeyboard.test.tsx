@@ -52,7 +52,11 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 }));
 
 const Harness = () => {
-  useDocumentKeyboard();
+  const handleKeyDown = useDocumentKeyboard();
+  React.useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
   return null;
 };
 

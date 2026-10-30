@@ -715,3 +715,87 @@ describe('useGridKeyboard arrow history burst', () => {
     vi.unstubAllGlobals();
   });
 });
+
+const AfterKeyHarness = ({
+  remove,
+  after,
+  blockGrouping,
+}: {
+  remove: () => void;
+  after: (event: KeyboardEvent) => void;
+  blockGrouping?: () => boolean;
+}) => {
+  useGridKeyboard({
+    selectedElements: [
+      { type: 'key', id: STABLE_IDS[0], index: 0 },
+      { type: 'key', id: STABLE_IDS[1], index: 1 },
+    ],
+    moveSelectedElements: vi.fn(),
+    deleteSelectedElements: remove,
+    clearSelection: vi.fn(),
+    copySelectedElements: vi.fn(),
+    pasteElements: vi.fn(),
+    continuousInputStrategy: 'sync',
+    afterKeyDown: after,
+    blockGrouping,
+  });
+  return null;
+};
+
+describe('useGridKeyboard 함께 고른 다른 선택', () => {
+  let host: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    groupSelectedElementsMock.mockClear();
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+    globalThis.IS_REACT_ACT_ENVIRONMENT = false;
+  });
+
+  const press = (init: KeyboardEventInit) =>
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          bubbles: true,
+          cancelable: true,
+          ...init,
+        }),
+      );
+    });
+
+  it('옛 종류 처리가 끝난 뒤 같은 이벤트로 다른 선택 처리기를 부른다', () => {
+    const order: string[] = [];
+    const remove = vi.fn(() => order.push('legacy'));
+    const after = vi.fn((event: KeyboardEvent) => {
+      order.push(event.defaultPrevented ? 'after:handled' : 'after');
+    });
+    act(() => root.render(<AfterKeyHarness remove={remove} after={after} />));
+    press({ key: 'Delete' });
+    expect(order).toEqual(['legacy', 'after:handled']);
+    // 옛 종류가 처리하지 않는 키도 넘긴다
+    press({ key: 'x' });
+    expect(after).toHaveBeenCalledTimes(2);
+  });
+
+  it('섞인 선택처럼 묶을 수 없으면 묶지 않는다', () => {
+    act(() =>
+      root.render(
+        <AfterKeyHarness
+          remove={vi.fn()}
+          after={vi.fn()}
+          blockGrouping={() => true}
+        />,
+      ),
+    );
+    press({ key: 'g', code: 'KeyG', metaKey: true, ctrlKey: true });
+    expect(groupSelectedElementsMock).not.toHaveBeenCalled();
+  });
+});

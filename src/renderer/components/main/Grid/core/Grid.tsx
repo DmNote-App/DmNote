@@ -386,6 +386,9 @@ const Grid = ({
     syncSelectedElementsToOverlay();
   };
 
+  // 트리 요소 키보드 - 옛 종류 키보드가 처리한 뒤 같은 이벤트로 부른다 (섞인 선택)
+  const handleDocumentKeyDown = useDocumentKeyboard();
+
   // 키보드 단축키 훅 사용
   useGridKeyboard({
     selectedElements,
@@ -399,6 +402,10 @@ const Grid = ({
     onMoveForward: handleSelectedMoveForward,
     onMoveBackward: handleSelectedMoveBackward,
     newGroupLabel: t('layerGroup.newGroup') || 'New Group',
+    afterKeyDown: handleDocumentKeyDown,
+    // 트리 요소와 섞인 선택은 두 가족을 한 그룹으로 묶을 수 없다
+    blockGrouping: () =>
+      useDocumentSelectionStore.getState().selectedIds.length > 0,
   });
 
   // 키 컨텍스트 메뉴
@@ -770,7 +777,6 @@ const Grid = ({
   };
 
   // 그리드 좌클릭 핸들러 (빈 공간에서 드래그로 마퀴 선택 시작)
-  useDocumentKeyboard();
 
   const openDocumentElementContextMenu = (
     event: React.MouseEvent,

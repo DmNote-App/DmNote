@@ -44,6 +44,10 @@ interface UseGridKeyboardParams {
   onMoveBackward?: () => void | Promise<void>;
   newGroupLabel?: string;
   continuousInputStrategy?: 'sync' | 'frame';
+  // 함께 고른 다른 선택(트리 요소)의 키 처리 - 이 처리기가 끝난 뒤 같은 이벤트로 부른다
+  afterKeyDown?: (event: KeyboardEvent) => void;
+  // 다른 가족과 섞인 선택처럼 묶을 수 없으면 true - 묶기·풀기를 하지 않는다
+  blockGrouping?: () => boolean;
 }
 
 /**
@@ -62,6 +66,8 @@ export function useGridKeyboard({
   onMoveBackward,
   newGroupLabel = 'New Group',
   continuousInputStrategy = 'frame',
+  afterKeyDown,
+  blockGrouping,
 }: UseGridKeyboardParams): void {
   const lastArrowKeyTime = useRef(0);
   const arrowGestureId = useRef<string | null>(null);
@@ -123,7 +129,7 @@ export function useGridKeyboard({
       });
     };
 
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleGridKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       if (isHistoryEditorFlushLocked()) return;
       if (isModalLayerActive()) return;
@@ -146,7 +152,7 @@ export function useGridKeyboard({
       if (isPrimaryModifierPressed && !e.shiftKey && e.code === 'KeyG') {
         e.preventDefault();
         markGridKeyHandled(e);
-        if (selectedElements.length < 2) return;
+        if (selectedElements.length < 2 || blockGrouping?.()) return;
 
         const selectedKeyType = useKeyStore.getState().selectedKeyType;
         void groupSelectedElements(
@@ -161,7 +167,7 @@ export function useGridKeyboard({
       if (isPrimaryModifierPressed && e.shiftKey && e.code === 'KeyG') {
         e.preventDefault();
         markGridKeyHandled(e);
-        if (selectedElements.length === 0) return;
+        if (selectedElements.length === 0 || blockGrouping?.()) return;
 
         const selectedKeyType = useKeyStore.getState().selectedKeyType;
         void ungroupSelectedElements(selectedKeyType, selectedElements).catch(
@@ -268,6 +274,12 @@ export function useGridKeyboard({
       }
     };
 
+    // 리스너 순서와 무관하게 옛 종류가 먼저, 트리 요소가 다음
+    const handleKeyDown = (e: KeyboardEvent) => {
+      handleGridKeyDown(e);
+      afterKeyDown?.(e);
+    };
+
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key.startsWith('Arrow')) flushArrowMove();
     };
@@ -292,5 +304,7 @@ export function useGridKeyboard({
     newGroupLabel,
     selectionSignature,
     continuousInputStrategy,
+    afterKeyDown,
+    blockGrouping,
   ]);
 }

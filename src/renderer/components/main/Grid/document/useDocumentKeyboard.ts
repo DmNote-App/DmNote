@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback } from 'react';
 
 import { useTranslation } from '@contexts/useTranslation';
 
@@ -25,11 +25,12 @@ import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 const ARROW_STEP = 1;
 const ARROW_STEP_LARGE = 10;
 
-/** 트리 요소 키보드 - 복사·붙여넣기·삭제·화살표 이동·선택 해제 (옛 종류 선택과 같은 키) */
+/** 트리 요소 키보드 - 복사·붙여넣기·삭제·화살표 이동·선택 해제 (옛 종류 선택과 같은 키).
+ * 옛 종류 키보드가 처리한 다음에 불러야 섞인 선택에서 두 가족이 함께 움직인다 - 처리기를 돌려준다 */
 export const useDocumentKeyboard = () => {
   const { t } = useTranslation();
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
+  return useCallback(
+    (event: KeyboardEvent) => {
       // 옛 종류 키보드가 처리한 편집 키는 섞인 선택이므로 트리 요소에도 같은 동작을 한다
       if (event.defaultPrevented && !isGridKeyHandled(event)) return;
       if (isModalLayerActive() || window.__dmn_isKeyListening) return;
@@ -61,9 +62,12 @@ export const useDocumentKeyboard = () => {
         copyDocumentSelection();
         return;
       }
-      // Cmd+G 묶기, Shift+Cmd+G 풀기 (옛 종류와 같은 키)
+      // Cmd+G 묶기, Shift+Cmd+G 풀기 (옛 종류와 같은 키).
+      // 옛 종류 요소와 섞인 선택은 두 가족을 한 그룹으로 묶을 수 없어 하지 않는다
       if (primaryModifier && event.code === 'KeyG') {
         event.preventDefault();
+        if (useGridSelectionStore.getState().selectedElements.length > 0)
+          return;
         void (event.shiftKey
           ? ungroupDocumentElements(sceneId, selectedIds)
           : groupDocumentElements(
@@ -120,8 +124,7 @@ export const useDocumentKeyboard = () => {
           : [];
       });
       void moveDocumentElements(sceneId, moves);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [t]);
+    },
+    [t],
+  );
 };
