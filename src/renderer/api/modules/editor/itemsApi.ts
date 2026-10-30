@@ -8,6 +8,7 @@ import type { GraphItemPositions } from '@src/types/key/graphItems';
 import type { KnobItemPositions } from '@src/types/key/knobs';
 import type { ReactiveSpritePosition } from '@src/types/key/sprites';
 import { toSpriteWireShape } from '@utils/sprite/spriteWireShape';
+import { commitTreeLegacyFields } from '@src/renderer/editor/runtime/operations/editorSemanticOps';
 import type { LayerGroups } from '@src/types/layerGroups';
 
 // 커밋 성사 여부를 호출자가 판별하는 typed 결과. targetMissing은 무커밋
@@ -73,6 +74,28 @@ export const spriteItemsApi = {
     gestureId?: string,
     generatePatch?: SpritePatchGenerator,
   ): Promise<SpritePatchCommitResult> => {
+    // 트리 편집기가 맡는 스프라이트는 트리로 (확인 전까지 대기 중인 트리 편집이 얹는다)
+    const tree = commitTreeLegacyFields(
+      'sprite',
+      mode,
+      id,
+      (current) => {
+        const latestPatch = generatePatch
+          ? generatePatch(current as unknown as ReactiveSpritePosition)
+          : patch;
+        if (!latestPatch) return null;
+        const next = toSpriteWireShape({
+          ...(current as unknown as ReactiveSpritePosition),
+          ...latestPatch,
+          id,
+        }) as unknown as Record<string, unknown>;
+        return Object.fromEntries(
+          Object.keys(latestPatch).map((field) => [field, next[field] ?? null]),
+        );
+      },
+      gestureId,
+    );
+    if (tree) return tree;
     let outcome: SpritePatchCommitResult = 'targetMissing';
     return enqueueEditorCompatibilityWrite(
       () =>

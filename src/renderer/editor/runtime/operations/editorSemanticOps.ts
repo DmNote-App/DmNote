@@ -1,6 +1,6 @@
 import { enqueueEditorCompatibilityOperation } from '../lifecycle/editorCompatibilityQueue';
 
-import type { EditorOpV1 } from '@src/types/editor';
+import type { EditorElementTypeV1, EditorOpV1 } from '@src/types/editor';
 import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import type { FramePatch } from '@src/types/generated/elementDocument';
 import { useKeyStore } from '@stores/data/useKeyStore';
@@ -35,19 +35,17 @@ type PatchElementOp = Extract<EditorOpV1, { kind: 'patchElement' }>;
 
 // 지금 옛 칸 보기 - canonical에 대기 중인 트리 편집을 얹은 값(미리보기 제외). 옛 컬렉션에 아직 없으면 트리 값
 const viewPositionOf = (
-  op: PatchElementOp,
+  type: EditorElementTypeV1,
+  id: string,
   scene: string,
   store: ElementDocumentStore,
 ) => {
   const positions = composePendingTreeEdits(
-    PREVIEW_DOMAIN_BY_ELEMENT_TYPE[op.elementType],
-    readAuthorityPositions(op.elementType) as unknown as Record<
-      string,
-      { id: string }[]
-    >,
+    PREVIEW_DOMAIN_BY_ELEMENT_TYPE[type],
+    readAuthorityPositions(type) as unknown as Record<string, { id: string }[]>,
   )[scene];
-  const element = store.getElement(scene, op.id)!;
-  return (positions?.find(({ id }) => id === op.id) ??
+  const element = store.getElement(scene, id)!;
+  return (positions?.find((position) => position.id === id) ??
     legacyPositionOf(element)) as Record<string, unknown> & { id: string };
 };
 
@@ -64,7 +62,7 @@ const treeStylePatchOf = (
   if (!element) return null;
   const fields = legacyFieldPatch(
     op.elementType,
-    viewPositionOf(op, scene, store),
+    viewPositionOf(op.elementType, op.id, scene, store),
     op.patch,
   );
   const { ops, uncovered } = legacyPatchOps(scene, element, fields);
@@ -138,6 +136,69 @@ const whenLegacyCaughtUp = (store: ElementDocumentStore, revision: number) =>
     });
   }).then(() => editorCoordinator.whenEventsApplied());
 
+// 트리 편집 보내기 - 보낸 옛 칸 값은 옛 스토어가 같은 값을 받을 때까지 대기 편집으로 얹고, 반영된 뒤 끝난다.
+// 거부·실패는 오류로 올린다(호출자가 알린다) - 옛 경로로 다시 보내면 뒤에 줄 선 편집을 덮을 수 있다
+const sendTreeEdit = async (
+  store: ElementDocumentStore,
+  scene: string,
+  treeOps: Op[],
+  pending: readonly {
+    type: EditorElementTypeV1;
+    id: string;
+    fields: Record<string, unknown>;
+  }[],
+  gestureId: string | undefined,
+): Promise<void> => {
+  const releases = pending.map(({ type, id, fields }) =>
+    addPendingTreeEdit(PREVIEW_DOMAIN_BY_ELEMENT_TYPE[type], scene, id, fields),
+  );
+  try {
+    const result = await store.edit!(
+      // 크기와 함께 맞출 값(스프라이트 이동값 등)도 같은 커밋에
+      withResizeValues(treeOps),
+      gestureId ? { gestureId } : undefined,
+    );
+    if (result.status !== 'committed') {
+      throw new Error(`[ElementDocument] edit rejected: ${result.code}`);
+    }
+    await whenLegacyCaughtUp(store, result.revision);
+  } finally {
+    releases.forEach((release) => release());
+  }
+};
+
+/** 트리로 옮긴 종류 요소 하나의 옛 칸 패치를 트리로 - 지금 장면 트리에 있고 칸이 모두 트리에 자리가 있을 때만.
+ * 아니면 null (호출자가 옛 경로로). current는 대기 편집까지 얹은 지금 값 */
+export const commitTreeLegacyFields = (
+  type: EditorElementTypeV1,
+  scene: string,
+  id: string,
+  makeFields: (
+    current: Record<string, unknown>,
+  ) => Record<string, unknown> | null,
+  gestureId?: string,
+): Promise<'committed' | 'skipped'> | null => {
+  if (!TREE_EDITED_KINDS.has(type)) return null;
+  const store = getElementDocumentStore();
+  if (!store?.edit || scene !== useKeyStore.getState().selectedKeyType) {
+    return null;
+  }
+  const element = store.getElement(scene, id);
+  if (!element) return null;
+  const fields = makeFields(viewPositionOf(type, id, scene, store));
+  if (!fields) return Promise.resolve('skipped');
+  const { ops, uncovered } = legacyPatchOps(scene, element, fields);
+  if (uncovered.length > 0) return null;
+  if (ops.length === 0) return Promise.resolve('committed');
+  return sendTreeEdit(
+    store,
+    scene,
+    ops,
+    [{ type, id, fields }],
+    gestureId,
+  ).then(() => 'committed' as const);
+};
+
 // 트리로 옮긴 옛 종류의 위치·회전·숨김·이름·지우기·겉모습 칸은 트리에 쓴다 (낙관 반영 - 편집 화면이 트리에서 그린다)
 const splitForTree = (ops: readonly EditorOpV1[]) => {
   if (TREE_EDITED_KINDS.size === 0) return null;
@@ -150,36 +211,22 @@ const splitForTree = (ops: readonly EditorOpV1[]) => {
     op,
     fields: legacyFieldPatch(
       op.elementType,
-      viewPositionOf(op, scene, store),
+      viewPositionOf(op.elementType, op.id, scene, store),
       op.patch,
     ),
   }));
-  // 옛 스토어가 같은 값을 받을 때까지 - 옛 편집 커밋처럼 반영된 뒤 끝난다.
-  // 거부·실패는 오류로 올린다(호출자가 알린다) - 옛 경로로 다시 보내면 뒤에 줄 선 편집을 덮을 수 있다
-  const send = async (gestureId: string | undefined): Promise<void> => {
-    // 옛 스토어를 읽는 곳도 확인 전까지 보낸 값을 보도록
-    const releases = pending.map(({ op, fields }) =>
-      addPendingTreeEdit(
-        PREVIEW_DOMAIN_BY_ELEMENT_TYPE[op.elementType],
-        scene,
-        op.id,
+  const send = (gestureId: string | undefined) =>
+    sendTreeEdit(
+      store,
+      scene,
+      treeOps,
+      pending.map(({ op, fields }) => ({
+        type: op.elementType,
+        id: op.id,
         fields,
-      ),
+      })),
+      gestureId,
     );
-    try {
-      const result = await store.edit!(
-        // 크기와 함께 맞출 값(스프라이트 이동값 등)도 같은 커밋에
-        withResizeValues(treeOps),
-        gestureId ? { gestureId } : undefined,
-      );
-      if (result.status !== 'committed') {
-        throw new Error(`[ElementDocument] edit rejected: ${result.code}`);
-      }
-      await whenLegacyCaughtUp(store, result.revision);
-    } finally {
-      releases.forEach((release) => release());
-    }
-  };
   return {
     send,
     legacyIndexes,
