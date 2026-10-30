@@ -397,7 +397,7 @@ fn reorder_history_undo_restores_tab_order_and_bar_count_together() {
         .map(str::to_string)
         .to_vec();
     data.bar_count = 2;
-    crate::state::native_element_id::backfill_store_element_ids(&mut data);
+    data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     std::fs::write(
         directory.path().join("store.json"),
         serde_json::to_vec_pretty(&data).unwrap(),

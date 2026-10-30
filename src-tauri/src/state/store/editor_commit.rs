@@ -201,8 +201,9 @@ impl AppStore {
             element_tree: request.element_tree.take().map(|(tree, _)| tree),
         };
         let change = if let Some(changes) = request.changes.as_mut() {
-            changes.merge_omitted_sprite_fields(&guard.data.sprite_positions);
-            native_element_id::prepare_commit_patch_element_ids(&guard.data, changes)?;
+            let legacy = guard.data.legacy();
+            changes.merge_omitted_sprite_fields(&legacy.sprite_positions);
+            native_element_id::prepare_commit_patch_element_ids(&legacy, changes)?;
             let touched_fields = changes.included_fields();
             self.commit_editor_patch_locked(
                 &mut guard,

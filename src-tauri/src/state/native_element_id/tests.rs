@@ -53,7 +53,7 @@ fn store_with_all_collections() -> AppStoreData {
         )]),
         ..AppStoreData::default()
     };
-    rekey_store_element_ids(&mut store);
+    store.edit_legacy(rekey_store_element_ids);
     store
 }
 
@@ -108,7 +108,7 @@ fn store_with_sprites(sprites: Vec<ReactiveSpritePosition>) -> AppStoreData {
         sprite_positions: HashMap::from([("mode".to_string(), sprites)]),
         ..AppStoreData::default()
     };
-    rekey_store_element_ids(&mut store);
+    store.edit_legacy(rekey_store_element_ids);
     store
 }
 
@@ -120,7 +120,7 @@ fn prepare_v1_sprite_patch(
         sprite_positions: Some(HashMap::from([("mode".to_string(), sprites)])),
         ..EditorPatchV1::default()
     };
-    prepare_commit_patch_element_ids(store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
     patch.sprite_positions.unwrap().remove("mode").unwrap()
 }
 
@@ -143,7 +143,7 @@ fn backfill_assigns_globally_unique_sprite_and_pose_ids() {
         }],
     );
 
-    let outcome = backfill_store_element_ids(&mut store);
+    let outcome = store.edit_legacy(backfill_store_element_ids);
     let sprite = &store.sprite_positions["mode"][0];
     let ids = [
         sprite.id.as_str(),
@@ -172,7 +172,7 @@ fn backfill_replaces_only_missing_invalid_and_duplicate_ids() {
         .id
         .clear();
 
-    let outcome = backfill_store_element_ids(&mut store);
+    let outcome = store.edit_legacy(backfill_store_element_ids);
 
     assert_eq!(
         outcome,
@@ -199,9 +199,9 @@ fn backfill_replaces_only_missing_invalid_and_duplicate_ids() {
 fn full_and_mode_rekey_create_fresh_globally_unique_generations() {
     let mut store = store_with_all_collections();
     let first = all_ids(&store).into_iter().collect::<HashSet<_>>();
-    rekey_store_element_ids(&mut store);
+    store.edit_legacy(rekey_store_element_ids);
     let second = all_ids(&store).into_iter().collect::<HashSet<_>>();
-    rekey_mode_element_ids(&mut store, "mode");
+    store.edit_legacy(|legacy| rekey_mode_element_ids(legacy, "mode"));
     let third = all_ids(&store).into_iter().collect::<HashSet<_>>();
 
     assert!(first.is_disjoint(&second));
@@ -217,7 +217,7 @@ fn v2_requires_valid_ids_and_checks_merged_global_uniqueness() {
         key_positions: Some(store.key_positions.clone()),
         ..EditorPatchV1::default()
     };
-    prepare_commit_patch_element_ids(&store, &mut valid).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut valid).unwrap();
 
     let mut missing = valid.clone();
     missing
@@ -229,7 +229,9 @@ fn v2_requires_valid_ids_and_checks_merged_global_uniqueness() {
         .id
         .clear();
     assert_eq!(
-        validation_code(prepare_commit_patch_element_ids(&store, &mut missing).unwrap_err()),
+        validation_code(
+            prepare_commit_patch_element_ids(&store.legacy(), &mut missing).unwrap_err()
+        ),
         MISSING_ELEMENT_ID
     );
 
@@ -243,7 +245,9 @@ fn v2_requires_valid_ids_and_checks_merged_global_uniqueness() {
             .unwrap()[0]
             .id = invalid_id;
         assert_eq!(
-            validation_code(prepare_commit_patch_element_ids(&store, &mut invalid).unwrap_err()),
+            validation_code(
+                prepare_commit_patch_element_ids(&store.legacy(), &mut invalid).unwrap_err()
+            ),
             INVALID_ELEMENT_ID
         );
     }
@@ -258,7 +262,7 @@ fn v2_requires_valid_ids_and_checks_merged_global_uniqueness() {
         .id = store.stat_positions["mode"][0].position.id.clone();
     assert_eq!(
         validation_code(
-            prepare_commit_patch_element_ids(&store, &mut merged_duplicate).unwrap_err()
+            prepare_commit_patch_element_ids(&store.legacy(), &mut merged_duplicate).unwrap_err()
         ),
         DUPLICATE_ELEMENT_ID
     );
@@ -274,7 +278,7 @@ fn v2_sprite_patch_requires_valid_globally_unique_pose_ids() {
             ..ReactiveSpritePosition::default()
         }],
     );
-    rekey_store_element_ids(&mut store);
+    store.edit_legacy(rekey_store_element_ids);
     let valid = EditorPatchV1 {
         schema_version: EDITOR_COMMIT_SCHEMA_VERSION_V2,
         sprite_positions: Some(store.sprite_positions.clone()),
@@ -292,7 +296,9 @@ fn v2_sprite_patch_requires_valid_globally_unique_pose_ids() {
             .poses[0]
             .pose_id = invalid_pose_id;
         assert_eq!(
-            validation_code(prepare_commit_patch_element_ids(&store, &mut invalid).unwrap_err()),
+            validation_code(
+                prepare_commit_patch_element_ids(&store.legacy(), &mut invalid).unwrap_err()
+            ),
             INVALID_ELEMENT_ID
         );
     }
@@ -311,7 +317,9 @@ fn v2_sprite_patch_requires_valid_globally_unique_pose_ids() {
         }],
     );
     assert_eq!(
-        validation_code(prepare_commit_patch_element_ids(&store, &mut duplicate).unwrap_err()),
+        validation_code(
+            prepare_commit_patch_element_ids(&store.legacy(), &mut duplicate).unwrap_err()
+        ),
         DUPLICATE_ELEMENT_ID
     );
 }
@@ -477,7 +485,7 @@ fn v1_preserves_explicit_current_ids_and_rekeys_stale_ids() {
         ..EditorPatchV1::default()
     };
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     let positions = &patch.key_positions.unwrap()["mode"];
     assert_eq!(positions[0].id, current_id);
@@ -494,7 +502,7 @@ fn v1_idless_reorder_append_and_tie_groups_are_deterministic() {
         )]),
         ..AppStoreData::default()
     };
-    rekey_store_element_ids(&mut store);
+    store.edit_legacy(rekey_store_element_ids);
     let original_ids = store.key_positions["mode"]
         .iter()
         .map(|position| position.id.clone())
@@ -506,7 +514,7 @@ fn v1_idless_reorder_append_and_tie_groups_are_deterministic() {
         ..EditorPatchV1::default()
     };
 
-    prepare_commit_patch_element_ids(&store, &mut first).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut first).unwrap();
     let assigned = first.key_positions.as_ref().unwrap()["mode"]
         .iter()
         .map(|position| position.id.clone())
@@ -522,7 +530,7 @@ fn v1_idless_reorder_append_and_tie_groups_are_deterministic() {
         key_positions: Some(HashMap::from([("mode".to_string(), candidate)])),
         ..EditorPatchV1::default()
     };
-    prepare_commit_patch_element_ids(&canonical, &mut repeated).unwrap();
+    prepare_commit_patch_element_ids(&canonical.legacy(), &mut repeated).unwrap();
     let repeated_ids = repeated.key_positions.unwrap()["mode"]
         .iter()
         .map(|position| position.id.clone())
@@ -536,7 +544,7 @@ fn v1_mixed_attribute_edit_reorder_and_append_succeeds() {
         key_positions: HashMap::from([("mode".to_string(), vec![position(1.0), position(2.0)])]),
         ..AppStoreData::default()
     };
-    rekey_store_element_ids(&mut store);
+    store.edit_legacy(rekey_store_element_ids);
     let first_id = store.key_positions["mode"][0].id.clone();
     let second_id = store.key_positions["mode"][1].id.clone();
     let mut edited = store.key_positions["mode"][1].clone();
@@ -549,7 +557,7 @@ fn v1_mixed_attribute_edit_reorder_and_append_succeeds() {
         ..EditorPatchV1::default()
     };
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     let positions = &patch.key_positions.unwrap()["mode"];
     assert_eq!(positions[0].id, second_id);
@@ -574,7 +582,7 @@ fn v1_idless_positions_only_value_change_keeps_ids_by_index() {
         ..EditorPatchV1::default()
     };
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     // 같은 길이 positions 단독 패치는 index가 신원 - 값이 바뀐 요소도 ID를
     // 유지해 id 순서가 보존되고 paired id-order 검사와 충돌하지 않는다
@@ -598,7 +606,7 @@ fn v1_idless_positions_only_swap_is_treated_as_in_place_edits() {
         ..EditorPatchV1::default()
     };
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     // 같은 길이 값 스왑은 두 건의 제자리 값 편집으로 해석 - keys 미동반
     // 패치가 신원 재배열로 번지지 않는다
@@ -620,7 +628,7 @@ fn v1_idless_equal_length_delete_and_append_does_not_reuse_the_deleted_id() {
         )]),
         ..AppStoreData::default()
     };
-    rekey_store_element_ids(&mut store);
+    store.edit_legacy(rekey_store_element_ids);
     let ids = store.stat_positions["mode"]
         .iter()
         .map(|element| element.position.id.clone())
@@ -638,7 +646,7 @@ fn v1_idless_equal_length_delete_and_append_does_not_reuse_the_deleted_id() {
         ..EditorPatchV1::default()
     };
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     // 살아남은 요소는 값으로 자기 신원을 지키고, 신규 요소는 삭제된
     // 요소의 신원을 물려받지 않는다
@@ -662,7 +670,7 @@ fn v1_paired_value_swap_keeps_ids_with_their_slots() {
         vec![position(2.0), position(1.0)],
     );
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     // 슬롯이 그대로면 좌표 맞바꿈은 제자리 값 편집이다 - keys 미동반
     // 패치와 같은 결과를 낸다
@@ -686,7 +694,7 @@ fn v1_idless_patch_prefers_same_mode_and_never_steals_across_modes() {
         ]),
         ..AppStoreData::default()
     };
-    rekey_store_element_ids(&mut store);
+    store.edit_legacy(rekey_store_element_ids);
     let id_b = store.stat_positions["modeB"][0].position.id.clone();
     let mut patch = EditorPatchV1 {
         stat_positions: Some(HashMap::from([
@@ -708,7 +716,7 @@ fn v1_idless_patch_prefers_same_mode_and_never_steals_across_modes() {
         ..EditorPatchV1::default()
     };
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     // 레이아웃을 다른 모드로 복사해도 원본 모드가 자기 ID를 지킨다
     let positions = patch.stat_positions.unwrap();
@@ -723,7 +731,7 @@ fn keyed_store(slots: Vec<KeySlot>, positions: Vec<KeyPosition>) -> AppStoreData
         key_positions: HashMap::from([("mode".to_string(), positions)]),
         ..AppStoreData::default()
     };
-    rekey_store_element_ids(&mut store);
+    store.edit_legacy(rekey_store_element_ids);
     store
 }
 
@@ -748,7 +756,7 @@ fn v1_paired_reorder_moves_ids_with_their_key_slots() {
         vec![position(1.0), position(1.0)],
     );
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     let positions = &patch.key_positions.unwrap()["mode"];
     assert_eq!(positions[0].id, id_b);
@@ -768,7 +776,7 @@ fn v1_paired_rebind_falls_back_to_value_inheritance() {
         vec![position(1.0), position(2.0)],
     );
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     let positions = &patch.key_positions.unwrap()["mode"];
     assert_eq!(positions[0].id, id_a);
@@ -788,7 +796,7 @@ fn v1_paired_slot_match_wins_over_earlier_value_steal() {
         vec![position(1.0), position(1.0)],
     );
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     // 슬롯 정확 일치(A)가 먼저 소진되고, 새 슬롯 C는 남은 값 승계를 받는다
     let positions = &patch.key_positions.unwrap()["mode"];
@@ -809,7 +817,7 @@ fn v1_paired_slot_keeps_id_when_only_the_position_value_changes() {
         vec![position(50.0), position(2.0)],
     );
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     // 슬롯이 그대로면 위치 값이 바뀌어도 신원이 유지된다 - 이동은 신원
     // 회전이 아니다
@@ -831,7 +839,7 @@ fn v1_paired_duplicate_slots_keep_their_own_ids_by_index() {
         vec![position(10.0), position(20.0)],
     );
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     // 슬롯이 겹쳐도 index 정렬로 각자 자기 ID를 지킨다
     let positions = &patch.key_positions.unwrap()["mode"];
@@ -852,7 +860,7 @@ fn v1_paired_rebind_never_steals_ids_from_other_modes() {
         ]),
         ..AppStoreData::default()
     };
-    rekey_store_element_ids(&mut store);
+    store.edit_legacy(rekey_store_element_ids);
     let id_a = store.key_positions["modeA"][0].id.clone();
     let id_b = store.key_positions["modeB"][0].id.clone();
     let mut patch = EditorPatchV1 {
@@ -867,7 +875,7 @@ fn v1_paired_rebind_never_steals_ids_from_other_modes() {
         ..EditorPatchV1::default()
     };
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     // modeB는 변경이 없으므로 자기 ID를 지키고, modeA 재바인딩은
     // 같은 모드 값 폴백으로 자기 ID를 유지한다
@@ -892,7 +900,7 @@ fn v1_paired_slot_matching_is_structural_not_canonical() {
     let id_multi = store.key_positions["mode"][1].id.clone();
     let mut patch = paired_patch(vec![multi, single], vec![position(1.0), position(1.0)]);
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     // canonical이 같아도 구조가 다르면 각자의 슬롯을 따라간다
     let positions = &patch.key_positions.unwrap()["mode"];
@@ -906,7 +914,7 @@ fn v1_stale_snapshot_id_never_revives_after_deletion() {
         key_positions: HashMap::from([("mode".to_string(), vec![position(1.0)])]),
         ..AppStoreData::default()
     };
-    rekey_store_element_ids(&mut store);
+    store.edit_legacy(rekey_store_element_ids);
     let deleted_id = store.key_positions["mode"][0].id.clone();
     let stale_element = store.key_positions["mode"][0].clone();
     store.key_positions.get_mut("mode").unwrap().clear();
@@ -915,7 +923,7 @@ fn v1_stale_snapshot_id_never_revives_after_deletion() {
         ..EditorPatchV1::default()
     };
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     let replacement_id = &patch.key_positions.unwrap()["mode"][0].id;
     assert_ne!(replacement_id, &deleted_id);
@@ -933,7 +941,9 @@ fn v1_rejects_nil_and_non_uuid_supplied_ids() {
             ..EditorPatchV1::default()
         };
         assert_eq!(
-            validation_code(prepare_commit_patch_element_ids(&store, &mut patch).unwrap_err()),
+            validation_code(
+                prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap_err()
+            ),
             INVALID_ELEMENT_ID
         );
     }
@@ -953,7 +963,7 @@ fn v1_duplicating_a_read_element_rekeys_the_copy_instead_of_failing() {
         ..EditorPatchV1::default()
     };
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     let positions = &patch.key_positions.unwrap()["mode"];
     assert_eq!(positions[0].id, original);
@@ -972,7 +982,7 @@ fn v1_supplied_id_from_another_collection_is_rekeyed() {
         ..EditorPatchV1::default()
     };
 
-    prepare_commit_patch_element_ids(&store, &mut patch).unwrap();
+    prepare_commit_patch_element_ids(&store.legacy(), &mut patch).unwrap();
 
     // 다른 컬렉션의 신원을 키 위치로 이식할 수 없다
     let positions = &patch.key_positions.unwrap()["mode"];

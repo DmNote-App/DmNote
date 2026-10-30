@@ -53,7 +53,8 @@ fn preset_save_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetOpera
     let state = app.state::<AppState>();
 
     let snapshot = state.store.snapshot();
-    let mut elements = ElementCollections::cloned_from(&snapshot);
+    let legacy = snapshot.legacy();
+    let mut elements = ElementCollections::cloned_from(&legacy);
     let used_font_families = collect_used_font_families(&elements);
     let (font_settings, embedded_local_fonts) =
         build_preset_font_payload(&snapshot.font_settings, &used_font_families)?;
@@ -62,7 +63,7 @@ fn preset_save_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetOpera
 
     let element_tree = preset_element_tree(&snapshot, None);
     let preset = PresetFile {
-        keys: Some(snapshot.keys),
+        keys: Some(legacy.keys),
         key_positions: Some(elements.key_positions),
         stat_positions: Some(elements.stat_positions),
         graph_positions: Some(elements.graph_positions),
@@ -83,7 +84,7 @@ fn preset_save_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetOpera
         font_settings: Some(font_settings),
         // 현재 형식은 빈 맵도 명시해 "필드 없음(과거 버전)"과 "비우기"를 구분
         tab_note_overrides: Some(snapshot.tab_note_overrides),
-        layer_groups: Some(snapshot.layer_groups),
+        layer_groups: Some(legacy.layer_groups),
         tab_css_overrides: Some(snapshot.tab_css_overrides),
         embedded_local_fonts: (!embedded_local_fonts.is_empty()).then_some(embedded_local_fonts),
         embedded_local_images: (!embedded_local_images.is_empty()).then_some(embedded_local_images),
@@ -126,10 +127,11 @@ fn preset_save_tab_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetO
     let state = app.state::<AppState>();
 
     let snapshot = state.store.snapshot();
+    let legacy = snapshot.legacy();
     let tab_id = snapshot.selected_key_type.clone();
 
     // 단일 탭 맵 구성 (embed helper용)
-    let mut tab_elements = ElementCollections::mode_slice(&snapshot, &tab_id);
+    let mut tab_elements = ElementCollections::mode_slice(&legacy, &tab_id);
 
     let used_font_families = collect_used_font_families(&tab_elements);
     let (font_settings, embedded_local_fonts) =
@@ -139,7 +141,7 @@ fn preset_save_tab_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetO
 
     // 단일 탭 키 매핑
     let mut tab_keys: KeyMappings = HashMap::new();
-    if let Some(keys) = snapshot.keys.get(&tab_id) {
+    if let Some(keys) = legacy.keys.get(&tab_id) {
         tab_keys.insert(tab_id.clone(), keys.clone());
     }
 
@@ -167,7 +169,7 @@ fn preset_save_tab_from_path(app: AppHandle, path: PathBuf) -> CmdResult<PresetO
     let mut tab_layer_groups = LayerGroups::new();
     tab_layer_groups.insert(
         tab_id.clone(),
-        snapshot
+        legacy
             .layer_groups
             .get(&tab_id)
             .cloned()

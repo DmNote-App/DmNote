@@ -153,7 +153,7 @@ fn initialize_neutral_editor_store(dir: &Path) -> AppStore {
         key_positions,
         ..AppStoreData::default()
     });
-    crate::state::native_element_id::backfill_store_element_ids(&mut data);
+    data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
     store.persist_current().unwrap();
     store
@@ -13063,7 +13063,7 @@ fn resize_sprite_and_set_bounds_batch_undoes_as_one_history_entry() {
             ..ReactiveSpritePosition::default()
         }],
     );
-    crate::state::native_element_id::backfill_store_element_ids(&mut data);
+    data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
     store.persist_current().unwrap();
     let initial = store.editor_get();

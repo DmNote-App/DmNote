@@ -691,7 +691,7 @@ fn store_with_each_native_collection() -> AppStoreData {
             },
         }],
     );
-    crate::state::native_element_id::backfill_store_element_ids(&mut data);
+    data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     data
 }
 
@@ -1423,7 +1423,7 @@ fn combined_normalization_pipeline_preserves_order_and_converges_after_one_persi
         key_positions: default_positions().clone(),
         ..AppStoreData::default()
     });
-    crate::state::native_element_id::backfill_store_element_ids(&mut data);
+    data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     let preserved_id = data.key_positions["4key"][0].id.clone();
 
     data.selected_key_type = "missing-mode".to_string();
@@ -2273,7 +2273,7 @@ fn load_repairs_unsafe_editor_revision_without_touching_editor_data() {
     });
     data.editor_revision = crate::state::editor::MAX_SAFE_WIRE_REVISION + 1;
     data.key_positions.get_mut("4key").unwrap()[0].dx = 12_345.0;
-    crate::state::native_element_id::backfill_store_element_ids(&mut data);
+    data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     let expected_keys = data.keys.clone();
     let expected_positions = data.key_positions.clone();
     std::fs::write(&path, serde_json::to_vec_pretty(&data).unwrap()).unwrap();
@@ -2405,7 +2405,7 @@ fn load_pads_every_key_position_length_mismatch_without_compaction() {
         "positions-only".to_string(),
         vec![preserved_position.clone()],
     );
-    crate::state::native_element_id::backfill_store_element_ids(&mut data);
+    data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     let preserved_position = data.key_positions["5key"].last().unwrap().clone();
     std::fs::write(&path, serde_json::to_vec_pretty(&data).unwrap()).unwrap();
 
@@ -2557,7 +2557,7 @@ fn load_store_with_sound_entry(entry: Value) -> (AppStoreData, bool) {
         uuid::Uuid::new_v4()
     ));
     let mut data = normalize_state(AppStoreData::default());
-    crate::state::native_element_id::backfill_store_element_ids(&mut data);
+    data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     let mut value = serde_json::to_value(data).unwrap();
     value.as_object_mut().unwrap().insert(
         "soundLibrary".to_string(),

@@ -189,7 +189,7 @@ fn normalized_store_with_every_position_collection() -> AppStoreData {
             position: KeyPosition::default(),
         }],
     );
-    crate::state::native_element_id::backfill_store_element_ids(&mut data);
+    data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     data
 }
 
@@ -447,7 +447,7 @@ fn import_editor_preset(directory: &Path, preset: PresetFile) -> AppStoreData {
                 data.custom_tabs = custom_tabs;
                 data.tab_order = tab_order;
                 data.selected_key_type = selected_key_type;
-                crate::state::native_element_id::rekey_store_element_ids(data);
+                data.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
                 Ok(())
             },
         )

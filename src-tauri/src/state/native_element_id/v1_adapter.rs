@@ -210,11 +210,11 @@ fn sanitize_v1_supplied_collection_ids<T: NativeElement>(
 }
 
 fn sanitize_v1_supplied_patch_ids(
-    store: &AppStoreData,
+    store: &EditorDocumentV1,
     patch: &mut EditorPatchV1,
 ) -> Result<(), EditorCommitError> {
     struct SanitizeSupplied<'a> {
-        store: &'a AppStoreData,
+        store: &'a EditorDocumentV1,
         patch: &'a mut EditorPatchV1,
     }
 
@@ -610,7 +610,7 @@ fn consume_slot_only_ids(
 // 같은 모드의 (슬롯, 값) 정확 일치부터 소진하고, 모드 이동·재바인딩은
 // 뒤 웨이브로 미뤄 무관한 모드의 ID를 먼저 빼앗지 않게 한다
 fn adapt_v1_key_position_ids(
-    store: &AppStoreData,
+    store: &EditorDocumentV1,
     patch_keys: Option<&KeyMappings>,
     candidate: &mut HashMap<String, Vec<KeyPosition>>,
     canonical_ids: &HashSet<String>,
@@ -671,7 +671,7 @@ fn adapt_v1_key_position_ids(
 }
 
 struct AdaptCollections<'a> {
-    store: &'a AppStoreData,
+    store: &'a EditorDocumentV1,
     patch: &'a mut EditorPatchV1,
     canonical_ids: &'a HashSet<String>,
     consumed_current_ids: &'a mut HashSet<String>,
@@ -696,7 +696,7 @@ impl CollectionVisitor for AdaptCollections<'_> {
 }
 
 fn adapt_v1_patch_ids(
-    store: &AppStoreData,
+    store: &EditorDocumentV1,
     patch: &mut EditorPatchV1,
 ) -> Result<(), EditorCommitError> {
     sanitize_v1_supplied_patch_ids(store, patch)?;
@@ -809,7 +809,7 @@ fn patch_includes_native_elements(patch: &EditorPatchV1) -> bool {
 }
 
 pub(crate) fn prepare_commit_patch_element_ids(
-    store: &AppStoreData,
+    store: &EditorDocumentV1,
     patch: &mut EditorPatchV1,
 ) -> Result<(), EditorCommitError> {
     if !patch_includes_native_elements(patch) {
@@ -829,7 +829,7 @@ pub(crate) fn prepare_commit_patch_element_ids(
         }
     }
 
-    let mut candidate = EditorDocumentV1::from_store(store);
+    let mut candidate = store.clone();
     candidate.apply_patch(patch);
     validate_document_element_ids(&candidate)
 }

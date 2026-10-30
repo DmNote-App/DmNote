@@ -880,18 +880,22 @@ fn align_imported_key_collections(keys: &mut KeyMappings, positions: &mut KeyPos
 }
 
 fn rekey_full_preset_elements(store: &mut AppStoreData) {
-    crate::state::native_element_id::rekey_store_element_ids(store);
+    store.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
 }
 
 fn rekey_tab_preset_collections(store: &mut AppStoreData, tab_id: &str, written: ElementKindSet) {
-    crate::state::native_element_id::rekey_mode_element_ids_for_collections(store, tab_id, written);
-    // 프리셋이 위치를 주지 않은 컬렉션은 기존 요소가 값 그대로 남는다 -
-    // 신원을 회전시키지 않고 정렬이 덧붙인 빈 항목만 채운다
-    crate::state::native_element_id::backfill_mode_element_ids_for_collections(
-        store,
-        tab_id,
-        written.complement(),
-    );
+    store.edit_legacy(|legacy| {
+        crate::state::native_element_id::rekey_mode_element_ids_for_collections(
+            legacy, tab_id, written,
+        );
+        // 프리셋이 위치를 주지 않은 컬렉션은 기존 요소가 값 그대로 남는다 -
+        // 신원을 회전시키지 않고 정렬이 덧붙인 빈 항목만 채운다
+        crate::state::native_element_id::backfill_mode_element_ids_for_collections(
+            legacy,
+            tab_id,
+            written.complement(),
+        );
+    });
 }
 
 #[cfg(test)]

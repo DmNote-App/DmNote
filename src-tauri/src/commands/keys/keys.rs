@@ -124,12 +124,14 @@ fn reset_all_editor_data(
     positions: &KeyPositions,
     stat_positions: &StatPositions,
 ) {
-    store.keys = keys.clone();
-    clear_element_collections(store, ElementKindSet::ALL);
-    // 기본 배치가 있는 종류만 다시 채운다
-    store.key_positions = positions.clone();
-    store.stat_positions = stat_positions.clone();
-    store.layer_groups.clear();
+    store.edit_legacy(|legacy| {
+        legacy.keys = keys.clone();
+        clear_element_collections(legacy, ElementKindSet::ALL);
+        // 기본 배치가 있는 종류만 다시 채운다
+        legacy.key_positions = positions.clone();
+        legacy.stat_positions = stat_positions.clone();
+        legacy.layer_groups.clear();
+    });
     store.key_counters = zeroed_counters(keys);
     store.custom_tabs.clear();
     store.tab_order = normalize_tab_order(&[], &store.custom_tabs);
@@ -137,7 +139,7 @@ fn reset_all_editor_data(
     store.selected_key_type = "4key".to_string();
     store.tab_note_overrides.clear();
     store.tab_css_overrides.clear();
-    crate::state::native_element_id::rekey_store_element_ids(store);
+    store.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
 }
 
 fn reset_all_editor_data_with_images(
@@ -163,7 +165,8 @@ fn reset_mode_kind(store: &AppStoreData, mode: &str) -> Option<ModeResetKind> {
 
 fn is_selectable_mode(store: &AppStoreData, mode: &str) -> bool {
     default_keys().contains_key(mode)
-        || (store.keys.contains_key(mode) && store.custom_tabs.iter().any(|tab| tab.id == mode))
+        || (store.legacy().keys.contains_key(mode)
+            && store.custom_tabs.iter().any(|tab| tab.id == mode))
 }
 
 fn select_mode_if_available(store: &mut AppStoreData, requested: &str) -> (bool, String) {
@@ -206,34 +209,35 @@ const DEFAULT_LAYOUT_KINDS: ElementKindSet = ElementKindSet::EMPTY
     .with(EditorElementTypeV1::Stat);
 
 fn apply_reset_mode_data(store: &mut AppStoreData, mode: &str, kind: ModeResetKind) {
-    match kind {
-        ModeResetKind::Default => {
-            if let Some(keys) = default_keys().get(mode) {
-                store.keys.insert(mode.to_string(), keys.clone());
+    let mode_keys = store.edit_legacy(|legacy| {
+        match kind {
+            ModeResetKind::Default => {
+                if let Some(keys) = default_keys().get(mode) {
+                    legacy.keys.insert(mode.to_string(), keys.clone());
+                }
+                if let Some(positions) = default_positions().get(mode) {
+                    legacy
+                        .key_positions
+                        .insert(mode.to_string(), positions.clone());
+                }
+                if let Some(positions) = default_stat_positions().get(mode) {
+                    legacy
+                        .stat_positions
+                        .insert(mode.to_string(), positions.clone());
+                }
             }
-            if let Some(positions) = default_positions().get(mode) {
-                store
-                    .key_positions
-                    .insert(mode.to_string(), positions.clone());
-            }
-            if let Some(positions) = default_stat_positions().get(mode) {
-                store
-                    .stat_positions
-                    .insert(mode.to_string(), positions.clone());
+            ModeResetKind::Custom => {
+                legacy.keys.insert(mode.to_string(), Vec::new());
+                insert_empty_element_mode(legacy, mode, DEFAULT_LAYOUT_KINDS);
             }
         }
-        ModeResetKind::Custom => {
-            store.keys.insert(mode.to_string(), Vec::new());
-            insert_empty_element_mode(store, mode, DEFAULT_LAYOUT_KINDS);
-        }
-    }
-
-    insert_empty_element_mode(store, mode, DEFAULT_LAYOUT_KINDS.complement());
-    store.layer_groups.remove(mode);
+        insert_empty_element_mode(legacy, mode, DEFAULT_LAYOUT_KINDS.complement());
+        legacy.layer_groups.remove(mode);
+        legacy.keys.get(mode).cloned().unwrap_or_default()
+    });
     store.tab_css_overrides.remove(mode);
     store.tab_note_overrides.remove(mode);
 
-    let mode_keys = store.keys.get(mode).cloned().unwrap_or_default();
     store.key_counters.insert(
         mode.to_string(),
         mode_keys
@@ -244,13 +248,13 @@ fn apply_reset_mode_data(store: &mut AppStoreData, mode: &str, kind: ModeResetKi
 }
 
 fn mode_positions_equal_without_ids(
-    current: &AppStoreData,
-    candidate: &AppStoreData,
+    current: &EditorDocumentV1,
+    candidate: &EditorDocumentV1,
     mode: &str,
 ) -> bool {
     struct ModeEqualWithoutIds<'a> {
-        current: &'a AppStoreData,
-        candidate: &'a AppStoreData,
+        current: &'a EditorDocumentV1,
+        candidate: &'a EditorDocumentV1,
         mode: &'a str,
     }
 
@@ -259,7 +263,7 @@ fn mode_positions_equal_without_ids(
         type Error = ();
 
         fn visit<C: ElementCollection>(&mut self) -> Result<(), ()> {
-            let without_ids = |store: &AppStoreData| {
+            let without_ids = |store: &EditorDocumentV1| {
                 let mut elements = C::positions(store).get(self.mode).cloned();
                 for element in elements.iter_mut().flatten() {
                     element.clear_ids();
@@ -302,11 +306,12 @@ fn mode_reset_semantics_equal(
     candidate: &AppStoreData,
     mode: &str,
 ) -> bool {
-    current.keys.get(mode) == candidate.keys.get(mode)
-        && mode_positions_equal_without_ids(current, candidate, mode)
+    let (current_legacy, candidate_legacy) = (current.legacy(), candidate.legacy());
+    current_legacy.keys.get(mode) == candidate_legacy.keys.get(mode)
+        && mode_positions_equal_without_ids(&current_legacy, &candidate_legacy, mode)
         && optional_collections_equal(
-            current.layer_groups.get(mode).map(Vec::as_slice),
-            candidate.layer_groups.get(mode).map(Vec::as_slice),
+            current_legacy.layer_groups.get(mode).map(Vec::as_slice),
+            candidate_legacy.layer_groups.get(mode).map(Vec::as_slice),
         )
         && current.tab_css_overrides.get(mode) == candidate.tab_css_overrides.get(mode)
         && current.tab_note_overrides.get(mode) == candidate.tab_note_overrides.get(mode)
@@ -333,7 +338,9 @@ fn reset_mode_data(store: &mut AppStoreData, mode: &str, kind: ModeResetKind) ->
     }
 
     *store = candidate;
-    crate::state::native_element_id::rekey_mode_element_ids(store, mode);
+    store.edit_legacy(|legacy| {
+        crate::state::native_element_id::rekey_mode_element_ids(legacy, mode)
+    });
     true
 }
 
@@ -387,9 +394,11 @@ fn delete_custom_tab_data(store: &mut AppStoreData, id: &str, plan: &CustomTabDe
     store.custom_tabs = plan.custom_tabs.clone();
     store.tab_order = plan.tab_order.clone();
     store.bar_count = normalize_bar_count(store.bar_count, &store.tab_order);
-    store.keys.remove(id);
-    remove_element_mode(store, id);
-    store.layer_groups.remove(id);
+    store.edit_legacy(|legacy| {
+        legacy.keys.remove(id);
+        remove_element_mode(legacy, id);
+        legacy.layer_groups.remove(id);
+    });
     store.tab_css_overrides.remove(id);
     store.tab_note_overrides.remove(id);
     store.key_counters.remove(id);
@@ -549,12 +558,15 @@ pub struct CustomTabDeleteResult {
 
 #[tauri::command]
 pub async fn keys_get(app: AppHandle) -> CmdResult<KeyMappings> {
-    run_blocking(app, |_, state| Ok(state.store.snapshot().keys)).await
+    run_blocking(app, |_, state| Ok(state.store.snapshot().legacy().keys)).await
 }
 
 #[tauri::command]
 pub async fn positions_get(app: AppHandle) -> CmdResult<KeyPositions> {
-    run_blocking(app, |_, state| Ok(state.store.snapshot().key_positions)).await
+    run_blocking(app, |_, state| {
+        Ok(state.store.snapshot().legacy().key_positions)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -934,7 +946,10 @@ pub async fn keys_set_counters(
 
 #[tauri::command]
 pub async fn layer_groups_get(app: AppHandle) -> CmdResult<LayerGroups> {
-    run_blocking(app, |_, state| Ok(state.store.snapshot().layer_groups)).await
+    run_blocking(app, |_, state| {
+        Ok(state.store.snapshot().legacy().layer_groups)
+    })
+    .await
 }
 
 fn generate_custom_tab_id() -> String {

@@ -1675,7 +1675,7 @@ fn old_full_preset_rekeys_every_application() {
 #[test]
 fn old_tab_preset_rekeys_only_written_collections_on_every_application() {
     let mut store = old_preset_store();
-    crate::state::native_element_id::backfill_store_element_ids(&mut store);
+    store.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     let untouched_id = store.key_positions["untouched"][0].id.clone();
     let original_ids = target_preset_ids(&store);
 
@@ -1704,7 +1704,7 @@ fn old_tab_preset_rekeys_only_written_collections_on_every_application() {
 #[test]
 fn tab_preset_without_key_positions_keeps_existing_key_ids() {
     let mut store = old_preset_store();
-    crate::state::native_element_id::backfill_store_element_ids(&mut store);
+    store.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     let original_ids = target_preset_ids(&store);
     // keys만 담긴 탭 프리셋: merge가 기존 위치를 값 그대로 되삽입하고
     // 슬롯 정렬이 빈 위치 하나를 덧붙인 상태

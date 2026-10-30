@@ -11,7 +11,10 @@ use crate::{
 
 #[tauri::command]
 pub async fn knob_positions_get(app: AppHandle) -> CmdResult<KnobPositions> {
-    run_blocking(app, |_, state| Ok(state.store.snapshot().knob_positions)).await
+    run_blocking(app, |_, state| {
+        Ok(state.store.snapshot().legacy().knob_positions)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -31,7 +34,7 @@ pub async fn knob_positions_update(
                     &[EditorField::KnobPositions],
                     admission,
                     move |store| {
-                        store.knob_positions = positions;
+                        store.edit_legacy(|legacy| legacy.knob_positions = positions);
                         Ok(())
                     },
                 )?;

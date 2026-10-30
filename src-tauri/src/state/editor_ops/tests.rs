@@ -114,7 +114,7 @@ fn base_store() -> AppStoreData {
             .collect(),
         ..AppStoreData::default()
     };
-    backfill_store_element_ids(&mut store);
+    store.edit_legacy(backfill_store_element_ids);
     store
 }
 
@@ -123,7 +123,7 @@ fn store_with_sprite() -> AppStoreData {
     store
         .sprite_positions
         .insert("4key".to_string(), vec![ReactiveSpritePosition::default()]);
-    backfill_store_element_ids(&mut store);
+    store.edit_legacy(backfill_store_element_ids);
     store
 }
 
@@ -187,7 +187,7 @@ fn store_with_every_reorder_type() -> AppStoreData {
     store
         .sprite_positions
         .insert("4key".to_string(), vec![ReactiveSpritePosition::default()]);
-    backfill_store_element_ids(&mut store);
+    store.edit_legacy(backfill_store_element_ids);
     store
 }
 

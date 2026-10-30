@@ -10,7 +10,7 @@ fn default_state() -> AppStoreData {
         stat_positions: default_stat_positions().clone(),
         ..AppStoreData::default()
     };
-    crate::state::native_element_id::backfill_store_element_ids(&mut state);
+    state.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     state
 }
 
@@ -511,7 +511,7 @@ fn 프리셋을_불러오면_트리_요소가_새_id로_같은_옛_요소_옆에
     {
         let mut guard = store.state.write();
         let mut scratch = guard.data.clone();
-        crate::state::native_element_id::rekey_store_element_ids(&mut scratch);
+        scratch.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
         apply_full_preset_tree(&mut scratch, Some(&preset)).unwrap();
         store.commit_locked(&mut guard, scratch, ()).unwrap();
     }
@@ -597,11 +597,13 @@ fn 탭_프리셋을_되돌려도_다른_탭은_뼈대로_남지_않는다() {
     {
         let mut guard = store.state.write();
         let mut scratch = guard.data.clone();
-        crate::state::native_element_id::rekey_mode_element_ids_for_collections(
-            &mut scratch,
-            "4key",
-            crate::models::ElementKindSet::ALL,
-        );
+        scratch.edit_legacy(|legacy| {
+            crate::state::native_element_id::rekey_mode_element_ids_for_collections(
+                legacy,
+                "4key",
+                crate::models::ElementKindSet::ALL,
+            )
+        });
         store.commit_locked(&mut guard, scratch, ()).unwrap();
     }
     let five_before = store.element_document_snapshot().1.scenes["5key"].clone();

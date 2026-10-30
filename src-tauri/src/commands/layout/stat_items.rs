@@ -11,7 +11,10 @@ use crate::{
 
 #[tauri::command]
 pub async fn stat_positions_get(app: AppHandle) -> CmdResult<StatPositions> {
-    run_blocking(app, |_, state| Ok(state.store.snapshot().stat_positions)).await
+    run_blocking(app, |_, state| {
+        Ok(state.store.snapshot().legacy().stat_positions)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -31,7 +34,7 @@ pub async fn stat_positions_update(
                     &[EditorField::StatPositions],
                     admission,
                     move |store| {
-                        store.stat_positions = positions;
+                        store.edit_legacy(|legacy| legacy.stat_positions = positions);
                         Ok(())
                     },
                 )?;

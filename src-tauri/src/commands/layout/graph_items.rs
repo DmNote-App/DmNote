@@ -11,7 +11,10 @@ use crate::{
 
 #[tauri::command]
 pub async fn graph_positions_get(app: AppHandle) -> CmdResult<GraphPositions> {
-    run_blocking(app, |_, state| Ok(state.store.snapshot().graph_positions)).await
+    run_blocking(app, |_, state| {
+        Ok(state.store.snapshot().legacy().graph_positions)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -31,7 +34,7 @@ pub async fn graph_positions_update(
                     &[EditorField::GraphPositions],
                     admission,
                     move |store| {
-                        store.graph_positions = positions;
+                        store.edit_legacy(|legacy| legacy.graph_positions = positions);
                         Ok(())
                     },
                 )?;

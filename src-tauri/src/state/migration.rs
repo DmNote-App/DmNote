@@ -299,7 +299,7 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     if clear_dangling_group_ids(&mut state) {
         needs_persist = true;
     }
-    let id_backfill = super::native_element_id::backfill_store_element_ids(&mut state);
+    let id_backfill = state.edit_legacy(super::native_element_id::backfill_store_element_ids);
     needs_persist |= id_backfill.changed;
     repaired |= id_backfill.repaired || explicit_invalid_element_id;
     let element_document_missing = parsed_element_document.is_none();

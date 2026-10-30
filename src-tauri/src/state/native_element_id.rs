@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::{
     errors::EditorCommitError,
     models::{
-        visit_collections, visit_collections_in, AppStoreData, CollectionVisitor, EditorDocumentV1,
+        visit_collections, visit_collections_in, CollectionVisitor, EditorDocumentV1,
         EditorElementTypeV1, EditorField, EditorPatchV1, ElementCollection, ElementItem,
         ElementKindSet, KeyMappings, KeyPosition, KeySlot, ReactiveSpritePosition, SpritePose,
         EDITOR_COMMIT_SCHEMA_VERSION_V2, EDITOR_SCHEMA_VERSION,
@@ -127,7 +127,7 @@ fn backfill_sprite_pose_ids(
 }
 
 struct BackfillCollections<'a> {
-    store: &'a mut AppStoreData,
+    store: &'a mut EditorDocumentV1,
     mode: Option<&'a str>,
     seen: &'a mut HashSet<String>,
     reserved: &'a mut HashSet<String>,
@@ -149,7 +149,7 @@ impl CollectionVisitor for BackfillCollections<'_> {
     }
 }
 
-pub(crate) fn backfill_store_element_ids(store: &mut AppStoreData) -> BackfillOutcome {
+pub(crate) fn backfill_store_element_ids(store: &mut EditorDocumentV1) -> BackfillOutcome {
     let mut seen = HashSet::new();
     let mut reserved = collect_store_ids(store);
     let mut outcome = BackfillOutcome::default();
@@ -184,9 +184,9 @@ fn collect_collection_ids<T: NativeElement>(
     }
 }
 
-fn collect_store_ids(store: &AppStoreData) -> HashSet<String> {
+fn collect_store_ids(store: &EditorDocumentV1) -> HashSet<String> {
     struct CollectIds<'a> {
-        store: &'a AppStoreData,
+        store: &'a EditorDocumentV1,
         ids: HashSet<String>,
     }
 
@@ -282,7 +282,7 @@ fn remap_sprite_triggers(
 }
 
 struct RekeyCollections<'a> {
-    store: &'a mut AppStoreData,
+    store: &'a mut EditorDocumentV1,
     mode: Option<&'a str>,
     reserved: &'a mut HashSet<String>,
     key_replacements: HashMap<String, String>,
@@ -301,7 +301,7 @@ impl CollectionVisitor for RekeyCollections<'_> {
     }
 }
 
-fn rekey_element_ids(store: &mut AppStoreData, mode: Option<&str>, kinds: ElementKindSet) {
+fn rekey_element_ids(store: &mut EditorDocumentV1, mode: Option<&str>, kinds: ElementKindSet) {
     let mut reserved = collect_store_ids(store);
     let mut rekey = RekeyCollections {
         store,
@@ -317,16 +317,16 @@ fn rekey_element_ids(store: &mut AppStoreData, mode: Option<&str>, kinds: Elemen
     remap_sprite_triggers(&mut store.sprite_positions, mode, &key_replacements);
 }
 
-pub(crate) fn rekey_store_element_ids(store: &mut AppStoreData) {
+pub(crate) fn rekey_store_element_ids(store: &mut EditorDocumentV1) {
     rekey_element_ids(store, None, ElementKindSet::ALL);
 }
 
-pub(crate) fn rekey_mode_element_ids(store: &mut AppStoreData, mode: &str) {
+pub(crate) fn rekey_mode_element_ids(store: &mut EditorDocumentV1, mode: &str) {
     rekey_mode_element_ids_for_collections(store, mode, ElementKindSet::ALL);
 }
 
 pub(crate) fn rekey_mode_element_ids_for_collections(
-    store: &mut AppStoreData,
+    store: &mut EditorDocumentV1,
     mode: &str,
     kinds: ElementKindSet,
 ) {
@@ -336,12 +336,12 @@ pub(crate) fn rekey_mode_element_ids_for_collections(
 // 한 모드의 선택된 컬렉션만 채운다. 대상 밖 요소의 id를 seen에 먼저 담아
 // 대상 안의 중복도 복구되고 새 id가 문서 전체에서 유일하도록 유지한다
 pub(crate) fn backfill_mode_element_ids_for_collections(
-    store: &mut AppStoreData,
+    store: &mut EditorDocumentV1,
     mode: &str,
     kinds: ElementKindSet,
 ) -> BackfillOutcome {
     struct CollectOutsideTarget<'a> {
-        store: &'a AppStoreData,
+        store: &'a EditorDocumentV1,
         mode: &'a str,
         kinds: ElementKindSet,
         seen: HashSet<String>,

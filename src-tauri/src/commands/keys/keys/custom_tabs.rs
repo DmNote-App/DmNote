@@ -58,8 +58,10 @@ fn custom_tabs_create_inner(
                         };
                         store.custom_tabs.push(tab.clone());
                         store.tab_order = normalize_tab_order(&store.tab_order, &store.custom_tabs);
-                        store.keys.insert(id.clone(), Vec::new());
-                        store.key_positions.insert(id.clone(), Vec::new());
+                        store.edit_legacy(|legacy| {
+                            legacy.keys.insert(id.clone(), Vec::new());
+                            legacy.key_positions.insert(id.clone(), Vec::new());
+                        });
                         store.selected_key_type = id.clone();
                         Ok(Ok((
                             tab,

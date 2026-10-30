@@ -707,7 +707,7 @@ fn initialize_default_state() -> AppStoreData {
         stat_positions: default_stat_positions().clone(),
         ..Default::default()
     });
-    crate::state::native_element_id::backfill_store_element_ids(&mut data);
+    data.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     data
 }
 

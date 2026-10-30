@@ -856,6 +856,19 @@ impl Default for AppStoreData {
 }
 
 impl AppStoreData {
+    /// 옛 모양 보기(키 매핑·종류별 위치 목록·옛 그룹) - 읽는 곳을 이 입구 하나로 모은다(5단계: 트리 투영으로 바뀐다)
+    pub(crate) fn legacy(&self) -> EditorDocumentV1 {
+        EditorDocumentV1::from_store(self)
+    }
+
+    /// 옛 모양으로 고치기 - 쓰는 곳을 이 입구 하나로 모은다(5단계: 고친 옛 모양을 트리에 맞춘다)
+    pub(crate) fn edit_legacy<R>(&mut self, edit: impl FnOnce(&mut EditorDocumentV1) -> R) -> R {
+        let mut legacy = EditorDocumentV1::from_store(self);
+        let result = edit(&mut legacy);
+        legacy.apply_to_store(self);
+        result
+    }
+
     /// 설정 사영, store 필드가 설정 기본값의 단일 원천이고 SettingsState는 파생 뷰
     pub(crate) fn settings_state(&self) -> SettingsState {
         let mut custom_js = self.custom_js.clone();

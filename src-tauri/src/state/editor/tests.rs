@@ -185,7 +185,7 @@ fn default_editor_store() -> AppStoreData {
         key_positions: crate::defaults::default_positions().clone(),
         ..AppStoreData::default()
     };
-    crate::state::native_element_id::backfill_store_element_ids(&mut store);
+    store.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     store
 }
 
@@ -229,7 +229,7 @@ fn store_with_each_position_collection() -> AppStoreData {
             position: KeyPosition::default(),
         }],
     );
-    crate::state::native_element_id::backfill_store_element_ids(&mut store);
+    store.edit_legacy(crate::state::native_element_id::backfill_store_element_ids);
     store
 }
 
@@ -2718,7 +2718,7 @@ fn preset_pose_alias_grandfathers_rekeyed_existing_violation() {
     let store = store_with_grandfathered_sprite_poses(vec![invalid]);
     let current = EditorDocumentV1::from_store(&store);
     let mut candidate_store = store.clone();
-    crate::state::native_element_id::rekey_store_element_ids(&mut candidate_store);
+    candidate_store.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
     let candidate = EditorDocumentV1::from_store(&candidate_store);
 
     validate_document_transition_with_keying(
@@ -2737,7 +2737,7 @@ fn preset_pose_alias_rejects_new_violation() {
     let store = store_with_grandfathered_sprite_poses(vec![normal]);
     let current = EditorDocumentV1::from_store(&store);
     let mut candidate_store = store.clone();
-    crate::state::native_element_id::rekey_store_element_ids(&mut candidate_store);
+    candidate_store.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
     candidate_store.sprite_positions.get_mut("4key").unwrap()[0]
         .poses
         .push(sprite_pose_with_triggers(Vec::new()));
@@ -2829,7 +2829,7 @@ fn preset_keying_grandfathers_rekeyed_elements_by_mode_and_index() {
     // 프리셋 로드는 검증 전에 모든 요소의 id를 재발급한다 - 값이 그대로여도
     // id 조회로는 관용 대상을 찾을 수 없다
     let mut candidate_store = store.clone();
-    crate::state::native_element_id::rekey_store_element_ids(&mut candidate_store);
+    candidate_store.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
     let candidate = EditorDocumentV1::from_store(&candidate_store);
 
     let error =
@@ -2861,7 +2861,7 @@ fn preset_keying_grandfathers_structural_and_label_violations_too() {
     let current = EditorDocumentV1::from_store(&store);
 
     let mut candidate_store = store.clone();
-    crate::state::native_element_id::rekey_store_element_ids(&mut candidate_store);
+    candidate_store.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
     let candidate = EditorDocumentV1::from_store(&candidate_store);
 
     // ID 기준으로는 관용 상대를 못 찾아 거부된다
@@ -2885,7 +2885,7 @@ fn preset_keying_still_rejects_newly_raised_metrics() {
     let current = EditorDocumentV1::from_store(&store);
 
     let mut candidate_store = store.clone();
-    crate::state::native_element_id::rekey_store_element_ids(&mut candidate_store);
+    candidate_store.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
     candidate_store.key_positions.get_mut("4key").unwrap()[1].dx = MAX_ABS_COORDINATE + 1.0;
     let candidate = EditorDocumentV1::from_store(&candidate_store);
 
@@ -2922,7 +2922,7 @@ fn legacy_preset_keying_accepts_finite_historical_bounds_in_every_collection() {
         position.width = MAX_DIMENSION + 7_232.0;
         let mut candidate_store = store.clone();
         candidate.apply_to_store(&mut candidate_store);
-        crate::state::native_element_id::rekey_store_element_ids(&mut candidate_store);
+        candidate_store.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
         let candidate = EditorDocumentV1::from_store(&candidate_store);
 
         let strict = validate_document_transition_with_keying(
@@ -2973,7 +2973,7 @@ fn legacy_preset_keying_still_rejects_non_positive_dimensions() {
         position.height = height;
         let mut candidate_store = store.clone();
         candidate.apply_to_store(&mut candidate_store);
-        crate::state::native_element_id::rekey_store_element_ids(&mut candidate_store);
+        candidate_store.edit_legacy(crate::state::native_element_id::rekey_store_element_ids);
         let candidate = EditorDocumentV1::from_store(&candidate_store);
 
         let error = validate_document_transition_with_keying(
