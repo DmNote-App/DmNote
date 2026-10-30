@@ -5,7 +5,7 @@ import {
   syncHistoryStatus,
 } from '@stores/data/useHistoryStatusStore';
 import { historyApi } from '@api/modules/editor/historyApi';
-import { rebindKeySlotById } from '@src/renderer/editor/runtime/operations/elementOps';
+import { rebindKeySlotById } from '@src/renderer/editor/runtime/operations/keySlotOps';
 import {
   reportElementOpError,
   reportElementOpSkipped,

@@ -99,7 +99,6 @@ import {
   patchImageTransformById,
   patchNotePropertiesByIds,
   patchUseInlineStylesByTargets,
-  rebindKeySlotById,
   patchElementPropertyById,
 } from './elementOps';
 
@@ -587,19 +586,6 @@ describe('elementOps', () => {
     const second = api.commitSemanticOps.mock.calls[1][0][0].elements[0];
     expect(first.position.groupId).toBe('group-a');
     expect(second.position.groupId).toBeUndefined();
-  });
-
-  it('슬롯 재바인딩은 위치 id와 새 slot만 semantic op로 보낸다', async () => {
-    const applied = await rebindKeySlotById(ID_A, 'Z');
-
-    expect(applied).toBe(true);
-    // eager: 호출 시점 스토어 기준 index 0 (ID_A 위치)
-    expect(useKeyStore.getState().keyMappings['4key']).toEqual(['Z', 'B']);
-    expect(api.commitSemanticOps).toHaveBeenCalledWith(
-      [{ kind: 'setKeySlot', id: ID_A, slot: 'Z' }],
-      expect.objectContaining({ onEnrolled: expect.any(Function) }),
-    );
-    expect(api.commitGeneratedPatch).not.toHaveBeenCalled();
   });
 
   it('단일 축 기하는 슬롯 최신 base의 나머지 bounds를 보존한다', async () => {
@@ -1973,14 +1959,6 @@ describe('elementOps', () => {
     expect(useKeyStore.getState().keyMappings['4key']).toEqual(['A', 'B', 'Y']);
   });
 
-  it('재바인딩의 편입 전 실패는 슬롯을 복원한다', async () => {
-    api.commitSemanticOps.mockRejectedValue(new Error('start failed'));
-
-    await expect(rebindKeySlotById(ID_A, 'Z')).rejects.toThrow('start failed');
-
-    expect(useKeyStore.getState().keyMappings['4key']).toEqual(['A', 'B']);
-  });
-
   it('semantic op는 compat 큐 선행 작업 뒤에 커밋한다', async () => {
     let release!: () => void;
     const blocker = new Promise<void>((resolve) => {
@@ -2006,20 +1984,6 @@ describe('elementOps', () => {
     await first;
     expect(await pending).toBe(true);
     expect(api.commitSemanticOps).toHaveBeenCalledOnce();
-  });
-
-  it('재바인딩 대상이 사라졌으면 커밋하지 않는다', async () => {
-    api.commitSemanticOps.mockResolvedValueOnce({
-      document: documentFromStores(),
-      opResults: [{ status: 'targetMissing' }],
-    });
-
-    await expect(rebindKeySlotById(ID_A, 'Z')).resolves.toBe(false);
-
-    expect(api.commitSemanticOps).toHaveBeenCalledWith(
-      [{ kind: 'setKeySlot', id: ID_A, slot: 'Z' }],
-      expect.objectContaining({ onEnrolled: expect.any(Function) }),
-    );
   });
 
   it('stable hidden literal은 patchElement op로만 전송한다', async () => {

@@ -14,6 +14,7 @@ import {
   getElementDocumentStore,
   useElementDocumentScene,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
 import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
 import { treeElementPositionOf } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import {
@@ -256,10 +257,12 @@ export const usePropertiesPanelSelection = () => {
         (position) => position.id === singleKeyId,
       ) ?? null
     : null;
+  // 키 슬롯은 트리 입력 (바꾸기가 트리 연산 - 낙관 적용), 트리에 없으면 옛 매핑
   const singleKeySlot =
-    singleKeyIndex >= 0
+    treeKeySlot(singleKeyElement) ??
+    (singleKeyIndex >= 0
       ? keyMappings[selectedKeyType]?.[singleKeyIndex] ?? null
-      : null;
+      : null);
   const singleKeyCode =
     singleKeySlot != null ? slotCanonical(singleKeySlot) : null;
   const singleKeyInfo =

@@ -2400,3 +2400,22 @@ fn 플러그인만_묶은_그룹은_옛_그룹이_되고_되돌려도_인스턴�
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 트리_입력_연산으로_키_슬롯을_바꾸면_옛_키_매핑이_따라오고_되돌릴_수_있다() {
+    let (dir, store) = open_store();
+    let key = store.snapshot().key_positions["4key"][1].id.clone();
+    let before = store.snapshot().keys["4key"][1].clone();
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "setInput", "scene": "4key", "id": key, "input": { "type": "key", "slot": "KeyZ" } }]),
+    );
+    assert_eq!(
+        serde_json::to_value(&store.snapshot().keys["4key"][1]).unwrap(),
+        serde_json::json!("KeyZ")
+    );
+    undo(&store).unwrap();
+    assert_eq!(store.snapshot().keys["4key"][1], before);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

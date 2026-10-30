@@ -21,7 +21,7 @@ vi.mock('@api/modules/editor/keysApi', () => ({
   },
 }));
 
-vi.mock('@src/renderer/editor/runtime/operations/elementOps', () => ({
+vi.mock('@src/renderer/editor/runtime/operations/keySlotOps', () => ({
   rebindKeySlotById: (id: string, slot: unknown) =>
     apiMocks.rebindKeySlotById(id, slot),
 }));

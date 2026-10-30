@@ -36,7 +36,7 @@ import type {
   EditorFrozenElementV1,
   ItemElementType,
 } from '@src/types/editor';
-import type { KeyPosition, KeySlot } from '@src/types/key/keys';
+import type { KeyPosition } from '@src/types/key/keys';
 import type { StatItemPosition } from '@src/types/key/statItems';
 import type { GraphItemPosition } from '@src/types/key/graphItems';
 import type { KnobItemPosition } from '@src/types/key/knobs';
@@ -493,65 +493,6 @@ export const placeDuplicatedSprite = (
   dy: number,
   zIndex: number,
 ) => placeDuplicatedItem(mode, 'sprite', source, dx, dy, zIndex);
-
-// 키 슬롯 재바인딩: keys만 바꾸되 대상은 paired 위치의 안정 id로 재결합한다.
-// index 기반 keys 단독 커밋은 same-shape 재정렬과 겹치면 다른 위치 id와
-// 잘못 결합된다
-export const rebindKeySlotById = (
-  positionId: string,
-  newSlot: KeySlot,
-): Promise<boolean> => {
-  if (!isNativeElementId(positionId)) return Promise.resolve(false);
-
-  const applyEager = (): ElementIntentReceipt | null => {
-    const locator = resolveElementById('key', positionId);
-    if (!locator) return null;
-    const state = useKeyStore.getState();
-    const beforeSlot = state.keyMappings[locator.mode]?.[locator.index];
-    state.setKeyMappings({
-      ...state.keyMappings,
-      [locator.mode]: (state.keyMappings[locator.mode] ?? []).map((slot, i) =>
-        i === locator.index ? newSlot : slot,
-      ),
-    } as never);
-    return {
-      rollback: () => {
-        // paired CAS: 위치 id의 현재 자리 슬롯이 우리가 쓴 값일 때만 복원
-        const current = useKeyStore.getState();
-        const located = findInRecord(
-          current.canonicalPositions as unknown as LooseRecord,
-          positionId,
-        );
-        if (!located) return;
-        if (current.keyMappings[located.mode]?.[located.index] !== newSlot) {
-          return;
-        }
-        current.setKeyMappings({
-          ...current.keyMappings,
-          [located.mode]: (current.keyMappings[located.mode] ?? []).map(
-            (slot, i) => (i === located.index ? beforeSlot : slot),
-          ),
-        } as never);
-      },
-    };
-  };
-
-  const receipt = applyEager();
-  let enrolled = false;
-  return commitSemanticOps(
-    [{ kind: 'setKeySlot', id: positionId, slot: newSlot }],
-    {
-      onEnrolled: () => {
-        enrolled = true;
-      },
-    },
-  )
-    .then((outcome) => outcome.opResults[0]?.status !== 'targetMissing')
-    .catch((error) => {
-      if (!enrolled) receipt?.rollback();
-      throw error;
-    });
-};
 
 export {
   patchElementHiddenById,
