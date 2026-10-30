@@ -119,6 +119,7 @@ import { documentIdsInRect } from '../document/documentSelection';
 import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
 import { createDocumentDragReceipt } from '../document/documentDragReceipt';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
+import { setCompanionSelectionReader } from '@stores/grid/companionSelection';
 import { executeNativeContextMenuAction } from './nativeContextMenuActions';
 import { useSelectedElementDragLifecycle } from '@hooks/Grid/drag/useSelectedElementDragLifecycle';
 
@@ -310,6 +311,18 @@ const Grid = ({
     // 함께 고른 트리 요소(커서 트래커 등)도 같이 옮긴다
     createCompanionReceipt: () => createDocumentDragReceipt(selectedKeyType),
   });
+
+  // 옛 종류 선택 끌기가 함께 움직일 트리 요소 - 맞춤 대상에서 빼고 묶음 경계에 넣는다
+  useEffect(
+    () =>
+      setCompanionSelectionReader(() => {
+        const selection = useDocumentSelectionStore.getState();
+        return selection.sceneId === selectedKeyType
+          ? selection.selectedIds
+          : [];
+      }),
+    [selectedKeyType],
+  );
 
   // 트리 요소에서 시작한 섞인 선택 끌기 - 옛 선택 끌기 수명 주기를 그대로 쓴다
   const documentMixedDrag = {

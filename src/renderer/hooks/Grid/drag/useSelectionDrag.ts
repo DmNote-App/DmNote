@@ -6,6 +6,7 @@ import {
   suspendCustomCursorHover,
 } from '@utils/grid/cursorUtils';
 import { useSmartGuidesStore } from '@stores/grid/useSmartGuidesStore';
+import { companionSelectionIds } from '@stores/grid/companionSelection';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import {
   calculateBounds,
@@ -125,13 +126,17 @@ export const useSelectionDrag = ({
     const startClientX = event.clientX;
     const startClientY = event.clientY;
     const previousUserSelect = dragTarget.style.userSelect;
-    const selectedIds = new Set(
-      selectedElements.flatMap((element) => getSelectedElementIds(element)),
-    );
+    // 함께 고른 트리 요소도 같이 움직인다 - 맞춤 대상에서 빼고 묶음 경계에 넣는다
+    const companionIds = [...companionSelectionIds()];
+    const selectedIds = new Set([
+      ...selectedElements.flatMap((element) => getSelectedElementIds(element)),
+      ...companionIds,
+    ]);
+    const isGroupDrag = selectedIds.size > 1;
     // 선택 요소는 시작 좌표를 고정 — 프레임별 최신 store 좌표에 누적 delta를
     // 다시 더하면 다중 드래그 그룹 bounds가 매 프레임 벌어짐
     const selectedStartBounds = new Map<string, ElementBounds>();
-    if (selectedElements.length > 1) {
+    if (selectedIds.size > 1) {
       getOtherElements(elementId).forEach((bounds) => {
         if (selectedIds.has(bounds.id)) {
           selectedStartBounds.set(bounds.id, bounds);
@@ -216,7 +221,7 @@ export const useSelectionDrag = ({
         );
 
         let groupBounds: ElementBounds | null = null;
-        if (selectedElements.length > 1) {
+        if (isGroupDrag) {
           const selectedBounds = selectedElements
             .map((selectedElement) => {
               const isCurrentElement = selectedElement.id === elementId;
@@ -237,13 +242,24 @@ export const useSelectionDrag = ({
               );
             })
             .filter((bounds): bounds is ElementBounds => bounds !== null);
+          for (const id of companionIds) {
+            const found = selectedStartBounds.get(id);
+            if (!found) continue;
+            selectedBounds.push(
+              calculateBounds(
+                found.left + rawDeltaX,
+                found.top + rawDeltaY,
+                found.width,
+                found.height,
+                found.id,
+              ),
+            );
+          }
           groupBounds = calculateGroupBounds(selectedBounds);
         }
 
         const snapTargetBounds =
-          selectedElements.length > 1 && groupBounds
-            ? groupBounds
-            : draggedBounds;
+          isGroupDrag && groupBounds ? groupBounds : draggedBounds;
         const snapResult = alignmentGuidesEnabled
           ? calculateSnapPoints(
               snapTargetBounds,
@@ -261,7 +277,7 @@ export const useSelectionDrag = ({
         let finalY: number;
         if (snapResult?.didSnapX) {
           finalX =
-            selectedElements.length > 1 && groupBounds
+            isGroupDrag && groupBounds
               ? newX + snapResult.snappedX - groupBounds.left
               : snapResult.snappedX;
         } else {
@@ -269,7 +285,7 @@ export const useSelectionDrag = ({
         }
         if (snapResult?.didSnapY) {
           finalY =
-            selectedElements.length > 1 && groupBounds
+            isGroupDrag && groupBounds
               ? newY + snapResult.snappedY - groupBounds.top
               : snapResult.snappedY;
         } else {
@@ -283,7 +299,7 @@ export const useSelectionDrag = ({
         const smartGuidesStore = useSmartGuidesStore.getState();
         if (snapResult && (snapResult.didSnapX || snapResult.didSnapY)) {
           const displayBounds =
-            selectedElements.length > 1 && groupBounds
+            isGroupDrag && groupBounds
               ? calculateBounds(
                   groupBounds.left +
                     (snapResult.didSnapX

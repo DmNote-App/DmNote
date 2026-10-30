@@ -11,6 +11,7 @@ import {
 } from 'vitest';
 import { useSelectionDrag } from './useSelectionDrag';
 import { releaseDragSession } from './dragSession';
+import { setCompanionSelectionReader } from '@stores/grid/companionSelection';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import {
   acquireHistoryEditorFlushLock,
@@ -576,6 +577,58 @@ describe('useSelectionDrag', () => {
     expect(groupCall.map((bounds) => bounds.id).sort()).toEqual([
       'plugin-a',
       'plugin-b',
+    ]);
+  });
+
+  it('함께 고른 트리 요소는 묶음 경계에 넣고 맞춤 대상에서 뺀다', async () => {
+    const tracker = {
+      id: 'tracker-1',
+      left: 200,
+      top: 0,
+      right: 260,
+      bottom: 60,
+      centerX: 230,
+      centerY: 30,
+      width: 60,
+      height: 60,
+    };
+    const release = setCompanionSelectionReader(() => ['tracker-1']);
+    const SingleKeyHarness = () => {
+      const { handlePointerDown } = useSelectionDrag({
+        enabled: true,
+        zoom: 1,
+        startX: 0,
+        startY: 0,
+        elementId: 'key-0',
+        elementWidth: 60,
+        elementHeight: 60,
+        selectedElements: [{ id: 'key-0', type: 'key', index: 0 }],
+        getOtherElements: () => [tracker],
+        onMultiDrag,
+      });
+      return (
+        <div data-testid="companion-drag" onPointerDown={handlePointerDown} />
+      );
+    };
+    await act(async () => {
+      root.render(<SingleKeyHarness />);
+    });
+    const element = host.querySelector<HTMLElement>(
+      '[data-testid="companion-drag"]',
+    )!;
+    await act(async () => {
+      element.dispatchEvent(pointerEvent('pointerdown'));
+      element.dispatchEvent(pointerEvent('pointermove', { clientX: 7 }));
+      flushRaf();
+      element.dispatchEvent(pointerEvent('pointerup', { clientX: 7 }));
+    });
+    release();
+    const groupCall = vi
+      .mocked(calculateGroupBounds)
+      .mock.calls.at(-1)?.[0] as Array<{ id: string }>;
+    expect(groupCall.map((bounds) => bounds.id).sort()).toEqual([
+      'key-0',
+      'tracker-1',
     ]);
   });
 
