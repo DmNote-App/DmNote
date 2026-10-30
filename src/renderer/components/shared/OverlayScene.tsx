@@ -101,7 +101,11 @@ const OverlayScene = ({
   showPluginElements = true,
 }: OverlaySceneProps) => {
   const macOS = isMac();
-  const overlayContext = { spriteKeyCanonicalMap };
+  const overlayContext = {
+    spriteKeyCanonicalMap,
+    mode: selectedKeyType,
+    keyCounterEnabled,
+  };
 
   return (
     <div
@@ -157,7 +161,8 @@ const OverlayScene = ({
         </Suspense>
       )}
 
-      {currentKeys.map((key, index) => {
+      {/* 트리에서 그리면(TREE_OVERLAY_KINDS) 트리 층이 그린다 */}
+      {(isLegacyOverlayType('key') ? currentKeys : []).map((key, index) => {
         // 멀티 슬롯은 합성 라벨, 라벨 배열이 짧으면 단일 키 displayName 폴백
         const displayName =
           currentKeyLabels[index] ?? getKeyInfoByGlobalKey(key).displayName;

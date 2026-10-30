@@ -11,6 +11,7 @@ const scene: Scene = {
       id: 'k1',
       kind: 'key',
       frame: { x: 0, y: 0, width: 60, height: 60, rotation: 0 },
+      input: { type: 'key', slot: 'KeyA' },
       legacy: { index: 0, zIndex: 3 },
     },
     {
@@ -91,14 +92,24 @@ vi.mock('@components/overlay/counters/OverlaySpriteItem', () => ({
   },
 }));
 
+const keyProps = vi.fn();
+vi.mock('@components/shared/key/LiveKey', () => ({
+  Key: (props: Record<string, unknown>) => {
+    keyProps(props);
+    return <div data-key-element="" />;
+  },
+}));
+
 const { default: DocumentElementsLayer } = await import(
   './DocumentElementsLayer'
 );
 
 describe('오버레이가 트리에서 그리는 옛 종류', () => {
-  it('노브·그래프·스탯·스프라이트는 옛 위치 객체로 한 번 그리고 창 오프셋을 더한다', () => {
+  it('키·노브·그래프·스탯·스프라이트는 옛 위치 객체로 한 번 그리고 창 오프셋을 더한다', () => {
     const overlayContext = {
       spriteKeyCanonicalMap: new Map([['k1', 'KeyA']]),
+      mode: '4key',
+      keyCounterEnabled: true,
     };
     const container = document.createElement('div');
     const root = createRoot(container);
@@ -124,6 +135,21 @@ describe('오버레이가 트리에서 그리는 옛 종류', () => {
         </>,
       );
     });
+    // 키 이름·입력은 트리 입력 슬롯에서
+    expect(container.querySelectorAll('[data-key-element]')).toHaveLength(1);
+    expect(keyProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        globalKey: 'KeyA',
+        mode: '4key',
+        counterEnabled: true,
+        position: expect.objectContaining({
+          id: 'k1',
+          dx: 5,
+          dy: 7,
+          zIndex: 3,
+        }),
+      }),
+    );
     expect(container.querySelectorAll('[data-knob-element]')).toHaveLength(1);
     expect(knobProps).toHaveBeenLastCalledWith(
       expect.objectContaining({

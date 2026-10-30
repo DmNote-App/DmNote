@@ -46,6 +46,7 @@ const DocumentElementView = React.memo(
             zIndex,
           }}
           context={overlayContext}
+          element={element}
         />
       );
     }

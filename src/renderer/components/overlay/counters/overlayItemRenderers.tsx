@@ -9,6 +9,9 @@ import type { CanonicalPositionOf, ItemElementType } from '@src/types/editor';
 export interface OverlayItemContext {
   // 스프라이트 트리거(키 요소 id) -> canonical 키 문자열
   spriteKeyCanonicalMap: ReadonlyMap<string, string>;
+  // 트리에서 그리는 키 - 지금 탭과 키 카운터 표시
+  mode?: string;
+  keyCounterEnabled?: boolean;
 }
 
 type OverlayItemRenderer<K extends ItemElementType> = (
