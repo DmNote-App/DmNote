@@ -1158,7 +1158,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    // 옛 종류 요소와 섞인 선택 - 함께 편집하는 패널이 생기기 전까지 레이어 패널로 둘 다 보인다
+    // 옛 종류 요소와 섞인 선택 - 함께 편집하는 패널이 생기기 전까지 레이어 패널로 둘 다 보인다.
+    // 이미 속성 모드라 행 더블클릭은 모드를 뒤집지 않고 속성 모드를 지킨다
     if (
       documentSceneId &&
       documentSelectedIds.length > 0 &&
@@ -1166,7 +1167,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     ) {
       return (
         <LayerPanel
-          onSwitchToProperty={handleToggleMode}
+          onSwitchToProperty={() => setPanelMode('property')}
           onSelectionFromPanel={() => {
             selectionFromLayerPanelRef.current = true;
           }}
@@ -1238,8 +1239,13 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     selectedKeyElements.length > 0 ||
     selectedElements.length > 0 ||
     documentElementId !== null;
+  // 트리 요소와 섞인 선택은 레이어 패널을 보이므로 머리도 레이어로
+  const mixedSelection =
+    documentSelectedIds.length > 0 && selectedElements.length > 0;
   const displayedPanelMode =
-    panelMode === 'layer' || !hasAnySelection ? 'layer' : 'property';
+    panelMode === 'layer' || !hasAnySelection || mixedSelection
+      ? 'layer'
+      : 'property';
 
   // 프레임이 글래스를 소유하고, 루트/서브 페이지가 그 안에서 슬라이드 전환.
   // 열림/닫힘 모두 같은 프래그먼트 구조 유지 — 토글 버튼이 리마운트되면

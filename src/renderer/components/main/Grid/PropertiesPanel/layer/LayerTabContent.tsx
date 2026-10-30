@@ -365,6 +365,15 @@ const LayerTabContent: React.FC<LayerTabContentProps> = ({
     // 보조키 넣고 빼기는 트리 요소 선택을 지킨다
     if (isPrimaryModifierPressed) {
       keepOtherSelection(() => applySelectionIntent(resolution.intent));
+    } else if (
+      resolution.intent.type === 'delay-clear' &&
+      useDocumentSelectionStore.getState().selectedIds.length > 0
+    ) {
+      // 트리 요소와 함께 고른 유일한 옛 행을 누르면 그 행만 고른다 (여럿 중 하나를 누른 것과 같다)
+      applySelectionIntent({
+        type: 'delay-single',
+        element: layerItemToSelectedElement(item),
+      });
     } else {
       applySelectionIntent(resolution.intent);
     }
