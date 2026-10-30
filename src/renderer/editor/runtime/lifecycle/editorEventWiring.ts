@@ -1,6 +1,7 @@
 import { editorApi } from '@api/modules/editor/editorApi';
 import { previewApi } from '@api/modules/editor/previewApi';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
+import { useHistoryStatusStore } from '@stores/data/useHistoryStatusStore';
 import { previewOverlay } from '../gesture/previewOverlay';
 
 // 프리뷰 봉투는 편집 UI가 있는 창(main·panel)끼리의 실시간 피드백 전용.
@@ -27,11 +28,22 @@ const ensurePreviewSubscription = () => {
 /** 편집 창의 공용 이벤트 연결 - 다른 창 미리보기 받기, 커밋 반영 신호(열린 피커 재동기화·되돌리기 때 끌기 취소) */
 export const startEditorEventWiring = (): (() => void) => {
   ensurePreviewSubscription();
-  return editorApi.onCommitted((event) => {
+  const stopCommitted = editorApi.onCommitted((event) => {
     // 같은 커밋에 실린 미리보기 세션 정리 (다른 창 것 포함)
     previewOverlay.endSessions(
       event.gestureIds ?? (event.gestureId ? [event.gestureId] : []),
     );
     useCommittedApplyStore.getState().bump(event.origin);
   });
+  // 되돌리기·다시하기·프리셋 복원 끝 - 트리 전용 기록은 editor:committed가 없어 기록 상태의 epoch로 알린다
+  let appliedEpoch = useHistoryStatusStore.getState().historyEpoch;
+  const stopHistory = useHistoryStatusStore.subscribe((state) => {
+    if (state.busy || state.historyEpoch <= appliedEpoch) return;
+    appliedEpoch = state.historyEpoch;
+    useCommittedApplyStore.getState().bump('historyUndo');
+  });
+  return () => {
+    stopCommitted();
+    stopHistory();
+  };
 };
