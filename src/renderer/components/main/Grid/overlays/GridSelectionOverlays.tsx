@@ -6,6 +6,7 @@ import SpriteCanvasHandles from '../handles/SpriteCanvasHandles';
 import NativeRotateHandle from '../handles/NativeRotateHandle';
 import SpriteRotateHandle from '../handles/SpriteRotateHandle';
 import SelectionRotateHandle from '../handles/SelectionRotateHandle';
+import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
 import { useSelectionRotationFrame } from '@hooks/Grid/selection/useSelectionRotationFrame';
 import { isRotatableElementType } from '@src/types/elementKinds';
 import {
@@ -74,6 +75,10 @@ const GridSelectionOverlays = ({
   getOtherElements,
 }: GridSelectionOverlaysProps) => {
   const selectionFrame = useSelectionRotationFrame();
+  // 트리 요소와 섞인 선택 - 묶음 손잡이가 한쪽만 돌리거나 늘리지 않게 손잡이를 닫는다 (윤곽은 그대로)
+  const mixedWithDocument = useDocumentSelectionStore(
+    (state) => state.selectedIds.length > 0,
+  );
   // 공통 틀이 없는 회전 혼합 선택은 개별 윤곽만 표시하고 그룹 리사이즈는 닫는다
   const rotatedWithoutFrame =
     selectedElements.length > 1 &&
@@ -187,6 +192,7 @@ const GridSelectionOverlays = ({
   const showSingleResizeHandles = Boolean(
     singleElement &&
       singleBounds &&
+      !mixedWithDocument &&
       !hasGradientEditSession &&
       !hasSpritePoseSession &&
       isElementResizable(singleElement, pluginElements),
@@ -243,6 +249,7 @@ const GridSelectionOverlays = ({
           />
         )}
       {selectedElements.length > 1 &&
+        !mixedWithDocument &&
         !hasGradientEditSession &&
         !rotatedWithoutFrame && (
           <GroupResizeHandles
@@ -273,6 +280,7 @@ const GridSelectionOverlays = ({
         />
       )}
       {selectedElements.length > 1 &&
+        !mixedWithDocument &&
         !hasGradientEditSession &&
         !previewElementBounds &&
         selectionFrame && (

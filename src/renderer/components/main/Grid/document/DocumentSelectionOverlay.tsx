@@ -3,7 +3,9 @@ import React, { useEffect } from 'react';
 import {
   getElementDocumentStore,
   useDocumentElement,
+  useElementDocumentScene,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import { getOtherElementBounds } from '@hooks/Grid/drag/useSmartGuidesElements';
 import { calculateResizePreviewPlan } from '@hooks/Grid/resize/resizePreviewPlan';
@@ -14,6 +16,10 @@ import ResizeHandles from '../handles/ResizeHandles';
 import { SELECTION_BORDER_WIDTH } from '../handles/selectionOutline';
 import { setDocumentFrame } from './documentEditActions';
 import { startDocumentRotation } from './documentRotation';
+import {
+  documentSelectionFrame,
+  startDocumentGroupRotation,
+} from './documentGroupRotation';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
@@ -163,10 +169,49 @@ const SelectionItem = ({
   );
 };
 
+/** 여러 트리 요소의 묶음 회전 손잡이 - 시작 시점의 요소 위치로 선택틀을 잡는다 */
+const DocumentGroupRotateHandle = ({
+  sceneId,
+  ids,
+  zoom,
+  panX,
+  panY,
+}: DocumentSelectionOverlayProps & { ids: readonly string[] }) => {
+  const scene = useElementDocumentScene(sceneId);
+  const store = getElementDocumentStore();
+  const entries = ids.flatMap((id) => {
+    const element = store?.getElement(sceneId, id);
+    return element ? [{ id, frame: element.frame }] : [];
+  });
+  const rotatable = entries.every(
+    ({ id }) =>
+      elementKindDefinition(store?.getElement(sceneId, id)?.kind ?? '')
+        ?.rotatable !== false,
+  );
+  const frame = documentSelectionFrame(entries);
+  if (!scene || !frame || !rotatable || entries.length < 2) return null;
+  return (
+    <CanvasRotateHandle
+      kind="selection"
+      bounds={frame.bounds}
+      rotation={frame.rotation}
+      zoom={zoom}
+      panX={panX}
+      panY={panY}
+      sessionKey={`document-selection:${ids.join(',')}`}
+      start={() => startDocumentGroupRotation(sceneId, entries, frame)}
+    />
+  );
+};
+
 /** 트리 요소 선택 윤곽과 크기 조절·회전 핸들 - 옛 종류 선택과 같은 모양 */
 const DocumentSelectionOverlay = (props: DocumentSelectionOverlayProps) => {
   const ids = useDocumentSelectionStore((state) =>
     state.sceneId === props.sceneId ? state.selectedIds : EMPTY_IDS,
+  );
+  // 옛 종류 요소와 섞인 선택 - 한쪽만 돌리거나 늘리지 않게 손잡이를 닫는다
+  const mixed = useGridSelectionStore(
+    (state) => state.selectedElements.length > 0,
   );
   return (
     <>
@@ -175,9 +220,12 @@ const DocumentSelectionOverlay = (props: DocumentSelectionOverlayProps) => {
           key={id}
           {...props}
           id={id}
-          withHandles={ids.length === 1}
+          withHandles={ids.length === 1 && !mixed}
         />
       ))}
+      {ids.length > 1 && !mixed && (
+        <DocumentGroupRotateHandle {...props} ids={ids} />
+      )}
     </>
   );
 };
