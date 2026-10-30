@@ -66,20 +66,8 @@ export const usePropertiesPanelSelection = () => {
   const canonicalSpritePositions = useSpriteStore((state) => state.positions);
   // 트리 선택이 모두 트리로 옮긴 옛 종류면 옛 패널이 옛 선택과 함께 그 요소들을 고른 것처럼 본다
   // (위치·회전·숨김·이름·지우기 커밋은 공통 커밋 경로가 트리로 보낸다)
-  const authorityPositions = {
-    key: canonicalPositions,
-    stat: canonicalStatItemPositions,
-    graph: canonicalGraphItemPositions,
-    knob: canonicalKnobItemPositions,
-    sprite: canonicalSpritePositions,
-  };
   const selectedElements = documentSceneId
-    ? panelSelectionOf(
-        legacySelection,
-        documentSceneId,
-        documentIds,
-        (kind) => authorityPositions[kind] as never,
-      )
+    ? panelSelectionOf(legacySelection, documentSceneId, documentIds)
     : legacySelection;
   const bridgedDocumentSelection =
     selectedElements.length > legacySelection.length;

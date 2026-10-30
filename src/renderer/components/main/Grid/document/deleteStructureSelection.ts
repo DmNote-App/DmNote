@@ -1,13 +1,21 @@
-import { deleteFrozenSelection } from '@src/renderer/editor/runtime/intent/deleteFrozenSelection';
+import { deletePluginElements } from '@plugins/runtime/displayElement/pluginElementActions';
+import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { removeDocumentElements } from './documentEditActions';
-import { combinedSelection, treeOnlySelectedIds } from './treeEditedSelection';
+import { structureTargetIds } from './treeEditedSelection';
 
-/** 고른 것 지우기 - 트리에만 있는 종류는 트리에서, 옛 종류·플러그인은 옛 지우기로 (같은 동작 id - 되돌리기 한 번) */
-export const deleteStructureSelection = (sceneId: string) => {
+/** 고른 것 지우기 - 트리 요소는 트리에서, 플러그인 요소는 플러그인 스토어에서(낙관 반영).
+ * 같은 동작 id라 되돌리기 한 번 */
+export const deleteStructureSelection = async (sceneId: string) => {
   const gestureId = crypto.randomUUID();
-  const treeOnlyIds = treeOnlySelectedIds(sceneId);
-  if (treeOnlyIds.length > 0) {
-    void removeDocumentElements(sceneId, treeOnlyIds, { gestureId });
+  const plugins = new Set(
+    useGridSelectionStore
+      .getState()
+      .selectedElements.filter(({ type }) => type === 'plugin')
+      .map(({ id }) => id),
+  );
+  const treeIds = structureTargetIds(sceneId).filter((id) => !plugins.has(id));
+  if (plugins.size > 0) deletePluginElements([...plugins], gestureId);
+  if (treeIds.length > 0) {
+    await removeDocumentElements(sceneId, treeIds, { gestureId });
   }
-  return deleteFrozenSelection(combinedSelection(sceneId), { gestureId });
 };

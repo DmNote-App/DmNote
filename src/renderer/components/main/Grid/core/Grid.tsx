@@ -77,9 +77,7 @@ import GridSelectionOverlays from '../overlays/GridSelectionOverlays';
 import DocumentContextMenu from '../document/DocumentContextMenu';
 import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
 import {
-  combinedSelection as combinedSelectionOf,
   structureTargetIds,
-  treeOnlySelectedIds,
   usePanelSelection,
 } from '../document/treeEditedSelection';
 import { useDocumentContextMenuStore } from '../document/useDocumentContextMenuStore';
@@ -360,7 +358,6 @@ const Grid = ({
     getOtherElements,
   });
 
-  const combinedSelection = () => combinedSelectionOf(selectedKeyType);
   const deleteSelectedElements = () =>
     deleteStructureSelection(selectedKeyType);
 
@@ -609,11 +606,7 @@ const Grid = ({
       element.id,
     )?.kind;
     if (kind && isEditorElementType(kind) && TREE_EDITED_KINDS.has(kind)) {
-      const targets = combinedSelection();
-      if (
-        targets.length > 1 ||
-        treeOnlySelectedIds(selectedKeyType).length > 0
-      ) {
+      if (structureTargetIds(selectedKeyType).length > 1) {
         openMixedSelectionContextMenu(
           event.clientX,
           event.clientY,

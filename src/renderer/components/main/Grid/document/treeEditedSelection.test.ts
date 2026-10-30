@@ -14,11 +14,11 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
     getElement: (_scene: string, id: string) => ({
       id,
       kind: id.startsWith('n') ? 'knob' : 'cursor',
+      // 옛 순번은 트리에 실린 값
+      legacy: { index: Number(id.slice(1)) - 1 },
     }),
   }),
-}));
-vi.mock('@src/renderer/editor/model/elementStores', () => ({
-  readAuthorityPositions: () => ({ '4key': [{ id: 'n1' }, { id: 'n2' }] }),
+  useElementDocumentScene: () => undefined,
 }));
 
 import { useKeyStore } from '@stores/data/useKeyStore';
@@ -107,21 +107,14 @@ describe('옛 선택으로 들어온 트리로 옮긴 옛 종류', () => {
   });
 
   it('패널 선택은 트리 선택이 모두 노브이고 플러그인이 없을 때만 노브를 합친다', () => {
-    const positions = () => ({ '4key': [{ id: 'n1' }] });
-    expect(panelSelectionOf([key], '4key', ['n1'], positions)).toEqual([
+    expect(panelSelectionOf([key], '4key', ['n1'])).toEqual([
       key,
       { type: 'knob', id: 'n1', index: 0 },
     ]);
     // 트리에만 있는 종류가 섞이면 옛 선택만
-    expect(panelSelectionOf([key], '4key', ['n1', 't1'], positions)).toEqual([
-      key,
-    ]);
+    expect(panelSelectionOf([key], '4key', ['n1', 't1'])).toEqual([key]);
     // 플러그인이 섞이면 옛 선택만
     const plugin = { type: 'plugin' as const, id: 'p:1' };
-    expect(panelSelectionOf([plugin], '4key', ['n1'], positions)).toEqual([
-      plugin,
-    ]);
-    // 옛 컬렉션에 아직 없는 노브(붙여넣기 직후)는 잇지 않는다
-    expect(panelSelectionOf([key], '4key', ['n2'], positions)).toEqual([key]);
+    expect(panelSelectionOf([plugin], '4key', ['n1'])).toEqual([plugin]);
   });
 });
