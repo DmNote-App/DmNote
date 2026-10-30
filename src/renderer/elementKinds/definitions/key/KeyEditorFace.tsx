@@ -56,7 +56,11 @@ const KeyEditorFace = ({
         rotation: frame.rotation,
         className: element.className ?? undefined,
       }}
-      keyName={slotDisplayName(keyMappings[mode]?.[index] ?? '')}
+      keyName={slotDisplayName(
+        (index >= 0 ? keyMappings[mode]?.[index] : undefined) ??
+          // 트리로 막 붙여넣어 옛 모양 보기에 아직 없는 키 - 트리 입력의 슬롯
+          (element.input?.type === 'key' ? (element.input.slot as never) : ''),
+      )}
       isSelected={inPanelSelection}
       counterEnabled={counterEnabled}
       counterPreviewValue={0}
