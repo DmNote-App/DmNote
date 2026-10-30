@@ -2,6 +2,7 @@
 import type { ElementDocumentCommitResult } from '@api/modules/editor/elementDocumentApi';
 import { withResizeValues } from '@src/renderer/elementKinds/runtime/resizeValues';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import { elementKindData } from '@src/renderer/elementKinds/defineElementKind';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
@@ -145,6 +146,18 @@ export const removeDocumentElements = (
     getElementDocumentStore()?.getScene(sceneId),
     ids,
   );
+  // 지운 요소는 선택에서 뺀다 - 남은 id가 다음 편집에 실리면 백엔드가 편집 전체를 거절한다
+  const selection = useDocumentSelectionStore.getState();
+  const removed = new Set(ids);
+  if (
+    selection.sceneId === sceneId &&
+    selection.selectedIds.some((id) => removed.has(id))
+  ) {
+    selection.setSelection(
+      sceneId,
+      selection.selectedIds.filter((id) => !removed.has(id)),
+    );
+  }
   return editDocument(
     [{ op: 'remove', scene: sceneId, ids: roots.length > 0 ? roots : ids }],
     options,

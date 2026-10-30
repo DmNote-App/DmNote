@@ -25,13 +25,23 @@ import {
   insertDocumentElement,
   insertLegacyShapedElement,
   moveDocumentElementTo,
+  removeDocumentElements,
   stepDocumentElements,
 } from './documentEditActions';
+import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 describe('트리 문서 편집 동작', () => {
   beforeEach(() => {
     mocks.edit.mockClear();
     mocks.scene = undefined;
+  });
+
+  it('지운 요소는 트리 선택에서 빠진다 - 다음 편집에 없는 id가 실리지 않게', async () => {
+    useDocumentSelectionStore.getState().setSelection('4key', ['a', 'b']);
+    await removeDocumentElements('4key', ['a']);
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['b']);
+    await removeDocumentElements('4key', ['b']);
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
   });
 
   it('옛 위치 모양의 새 요소는 넣기와 같은 커밋에 값·공통 정보·키 슬롯을 싣는다', async () => {
