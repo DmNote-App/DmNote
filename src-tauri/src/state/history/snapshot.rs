@@ -645,6 +645,38 @@ pub(super) fn remove_net_zero_editor_snapshot(
     matches!(&entry.before, HistorySnapshot::Compound { snapshots } if snapshots.is_empty())
 }
 
+/// 같은 동작으로 트리 전용 요소가 제자리로 돌아왔으면 트리 뼈대를 기록에서 뺀다 - 비면 true
+pub(super) fn remove_net_zero_element_tree_snapshot(
+    entry: &mut HistoryEntry,
+    current: &element_document::Document,
+) -> bool {
+    let tree_is_net_zero = |snapshot: &HistorySnapshot| match snapshot {
+        HistorySnapshot::ElementTree(before) => {
+            crate::state::store::element_tree_snapshot(current, before.scenes.keys()) == *before
+        }
+        _ => false,
+    };
+    match &mut entry.before {
+        snapshot @ HistorySnapshot::ElementTree(_) if tree_is_net_zero(snapshot) => return true,
+        HistorySnapshot::Compound { snapshots } => {
+            snapshots.retain(|snapshot| !tree_is_net_zero(snapshot));
+        }
+        _ => {}
+    }
+    refresh_history_entry_size(entry);
+    matches!(&entry.before, HistorySnapshot::Compound { snapshots } if snapshots.is_empty())
+}
+
+pub(super) fn snapshot_contains_element_tree(snapshot: &HistorySnapshot) -> bool {
+    match snapshot {
+        HistorySnapshot::ElementTree(_) => true,
+        HistorySnapshot::Compound { snapshots } => {
+            snapshots.iter().any(snapshot_contains_element_tree)
+        }
+        _ => false,
+    }
+}
+
 pub(super) fn remove_net_zero_plugin_snapshot(
     entry: &mut HistoryEntry,
     canonical: &PluginElementsHistorySnapshot,

@@ -10,8 +10,9 @@ pub(crate) use admission::{
 use snapshot::{
     merge_editor_snapshot, merge_element_tree_snapshot, merge_gesture_snapshots,
     merge_plugin_elements_snapshot, normalize_gesture_ids, remove_net_zero_editor_snapshot,
-    remove_net_zero_plugin_snapshot, snapshot_contains_plugin_elements,
-    validate_compound_snapshots, HistoryEntryPayload,
+    remove_net_zero_element_tree_snapshot, remove_net_zero_plugin_snapshot,
+    snapshot_contains_element_tree, snapshot_contains_plugin_elements, validate_compound_snapshots,
+    HistoryEntryPayload,
 };
 pub(crate) use snapshot::{
     CustomTabsHistorySnapshot, ElementTreeHistorySnapshot, HistoryDirection, HistoryEntry,
@@ -284,10 +285,15 @@ impl HistoryService {
         gesture_id: Option<String>,
     ) -> Result<HistoryRecordPlan, String> {
         let gesture_ids = gesture_id.into_iter().collect::<Vec<_>>();
+        // 맨 위 기록이거나 이미 트리 뼈대를 담은 기록에만 합친다 - 사이에 낀 다른 트리 편집 뒤에
+        // 처음 찍는 뼈대는 동작 전 모습이 아니다
+        let last = self.past.back().map(|entry| entry.access_sequence);
         if let Some(target) = self.past.iter().rev().find(|entry| {
             self.future.is_empty()
                 && !gesture_ids.is_empty()
                 && entry.matches_any_gesture(&gesture_ids)
+                && (Some(entry.access_sequence) == last
+                    || snapshot_contains_element_tree(&entry.before))
         }) {
             let merged = merge_element_tree_snapshot(&target.before, before)?;
             let mut merged_gesture_ids = target.gesture_ids.clone();
@@ -471,6 +477,28 @@ impl HistoryService {
         let remove_entry = match &mut plan {
             HistoryRecordPlan::Merge { entry, .. } => {
                 remove_net_zero_editor_snapshot(entry, canonical)
+            }
+            _ => false,
+        };
+        if remove_entry {
+            self.clear_future();
+            self.remove_merge_target(&plan);
+            self.advance_revision();
+            self.enforce_budget();
+            return;
+        }
+        self.apply_record_plan(plan);
+    }
+
+    /// 트리 편집 기록 반영 - 같은 동작으로 제자리로 돌아왔으면 그 몫을 뺀다(비면 기록째)
+    pub(crate) fn apply_element_tree_record_plan(
+        &mut self,
+        mut plan: HistoryRecordPlan,
+        current: &element_document::Document,
+    ) {
+        let remove_entry = match &mut plan {
+            HistoryRecordPlan::Merge { entry, .. } => {
+                remove_net_zero_element_tree_snapshot(entry, current)
             }
             _ => false,
         };

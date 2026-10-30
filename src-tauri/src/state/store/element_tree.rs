@@ -865,7 +865,8 @@ impl AppStore {
             .map_err(anyhow::Error::msg)?;
         let state = &mut *guard;
         self.commit_locked(state, scratch, ())?;
-        guard.history.apply_record_plan(plan);
+        let current = guard.data.element_document.clone();
+        guard.history.apply_element_tree_record_plan(plan, &current);
         Ok(ElementDocumentCommitResult::Committed {
             revision: self.element_document_revision(),
             changes,

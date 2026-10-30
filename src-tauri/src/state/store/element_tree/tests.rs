@@ -1602,3 +1602,129 @@ fn 옛_칸에_이미지를_둔_노브를_읽으면_이미지_묶음으로_올리
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+fn move_tracker(store: &crate::state::AppStore, id: &str, x: f64, gesture: Option<String>) {
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "setFrame", "scene": "4key", "id": id, "frame": { "x": x } }
+    ]))
+    .unwrap();
+    assert!(matches!(
+        store
+            .commit_element_document_checked(&ops, true, gesture)
+            .unwrap(),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+}
+
+fn undo(store: &crate::state::AppStore) -> Result<(), String> {
+    use crate::state::history::HistoryDirection;
+    let counters = Default::default();
+    store
+        .apply_history_operation(
+            HistoryDirection::Undo,
+            &uuid::Uuid::new_v4().to_string(),
+            &counters,
+            || {},
+        )
+        .map(|_| ())
+}
+
+#[test]
+fn 같은_동작에서_제자리로_돌아온_트리_편집은_기록에서_빠지고_되돌리기가_막히지_않는다() {
+    let (dir, store) = open_store();
+    insert_tracker(&store);
+    let gesture = Some(uuid::Uuid::new_v4().to_string());
+    move_tracker(&store, "tracker-1", 6.0, gesture.clone());
+    move_tracker(&store, "tracker-1", 5.0, gesture);
+    // 제자리로 돌아온 동작은 기록이 없다 - 한 번 되돌리면 넣기가 되돌아간다
+    undo(&store).unwrap();
+    assert!(store.element_document_snapshot().1.scenes["4key"]
+        .element("tracker-1")
+        .is_none());
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 섞인_동작이_제자리로_돌아오면_기록에서_빠진다() {
+    let (dir, store) = open_store();
+    insert_tracker(&store);
+    let key = store.snapshot().key_positions["4key"][1].id.clone();
+    let key_x = store.snapshot().key_positions["4key"][1].dx;
+    let gesture = Some(uuid::Uuid::new_v4().to_string());
+    let legacy_move = |x: f64| {
+        let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+            { "op": "setFrame", "scene": "4key", "id": key, "frame": { "x": x } }
+        ]))
+        .unwrap();
+        match store
+            .plan_element_document_commit(&ops, gesture.clone())
+            .unwrap()
+        {
+            ElementDocumentCommitPlan::Legacy { request, .. } => {
+                store.commit_editor_document(*request).unwrap();
+            }
+            _ => panic!("옛 편집 커밋이어야 한다"),
+        }
+    };
+    legacy_move(321.0);
+    move_tracker(&store, "tracker-1", 77.0, gesture.clone());
+    legacy_move(key_x);
+    move_tracker(&store, "tracker-1", 5.0, gesture.clone());
+    undo(&store).unwrap();
+    assert!(store.element_document_snapshot().1.scenes["4key"]
+        .element("tracker-1")
+        .is_none());
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 사이에_다른_트리_편집이_끼면_같은_동작이라도_따로_기록한다() {
+    let (dir, store) = open_store();
+    insert_tracker(&store);
+    let insert: Op = serde_json::from_value(serde_json::json!({
+        "op": "insert", "scene": "4key", "parent": null, "index": null,
+        "node": { "type": "element", "id": "tracker-2", "kind": "cursorTracker",
+                  "frame": { "x": 5, "y": 5, "width": 120, "height": 120 } }
+    }))
+    .unwrap();
+    store.commit_element_document(&[insert]).unwrap();
+    let key = store.snapshot().key_positions["4key"][1].id.clone();
+    let key_x = store.snapshot().key_positions["4key"][1].dx;
+    let gesture = Some(uuid::Uuid::new_v4().to_string());
+    // 옛 편집(g) → 다른 트리 편집 P → 트리 편집(g)
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "setFrame", "scene": "4key", "id": key, "frame": { "x": 321 } }
+    ]))
+    .unwrap();
+    match store
+        .plan_element_document_commit(&ops, gesture.clone())
+        .unwrap()
+    {
+        ElementDocumentCommitPlan::Legacy { request, .. } => {
+            store.commit_editor_document(*request).unwrap();
+        }
+        _ => panic!("옛 편집 커밋이어야 한다"),
+    }
+    move_tracker(&store, "tracker-2", 50.0, None);
+    move_tracker(&store, "tracker-1", 77.0, gesture);
+    let xs = |store: &crate::state::AppStore| {
+        let document = store.element_document_snapshot().1;
+        let scene = &document.scenes["4key"];
+        (
+            scene.element("tracker-1").unwrap().frame.x,
+            scene.element("tracker-2").unwrap().frame.x,
+            store.snapshot().key_positions["4key"][1].dx,
+        )
+    };
+    assert_eq!(xs(&store), (77.0, 50.0, 321.0));
+    undo(&store).unwrap();
+    assert_eq!(xs(&store), (5.0, 50.0, 321.0));
+    undo(&store).unwrap();
+    assert_eq!(xs(&store), (5.0, 5.0, 321.0));
+    undo(&store).unwrap();
+    assert_eq!(xs(&store), (5.0, 5.0, key_x));
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
