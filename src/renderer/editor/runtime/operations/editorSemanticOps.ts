@@ -116,6 +116,9 @@ export const withoutTreeRoutedIntents = (
   );
 };
 
+// 트리 변경 이벤트를 놓쳐도 종료·패널 붙이기 같은 쓰기 대기가 끝없이 멈추지 않게
+const REFLECT_TIMEOUT_MS = 3000;
+
 // 트리 스토어가 그 revision의 변경을 받고(백엔드는 옛 편집 이벤트를 먼저 보낸다) 코디네이터가 그 이벤트를
 // 스토어에 반영한 뒤 - 대기 중인 트리 편집을 내려도 옛 스토어가 같은 값을 보여 준다
 const whenLegacyCaughtUp = (store: ElementDocumentStore, revision: number) =>
@@ -124,10 +127,14 @@ const whenLegacyCaughtUp = (store: ElementDocumentStore, revision: number) =>
       resolve();
       return;
     }
-    const unsubscribe = store.subscribe(() => {
-      if (store.getRevision() < revision) return;
+    const done = () => {
+      clearTimeout(timer);
       unsubscribe();
       resolve();
+    };
+    const timer = setTimeout(done, REFLECT_TIMEOUT_MS);
+    const unsubscribe = store.subscribe(() => {
+      if (store.getRevision() >= revision) done();
     });
   }).then(() => editorCoordinator.whenEventsApplied());
 
@@ -147,7 +154,8 @@ const splitForTree = (ops: readonly EditorOpV1[]) => {
       op.patch,
     ),
   }));
-  // 옛 스토어가 같은 값을 받을 때까지(거부·실패면 바로) - 옛 편집 커밋처럼 반영된 뒤 끝난다
+  // 옛 스토어가 같은 값을 받을 때까지 - 옛 편집 커밋처럼 반영된 뒤 끝난다.
+  // 거부·실패는 오류로 올린다(호출자가 알린다) - 옛 경로로 다시 보내면 뒤에 줄 선 편집을 덮을 수 있다
   const send = async (gestureId: string | undefined): Promise<void> => {
     // 옛 스토어를 읽는 곳도 확인 전까지 보낸 값을 보도록
     const releases = pending.map(({ op, fields }) =>
@@ -164,11 +172,10 @@ const splitForTree = (ops: readonly EditorOpV1[]) => {
         withResizeValues(treeOps),
         gestureId ? { gestureId } : undefined,
       );
-      if (result.status === 'committed') {
-        await whenLegacyCaughtUp(store, result.revision);
+      if (result.status !== 'committed') {
+        throw new Error(`[ElementDocument] edit rejected: ${result.code}`);
       }
-    } catch (error) {
-      console.error('[ElementDocument] edit failed', error);
+      await whenLegacyCaughtUp(store, result.revision);
     } finally {
       releases.forEach((release) => release());
     }
@@ -229,6 +236,8 @@ export const commitSemanticOps = (
   // 트리 몫과 옛 몫이 같은 동작 id - 되돌리기 한 번
   const gestureId = meta?.gestureId ?? crypto.randomUUID();
   const tree = split.send(gestureId);
+  // 옛 몫이 먼저 실패해도 트리 몫 오류가 처리되지 않은 채 남지 않게 (기다리면 그대로 올라온다)
+  tree.catch(() => undefined);
   return commitSemanticOpsDirect(split.legacyOps, { ...meta, gestureId }).then(
     async (legacy) => {
       await tree;
@@ -290,7 +299,11 @@ export const commitGeneratedSemanticOps = (
     if (!sentToTree) {
       sentToTree = true;
       // 직렬 슬롯 안 - 트리 반영을 기다리지 않는다
-      void split.send(slotMeta.gestureId);
+      split
+        .send(slotMeta.gestureId)
+        .catch((error) =>
+          console.error('[ElementDocument] edit failed', error),
+        );
     }
     return split.legacyOps.length > 0 ? split.legacyOps : null;
   };

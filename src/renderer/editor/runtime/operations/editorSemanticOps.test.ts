@@ -314,15 +314,17 @@ describe('트리로 옮긴 종류의 겉모습 칸', () => {
     expect(shown().sensitivity).toBe(1);
   });
 
-  it('트리가 받지 않으면 대기 편집을 내리고 옛 경로로 다시 보내지 않는다', async () => {
+  it('트리가 받지 않으면 대기 편집을 내리고 오류로 올린다 (옛 경로로 다시 보내지 않는다)', async () => {
     tree.store!.edit.mockResolvedValueOnce({
       status: 'rejected',
       revision: 0,
-      code: 'VIOLATION',
+      code: 'HISTORY_IN_PROGRESS',
       violations: [],
     });
 
-    await commitSemanticOps([patchOp] as never, { gestureId: 'g1' });
+    await expect(
+      commitSemanticOps([patchOp] as never, { gestureId: 'g1' }),
+    ).rejects.toThrow('HISTORY_IN_PROGRESS');
 
     expect(api.commitSemanticOpsInternal).not.toHaveBeenCalled();
     expect(shown().sensitivity).toBe(1);
@@ -376,5 +378,20 @@ describe('트리로 옮긴 종류의 겉모습 칸', () => {
         'knob' as never,
       )?.size,
     ).toBe(0);
+  });
+
+  it('트리 변경 이벤트를 놓쳐도 시한이 지나면 내리고 끝난다', async () => {
+    vi.useFakeTimers();
+    try {
+      const commit = commitSemanticOps([patchOp] as never);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(shown().sensitivity).toBe(2);
+      await vi.advanceTimersByTimeAsync(3000);
+      await commit;
+      expect(shown().sensitivity).toBe(1);
+      expect(listeners).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
