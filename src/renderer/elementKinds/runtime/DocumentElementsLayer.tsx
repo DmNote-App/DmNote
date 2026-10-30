@@ -97,7 +97,7 @@ const NO_OVERLAY_CONTEXT: OverlayItemContext = {
   spriteKeyCanonicalMap: new Map(),
 };
 
-/** 트리 문서에만 있는 종류(커서 트래커 등)를 옛 종류 요소와 같은 쌓임 맥락에 그린다 */
+/** 트리가 그리는 요소를 플러그인 요소와 같은 쌓임 맥락에 트리 순서로 그린다 */
 const DocumentElementsLayer = ({
   sceneId,
   placement,
@@ -122,7 +122,7 @@ const DocumentElementsLayer = ({
     <>
       {documentElementSlots(scene, {
         legacyKinds: live ? TREE_OVERLAY_KINDS : TREE_EDITED_KINDS,
-        ownZIndex: live,
+        stackNatives: live,
       })
         .filter(({ aboveLegacy }) => aboveLegacy === (placement === 'stacked'))
         .map(({ element, zIndex }) => (

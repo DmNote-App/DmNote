@@ -20,8 +20,8 @@ interface PluginElementStyleInput {
   windowType: 'main' | 'overlay';
   renderX: number;
   renderY: number;
-  keyCount: number;
-  arrayIndex: number;
+  // 트리 순번 - 키·트리 요소와 같은 쌓임 축
+  stackZIndex: number;
   resizable: boolean;
 }
 
@@ -91,8 +91,7 @@ export const buildPluginElementStyle = ({
   windowType,
   renderX,
   renderY,
-  keyCount,
-  arrayIndex,
+  stackZIndex,
   resizable,
 }: PluginElementStyleInput): CSSProperties => {
   const shouldPromoteTransformLayer = windowType === 'overlay';
@@ -104,7 +103,7 @@ export const buildPluginElementStyle = ({
       windowType === 'main'
         ? `translate(${renderX}px, ${renderY}px)`
         : `translate3d(${renderX}px, ${renderY}px, 0)`,
-    zIndex: element.zIndex ?? keyCount + arrayIndex,
+    zIndex: stackZIndex,
     cursor: windowType === 'main' ? undefined : 'default',
     willChange: shouldPromoteTransformLayer ? 'transform' : 'auto',
     pointerEvents: windowType === 'main' ? 'auto' : 'none',

@@ -56,8 +56,7 @@ describe('pluginElementLayout', () => {
       windowType: 'main',
       renderX: 12,
       renderY: 34,
-      keyCount: 4,
-      arrayIndex: 2,
+      stackZIndex: 6,
       resizable: true,
     });
     expect(mainStyle).toMatchObject({
@@ -75,8 +74,7 @@ describe('pluginElementLayout', () => {
       windowType: 'overlay',
       renderX: 12,
       renderY: 34,
-      keyCount: 4,
-      arrayIndex: 2,
+      stackZIndex: 6,
       resizable: false,
     });
     expect(overlayStyle.transform).toBe('translate3d(12px, 34px, 0)');

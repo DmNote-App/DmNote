@@ -13,12 +13,12 @@ import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
 type StubProps = {
   element: { fullId: string; state?: Record<string, unknown> };
-  arrayIndex?: number;
+  stackZIndex?: number;
 };
 
 const probe = vi.hoisted(() => ({
   counts: {} as Record<string, number>,
-  lastArrayIndex: {} as Record<string, number | undefined>,
+  lastStackZIndex: {} as Record<string, number | undefined>,
 }));
 
 // memo 없는 스텁 - 렌더러/Host 리렌더가 그대로 카운트에 드러남
@@ -26,7 +26,7 @@ vi.mock('@components/shared/plugin/PluginElement', () => {
   const Stub = (props: StubProps) => {
     probe.counts[props.element.fullId] =
       (probe.counts[props.element.fullId] ?? 0) + 1;
-    probe.lastArrayIndex[props.element.fullId] = props.arrayIndex;
+    probe.lastStackZIndex[props.element.fullId] = props.stackZIndex;
     return null;
   };
   return { PluginElement: Stub };
@@ -54,7 +54,7 @@ let root: Root;
 
 beforeEach(() => {
   probe.counts = {};
-  probe.lastArrayIndex = {};
+  probe.lastStackZIndex = {};
   (window as unknown as { api: unknown }).api = {
     bridge: { on: () => () => {} },
   };
@@ -152,12 +152,12 @@ describe('리스트 렌더러 격리 (#111 구조 경화)', () => {
     expect(probe.counts['plugin:a']).toBe(1);
   });
 
-  it('positive control - 배열 순서 변경은 arrayIndex를 갱신한다 (z-order 폴백)', () => {
+  it('positive control - 트리에 아직 없는 요소는 배열 순서로 맨 위에 쌓는다', () => {
     const a = makeElement('plugin:a');
     const b = makeElement('plugin:b');
     usePluginDisplayElementStore.setState({ elements: [a, b] });
     mountRenderer();
-    expect(probe.lastArrayIndex).toEqual({ 'plugin:a': 0, 'plugin:b': 1 });
+    expect(probe.lastStackZIndex).toEqual({ 'plugin:a': 0, 'plugin:b': 1 });
 
     // 오버레이 sync 수신 등 setElements 경유 순서 변경
     act(() => {
@@ -165,7 +165,7 @@ describe('리스트 렌더러 격리 (#111 구조 경화)', () => {
         .getState()
         .setElements([b, a], { skipSync: true });
     });
-    expect(probe.lastArrayIndex).toEqual({ 'plugin:a': 1, 'plugin:b': 0 });
+    expect(probe.lastStackZIndex).toEqual({ 'plugin:a': 1, 'plugin:b': 0 });
   });
 
   it('명시적 zIndex 변경(bringToFront)은 해당 요소만 리렌더한다', () => {

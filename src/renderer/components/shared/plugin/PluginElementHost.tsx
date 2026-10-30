@@ -12,8 +12,7 @@ interface PluginElementHostProps {
   panX?: number;
   panY?: number;
   isViewportTransforming?: boolean;
-  arrayIndex?: number;
-  keyCount?: number;
+  stackZIndex?: number;
   isSelected?: boolean;
   selectedElements?: SelectedElement[];
   onSelectionContextMenu?: (payload: {

@@ -17,6 +17,8 @@ import {
   pluginRenderListEqual,
 } from '@utils/plugin/layout/pluginRenderList';
 import { useKeyStore } from '@stores/data/useKeyStore';
+import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { treeStackingRanks } from '@src/renderer/elementKinds/runtime/documentElementOrder';
 import PluginElementHost from './PluginElementHost';
 import type {
   PluginDisplayElementInternal,
@@ -174,9 +176,9 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
   const updateElement = usePluginDisplayElementStore(
     (state) => state.updateElement,
   );
-  // 현재 탭의 키 개수 - z-order 폴백 계산용. 개수 변화만 구독
-  const keyCount = useKeyStore(
-    (state) => state.positions[state.selectedKeyType]?.length ?? 0,
+  // 쌓임 순서는 트리 순번 - 키·트리 요소와 같은 축. 트리에 아직 없는 요소(만든 직후)는 맨 위
+  const stackRanks = treeStackingRanks(
+    useElementDocumentScene(selectedKeyType),
   );
 
   // 선택 상태 가져오기 (main 윈도우에서만 실제 값 사용)
@@ -287,8 +289,7 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
           panX={panX}
           panY={panY}
           isViewportTransforming={isViewportTransforming}
-          arrayIndex={index}
-          keyCount={keyCount}
+          stackZIndex={stackRanks.get(fullId) ?? stackRanks.size + index}
           isSelected={selectedElements.some(
             (sel) => sel.type === 'plugin' && sel.id === fullId,
           )}

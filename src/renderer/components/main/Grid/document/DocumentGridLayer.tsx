@@ -328,8 +328,6 @@ interface DocumentGridLayerProps {
   placement: 'bottom' | 'stacked';
   zoom: number;
   onElementContextMenu: (event: React.MouseEvent, element: ElementNode) => void;
-  // 트리로 옮긴 옛 종류의 zIndex - 낙관 반영된 옛 컬렉션 값 (플러그인 요소와 같은 축)
-  legacyZIndexes?: ReadonlyMap<string, number>;
   // 옛 종류 요소와 섞인 선택 끌기 - Grid의 선택 끌기 수명 주기
   mixedDrag?: MixedDragLifecycle;
 }
@@ -347,7 +345,6 @@ const DocumentGridLayer = ({
   placement,
   zoom,
   onElementContextMenu,
-  legacyZIndexes,
   mixedDrag,
 }: DocumentGridLayerProps) => {
   useEffect(() => {
@@ -358,7 +355,7 @@ const DocumentGridLayer = ({
   const scene = useElementDocumentScene(sceneId);
   return (
     <>
-      {documentElementSlots(scene, { legacyZIndexes })
+      {documentElementSlots(scene)
         .filter(({ aboveLegacy }) => aboveLegacy === (placement === 'stacked'))
         .map(({ element, zIndex }) => (
           <DocumentGridElement

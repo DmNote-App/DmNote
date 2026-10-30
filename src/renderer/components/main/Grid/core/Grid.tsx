@@ -31,8 +31,6 @@ import {
 import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
 import { defaultElementSize, TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
-  EDITOR_ELEMENT_TYPES,
   isEditorElementType,
   isItemElementType,
   modeArraysOf,
@@ -282,20 +280,8 @@ const Grid = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [positions, canonicalItemCollections, previewVersion],
   );
-  const currentModeArrays = useMemo(
-    () => modeArraysOf(collections, selectedKeyType),
-    [collections, selectedKeyType],
-  );
   const { statPositions } = collections;
-  // 트리가 그리는 옛 종류의 zIndex - 옛 층처럼 낙관 반영된 값 (플러그인 요소와 같은 축)
-  const legacyZIndexes = new Map(
-    EDITOR_ELEMENT_TYPES.flatMap((type) =>
-      currentModeArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].map(
-        (position, index) =>
-          [position.id, position.zIndex ?? index] as [string, number],
-      ),
-    ),
-  );
+
   const panelSelection = usePanelSelection(selectedKeyType);
   // 트리에서 그리는 키의 바깥 카운터는 트리 틀을 따라간다
   const keyCounterPositions = useTreeFramedPositions(
@@ -928,7 +914,6 @@ const Grid = ({
             placement="bottom"
             zoom={zoom}
             onElementContextMenu={openDocumentElementContextMenu}
-            legacyZIndexes={legacyZIndexes}
             mixedDrag={documentMixedDrag}
           />
           {/* Outside 카운터 미리보기 레이어 */}
@@ -987,7 +972,6 @@ const Grid = ({
             placement="stacked"
             zoom={zoom}
             onElementContextMenu={openDocumentElementContextMenu}
-            legacyZIndexes={legacyZIndexes}
             mixedDrag={documentMixedDrag}
           />
         </div>

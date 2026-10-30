@@ -9,8 +9,8 @@ interface PluginRenderListSourceState {
  * 리스트 렌더러는 이 목록만 구독하므로 요소의 state/html 갱신이
  * 리스트 전체 재조정으로 번지지 않는다.
  *
- * 정렬 금지 - 배열 순서가 DOM 순서와 z-order 폴백
- * (zIndex ?? keyCount + arrayIndex)을 결정하므로 스토어 순서를 그대로 보존해야 함
+ * 정렬 금지 - 배열 순서가 DOM 순서와 트리에 아직 없는 요소의 쌓임 순서를 정하므로
+ * 스토어 순서를 그대로 보존해야 함
  */
 export const selectPluginRenderList = (
   state: PluginRenderListSourceState,

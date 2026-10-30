@@ -49,8 +49,8 @@ interface PluginElementProps {
   panX?: number;
   panY?: number;
   isViewportTransforming?: boolean;
-  arrayIndex?: number;
-  keyCount?: number;
+  // 트리 순번 (트리에 아직 없으면 맨 위)
+  stackZIndex?: number;
   isSelected?: boolean;
   selectedElements?: SelectedElement[];
   onSelectionContextMenu?: (payload: {
@@ -73,8 +73,7 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
   panX = 0,
   panY = 0,
   isViewportTransforming = false,
-  arrayIndex = 0,
-  keyCount = 0,
+  stackZIndex = 0,
   isSelected = false,
   selectedElements = EMPTY_SELECTED_ELEMENTS,
   onSelectionContextMenu,
@@ -372,8 +371,7 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
     windowType,
     renderX,
     renderY,
-    keyCount,
-    arrayIndex,
+    stackZIndex,
     resizable: definition?.resizable === true,
   });
   const overlayHitStyle = buildPluginOverlayHitStyle(

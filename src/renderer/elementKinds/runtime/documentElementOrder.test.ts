@@ -4,6 +4,7 @@ import type { Node, Scene } from '@src/types/generated/elementDocument';
 import {
   documentElementSlots,
   documentLayoutElements,
+  treeStackingRanks,
   treeGroupHiddenKey,
   withTreeGroupHidden,
 } from './documentElementOrder';
@@ -33,8 +34,8 @@ const tracker = (id: string, hidden = false): Node => ({
   hidden,
 });
 
-describe('트리 전용 요소 쌓임 순서', () => {
-  it('바로 아래 옛 종류 요소의 zIndex를 따르고 숨긴 그룹 안은 뺀다', () => {
+describe('트리 순서로 쌓기', () => {
+  it('모든 요소(숨김·플러그인 포함)의 트리 순번이 zIndex - 숨긴 것·숨긴 그룹 안은 그리지 않는다', () => {
     const scene: Scene = {
       nodes: [
         tracker('bottom'),
@@ -47,6 +48,7 @@ describe('트리 전용 요소 쌓임 순서', () => {
           hidden: true,
           children: [tracker('in-hidden-group')],
         },
+        { type: 'element', id: 'demo::i1', kind: 'plugin:demo', frame } as Node,
         legacyKey('k2', null, 3),
         tracker('t2'),
         tracker('hidden', true),
@@ -58,85 +60,67 @@ describe('트리 전용 요소 쌓임 순서', () => {
         zIndex,
       ]),
     ).toEqual([
-      ['bottom', 3],
-      ['t1', 5],
-      ['t2', 3],
+      ['bottom', 0],
+      ['t1', 2],
+      ['t2', 6],
     ]);
-  });
-  it('트리가 그리는 옛 종류(노브)는 자기 zIndex로 넣고, 넣을 옛 종류가 없으면 뺀다', () => {
-    const knob = (id: string, zIndex: number | null, index: number) =>
-      ({ ...legacyKey(id, zIndex, index), kind: 'knob' } as Node);
-    const scene: Scene = {
-      nodes: [
-        legacyKey('k1', 5, 0),
-        knob('n1', 7, 0),
-        tracker('t1'),
-        knob('n2', null, 1),
-        { ...(knob('n3', 2, 2) as object), hidden: true } as Node,
-      ],
-    };
-    const ids = (slots: ReturnType<typeof documentElementSlots>) =>
-      slots.map(({ element, zIndex }) => [element.id, zIndex]);
-    expect(
-      ids(documentElementSlots(scene, { legacyKinds: new Set() })),
-    ).toEqual([['t1', 7]]);
-    // 오버레이 - 저장된 자기 zIndex
-    expect(
-      ids(
-        documentElementSlots(scene, {
-          legacyKinds: new Set(['knob']),
-          ownZIndex: true,
-        }),
-      ),
-    ).toEqual([
-      ['n1', 7],
-      ['t1', 7],
-      ['n2', 1],
+    expect([...treeStackingRanks(scene)]).toEqual([
+      ['bottom', 0],
+      ['k1', 1],
+      ['t1', 2],
+      ['in-hidden-group', 3],
+      ['demo::i1', 4],
+      ['k2', 5],
+      ['t2', 6],
+      ['hidden', 7],
     ]);
-    // 편집 화면 - 자기 zIndex
-    expect(
-      ids(documentElementSlots(scene, { legacyKinds: new Set(['knob']) })),
-    ).toEqual([
-      ['n1', 7],
-      ['t1', 7],
-      ['n2', 1],
-    ]);
+    // 같은 장면이면 같은 표
+    expect(treeStackingRanks(scene)).toBe(treeStackingRanks(scene));
   });
 
-  it('편집 화면은 모든 옛 종류를 트리가 그려도 자기 zIndex로 플러그인과 같은 축에 쌓는다', () => {
+  it('흩어진 옛 그룹이 있어도 저장된 zIndex가 아니라 트리 순서로 쌓는다', () => {
     const scene: Scene = {
       nodes: [
         tracker('bottom'),
         legacyKey('a', 7, 0),
-        // 흩어진 옛 그룹은 트리에서 모이므로 트리 순서와 zIndex가 어긋날 수 있다
         legacyKey('b', 3, 1),
         tracker('t1'),
         legacyKey('c', 12, 2),
       ],
     };
-    const slots = (legacyZIndexes?: ReadonlyMap<string, number>) =>
+    const slots = (stackNatives?: boolean) =>
       documentElementSlots(scene, {
-        legacyKinds: new Set(['key', 'knob']),
-        legacyZIndexes,
+        legacyKinds: new Set(['key']),
+        stackNatives,
       }).map(({ element, zIndex, aboveLegacy }) => [
         element.id,
         zIndex,
         aboveLegacy,
       ]);
+    // 편집 화면 - 옛 종류는 아래 칸, 위에 옛 종류가 깔린 트리 전용 종류는 쌓인 칸
     expect(slots()).toEqual([
-      ['bottom', 3, false],
-      ['a', 7, false],
-      ['b', 3, false],
+      ['bottom', 0, false],
+      ['a', 1, false],
+      ['b', 2, false],
       ['t1', 3, true],
-      ['c', 12, false],
+      ['c', 4, false],
     ]);
-    // 낙관 반영된 옛 컬렉션 값이 먼저다
-    expect(slots(new Map([['b', 9]]))).toEqual([
-      ['bottom', 3, false],
-      ['a', 7, false],
-      ['b', 9, false],
-      ['t1', 9, true],
-      ['c', 12, false],
+    // 오버레이 - 옛 종류도 쌓인 칸(노트 트랙 위)
+    expect(slots(true)).toEqual([
+      ['bottom', 0, false],
+      ['a', 1, true],
+      ['b', 2, true],
+      ['t1', 3, true],
+      ['c', 4, true],
+    ]);
+    // 그리지 않는 옛 종류도 순번을 차지한다
+    expect(
+      documentElementSlots(scene, { legacyKinds: new Set() }).map(
+        ({ element, zIndex }) => [element.id, zIndex],
+      ),
+    ).toEqual([
+      ['bottom', 0],
+      ['t1', 3],
     ]);
   });
 });
@@ -210,7 +194,7 @@ describe('플러그인 인스턴스 요소', () => {
       documentElementSlots(scene).map(({ element }) => element.id),
     ).toEqual(['t1']);
     expect(
-      documentElementSlots(scene, { ownZIndex: true }).map(
+      documentElementSlots(scene, { stackNatives: true }).map(
         ({ element }) => element.id,
       ),
     ).toEqual(['t1']);

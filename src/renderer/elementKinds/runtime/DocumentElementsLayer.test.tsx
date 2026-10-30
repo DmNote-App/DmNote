@@ -146,7 +146,8 @@ describe('오버레이가 트리에서 그리는 옛 종류', () => {
           id: 'k1',
           dx: 5,
           dy: 7,
-          zIndex: 3,
+          // 트리 순번
+          zIndex: 0,
         }),
       }),
     );
@@ -163,7 +164,7 @@ describe('오버레이가 트리에서 그리는 옛 종류', () => {
         reverse: true,
         borderRadius: 12,
         axisId: 'axis-1',
-        zIndex: 4,
+        zIndex: 1,
       }),
     );
     expect(container.querySelectorAll('[data-graph-element]')).toHaveLength(1);
@@ -186,7 +187,7 @@ describe('오버레이가 트리에서 그리는 옛 종류', () => {
         statType: 'total',
         displayText: '합계',
         fontSize: 18,
-        zIndex: 1,
+        zIndex: 3,
       }),
     );
     expect(container.querySelectorAll('[data-sprite-element]')).toHaveLength(1);
@@ -199,7 +200,7 @@ describe('오버레이가 트리에서 그리는 옛 종류', () => {
         height: 150,
         baseImage: 'base.png',
         transitionMs: 120,
-        zIndex: 6,
+        zIndex: 4,
       }),
       keyCanonicalMap: overlayContext.spriteKeyCanonicalMap,
     });

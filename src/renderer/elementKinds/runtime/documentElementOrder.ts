@@ -5,57 +5,54 @@ import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 
 export interface DocumentElementSlot {
   element: ElementNode;
-  // 옛 종류 요소와 같은 쌓임 맥락에서 쓸 zIndex - 바로 아래 옛 종류 요소와 같고 DOM 순서로 그 위에 온다.
-  // 아래에 옛 종류 요소가 없으면 가장 낮은 옛 요소와 같고, 옛 요소보다 먼저 그려서 그 아래에 온다
-  // (배경보다 아래로 내려가지 않게 음수로 빼지 않는다)
+  // 트리 순번 - 장면의 모든 요소(숨김·플러그인 포함)를 아래부터 센 값. 플러그인 요소도 같은 축이다
   zIndex: number;
-  // 바로 아래 옛 종류 요소가 있는지
+  // 아래에 옛 종류 요소가 깔렸는지 (오버레이는 옛 종류 자신도) - 쌓인 칸(노트 트랙 위)에 그린다
   aboveLegacy: boolean;
 }
 
-const legacyZIndex = (element: ElementNode): number | null => {
-  const legacy = element.legacy as
-    | { zIndex?: number | null; index?: number }
-    | undefined;
-  if (!legacy) return null;
-  return legacy.zIndex ?? legacy.index ?? null;
+const rankCache = new WeakMap<Scene, ReadonlyMap<string, number>>();
+
+/** 장면의 모든 요소 id → 트리 순번(아래가 0). 목록 순서가 곧 겹치는 순서다 */
+export const treeStackingRanks = (
+  scene: Scene | undefined,
+): ReadonlyMap<string, number> => {
+  if (!scene) return new Map();
+  const cached = rankCache.get(scene);
+  if (cached) return cached;
+  const ranks = new Map<string, number>();
+  const visit = (nodes: readonly Node[]) => {
+    for (const node of nodes) {
+      if (node.type === 'group') visit(node.children);
+      else ranks.set(node.id, ranks.size);
+    }
+  };
+  visit(scene.nodes);
+  rankCache.set(scene, ranks);
+  return ranks;
 };
 
 /** 트리 편집기가 그리는 요소를 겹치는 순서대로 - 숨긴 요소·숨긴 그룹 안은 뺀다.
- * 트리에만 있는 종류에 더해 legacyKinds의 옛 종류도 옛 요소 사이에 넣는다
+ * 트리에만 있는 종류에 더해 legacyKinds의 옛 종류도 넣는다
  * (편집 화면은 트리로 옮긴 옛 종류, 오버레이는 트리에서 그리는 옛 종류, 창 크기 계산은 없음).
- * 둘 다 자기 zIndex로 플러그인 요소와 같은 축에 쌓는다. 오버레이는(ownZIndex) 저장된 값,
- * 편집 화면은 옛 층처럼 낙관 반영된 옛 컬렉션 값(legacyZIndexes) - 순서 바꾸기가 백엔드 왕복 없이 보인다.
- * 트리에만 있는 종류는 바로 아래 옛 종류 요소의 zIndex를 따른다 */
+ * zIndex는 트리 순번 - 흩어진 옛 그룹도 트리에서 모인 순서로 쌓는다(3.1) */
 export const documentElementSlots = (
   scene: Scene | undefined,
   {
     includeHidden = false,
     legacyKinds = TREE_EDITED_KINDS,
-    ownZIndex = false,
-    legacyZIndexes,
+    stackNatives = false,
   }: {
     includeHidden?: boolean;
     legacyKinds?: ReadonlySet<string>;
-    ownZIndex?: boolean;
-    // 편집 화면 - 옛 컬렉션의 id별 zIndex (없으면 트리에 실린 값)
-    legacyZIndexes?: ReadonlyMap<string, number>;
+    // 오버레이 - 옛 종류도 쌓인 칸에
+    stackNatives?: boolean;
   } = {},
 ): DocumentElementSlot[] => {
   if (!scene) return [];
+  const ranks = treeStackingRanks(scene);
   const slots: DocumentElementSlot[] = [];
-  let lowest: number | null = null;
-  const findLowest = (nodes: readonly Node[]) => {
-    for (const node of nodes) {
-      if (node.type === 'group') findLowest(node.children);
-      else if (isEditorElementType(node.kind)) {
-        const z = legacyZIndex(node);
-        if (z !== null) lowest = lowest === null ? z : Math.min(lowest, z);
-      }
-    }
-  };
-  findLowest(scene.nodes);
-  let below: number | null = null;
+  let legacyBelow = false;
   const visit = (nodes: readonly Node[], hidden: boolean) => {
     for (const node of nodes) {
       if (node.type === 'group') {
@@ -64,42 +61,14 @@ export const documentElementSlots = (
       }
       // 플러그인 인스턴스는 옛 플러그인 렌더러가 그린다
       if (isPluginKind(node.kind)) continue;
-      if (isEditorElementType(node.kind) && !legacyKinds.has(node.kind)) {
-        below = legacyZIndex(node) ?? below;
-        continue;
-      }
-      // 트리가 그리는 옛 종류 - 오버레이는 자기 zIndex
-      if (isEditorElementType(node.kind) && ownZIndex) {
-        const z = legacyZIndex(node);
-        below = z ?? below;
-        if (includeHidden || (!hidden && !node.hidden)) {
-          slots.push({
-            element: node,
-            zIndex: z ?? below ?? lowest ?? 0,
-            aboveLegacy: true,
-          });
-        }
-        continue;
-      }
-      // 편집 화면 - 자기 zIndex. 옛 층처럼 플러그인 요소보다 먼저 그린다(같은 zIndex면 플러그인이 위)
-      if (isEditorElementType(node.kind)) {
-        const z =
-          legacyZIndexes?.get(node.id) ??
-          legacyZIndex(node) ??
-          below ??
-          lowest ??
-          0;
-        below = z;
-        if (includeHidden || (!hidden && !node.hidden)) {
-          slots.push({ element: node, zIndex: z, aboveLegacy: false });
-        }
-        continue;
-      }
+      const native = isEditorElementType(node.kind);
+      if (native) legacyBelow = true;
+      if (native && !legacyKinds.has(node.kind)) continue;
       if (includeHidden || (!hidden && !node.hidden)) {
         slots.push({
           element: node,
-          zIndex: below ?? lowest ?? 0,
-          aboveLegacy: below !== null,
+          zIndex: ranks.get(node.id) ?? 0,
+          aboveLegacy: native ? stackNatives : legacyBelow,
         });
       }
     }
