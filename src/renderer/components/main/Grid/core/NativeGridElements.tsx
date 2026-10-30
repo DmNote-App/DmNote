@@ -125,7 +125,10 @@ const NativeGridElements = ({
     };
   };
 
-  const keyPositions = modeArrays.keyPositions;
+  // 트리로 옮겼으면 트리 레이어가 그린다
+  const keyPositions = isLegacyEditedType('key')
+    ? modeArrays.keyPositions
+    : undefined;
   const keyElements =
     keyPositions?.map((position, index) => {
       const saveLastSelectedBounds = () => {

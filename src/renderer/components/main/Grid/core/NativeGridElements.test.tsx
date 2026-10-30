@@ -15,6 +15,20 @@ import NativeGridElements from './NativeGridElements';
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
+// 키를 옛 종류로 둘지 - 키 배선 테스트는 옛 경로를 쓴다
+const keyKind = vi.hoisted(() => ({ legacy: true }));
+vi.mock('@src/types/elementKinds', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('@src/types/elementKinds')
+  >();
+  return {
+    ...actual,
+    isLegacyEditedType: (
+      type: Parameters<typeof actual.isLegacyEditedType>[0],
+    ) => (type === 'key' ? keyKind.legacy : actual.isLegacyEditedType(type)),
+  };
+});
+
 const operationMocks = vi.hoisted(() => ({
   commitPosition: vi.fn(),
   deleteElement: vi.fn(() => Promise.resolve()),
@@ -203,6 +217,14 @@ describe('NativeGridElements', () => {
   afterEach(() => {
     act(() => root.unmount());
     host.remove();
+    keyKind.legacy = true;
+  });
+
+  it('트리로 옮긴 키는 그리지 않는다 (트리 레이어가 그린다)', () => {
+    keyKind.legacy = false;
+    renderScene();
+
+    expect(host.querySelectorAll('[data-native-kind]')).toHaveLength(0);
   });
 
   it('키만 그리고 트리로 옮긴 스탯·그래프·노브·스프라이트는 그리지 않는다', () => {

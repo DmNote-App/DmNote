@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@components/main/Grid/document/useDocumentSelectionStore';
 import { getDefaultSettingsState } from '@src/renderer/defaults';
 import { beginEditorWriteBarrier } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
 
@@ -274,9 +275,8 @@ describe('Settings 실패 안내와 상태 보존', () => {
     await confirm();
     expect(mocks.resetAll).toHaveBeenCalledOnce();
     expect(useKeyStore.getState().keyMappings).toBe(before);
-    expect(useGridSelectionStore.getState().selectedElements).toEqual(
-      selection,
-    );
+    // 키 선택은 트리 선택이 맡는다
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['key-a']);
     expect(showAlert).toHaveBeenCalledWith('common.actionFailed');
   });
 

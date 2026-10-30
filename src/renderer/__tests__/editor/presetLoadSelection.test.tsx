@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SettingTool from '@components/main/Tool/SettingTool';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@components/main/Grid/document/useDocumentSelectionStore';
 
 const popup = vi.hoisted(() => ({
   onSelect: null as null | ((id: string) => Promise<void>),
@@ -152,6 +153,7 @@ describe('프리셋 로드 선택 수명', () => {
     await invokePopup('import-all');
 
     expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
   });
 
   it('탭 프리셋 로드 성공 시 선택을 해제한다', async () => {
@@ -160,6 +162,7 @@ describe('프리셋 로드 선택 수명', () => {
     await invokePopup('import-tab');
 
     expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
   });
 
   it('프리셋 로드 실패 시 선택을 보존한다', async () => {
@@ -168,9 +171,8 @@ describe('프리셋 로드 선택 수명', () => {
 
     await invokePopup('import-all');
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
-      { type: 'key', id: 'key-0', index: 0 },
-    ]);
+    // 키 선택은 트리 선택이 맡는다
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['key-0']);
   });
 
   it('프리셋 로드 예외 시에도 선택을 보존한다', async () => {
@@ -180,8 +182,7 @@ describe('프리셋 로드 선택 수명', () => {
 
     await invokePopup('import-all');
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
-      { type: 'key', id: 'key-0', index: 0 },
-    ]);
+    // 키 선택은 트리 선택이 맡는다
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['key-0']);
   });
 });

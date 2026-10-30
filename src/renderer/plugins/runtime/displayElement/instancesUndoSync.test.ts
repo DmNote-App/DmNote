@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@components/main/Grid/document/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 
 import {
@@ -95,8 +96,10 @@ describe('canonical 재주입 후 선택 정리', () => {
 
     await applyCanonicalPluginInstances(pluginId);
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
-      { type: 'key', id: '11111111-1111-4111-8111-111111111111', index: 0 },
+    expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    // 키 선택은 트리 선택이 맡고 플러그인 정리에 휩쓸리지 않는다
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([
+      '11111111-1111-4111-8111-111111111111',
     ]);
     unregister();
   });

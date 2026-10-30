@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useKeyManager } from '@hooks/useKeyManager';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@components/main/Grid/document/useDocumentSelectionStore';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 
 const apiMocks = vi.hoisted(() => ({
@@ -124,6 +125,7 @@ describe('키 삭제 선택 정리', () => {
     await act(async () => latest().handleResetCurrentMode());
 
     expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
   });
 
   it('현재 탭 리셋 실패 시 grid 선택을 보존한다', async () => {
@@ -134,9 +136,10 @@ describe('키 삭제 선택 정리', () => {
 
     await act(async () => latest().handleResetCurrentMode());
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual(
-      selection,
-    );
+    // 키 선택은 트리 선택이 맡는다
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([
+      keyIds[0],
+    ]);
   });
 
   it('키 매핑은 canonical ID로만 저장하고 잘못된 index에서 후퇴하지 않는다', () => {
