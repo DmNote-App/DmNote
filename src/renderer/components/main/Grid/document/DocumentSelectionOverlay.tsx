@@ -9,9 +9,11 @@ import { getOtherElementBounds } from '@hooks/Grid/drag/useSmartGuidesElements';
 import { calculateResizePreviewPlan } from '@hooks/Grid/resize/resizePreviewPlan';
 import { useSmartGuidesStore } from '@stores/grid/useSmartGuidesStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
+import CanvasRotateHandle from '../handles/CanvasRotateHandle';
 import ResizeHandles from '../handles/ResizeHandles';
 import { SELECTION_BORDER_WIDTH } from '../handles/selectionOutline';
 import { setDocumentFrame } from './documentEditActions';
+import { startDocumentRotation } from './documentRotation';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
@@ -144,11 +146,24 @@ const SelectionItem = ({
           }}
         />
       )}
+      {withHandles && definition?.rotatable !== false && (
+        <CanvasRotateHandle
+          bounds={bounds}
+          rotation={frame.rotation}
+          zoom={zoom}
+          panX={panX}
+          panY={panY}
+          sessionKey={`document:${element.id}`}
+          start={() =>
+            startDocumentRotation(sceneId, element.id, element.frame)
+          }
+        />
+      )}
     </>
   );
 };
 
-/** 트리 요소 선택 윤곽과 크기 조절 핸들 - 옛 종류 선택과 같은 모양 */
+/** 트리 요소 선택 윤곽과 크기 조절·회전 핸들 - 옛 종류 선택과 같은 모양 */
 const DocumentSelectionOverlay = (props: DocumentSelectionOverlayProps) => {
   const ids = useDocumentSelectionStore((state) =>
     state.sceneId === props.sceneId ? state.selectedIds : EMPTY_IDS,
