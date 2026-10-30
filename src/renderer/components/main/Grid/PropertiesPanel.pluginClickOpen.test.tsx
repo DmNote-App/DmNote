@@ -103,7 +103,6 @@ vi.mock('@plugins/runtime/displayElement/pluginElementActions', () => ({
   updatePluginElement: vi.fn(),
 }));
 vi.mock('@src/renderer/editor/runtime/operations/elementOps', () => ({
-  renameLayerGroupById: vi.fn(),
   commitElementGeometryById: vi.fn(),
   commitBatchGeometryByIds: vi.fn(),
   patchElementLayerNameById: vi.fn(),
