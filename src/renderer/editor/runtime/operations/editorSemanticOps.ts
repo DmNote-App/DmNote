@@ -68,17 +68,22 @@ const treeStylePatchOf = (
   return uncovered.length === 0 && ops.length > 0 ? { fields, ops } : null;
 };
 
-// 트리로 갈 몫 - 지금 장면 트리에 있는 옛 종류 요소의 연산
+// 요소가 있는 장면 - 지금 탭부터 (커밋 사이에 탭을 바꿔도 그 요소의 장면으로 보낸다)
+const sceneOfElement = (store: ElementDocumentStore, id: string) => {
+  const current = useKeyStore.getState().selectedKeyType;
+  if (store.getElement(current, id)) return current;
+  return store.getSceneIds().find((scene) => store.getElement(scene, id));
+};
+
+// 트리로 갈 몫 - 트리에 있는 옛 종류 요소의 연산
 const routeForTree = (
   ops: readonly EditorOpV1[],
-  scene: string,
   store: ElementDocumentStore,
 ) =>
   treeRoutedOps(ops, {
-    scene,
     isTreeEdited: (type) => TREE_EDITED_KINDS.has(type),
-    inScene: (id) => store.getElement(scene, id) !== undefined,
-    styleOps: (op) => treeStylePatchOf(op, scene, store)?.ops ?? null,
+    sceneOf: (id) => sceneOfElement(store, id),
+    styleOps: (op, scene) => treeStylePatchOf(op, scene, store)?.ops ?? null,
   });
 
 // 트리 변경 이벤트를 놓쳐도 종료·패널 붙이기 같은 쓰기 대기가 끝없이 멈추지 않게
@@ -141,9 +146,7 @@ export const commitTreeLegacyFields = (
 ): Promise<'committed' | 'skipped'> | null => {
   if (!TREE_EDITED_KINDS.has(type)) return null;
   const store = getElementDocumentStore();
-  if (!store?.edit || scene !== useKeyStore.getState().selectedKeyType) {
-    return null;
-  }
+  if (!store?.edit) return null;
   const element = store.getElement(scene, id);
   if (!element) return null;
   const fields = makeFields(viewPositionOf(type, id, scene, store));
@@ -167,15 +170,15 @@ export const sendTreeEditedFrame = (
 ): Promise<unknown> | null => {
   if (!TREE_EDITED_KINDS.has(type)) return null;
   const store = getElementDocumentStore();
-  const scene = useKeyStore.getState().selectedKeyType;
-  if (!store?.edit || !store.getElement(scene, id)) return null;
+  const scene = store ? sceneOfElement(store, id) : undefined;
+  if (!store?.edit || !scene) return null;
   return store.edit(
     withResizeValues([{ op: 'setFrame', scene, id, frame }]),
     gestureId ? { gestureId } : undefined,
   );
 };
 
-/** 요소별 옛 칸 값(미리보기에 쌓인 값 등)을 트리 커밋 하나로 - 지금 장면 트리에 있는 요소만.
+/** 요소별 옛 칸 값(미리보기에 쌓인 값 등)을 트리 커밋 하나로 - 트리에 있는 요소만(그 요소의 장면으로).
  * 트리에 자리가 없는 칸은 빼고 알린다. 보낼 것이 없으면 false */
 export const commitPropertyIntents = (
   intents: PropertyIntents,
@@ -183,13 +186,13 @@ export const commitPropertyIntents = (
 ): Promise<boolean> => {
   const store = getElementDocumentStore();
   if (!store?.edit) return Promise.resolve(false);
-  const scene = useKeyStore.getState().selectedKeyType;
   const ops: Op[] = [];
   let skipped = false;
   for (const byId of intents.values()) {
     for (const [id, fields] of byId) {
-      const element = store.getElement(scene, id);
-      if (!element) {
+      const scene = sceneOfElement(store, id);
+      const element = scene ? store.getElement(scene, id) : undefined;
+      if (!scene || !element) {
         skipped = true;
         continue;
       }
@@ -202,7 +205,7 @@ export const commitPropertyIntents = (
     reportElementOpSkipped('property intents outside the element tree');
   if (ops.length === 0) return Promise.resolve(false);
   const committed = sendTreeEdit(store, ops, gestureId).then(() => true);
-  void trackEditorWrite(committed.then(() => undefined));
+  trackEditorWrite(committed).catch(() => undefined);
   return committed;
 };
 
@@ -224,9 +227,8 @@ export const commitSemanticOps = (
   const run = async (): Promise<EditorSemanticCommitOutcome> => {
     meta?.preflight?.();
     const store = getElementDocumentStore();
-    const scene = useKeyStore.getState().selectedKeyType;
     const { treeOps, legacyIndexes } = store?.edit
-      ? routeForTree(ops, scene, store)
+      ? routeForTree(ops, store)
       : { treeOps: [], legacyIndexes: new Set(ops.map((_op, index) => index)) };
     if (legacyIndexes.size > 0) {
       reportElementOpSkipped('editor ops outside the element tree');
@@ -246,7 +248,7 @@ export const commitSemanticOps = (
   };
   const committed = run();
   // 기록·종료 경계가 이 쓰기를 기다린다
-  void trackEditorWrite(committed.then(() => undefined));
+  trackEditorWrite(committed).catch(() => undefined);
   return committed;
 };
 

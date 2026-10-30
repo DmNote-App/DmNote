@@ -2,6 +2,7 @@
 import type { ElementDocumentCommitResult } from '@api/modules/editor/elementDocumentApi';
 import { withResizeValues } from '@src/renderer/elementKinds/runtime/resizeValues';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { trackEditorWrite } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import { elementKindData } from '@src/renderer/elementKinds/defineElementKind';
@@ -29,21 +30,30 @@ const report = (result: ElementDocumentCommitResult) => {
   console.error('[ElementDocument] edit was not applied', result);
 };
 
-export const editDocument = async (
+export const editDocument = (
   ops: Op[],
   options?: { gestureId?: string },
 ): Promise<ElementDocumentCommitResult | null> => {
   const store = getElementDocumentStore();
-  if (!store?.edit) return null;
-  try {
-    // 크기와 함께 맞출 값(스프라이트 이동값 등)도 같은 커밋에
-    const result = await store.edit(withResizeValues(ops), options);
-    report(result);
-    return result;
-  } catch (error) {
-    console.error('[ElementDocument] edit failed', error);
-    return null;
-  }
+  if (!store?.edit) return Promise.resolve(null);
+  // 크기와 함께 맞출 값(스프라이트 이동값 등)도 같은 커밋에
+  const sent = store.edit(withResizeValues(ops), options);
+  // 기록·종료 경계가 이 쓰기를 기다린다 - 받지 않은 편집도 실패로 센다
+  trackEditorWrite(
+    sent.then((result) => {
+      if (result.status !== 'committed') throw new Error(result.code);
+    }),
+  ).catch(() => undefined);
+  return sent.then(
+    (result) => {
+      report(result);
+      return result;
+    },
+    (error) => {
+      console.error('[ElementDocument] edit failed', error);
+      return null;
+    },
+  );
 };
 
 const newId = () => crypto.randomUUID();

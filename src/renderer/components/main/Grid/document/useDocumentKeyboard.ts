@@ -95,7 +95,17 @@ export const useDocumentKeyboard = () => {
       }
       const { sceneId, selectedIds, clear } =
         useDocumentSelectionStore.getState();
-      if (!sceneId || selectedIds.length === 0) return;
+      if (!sceneId || selectedIds.length === 0) {
+        // 플러그인 요소만 복사했으면 지난 트리 복사분이 함께 붙지 않게 비운다
+        if (
+          primaryModifier &&
+          event.key.toLowerCase() === 'c' &&
+          isGridKeyHandled(event)
+        ) {
+          useDocumentClipboardStore.getState().clear();
+        }
+        return;
+      }
       if (primaryModifier && event.key.toLowerCase() === 'c') {
         event.preventDefault();
         copyDocumentSelection({ keepLegacyClipboard: isGridKeyHandled(event) });

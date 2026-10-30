@@ -83,6 +83,21 @@ describe('옛 편집 연산을 트리로', () => {
     await expect(drainEditorWrites()).resolves.toBe(true);
   });
 
+  it('커밋 사이에 탭이 바뀌어도 요소가 있는 장면으로 보낸다', () => {
+    tree.store!.getElement = (scene, id) =>
+      scene === 'custom' && id === KNOB ? element : undefined;
+    tree.store!.getSceneIds = () => ['4key', 'custom'];
+    void commitSemanticOps([patchOp] as never);
+    expect(tree.store!.edit.mock.calls[0][0]).toEqual([
+      {
+        op: 'setValues',
+        scene: 'custom',
+        id: KNOB,
+        values: { sensitivity: 2 },
+      },
+    ]);
+  });
+
   it('트리가 받지 않으면 오류로 올린다', async () => {
     tree.store!.edit.mockResolvedValueOnce({
       status: 'rejected',

@@ -4,12 +4,11 @@ import type { EditorOpV1 } from '@src/types/editor';
 import type { Op } from '@src/types/generated/elementDocument';
 
 interface TreeRouteContext {
-  scene: string;
   isTreeEdited: (type: string) => boolean;
-  // 지금 장면 트리에 있는 요소인지
-  inScene: (id: string) => boolean;
-  // 겉모습 칸 패치의 트리 연산 - 트리에 자리가 없는 옛 칸이 섞이면 null (옛 경로)
-  styleOps?: (op: EditorOpV1) => Op[] | null;
+  // 요소가 있는 장면 - 트리에 없으면 undefined
+  sceneOf: (id: string) => string | undefined;
+  // 겉모습 칸 패치의 트리 연산 - 트리에 자리가 없는 옛 칸이 섞이면 null
+  styleOps?: (op: EditorOpV1, scene: string) => Op[] | null;
 }
 
 const treeOpOf = (op: EditorOpV1, scene: string): Op | null => {
@@ -69,7 +68,7 @@ const treeOpOf = (op: EditorOpV1, scene: string): Op | null => {
 
 export const treeRoutedOps = (
   ops: readonly EditorOpV1[],
-  { scene, isTreeEdited, inScene, styleOps }: TreeRouteContext,
+  { isTreeEdited, sceneOf, styleOps }: TreeRouteContext,
 ) => {
   const treeOps: Op[] = [];
   const legacyIndexes = new Set<number>();
@@ -80,9 +79,14 @@ export const treeRoutedOps = (
         : 'elementType' in op && 'id' in op
         ? { type: op.elementType, id: op.id }
         : null;
-    const routed = target && isTreeEdited(target.type) && inScene(target.id);
-    const treeOp = routed ? treeOpOf(op, scene) : null;
-    const ops = treeOp ? [treeOp] : routed ? styleOps?.(op) ?? null : null;
+    const scene =
+      target && isTreeEdited(target.type) ? sceneOf(target.id) : undefined;
+    const treeOp = scene ? treeOpOf(op, scene) : null;
+    const ops = treeOp
+      ? [treeOp]
+      : scene
+      ? styleOps?.(op, scene) ?? null
+      : null;
     if (ops) treeOps.push(...ops);
     else legacyIndexes.add(index);
   });

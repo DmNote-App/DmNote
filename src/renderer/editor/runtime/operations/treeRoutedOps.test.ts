@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { treeRoutedOps } from './treeRoutedOps';
 
 const inScene = (id: string) => id === 'n1';
+const sceneOf = (id: string) => (inScene(id) ? '4key' : undefined);
 
 describe('트리로 옮긴 옛 종류의 옛 편집 연산 → 트리 연산', () => {
   it('위치·숨김·이름·회전·지우기는 트리 연산으로, 나머지는 옛 경로로 남긴다', () => {
@@ -47,7 +48,7 @@ describe('트리로 옮긴 옛 종류의 옛 편집 연산 → 트리 연산', (
           bounds: { dx: 0, dy: 0, width: 1, height: 1 },
         },
       ] as never,
-      { scene: '4key', isTreeEdited: (type) => type === 'knob', inScene },
+      { isTreeEdited: (type) => type === 'knob', sceneOf },
     );
     expect(treeOps).toEqual([
       {
@@ -64,10 +65,10 @@ describe('트리로 옮긴 옛 종류의 옛 편집 연산 → 트리 연산', (
     expect([...legacyIndexes]).toEqual([4, 6]);
   });
 
-  it('지금 장면에 없는 요소는 옛 경로로 남긴다', () => {
+  it('트리에 없는 요소는 트리로 보내지 않는다', () => {
     const { treeOps, legacyIndexes } = treeRoutedOps(
       [{ kind: 'deleteElement', elementType: 'knob', id: 'other' }] as never,
-      { scene: '4key', isTreeEdited: () => true, inScene },
+      { isTreeEdited: () => true, sceneOf },
     );
     expect(treeOps).toEqual([]);
     expect([...legacyIndexes]).toEqual([0]);
@@ -82,7 +83,7 @@ describe('트리로 옮긴 옛 종류의 옛 편집 연산 → 트리 연산', (
           bounds: { dx: 1, dy: 2, width: 30, height: 40 },
         },
       ],
-      { scene: '4key', isTreeEdited: (type) => type === 'sprite', inScene },
+      { isTreeEdited: (type) => type === 'sprite', sceneOf },
     );
     expect(treeOps).toEqual([
       {
@@ -95,7 +96,7 @@ describe('트리로 옮긴 옛 종류의 옛 편집 연산 → 트리 연산', (
     expect([...legacyIndexes]).toEqual([]);
   });
 
-  it('겉모습 칸 패치는 styleOps가 트리 연산을 주면 트리로, null이면 옛 경로로', () => {
+  it('겉모습 칸 패치는 styleOps가 트리 연산을 주면 트리로, null이면 보내지 않는다', () => {
     const style = {
       kind: 'patchElement' as const,
       elementType: 'knob' as const,
@@ -110,17 +111,15 @@ describe('트리로 옮긴 옛 종류의 옛 편집 연산 → 트리 연산', (
     };
     expect(
       treeRoutedOps([style as never], {
-        scene: '4key',
         isTreeEdited: () => true,
-        inScene,
+        sceneOf,
         styleOps: () => [setValues],
       }),
     ).toEqual({ treeOps: [setValues], legacyIndexes: new Set() });
     expect(
       treeRoutedOps([style as never], {
-        scene: '4key',
         isTreeEdited: () => true,
-        inScene,
+        sceneOf,
         styleOps: () => null,
       }).legacyIndexes,
     ).toEqual(new Set([0]));

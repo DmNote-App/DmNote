@@ -30,6 +30,7 @@ const tree = vi.hoisted(() => ({
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   getElementDocumentStore: () => ({
     getElement: (_scene: string, id: string) => tree.elements.get(id),
+    getSceneIds: () => ['4key'],
     getRevision: () => 1,
     subscribe: () => () => {},
     edit: tree.edit,
