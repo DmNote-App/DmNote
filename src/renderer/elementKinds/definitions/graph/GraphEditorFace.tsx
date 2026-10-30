@@ -41,6 +41,8 @@ const GraphEditorFace = ({
       }}
       elementId={element.id}
       isSelected={inPanelSelection}
+      // 클래스는 상태 속성과 같은 노드에 (옛 그래프와 같다)
+      className={element.className ?? undefined}
     />
   );
 };

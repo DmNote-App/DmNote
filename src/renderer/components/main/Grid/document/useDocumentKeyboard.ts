@@ -23,7 +23,7 @@ import {
   pasteDocumentClipboard,
   useDocumentClipboardStore,
 } from './documentClipboard';
-import { treeOnlySelectedIds } from './treeEditedSelection';
+import { combinedSelection, treeOnlySelectedIds } from './treeEditedSelection';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 const ARROW_STEP = 1;
@@ -97,11 +97,18 @@ export const useDocumentKeyboard = () => {
       // ] [ 한 칸 앞·뒤로 (옛 종류와 같은 키)
       if (event.key === ']' || event.key === '[') {
         event.preventDefault();
-        void stepDocumentElements(
-          sceneId,
-          selectedIds,
-          event.key === ']' ? 'forward' : 'backward',
-        );
+        // 옛 종류 키보드가 하나뿐인 옛·트리로 옮긴 요소를 옛 계획으로 옮겼으면 트리에만 있는 종류만
+        const targets =
+          isGridKeyHandled(event) && combinedSelection(sceneId).length === 1
+            ? treeOnlySelectedIds(sceneId)
+            : selectedIds;
+        if (targets.length > 0) {
+          void stepDocumentElements(
+            sceneId,
+            targets,
+            event.key === ']' ? 'forward' : 'backward',
+          );
+        }
         return;
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {

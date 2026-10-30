@@ -32,9 +32,10 @@ import {
   getItemStoreState,
 } from '@src/renderer/editor/model/elementStores';
 import { useItemElementCollections } from '@hooks/shared/useItemElementCollections';
-import { defaultElementSize } from '@src/types/elementKinds';
+import { defaultElementSize, TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
+  isEditorElementType,
   isItemElementType,
   modeArraysOf,
   type ElementCollections,
@@ -114,6 +115,7 @@ import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
 import {
   combinedSelection as combinedSelectionOf,
   treeOnlySelectedIds,
+  usePanelSelection,
 } from '../document/treeEditedSelection';
 import { useDocumentContextMenuStore } from '../document/useDocumentContextMenuStore';
 import DocumentGridLayer from '../document/DocumentGridLayer';
@@ -303,6 +305,7 @@ const Grid = ({
     [collections, selectedKeyType],
   );
   const { statPositions } = collections;
+  const panelSelection = usePanelSelection(selectedKeyType);
   // 트리에서 그리는 스탯의 바깥 카운터는 트리 틀을 따라간다
   const statCounterPositions = useTreeFramedPositions(
     'stat',
@@ -397,9 +400,11 @@ const Grid = ({
   });
 
   // 선택된 요소의 z-order 조작 핸들러
+  // ] [ 한 칸 앞·뒤 - 트리로 옮긴 옛 종류 하나도 옛 계획으로 (그룹을 넘는 전체 순서)
   const handleSelectedMoveForward = async () => {
-    if (selectedElements.length !== 1) return;
-    const selected = selectedElements[0];
+    const targets = combinedSelection();
+    if (targets.length !== 1) return;
+    const selected = targets[0];
     if (selected.type === 'plugin' || isNativeElementId(selected.id)) {
       await commitStableLayerZOrder({
         mode: selectedKeyType,
@@ -411,8 +416,9 @@ const Grid = ({
   };
 
   const handleSelectedMoveBackward = async () => {
-    if (selectedElements.length !== 1) return;
-    const selected = selectedElements[0];
+    const targets = combinedSelection();
+    if (targets.length !== 1) return;
+    const selected = targets[0];
     if (selected.type === 'plugin' || isNativeElementId(selected.id)) {
       await commitStableLayerZOrder({
         mode: selectedKeyType,
@@ -844,6 +850,36 @@ const Grid = ({
         ),
       );
     }
+    // 트리로 옮긴 옛 종류는 옛 메뉴 - 옛 그룹 묶기·풀기, 그룹을 넘는 겹침 순서, 복제 배치를 그대로 쓴다
+    const kind = getElementDocumentStore()?.getElement(
+      selectedKeyType,
+      element.id,
+    )?.kind;
+    if (kind && isEditorElementType(kind) && TREE_EDITED_KINDS.has(kind)) {
+      const targets = combinedSelection();
+      if (
+        targets.length > 1 ||
+        treeOnlySelectedIds(selectedKeyType).length > 0
+      ) {
+        openMixedSelectionContextMenu(
+          event.clientX,
+          event.clientY,
+          event.currentTarget as HTMLElement,
+        );
+        return;
+      }
+      const index = targets.find(({ id }) => id === element.id)?.index;
+      if (index !== undefined) {
+        openElementContextMenu(
+          kind,
+          index,
+          event.clientX,
+          event.clientY,
+          event.currentTarget as HTMLElement,
+        );
+        return;
+      }
+    }
     useDocumentContextMenuStore.getState().open({
       sceneId: selectedKeyType,
       id: element.id,
@@ -998,7 +1034,8 @@ const Grid = ({
           )}
           <StatCounterLayer
             positions={statCounterPositions}
-            selectedElements={selectedElements}
+            // 일괄 미리보기는 패널이 편집하는 선택(트리로 옮긴 스탯 포함)
+            selectedElements={panelSelection}
           />
           <DuplicateElementGhost
             duplicate={duplicateState}

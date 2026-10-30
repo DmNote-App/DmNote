@@ -123,6 +123,9 @@ export interface ElementKindCode<Values> {
     position: Record<string, unknown>;
     context: OverlayItemContext;
   }>;
+  // 편집 화면 얼굴이 사용자 CSS 클래스를 스스로 붙인다 - 옛 그리기에서 클래스가 상태 속성(data-state)과
+  // 같은 노드에 있던 종류. 감싸는 상자는 클래스를 붙이지 않는다 (두 번 붙지 않게)
+  readonly faceOwnsClassName?: boolean;
   // 크기 조절 때 비율을 지킬지
   readonly lockAspect?: (values: Values) => boolean;
   // 값이 바뀔 때 함께 맞출 위치·크기 (예: 비율 고정으로 바꾸면 높이를 비율에 맞춘다)

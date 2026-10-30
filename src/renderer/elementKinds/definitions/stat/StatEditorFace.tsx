@@ -42,7 +42,7 @@ const StatEditorFace = ({
     <KeyFaceView
       anchorKind="stat"
       elementId={element.id}
-      // 축 핸들 원점은 요소의 틀, 클래스는 감싸는 상자가 맡는다
+      // 축 핸들 원점은 요소의 틀, 클래스는 상태 속성과 같은 노드에 (옛 스탯과 같다)
       position={{
         ...position,
         dx: frame.x,
@@ -50,7 +50,7 @@ const StatEditorFace = ({
         width: frame.width,
         height: frame.height,
         rotation: frame.rotation,
-        className: undefined,
+        className: element.className ?? undefined,
       }}
       keyName={getLooseStatTypeLabel(position.statType)}
       isSelected={inPanelSelection}

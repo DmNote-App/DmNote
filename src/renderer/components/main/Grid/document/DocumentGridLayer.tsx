@@ -259,10 +259,16 @@ const DocumentGridElement = ({
 
   return (
     <div
-      className={element.className ?? undefined}
+      className={
+        definition?.faceOwnsClassName
+          ? undefined
+          : element.className ?? undefined
+      }
       data-element-kind={element.kind}
       data-element-id={element.id}
       data-selected={selected ? 'true' : undefined}
+      // 끌기·크기 조절·회전 미리보기 중 - 전환 효과를 끈다 (옛 요소와 같은 규칙)
+      data-editing={preview ? 'true' : undefined}
       onPointerDown={handlePointerDown}
       onContextMenu={(event) => onContextMenu(event, element)}
       style={{

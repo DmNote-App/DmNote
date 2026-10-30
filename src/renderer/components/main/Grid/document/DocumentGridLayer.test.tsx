@@ -138,6 +138,20 @@ describe('트리 요소에서 시작한 끌기', () => {
     unmount();
   });
 
+  it('끄는 동안 상자에 편집 중 표시를 단다 (전환 효과 끄기)', () => {
+    const { box, unmount } = render();
+    expect(box.getAttribute('data-editing')).toBeNull();
+    act(() => {
+      box.dispatchEvent(pointer('pointerdown', 0, 0));
+      box.dispatchEvent(pointer('pointermove', 10, 0));
+    });
+    expect(box.getAttribute('data-editing')).toBe('true');
+    act(() => {
+      box.dispatchEvent(pointer('pointerup', 10, 0));
+    });
+    unmount();
+  });
+
   it('끄는 중 되돌리기가 끼어들면 옮긴 것을 버린다', () => {
     useDocumentSelectionStore.getState().setSelection('4key', ['t1']);
     keepOtherSelection(() =>

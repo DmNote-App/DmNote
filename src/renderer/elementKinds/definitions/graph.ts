@@ -39,6 +39,7 @@ export const graphKind = defineElementKind(
   {
     // 편집 화면은 옛 그래프 겉모습, 오버레이·OBS는 트리에서 옛 그래프를 그대로 그린다
     render: GraphEditorFace as never,
+    faceOwnsClassName: true,
     legacyOverlay: OverlayGraphItem as never,
   },
 );

@@ -32,6 +32,7 @@ export const statKind = defineElementKind(
   {
     // 편집 화면은 옛 스탯 겉모습, 오버레이·OBS는 트리에서 옛 스탯을 그대로 그린다(바깥 카운터는 아직 옛 배열)
     render: StatEditorFace as never,
+    faceOwnsClassName: true,
     legacyOverlay: OverlayStatItem as never,
   },
 );
