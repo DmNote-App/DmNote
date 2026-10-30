@@ -16,8 +16,10 @@ const tree = vi.hoisted(() => ({
   },
 }));
 
+const scene = vi.hoisted(() => ({ value: null as unknown }));
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
-  useElementDocumentScene: () => undefined,
+  useElementDocumentScene: () =>
+    (scene.value ??= { nodes: [tree.element] }) as never,
   getElementDocumentStore: () => ({
     getElement: (_scene: string, id: string) =>
       id === tree.element.id ? tree.element : undefined,

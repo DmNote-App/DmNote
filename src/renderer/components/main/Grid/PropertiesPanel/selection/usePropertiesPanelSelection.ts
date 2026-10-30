@@ -1,12 +1,8 @@
 'use no memo';
 // 트리 스토어·프리뷰 오버레이(모듈 상태)를 렌더 중에 읽어서 컴파일러 메모 제외
 import { useSyncExternalStore } from 'react';
-import { useGraphItemStore } from '@stores/data/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
-import { useStatItemStore } from '@stores/data/useStatItemStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
 import { panelSelectionOf } from '../../document/treeEditedSelection';
@@ -15,6 +11,8 @@ import {
   useElementDocumentScene,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
+import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
+import type { KeyMappings, KeyPosition } from '@src/types/key/keys';
 import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
 import { treeElementPositionOf } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import {
@@ -23,11 +21,11 @@ import {
 } from '@stores/plugin/usePluginDisplayElementStore';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import {
-  composePreviewPositions,
   getPreviewOverlayVersion,
   subscribePreviewOverlay,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import type {
+  CanonicalEditorDocumentV1,
   CanonicalReactiveSpritePosition,
   EditorElementTypeV1,
 } from '@src/types/editor';
@@ -49,21 +47,8 @@ export const usePropertiesPanelSelection = () => {
   // 트리 문서가 바뀌면(종류 확인) 다시 합친다
   useElementDocumentScene(documentSceneId ?? '');
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
-  // 단일 요소 값은 트리에서 - 바뀌면 다시 읽는다
-  useElementDocumentScene(selectedKeyType);
-  const positions = useKeyStore((state) => state.positions);
-  const canonicalPositions = useKeyStore((state) => state.canonicalPositions);
-  const keyMappings = useKeyStore((state) => state.keyMappings);
-  const canonicalStatItemPositions = useStatItemStore(
-    (state) => state.positions,
-  );
-  const canonicalGraphItemPositions = useGraphItemStore(
-    (state) => state.positions,
-  );
-  const canonicalKnobItemPositions = useKnobItemStore(
-    (state) => state.positions,
-  );
-  const canonicalSpritePositions = useSpriteStore((state) => state.positions);
+  // 패널이 읽는 위치 기록·키 슬롯은 트리에서 (지금 탭, 편집 미리보기 포함) - 바뀌면 다시 읽는다
+  const scene = useElementDocumentScene(selectedKeyType);
   // 트리 선택이 모두 트리로 옮긴 옛 종류면 옛 패널이 옛 선택과 함께 그 요소들을 고른 것처럼 본다
   // (위치·회전·숨김·이름·지우기 커밋은 공통 커밋 경로가 트리로 보낸다)
   const selectedElements = documentSceneId
@@ -76,23 +61,35 @@ export const usePropertiesPanelSelection = () => {
     getPreviewOverlayVersion,
     getPreviewOverlayVersion,
   );
-
-  const statItemPositions = composePreviewPositions(
-    'statPosition',
-    canonicalStatItemPositions,
-  );
-  const graphItemPositions = composePreviewPositions(
-    'graphPosition',
-    canonicalGraphItemPositions,
-  );
-  const knobItemPositions = composePreviewPositions(
-    'knobPosition',
-    canonicalKnobItemPositions,
-  );
-  const spriteItemPositions = composePreviewPositions(
-    'spritePosition',
-    canonicalSpritePositions,
-  );
+  const records = treePanelRecords(scene, selectedKeyType);
+  const positions = records.positions as unknown as Record<
+    string,
+    KeyPosition[]
+  >;
+  const canonicalPositions =
+    records.canonicalPositions as unknown as CanonicalEditorDocumentV1['keyPositions'];
+  const keyMappings = records.keyMappings as unknown as KeyMappings;
+  const statItemPositions = records.statItemPositions as unknown as Record<
+    string,
+    StatItemPosition[]
+  >;
+  const graphItemPositions = records.graphItemPositions as unknown as Record<
+    string,
+    GraphItemPosition[]
+  >;
+  const knobItemPositions = records.knobItemPositions as unknown as Record<
+    string,
+    KnobItemPosition[]
+  >;
+  const spriteItemPositions = records.spriteItemPositions as unknown as Record<
+    string,
+    CanonicalReactiveSpritePosition[]
+  >;
+  const canonicalSpritePositions =
+    records.canonicalSpritePositions as unknown as Record<
+      string,
+      CanonicalReactiveSpritePosition[]
+    >;
   const pluginElements = usePluginDisplayElementStore(
     selectPropertyPanelPluginElements,
   );

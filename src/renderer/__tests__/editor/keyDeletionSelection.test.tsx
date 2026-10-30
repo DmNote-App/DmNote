@@ -21,10 +21,14 @@ vi.mock('@api/modules/editor/keysApi', () => ({
   },
 }));
 
-vi.mock('@src/renderer/editor/runtime/operations/keySlotOps', () => ({
-  rebindKeySlotById: (id: string, slot: unknown) =>
-    apiMocks.rebindKeySlotById(id, slot),
-}));
+vi.mock(
+  '@src/renderer/editor/runtime/operations/keySlotOps',
+  async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    rebindKeySlotById: (id: string, slot: unknown) =>
+      apiMocks.rebindKeySlotById(id, slot),
+  }),
+);
 
 vi.mock(
   '@src/renderer/editor/runtime/coordinator/editorStateCoordinator',
@@ -35,6 +39,15 @@ vi.mock(
       sync: vi.fn(),
     },
   }),
+);
+
+// 키 순번은 패널이 보는 트리 순서 - 옛 키 스토어 값으로 트리 장면을 만든다
+vi.mock(
+  '@src/renderer/editor/document/elementDocumentRuntime',
+  async (importOriginal) =>
+    (
+      await import('@src/renderer/__tests__/treeFromLegacyStores')
+    ).treeFromStores(importOriginal as never),
 );
 
 vi.mock('@api/pluginDisplayElements', () => ({

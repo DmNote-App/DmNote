@@ -6,6 +6,8 @@ import {
 } from '@stores/data/useHistoryStatusStore';
 import { historyApi } from '@api/modules/editor/historyApi';
 import { rebindKeySlotById } from '@src/renderer/editor/runtime/operations/keySlotOps';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { treeModeArrays } from '@src/renderer/elementKinds/runtime/treeModeArrays';
 import {
   reportElementOpError,
   reportElementOpSkipped,
@@ -25,10 +27,10 @@ export function useKeyManager() {
   const historyActionInFlightRef = useRef(false);
 
   const handleKeyMappingChange = (index: number, newSlot: KeySlot) => {
-    // keys 단독 full-record 커밋은 same-shape 재정렬과 겹치면 다른 위치
-    // id와 잘못 결합된다 - 위치 안정 id로 paired index를 재결합해 커밋
-    const positionId =
-      useKeyStore.getState().canonicalPositions[selectedKeyType]?.[index]?.id;
+    // 순번은 패널이 보는 트리 순서(treePanelRecords와 같다) - 그 자리 키의 안정 id로 커밋
+    const positionId = treeModeArrays(
+      getElementDocumentStore()?.getScene(selectedKeyType),
+    ).keyPositions[index]?.id;
     if (!positionId) {
       reportElementOpSkipped('missing canonical key position id');
       return;
