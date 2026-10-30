@@ -2089,3 +2089,161 @@ fn 옛_모양에서_탭이_빠져_장면이_버려져도_그_탭의_플러그인
         Some(instances)
     );
 }
+
+const PLUGIN_INSTANCE: &str = "00000000-0000-4000-8000-0000000000a3";
+
+fn with_demo_instance(store: &crate::state::AppStore) -> String {
+    let mut guard = store.state.write();
+    let mut scratch = guard.data.clone();
+    crate::state::plugin::write_plugin_instance_bucket(
+        &mut scratch,
+        "demo",
+        Some(serde_json::json!([{ "instanceId": PLUGIN_INSTANCE,
+            "position": { "x": 0, "y": 0 }, "tabId": "4key" }])),
+    );
+    store.commit_locked(&mut guard, scratch, ()).unwrap();
+    format!("demo::{PLUGIN_INSTANCE}")
+}
+
+fn demo_entry(store: &crate::state::AppStore) -> serde_json::Value {
+    crate::state::plugin::read_plugin_instance_bucket(&store.snapshot(), "demo").unwrap()[0].clone()
+}
+
+#[test]
+fn 트리에서_플러그인_노드를_옮기면_항목_겹침값을_다시_적고_리비전을_올리며_한_번에_되돌린다() {
+    let (dir, store) = open_store();
+    set_key_layout(&store, &[]);
+    let id = with_demo_instance(&store);
+    let revision = store.plugin_model_revision();
+    let history = store.history_status().history_revision;
+    // 맨 위(zIndex 없음) → 맨 아래
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "move", "scene": "4key", "ids": [id], "parent": null, "index": 0 }
+    ]))
+    .unwrap();
+    let (result, plugin_changes) = store
+        .commit_element_document_tree(&ops, true, None)
+        .unwrap();
+    assert!(matches!(
+        result,
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    assert!(store.plugin_model_revision() > revision);
+    assert_eq!(plugin_changes.len(), 1);
+    assert_eq!(plugin_changes[0].plugin_id, "demo");
+    assert_eq!(plugin_changes[0].revision, store.plugin_model_revision());
+    // 맨 아래 옛 종류보다 낮은 값 - 다시 놓아도 맨 아래
+    assert!(demo_entry(&store)["zIndex"].is_number());
+    assert_eq!(
+        store.element_document_snapshot().1.scenes["4key"]
+            .nodes
+            .first()
+            .map(Node::id),
+        Some(id.as_str())
+    );
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        let bucket = crate::state::plugin::read_plugin_instance_bucket(&scratch, "demo");
+        crate::state::plugin::write_plugin_instance_bucket(&mut scratch, "demo", None);
+        crate::state::plugin::write_plugin_instance_bucket(&mut scratch, "demo", bucket);
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    assert_eq!(
+        store.element_document_snapshot().1.scenes["4key"]
+            .nodes
+            .first()
+            .map(Node::id),
+        Some(id.as_str())
+    );
+    assert_ne!(store.history_status().history_revision, history);
+
+    undo(&store).unwrap();
+    assert!(demo_entry(&store).get("zIndex").is_none());
+    let document = store.element_document_snapshot().1;
+    assert_eq!(
+        document.scenes["4key"].nodes.last().map(Node::id),
+        Some(id.as_str())
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 플러그인_노드를_옛_종류와_한_그룹으로_묶으면_항목이_그룹값을_받고_한_번에_되돌린다() {
+    let (dir, store) = open_store();
+    set_key_layout(&store, &[]);
+    let id = with_demo_instance(&store);
+    let key = store.snapshot().key_positions["4key"][3].id.clone();
+    let revision = store.plugin_model_revision();
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "group", "scene": "4key", "id": "mixed", "name": "섞임", "ids": [key, id] }
+    ]))
+    .unwrap();
+    let ElementDocumentCommitPlan::Legacy { request, .. } =
+        store.plan_element_document_commit(&ops, None).unwrap()
+    else {
+        panic!("옛 편집 커밋이어야 한다");
+    };
+    let change = store.commit_editor_document(*request).unwrap();
+    assert_eq!(demo_entry(&store)["groupId"], serde_json::json!("mixed"));
+    assert!(store.plugin_model_revision() > revision);
+    assert_eq!(
+        change
+            .plugin_instances_changes
+            .iter()
+            .map(|change| change.plugin_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["demo"]
+    );
+    assert_eq!(
+        store.element_document_snapshot().1.scenes["4key"].parent_of(&id),
+        Some(Some("mixed".to_string()))
+    );
+
+    undo(&store).unwrap();
+    assert!(demo_entry(&store).get("groupId").is_none());
+    assert!(store.snapshot().key_positions["4key"][3].group_id.is_none());
+    assert_eq!(
+        store.element_document_snapshot().1.scenes["4key"].parent_of(&id),
+        Some(None)
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 트리를_만든_뒤_플러그인_목록이_바뀌면_옛_편집_커밋은_충돌로_돌려보낸다() {
+    let (dir, store) = open_store();
+    let id = with_demo_instance(&store);
+    let key = store.snapshot().key_positions["4key"][3].id.clone();
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "group", "scene": "4key", "id": "mixed", "name": "섞임", "ids": [key, id] }
+    ]))
+    .unwrap();
+    let ElementDocumentCommitPlan::Legacy { request, .. } =
+        store.plan_element_document_commit(&ops, None).unwrap()
+    else {
+        panic!("옛 편집 커밋이어야 한다");
+    };
+    // 계획과 커밋 사이에 플러그인이 목록을 바꿈
+    store
+        .commit_plugin_instances(crate::models::PluginInstancesCommitRequest {
+            plugin_id: "demo".into(),
+            instances: Vec::new(),
+            mutation_id: uuid::Uuid::new_v4().to_string(),
+            gesture_id: None,
+            observed_history_epoch: None,
+            expected_model_revision: None,
+            authority_generation: 0,
+        })
+        .unwrap();
+    let error = store.commit_editor_document(*request).unwrap_err();
+    assert_eq!(
+        error.error_code,
+        crate::errors::EditorCommitErrorCode::RevisionConflict
+    );
+    assert!(crate::state::plugin::read_plugin_instance_bucket(&store.snapshot(), "demo").is_none());
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -204,3 +204,65 @@ fn 이미_있던_노드는_겹침값_그룹값이_그대로면_자리를_지키�
         vec!["k1", "k3", "demo::a"]
     );
 }
+
+fn legacy_group(id: &str, children: Vec<Node>) -> Node {
+    Node::Group(element_document::Group {
+        id: id.into(),
+        name: id.into(),
+        hidden: false,
+        children,
+        extra: serde_json::from_value(json!({ "legacy": {} })).unwrap(),
+    })
+}
+
+fn entry_of(doc: &Document, id: &str) -> Value {
+    for scene in doc.scenes.values() {
+        if let Some(element) = scene.element(id) {
+            return element.extra["legacy"]["pluginEntry"].clone();
+        }
+    }
+    panic!("missing {id}")
+}
+
+#[test]
+fn 트리에서_옮긴_플러그인_노드는_자리에_맞게_겹침값과_그룹값을_다시_적고_바뀐_플러그인을_알린다() {
+    let mut doc = document(&["4key"]);
+    doc.scenes.get_mut("4key").unwrap().nodes = vec![native("k1", 1), native("k3", 3)];
+    apply_plugin_bucket(
+        &mut doc,
+        "demo",
+        Some(&json!([
+            { "instanceId": "a", "position": { "x": 0, "y": 0 }, "tabId": "4key", "zIndex": 2 },
+            { "instanceId": "b", "position": { "x": 0, "y": 0 }, "tabId": "4key", "zIndex": 4 }
+        ])),
+    );
+    assert_eq!(
+        ids_of(&doc.scenes["4key"].nodes),
+        vec!["k1", "demo::a", "k3", "demo::b"]
+    );
+    // 자리가 맞으면 아무것도 바꾸지 않는다
+    assert!(sync_plugin_entries_from_tree(&mut doc, &["4key".to_string()]).is_empty());
+
+    // 트리에서 a를 맨 위로, b를 옛 그룹 안(k3 아래)으로 옮긴 상태
+    let scene = doc.scenes.get_mut("4key").unwrap();
+    let a = scene.nodes.remove(1);
+    let b = scene.nodes.pop().unwrap();
+    let k3 = scene.nodes.pop().unwrap();
+    scene.nodes.push(legacy_group("g1", vec![b, k3]));
+    scene.nodes.push(a);
+    let changed = sync_plugin_entries_from_tree(&mut doc, &["4key".to_string()]);
+    assert_eq!(changed, vec!["demo".to_string()]);
+    // b: k1(1) 위·k3(3) 아래 → 사이 값, 그룹 안이면 groupId
+    let b = entry_of(&doc, "demo::b");
+    let bz = b["zIndex"].as_f64().unwrap();
+    assert!(bz > 1.0 && bz < 3.0, "{bz}");
+    assert_eq!(b["groupId"], json!("g1"));
+    // a: 맨 위 → 아래 가장 큰 값보다 크게, 그룹 밖이면 groupId 없음
+    let a = entry_of(&doc, "demo::a");
+    assert!(a["zIndex"].as_f64().unwrap() > 3.0);
+    assert!(a.get("groupId").is_none());
+    // 투영도 같은 값 - 버킷 왕복
+    let projected = project_plugin_bucket(&doc, "demo").unwrap();
+    assert_eq!(projected[0], a);
+    assert_eq!(projected[1], b);
+}

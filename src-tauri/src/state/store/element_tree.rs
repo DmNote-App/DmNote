@@ -15,15 +15,18 @@ use element_document::{
 use serde::Serialize;
 use serde_json::Value;
 
-use super::AppStore;
+use super::{next_plugin_model_revision, plugin_elements_snapshot, AppStore};
 use crate::models::legacy_layout::{
     graft_preset_scene, graft_tree_only, import_document, is_legacy_kind, is_plugin_kind,
     is_tree_only_group, lift_legacy_kind_fields, moved_z_fixes, project_document,
     reconcile_document, set_tree_z, strip_tree_only, LegacyRef,
 };
-use crate::models::{builtin_kind_registry, AppStoreData, EditorCommitRequest, EditorDocumentV1};
+use crate::models::{
+    builtin_kind_registry, AppStoreData, EditorCommitRequest, EditorDocumentV1,
+    PluginInstancesChangedPayload,
+};
 use crate::state::history::ElementTreeHistorySnapshot;
-use crate::state::plugin_tree::carry_plugin_buckets;
+use crate::state::plugin_tree::{carry_plugin_buckets, sync_plugin_entries_from_tree};
 
 // 저장 파일에서 트리 문서가 실리는 칸
 pub(crate) const ELEMENT_DOCUMENT_FIELD: &str = "elementDocument";
@@ -792,6 +795,9 @@ impl AppStore {
             let fixes = moved_z_fixes(&after, &scene, &moved);
             set_tree_z(&mut after, &fixes);
         }
+        // 옮긴 플러그인 노드는 새 자리에 맞는 zIndex·groupId를 항목에 받는다 (옛 편집 커밋이 함께 기록·알림)
+        let scene_ids: Vec<String> = changes.scenes.keys().cloned().collect();
+        sync_plugin_entries_from_tree(&mut after, &scene_ids);
         // 옛 모양은 그룹 안 그룹을 나타내지 못한다 - 옛 종류 요소를 품은 그룹이 겹치면 거부
         if has_nested_legacy_group(&after) {
             return Ok(ElementDocumentCommitPlan::Rejected(
@@ -822,7 +828,7 @@ impl AppStore {
             changes: Some(patch),
             ops_version: None,
             ops: None,
-            element_tree: Some(std::sync::Arc::new(after)),
+            element_tree: Some((std::sync::Arc::new(after), guard.plugin_model_revision)),
         };
         Ok(ElementDocumentCommitPlan::Legacy {
             request: Box::new(request),
@@ -839,14 +845,29 @@ impl AppStore {
         self.commit_element_document_checked(ops, true, None)
     }
 
-    /// `check_legacy`가 false면 옛 종류 요소를 건드리는 연산도 받는다 - 옛 모양이 그대로인지는
-    /// 아래에서 같은 방식으로 확인한다(트리 전용 노드와의 순서만 바뀌는 편집)
+    #[cfg(test)]
     pub(crate) fn commit_element_document_checked(
         &self,
         ops: &[Op],
         check_legacy: bool,
         gesture_id: Option<String>,
     ) -> Result<ElementDocumentCommitResult> {
+        self.commit_element_document_tree(ops, check_legacy, gesture_id)
+            .map(|(result, _)| result)
+    }
+
+    /// `check_legacy`가 false면 옛 종류 요소를 건드리는 연산도 받는다 - 옛 모양이 그대로인지는
+    /// 아래에서 같은 방식으로 확인한다(트리 전용 노드와의 순서만 바뀌는 편집).
+    /// 플러그인 노드를 옮겨 항목 값이 바뀐 플러그인을 함께 돌려준다(알림용)
+    pub(crate) fn commit_element_document_tree(
+        &self,
+        ops: &[Op],
+        check_legacy: bool,
+        gesture_id: Option<String>,
+    ) -> Result<(
+        ElementDocumentCommitResult,
+        Vec<PluginInstancesChangedPayload>,
+    )> {
         let revision = self.element_document_revision();
         let in_progress = ElementDocumentCommitResult::Rejected {
             revision,
@@ -854,11 +875,11 @@ impl AppStore {
             violations: Vec::new(),
         };
         let Ok(admission) = self.admit_editor_mutation() else {
-            return Ok(in_progress);
+            return Ok((in_progress, Vec::new()));
         };
         let mut guard = self.lock_for_update()?;
         if admission.revalidate_for(&self.history_gate).is_err() {
-            return Ok(in_progress);
+            return Ok((in_progress, Vec::new()));
         }
         let rejected = |code, violations| ElementDocumentCommitResult::Rejected {
             revision,
@@ -874,19 +895,22 @@ impl AppStore {
             .then(|| first_legacy_op(&engine, &guard.data.element_document, ops))
             .flatten()
         {
-            return Ok(rejected(
-                MANAGED_ELSEWHERE,
-                vec![Violation::new(
-                    ViolationCode::InvalidMove,
-                    format!("ops[{index}]"),
-                )],
+            return Ok((
+                rejected(
+                    MANAGED_ELSEWHERE,
+                    vec![Violation::new(
+                        ViolationCode::InvalidMove,
+                        format!("ops[{index}]"),
+                    )],
+                ),
+                Vec::new(),
             ));
         }
         let mut scratch = guard.data.clone();
         let mut changes =
             match engine.apply(std::sync::Arc::make_mut(&mut scratch.element_document), ops) {
                 Ok(changes) => changes,
-                Err(violations) => return Ok(rejected(VIOLATION, violations)),
+                Err(violations) => return Ok((rejected(VIOLATION, violations), Vec::new())),
             };
         // 빼기·옮기기로 비게 된 트리 전용 그룹은 함께 지운다 (옛 그룹의 빈 그룹 정리와 같다)
         let prune = empty_tree_groups(&scratch.element_document, changes.scenes.keys());
@@ -896,41 +920,92 @@ impl AppStore {
                 &prune,
             ) {
                 Ok(more) => changes.merge(more),
-                Err(violations) => return Ok(rejected(VIOLATION, violations)),
+                Err(violations) => return Ok((rejected(VIOLATION, violations), Vec::new())),
             }
         }
         // 옛 모양이 그대로인지 확인 - 트리에만 있는 요소만 바뀌었어야 한다
         let before = project_document(&guard.data.element_document)?;
         let after = project_document(&scratch.element_document)?;
         if before != after {
-            return Ok(rejected(MANAGED_ELSEWHERE, Vec::new()));
+            return Ok((rejected(MANAGED_ELSEWHERE, Vec::new()), Vec::new()));
         }
         if changes.is_empty() {
-            return Ok(ElementDocumentCommitResult::Committed { revision, changes });
+            return Ok((
+                ElementDocumentCommitResult::Committed { revision, changes },
+                Vec::new(),
+            ));
         }
-        let before = element_tree_snapshot(&guard.data.element_document, changes.scenes.keys());
-        // 기록 뼈대가 그대로면(플러그인 노드 옆으로만 자리를 바꿈 등) 되돌릴 것이 없다 - 빈 기록은
+        // 옮긴 플러그인 노드는 새 자리에 맞는 zIndex·groupId를 항목에 받는다
+        let scene_ids: Vec<String> = changes.scenes.keys().cloned().collect();
+        let changed_plugins = sync_plugin_entries_from_tree(
+            std::sync::Arc::make_mut(&mut scratch.element_document),
+            &scene_ids,
+        );
+        let tree_before =
+            element_tree_snapshot(&guard.data.element_document, changes.scenes.keys());
+        // 기록 뼈대가 그대로면(플러그인 노드 옆으로만 자리를 바꿈 등) 트리 몫은 되돌릴 것이 없다 - 빈 기록은
         // 되돌리기를 막는다(HISTORY_TARGET_ALREADY_APPLIED)
-        if before == element_tree_snapshot(&scratch.element_document, changes.scenes.keys()) {
-            let state = &mut *guard;
-            self.commit_locked(state, scratch, ())?;
-            return Ok(ElementDocumentCommitResult::Committed {
-                revision: self.element_document_revision(),
-                changes,
-            });
-        }
-        let plan = guard
-            .history
-            .prepare_element_tree_entry(before, gesture_id)
+        let tree_changed =
+            tree_before != element_tree_snapshot(&scratch.element_document, changes.scenes.keys());
+        let mut plugin_befores = changed_plugins
+            .iter()
+            .map(|plugin_id| plugin_elements_snapshot(&guard.data, plugin_id))
+            .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(anyhow::Error::msg)?;
+        let plan = if tree_changed {
+            Some(
+                guard
+                    .history
+                    .prepare_element_tree_entry(tree_before, gesture_id)
+                    .map_err(anyhow::Error::msg)?,
+            )
+        } else if plugin_befores.is_empty() {
+            None
+        } else {
+            let first = plugin_befores.remove(0);
+            Some(
+                guard
+                    .history
+                    .prepare_plugin_elements_entry(first, gesture_id)
+                    .map_err(anyhow::Error::msg)?,
+            )
+        };
+        let plan = match plan {
+            Some(plan) if !plugin_befores.is_empty() => Some(
+                guard
+                    .history
+                    .add_plugin_elements_to_plan(plan, plugin_befores)
+                    .map_err(anyhow::Error::msg)?,
+            ),
+            plan => plan,
+        };
+        let plugin_model_revision = if changed_plugins.is_empty() {
+            guard.plugin_model_revision
+        } else {
+            next_plugin_model_revision(guard.plugin_model_revision).map_err(anyhow::Error::msg)?
+        };
         let state = &mut *guard;
         self.commit_locked(state, scratch, ())?;
-        let current = guard.data.element_document.clone();
-        guard.history.apply_element_tree_record_plan(plan, &current);
-        Ok(ElementDocumentCommitResult::Committed {
-            revision: self.element_document_revision(),
-            changes,
-        })
+        guard.plugin_model_revision = plugin_model_revision;
+        if let Some(plan) = plan {
+            let current = guard.data.element_document.clone();
+            guard.history.apply_element_tree_record_plan(plan, &current);
+        }
+        let plugin_changes = changed_plugins
+            .into_iter()
+            .map(|plugin_id| PluginInstancesChangedPayload {
+                plugin_id,
+                revision: plugin_model_revision,
+                origin_mutation_id: None,
+            })
+            .collect();
+        Ok((
+            ElementDocumentCommitResult::Committed {
+                revision: self.element_document_revision(),
+                changes,
+            },
+            plugin_changes,
+        ))
     }
 }
 

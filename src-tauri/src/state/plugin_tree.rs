@@ -1,6 +1,7 @@
 //! 플러그인 인스턴스 버킷 ↔ 트리 장면.
 //! 인스턴스 목록(저장 모양 배열)의 항목을 탭 장면의 플러그인 종류 요소로 두고, 읽을 때 같은 배열을 돌려준다.
-//! 목록 순서·겹침 순서·그룹 소속·측정 크기 유무는 요소에 둔 원본 항목이 정한다(트리 자리는 아직 쓰지 않는다).
+//! 목록 순서·겹침 순서·그룹 소속·측정 크기 유무는 요소에 둔 원본 항목이 정한다. 트리 자리는 항목의 zIndex·groupId로
+//! 정하고, 트리 연산이 노드를 옮기면 그 자리에 맞게 항목 값을 다시 적는다.
 //! 해석 못 한 항목·없는 탭·플러그인 안에서 겹친 id는 장면 밖 칸에 원본으로 보존한다
 
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -11,7 +12,7 @@ use element_document::{Document, Element, Frame, Node};
 use serde_json::{json, Map, Value};
 
 use super::plugin::normalize_plugin_instance_tab_id;
-use crate::models::legacy_layout::is_legacy_kind;
+use crate::models::legacy_layout::{is_legacy_kind, is_tree_only_group};
 
 const LEGACY: &str = "legacy";
 const ENTRY: &str = "pluginEntry";
@@ -241,6 +242,146 @@ fn place(scene: &mut element_document::Scene, element: Element) {
         })
         .unwrap_or(siblings.len());
     siblings.insert(at, Node::Element(element));
+}
+
+// 겹침 대상 - 플러그인 노드 또는 옛 종류 요소
+#[derive(Clone)]
+struct StackingItem {
+    path: Vec<usize>,
+    plugin: bool,
+    z: Option<f64>,
+    // 가장 가까운 옛 그룹
+    group: Option<String>,
+}
+
+// 장면을 트리 순서(아래 → 위)로 편 겹침 대상
+fn stacking_items(
+    nodes: &[Node],
+    group: Option<&str>,
+    prefix: &mut Vec<usize>,
+    out: &mut Vec<StackingItem>,
+) {
+    for (index, node) in nodes.iter().enumerate() {
+        prefix.push(index);
+        match node {
+            Node::Group(inner) => {
+                let legacy_group = (!is_tree_only_group(inner)).then_some(inner.id.as_str());
+                stacking_items(&inner.children, legacy_group.or(group), prefix, out);
+            }
+            Node::Element(element) => {
+                let plugin = plugin_id_of_kind(&element.kind).is_some();
+                if plugin || is_legacy_kind(&element.kind) {
+                    out.push(StackingItem {
+                        path: prefix.clone(),
+                        plugin,
+                        z: z_of(node),
+                        group: group.map(str::to_string),
+                    });
+                }
+            }
+        }
+        prefix.pop();
+    }
+}
+
+/// 트리 연산 뒤 - 장면의 플러그인 노드 자리에 맞게 항목의 zIndex·groupId를 다시 적는다.
+/// 아래쪽(옛 종류 최댓값·앞 플러그인)과 바로 위 옛 종류 사이에 들면 그대로, 아니면 사이 값(플러그인 zIndex는 실수).
+/// zIndex 없는 항목은 위에 옛 종류가 없으면 그대로 둔다.
+/// 옛 종류 번호는 다시 매기지 않는다. 바뀐 플러그인 id를 돌려준다(정렬)
+pub(crate) fn sync_plugin_entries_from_tree(
+    document: &mut Document,
+    scenes: &[String],
+) -> Vec<String> {
+    let mut changed = BTreeSet::new();
+    for scene_id in scenes {
+        let Some(scene) = document.scenes.get_mut(scene_id) else {
+            continue;
+        };
+        let mut items = Vec::new();
+        stacking_items(&scene.nodes, None, &mut Vec::new(), &mut items);
+        let mut lower: Option<f64> = None;
+        for index in 0..items.len() {
+            let StackingItem {
+                path,
+                plugin,
+                z,
+                group,
+            } = items[index].clone();
+            if !plugin {
+                if let Some(z) = z {
+                    lower = Some(lower.map_or(z, |lower| lower.max(z)));
+                }
+                continue;
+            }
+            let upper = items[index + 1..]
+                .iter()
+                .find(|item| !item.plugin && item.z.is_some())
+                .and_then(|item| item.z);
+            // 놓기와 같은 기준 - 같은 값의 옛 종류 위에 놓이므로 아래쪽은 같아도 된다.
+            // zIndex 없는 항목은 맨 위 - 위에 옛 종류가 없으면 그대로 둔다
+            let fits = match z {
+                Some(z) => {
+                    lower.is_none_or(|lower| z >= lower) && upper.is_none_or(|upper| z < upper)
+                }
+                None => upper.is_none(),
+            };
+            let next_z = if fits {
+                z
+            } else {
+                Some(match (lower, upper) {
+                    (Some(lower), Some(upper)) if upper > lower => (lower + upper) / 2.0,
+                    (Some(lower), _) => lower + 1.0,
+                    (None, Some(upper)) => upper - 1.0,
+                    (None, None) => 0.0,
+                })
+            };
+            if next_z.is_some() {
+                lower = next_z;
+            }
+            let Some(Node::Element(element)) = scene.node_at_mut(&path) else {
+                continue;
+            };
+            let Some(entry) = element
+                .extra
+                .get_mut(LEGACY)
+                .and_then(|legacy| legacy.get_mut(ENTRY))
+                .and_then(Value::as_object_mut)
+            else {
+                continue;
+            };
+            let mut touched = false;
+            if let Some(next_z) = next_z.filter(|_| z != next_z) {
+                entry.insert("zIndex".into(), json!(next_z));
+                touched = true;
+            }
+            let current_group = entry
+                .get("groupId")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            if current_group != group {
+                match &group {
+                    Some(group) => entry.insert("groupId".into(), json!(group)),
+                    None => entry.remove("groupId"),
+                };
+                touched = true;
+            }
+            if touched {
+                if let Some(plugin_id) = plugin_id_of_kind(&element.kind) {
+                    changed.insert(plugin_id.to_string());
+                }
+            }
+        }
+    }
+    changed.into_iter().collect()
+}
+
+/// 두 문서 사이에 인스턴스 목록이 달라진 플러그인 - 정렬
+pub(crate) fn changed_plugin_buckets(before: &Document, after: &Document) -> Vec<String> {
+    let mut ids: BTreeSet<String> = plugin_bucket_ids(before).into_iter().collect();
+    ids.extend(plugin_bucket_ids(after));
+    ids.into_iter()
+        .filter(|id| project_plugin_bucket(before, id) != project_plugin_bucket(after, id))
+        .collect()
 }
 
 /// 인스턴스 목록 → 트리. 남는 요소는 트리 자리를 지키고 새 요소는 장면 맨 위, 빠진 요소는 지운다

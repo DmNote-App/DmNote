@@ -1,5 +1,6 @@
 use super::*;
 use crate::state::native_element_id;
+use crate::state::plugin_tree::changed_plugin_buckets;
 
 impl AppStore {
     #[cfg(test)]
@@ -166,7 +167,12 @@ impl AppStore {
             });
         }
 
-        if request.base_revision != guard.data.editor_revision {
+        if request.base_revision != guard.data.editor_revision
+            || request
+                .element_tree
+                .as_ref()
+                .is_some_and(|(_, plugin_revision)| *plugin_revision != guard.plugin_model_revision)
+        {
             return Err(EditorCommitError::revision_conflict(
                 guard.data.editor_revision,
             ));
@@ -192,7 +198,7 @@ impl AppStore {
             record_history: true,
             apply_key_side_effects: true,
             enforce_touched_fields: false,
-            element_tree: request.element_tree.take(),
+            element_tree: request.element_tree.take().map(|(tree, _)| tree),
         };
         let change = if let Some(changes) = request.changes.as_mut() {
             changes.merge_omitted_sprite_fields(&guard.data.sprite_positions);
@@ -361,6 +367,33 @@ impl AppStore {
             }
             (plan, _) => plan,
         };
+        // 트리에서 옮긴 플러그인 노드의 항목 값(zIndex·groupId)이 바뀌었으면 그 플러그인 목록도 같은 기록에
+        let changed_plugins = options
+            .element_tree
+            .as_ref()
+            .map(|tree| changed_plugin_buckets(&current_store.element_document, tree))
+            .unwrap_or_default();
+        let history_plan = match history_plan {
+            Some(plan) if !changed_plugins.is_empty() => {
+                let befores = changed_plugins
+                    .iter()
+                    .map(|plugin_id| plugin_elements_snapshot(&current_store, plugin_id))
+                    .collect::<std::result::Result<Vec<_>, _>>()
+                    .and_then(|befores| guard.history.add_plugin_elements_to_plan(plan, befores))
+                    .map_err(|error| {
+                        EditorCommitError::validation("HISTORY_SERIALIZATION_FAILED", error)
+                    })?;
+                Some(befores)
+            }
+            plan => plan,
+        };
+        let plugin_model_revision = if changed_plugins.is_empty() {
+            guard.plugin_model_revision
+        } else {
+            next_plugin_model_revision(guard.plugin_model_revision).map_err(|error| {
+                EditorCommitError::validation("PLUGIN_MODEL_REVISION_OUT_OF_RANGE", error)
+            })?
+        };
 
         let revision = next_revision(current_store.editor_revision)?;
         if options.apply_key_side_effects && changed_fields.contains(&EditorField::Keys) {
@@ -377,6 +410,7 @@ impl AppStore {
 
         self.commit_locked(guard, scratch, ())
             .map_err(|error| EditorCommitError::io(error.to_string()))?;
+        guard.plugin_model_revision = plugin_model_revision;
 
         let history_status = history_plan.map(|plan| {
             let tree = guard.data.element_document.clone();
@@ -408,7 +442,14 @@ impl AppStore {
             selected_key_type,
             key_counters,
             history_status,
-            plugin_instances_changes: Vec::new(),
+            plugin_instances_changes: changed_plugins
+                .into_iter()
+                .map(|plugin_id| PluginInstancesChangedPayload {
+                    plugin_id,
+                    revision: plugin_model_revision,
+                    origin_mutation_id: None,
+                })
+                .collect(),
             runtime_publication_generation: guard.revision,
         })
     }

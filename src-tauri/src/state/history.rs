@@ -493,6 +493,29 @@ impl HistoryService {
         })
     }
 
+    /// 트리 연산이 플러그인 노드를 옮겨 항목 값을 다시 적은 커밋 - 그 플러그인의 편집 전 목록을 같은 기록에 담는다
+    pub(crate) fn add_plugin_elements_to_plan(
+        &self,
+        mut plan: HistoryRecordPlan,
+        befores: Vec<PluginElementsHistorySnapshot>,
+    ) -> Result<HistoryRecordPlan, String> {
+        let attach = |entry: &mut Box<HistoryEntry>| -> Result<(), String> {
+            for before in befores {
+                entry.before = merge_plugin_elements_snapshot(&entry.before, before)?;
+            }
+            entry.scope = entry.before.scope();
+            refresh_history_entry_size(entry);
+            Ok(())
+        };
+        match &mut plan {
+            HistoryRecordPlan::Entry(entry) | HistoryRecordPlan::Merge { entry, .. } => {
+                attach(entry)?
+            }
+            HistoryRecordPlan::Truncate => {}
+        }
+        Ok(plan)
+    }
+
     /// 옛 편집 기록 반영 - 같은 동작으로 제자리로 돌아온 몫(옛 편집·트리)을 뺀다
     pub(crate) fn apply_editor_record_plan(
         &mut self,
