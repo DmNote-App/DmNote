@@ -59,6 +59,12 @@ const elementsOf = (nodes: readonly Node[]): Node[] =>
     node.type === 'group' ? elementsOf(node.children) : [node],
   );
 
+// 그룹과 요소 모두
+const nodesOf = (nodes: readonly Node[]): Node[] =>
+  nodes.flatMap((node) =>
+    node.type === 'group' ? [node, ...nodesOf(node.children)] : [node],
+  );
+
 /** 붙여넣을 스프라이트의 자세 - poseId 재발급, 함께 붙인 키·다른 탭의 같은 키로 트리거 재결합(옛 붙여넣기와 같은 규칙) */
 export const pastedSpriteNodes = (
   nodes: readonly Node[],
@@ -113,21 +119,21 @@ const legacyFieldsOnly = (legacy: unknown): JsonValue => {
 
 const reissue = (
   node: Node,
-  nextId: () => string,
+  idFor: (id: string) => string,
   nameGroup: (name: string) => string,
 ): Node =>
   node.type === 'group'
     ? {
         ...node,
-        id: nextId(),
+        id: idFor(node.id),
         name: nameGroup(node.name),
         children: node.children.map((child) =>
-          reissue(child, nextId, nameGroup),
+          reissue(child, idFor, nameGroup),
         ),
       }
     : {
         ...node,
-        id: nextId(),
+        id: idFor(node.id),
         // 옛 종류 요소(트리로 옮긴 노브 등)는 원본의 배열 자리·z를 버린다 - 붙일 때 새로 받는다
         ...(node.legacy !== undefined
           ? { legacy: legacyFieldsOnly(node.legacy) }
@@ -146,14 +152,17 @@ export const buildDocumentPaste = (
   nextId: () => string = () => crypto.randomUUID(),
   // 붙일 장면의 그룹 이름 - 그룹은 옛 종류처럼 번호를 이어 새 이름을 붙인다
   existingGroups: { id: string; name: string }[] = [],
+  // 미리 정한 새 id (원본 id → 새 id) - 없는 것은 nextId로 받는다
+  idMap: ReadonlyMap<string, string> = new Map(),
 ) => {
+  const idFor = (id: string) => idMap.get(id) ?? nextId();
   const groups = [...existingGroups];
   const nameGroup = (name: string) => {
     const next = buildNextLayerGroupName(name, groups);
     groups.push({ id: next, name: next });
     return next;
   };
-  const pasted = nodes.map((node) => reissue(node, nextId, nameGroup));
+  const pasted = nodes.map((node) => reissue(node, idFor, nameGroup));
   const ops: Op[] = pasted.map((node) => ({
     op: 'insert',
     scene: sceneId,
@@ -217,11 +226,19 @@ export const pasteDocumentClipboard = async (
 ) => {
   const { nodes: copied, source } = useDocumentClipboardStore.getState();
   if (copied.length === 0) return;
-  // 함께 붙인 옛 키(같은 동작)의 사본 id, 다른 탭이면 그 탭의 같은 키
+  // 새 id를 먼저 정한다 - 함께 붙이는 키(트리·같은 동작의 옛 붙여넣기)의 사본 id로 스프라이트 트리거를 옮긴다
+  const idMap = new Map(
+    nodesOf(copied).map((node) => [node.id, crypto.randomUUID()]),
+  );
+  const pastedIds = new Map([
+    ...(keepOther ? takePastedKeyIds() : []),
+    ...idMap,
+  ]);
+  // 다른 탭이면 그 탭의 같은 키
   const { keyMappings, canonicalPositions } = useKeyStore.getState();
   const nodes = pastedSpriteNodes(
     copied,
-    keepOther ? takePastedKeyIds() : new Map(),
+    pastedIds,
     source && source.mode !== sceneId
       ? {
           triggerCanonicals: source.triggerCanonicals,
@@ -237,6 +254,7 @@ export const pasteDocumentClipboard = async (
     nodes,
     undefined,
     documentGroupNames(getElementDocumentStore()?.getScene(sceneId)),
+    idMap,
   );
   const result = await editDocument(ops);
   if (result?.status === 'committed') {

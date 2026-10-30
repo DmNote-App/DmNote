@@ -79,6 +79,19 @@ describe('트리 요소 붙여넣기', () => {
   });
 });
 
+describe('미리 정한 새 id', () => {
+  it('정해 둔 id를 쓰고 나머지는 nextId로 받는다', () => {
+    const { ids } = buildDocumentPaste(
+      '4key',
+      [tracker('a', 0), tracker('b', 10)],
+      () => 'fresh',
+      [],
+      new Map([['a', 'A1']]),
+    );
+    expect(ids).toEqual(['A1', 'fresh']);
+  });
+});
+
 describe('옛 종류 요소 붙여넣기', () => {
   it('원본의 배열 자리·z는 버리고 옛 칸만 남긴다', () => {
     const knob = {
