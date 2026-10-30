@@ -666,6 +666,72 @@ pub(crate) fn import_document<'a>(legacy: impl Into<LegacyRef<'a>>) -> Result<Do
     Ok(document)
 }
 
+/// 옛 종류 요소의 옛 칸(legacy.fields)에 남은 정의의 묶음·고유 값 칸을 제자리로 올린다.
+/// 정의에 묶음·칸이 늘면(노브 이미지) 그 전에 저장한 요소는 그 칸을 옛 칸에 두고 있다.
+/// 이미 있는 값이 이기고 빈 칸은 버린다. 바뀌었으면 true
+pub(crate) fn lift_legacy_kind_fields(document: &mut Document) -> bool {
+    let mut changed = false;
+    for scene in document.scenes.values_mut() {
+        element_document::document::walk_mut(&mut scene.nodes, &mut |node| {
+            let Node::Element(element) = node else {
+                return;
+            };
+            if kind_of(&element.kind).is_none() {
+                return;
+            }
+            let Some(schema) = builtin_kind_registry().get(&element.kind) else {
+                return;
+            };
+            let Some(fields) = element
+                .extra
+                .get_mut(LEGACY)
+                .and_then(Value::as_object_mut)
+                .and_then(|legacy| legacy.get_mut("fields"))
+                .and_then(Value::as_object_mut)
+            else {
+                return;
+            };
+            let mut lifted: Vec<(Option<String>, String, Value)> = Vec::new();
+            for bundle in &schema.bundles {
+                for rule in BuiltinBundles::fields(bundle).unwrap_or_default() {
+                    if let Some(value) = fields.remove(&rule.name) {
+                        lifted.push((Some(bundle.clone()), rule.name.clone(), value));
+                    }
+                }
+            }
+            for rule in &schema.fields {
+                if let Some(value) = fields.remove(&rule.name) {
+                    lifted.push((None, rule.name.clone(), value));
+                }
+            }
+            if lifted.is_empty() {
+                return;
+            }
+            changed = true;
+            for (bundle, name, value) in lifted {
+                if value.is_null() {
+                    continue;
+                }
+                let target = match bundle {
+                    Some(bundle) => {
+                        let part = element
+                            .bundles
+                            .entry(bundle)
+                            .or_insert_with(|| Value::Object(Map::new()));
+                        if !part.is_object() {
+                            *part = Value::Object(Map::new());
+                        }
+                        part.as_object_mut().expect("object")
+                    }
+                    None => &mut element.values,
+                };
+                target.entry(name).or_insert(value);
+            }
+        });
+    }
+    changed
+}
+
 fn legacy_info(element: &Element) -> Option<&Map<String, Value>> {
     element.extra.get(LEGACY).and_then(Value::as_object)
 }

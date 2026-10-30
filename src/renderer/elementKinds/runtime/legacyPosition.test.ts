@@ -11,10 +11,14 @@ const knob: ElementNode = {
   name: '노브',
   className: 'my',
   values: { sensitivity: 2, reverse: true },
-  // image는 노브 정의 밖 묶음 - 옛 모양에 펼치지 않는다
-  bundles: { surface: { borderWidth: 3 }, image: { activeImage: 'stale.png' } },
+  // note는 노브 정의 밖 묶음 - 옛 모양에 펼치지 않는다
+  bundles: {
+    surface: { borderWidth: 3 },
+    image: { activeImage: 'a.png' },
+    note: { noteColor: '#stale' },
+  },
   input: { type: 'axis', axisId: 'HIDA:1' },
-  legacy: { index: 0, zIndex: 4, fields: { activeImage: 'a.png' } },
+  legacy: { index: 0, zIndex: 4, fields: { noteColor: '#kept' } },
 };
 
 describe('트리 요소 ↔ 옛 위치 모양', () => {
@@ -32,6 +36,7 @@ describe('트리 요소 ↔ 옛 위치 모양', () => {
       reverse: true,
       borderWidth: 3,
       activeImage: 'a.png',
+      noteColor: '#kept',
       axisId: 'HIDA:1',
       zIndex: 4,
     });

@@ -1545,3 +1545,60 @@ fn 같은_동작의_옛_편집과_트리_편집은_한_번에_되돌리고_다�
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+#[test]
+fn 옛_칸에_이미지를_둔_노브를_읽으면_이미지_묶음으로_올리고_옛_모양에도_남는다() {
+    let mut state = default_state();
+    state.knob_positions.insert(
+        "4key".into(),
+        vec![crate::models::KnobPosition {
+            axis_id: String::new(),
+            sensitivity: 1.0,
+            reverse: false,
+            position: crate::models::KeyPosition {
+                id: "00000000-0000-4000-8000-0000000000aa".into(),
+                dx: 10.0,
+                dy: 20.0,
+                width: 60.0,
+                height: 60.0,
+                ..Default::default()
+            },
+        }],
+    );
+    attach_loaded_document(&mut state, None).unwrap();
+    // 노브에 이미지 묶음이 생기기 전 모양 - 이미지 칸이 옛 칸에 있다
+    let mut stored = serde_json::to_value(&*state.element_document).unwrap();
+    let knob = stored["scenes"]["4key"]["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|node| node["kind"] == "knob")
+        .unwrap();
+    knob["bundles"].as_object_mut().unwrap().remove("image");
+    knob["legacy"]["fields"] =
+        serde_json::json!({ "activeImage": "a.png", "idleTransparent": true });
+    let dir = std::env::temp_dir().join(format!("dmn-knob-lift-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(crate::state::store::STORE_FILE_NAME);
+    let mut value = serde_json::to_value(&state).unwrap();
+    let object = value.as_object_mut().unwrap();
+    for field in LEGACY_ELEMENT_FIELDS {
+        object.remove(field);
+    }
+    object.insert(ELEMENT_DOCUMENT_FIELD.into(), stored);
+    std::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+
+    let loaded = crate::state::migration::load_store_from_path(&path).unwrap();
+    assert!(!loaded.repaired);
+    let knob = &loaded.data.knob_positions["4key"][0];
+    assert_eq!(knob.position.active_image.as_deref(), Some("a.png"));
+    assert!(knob.position.idle_transparent);
+    let element = loaded.data.element_document.scenes["4key"]
+        .element("00000000-0000-4000-8000-0000000000aa")
+        .unwrap();
+    assert_eq!(
+        element.bundles["image"]["activeImage"],
+        serde_json::json!("a.png")
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

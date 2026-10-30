@@ -17,7 +17,8 @@ use serde_json::Value;
 use super::AppStore;
 use crate::models::legacy_layout::{
     graft_preset_scene, graft_tree_only, import_document, is_legacy_kind, is_tree_only_group,
-    moved_z_fixes, project_document, reconcile_document, set_tree_z, strip_tree_only, LegacyRef,
+    lift_legacy_kind_fields, moved_z_fixes, project_document, reconcile_document, set_tree_z,
+    strip_tree_only, LegacyRef,
 };
 use crate::models::{builtin_kind_registry, AppStoreData, EditorCommitRequest, EditorDocumentV1};
 use crate::state::history::ElementTreeHistorySnapshot;
@@ -59,6 +60,13 @@ pub(crate) fn compact_document(document: &Document) -> Document {
 /// 저장된 트리 문서 읽기 - 통째로 읽지 못하면 장면·노드 단위로 읽고 망가진 노드만 뺀다.
 /// 두 번째 값은 뺀 노드 수 (장면째 못 읽은 것도 하나로 센다)
 pub(crate) fn parse_document_lenient(value: Value) -> (Document, usize) {
+    let (mut document, dropped) = parse_document_nodes(value);
+    // 정의가 늘어난 묶음·고유 값 칸을 옛 칸에서 올린다 - 옛 모양을 만들기 전에 해야 값을 잃지 않는다
+    lift_legacy_kind_fields(&mut document);
+    (document, dropped)
+}
+
+fn parse_document_nodes(value: Value) -> (Document, usize) {
     if let Ok(document) = serde_json::from_value::<Document>(value.clone()) {
         return (document, 0);
     }

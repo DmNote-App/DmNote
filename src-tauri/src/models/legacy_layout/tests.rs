@@ -834,9 +834,9 @@ fn 묶음이_비고_옛_칸이_없는_저장_요소도_옛_모양으로_내보�
 }
 
 #[test]
-fn 이미지_칸을_옛_칸에_둔_노브를_옛_모양으로_내보낸다() {
+fn 이미지_칸을_옛_칸에_둔_노브도_읽을_때_올려_옛_모양으로_내보낸다() {
     // 노브 이미지 칸은 묶음이 아니라 옛 칸에 저장돼 있다 (투명 칸은 기본값이라 빠져 있다)
-    let document: Document = serde_json::from_value(json!({
+    let mut document: Document = serde_json::from_value(json!({
         "formatVersion": 1,
         "kindVersions": {},
         "scenes": { "4key": { "nodes": [{
@@ -850,8 +850,55 @@ fn 이미지_칸을_옛_칸에_둔_노브를_옛_모양으로_내보낸다() {
         }] } },
     }))
     .unwrap();
+    // 읽기 경로(parse_document_lenient)와 같이 먼저 올린다
+    assert!(lift_legacy_kind_fields(&mut document));
     let projected = project_document(&document).unwrap();
     let knob = &projected.knob_positions["4key"][0];
     assert_eq!(knob.position.background_color.as_deref(), Some("#3355FF"));
     assert_eq!(knob.position.active_image.as_deref(), Some("a.png"));
+}
+
+#[test]
+fn 정의에_있는_묶음_칸이_옛_칸에_남아_있으면_묶음으로_올린다() {
+    let mut document: Document = serde_json::from_value(json!({
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": { "4key": { "nodes": [{
+            "type": "element",
+            "id": "00000000-0000-4000-8000-000000000001",
+            "kind": "knob",
+            "frame": { "x": 0.0, "y": 0.0, "width": 60.0, "height": 60.0, "rotation": 0.0 },
+            "bundles": { "surface": { "borderRadius": 4.0 } },
+            "values": { "reverse": false },
+            "legacy": { "index": 0, "zIndex": 1, "fields": {
+                "activeImage": "a.png", "inactiveImage": null, "borderRadius": 9.0,
+                "sensitivity": 2.0, "noteColor": "#00C3AE"
+            } },
+        }] } },
+    }))
+    .unwrap();
+    assert!(lift_legacy_kind_fields(&mut document));
+    let element = document.scenes["4key"]
+        .element("00000000-0000-4000-8000-000000000001")
+        .unwrap();
+    // 정의에 있는 묶음·고유 값 칸은 올리고(이미 있는 값이 이긴다), 빈 칸은 버린다
+    assert_eq!(element.bundles["image"], json!({ "activeImage": "a.png" }));
+    assert_eq!(element.bundles["surface"], json!({ "borderRadius": 4.0 }));
+    assert_eq!(element.values["sensitivity"], json!(2.0));
+    // 정의에 없는 칸은 옛 칸에 남는다
+    assert_eq!(
+        element.extra["legacy"]["fields"],
+        json!({ "noteColor": "#00C3AE" })
+    );
+    // 다시 해도 바뀌지 않는다
+    assert!(!lift_legacy_kind_fields(&mut document));
+    // 옛 모양은 그대로 - 이미지가 사라지지 않는다
+    let projected = project_document(&document).unwrap();
+    assert_eq!(
+        projected.knob_positions["4key"][0]
+            .position
+            .active_image
+            .as_deref(),
+        Some("a.png")
+    );
 }
