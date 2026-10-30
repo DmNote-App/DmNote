@@ -11,6 +11,7 @@ import {
   subscribePreviewOverlay,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { legacyPreviewFrameOf } from '@src/renderer/elementKinds/runtime/useLegacyPreviewFrame';
+import { treeGroupHiddenKey } from '@src/renderer/elementKinds/runtime/documentElementOrder';
 import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 
@@ -31,7 +32,9 @@ export const useTreeFramedPositions = <P extends FramedPosition>(
   positions: readonly P[],
   sceneId: string,
 ): readonly P[] => {
-  useElementDocumentScene(sceneId);
+  const scene = useElementDocumentScene(sceneId);
+  // 숨긴 트리 그룹 안 요소는 트리 층이 그리지 않는다 - 곁 레이어도 숨긴다
+  const groupHidden = new Set(treeGroupHiddenKey(scene).split('\n'));
   const previews = useDocumentFramePreviewStore((state) => state.frames);
   useSyncExternalStore(subscribePreviewOverlay, getPreviewOverlayVersion);
   if (!TREE_EDITED_KINDS.has(kind)) return positions;
@@ -50,7 +53,8 @@ export const useTreeFramedPositions = <P extends FramedPosition>(
       width: frame.width,
       height: frame.height,
       rotation: frame.rotation,
-      hidden: element.hidden ?? position.hidden,
+      hidden:
+        groupHidden.has(position.id) || (element.hidden ?? position.hidden),
     };
   });
 };

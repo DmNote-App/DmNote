@@ -28,7 +28,11 @@ import {
   useElementDocumentReady,
   useElementDocumentScene,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { documentLayoutElements } from '@src/renderer/elementKinds/runtime/documentElementOrder';
+import {
+  documentLayoutElements,
+  treeGroupHiddenKey,
+  withTreeGroupHidden,
+} from '@src/renderer/elementKinds/runtime/documentElementOrder';
 import {
   selectPluginLayoutElements,
   pluginLayoutElementsEqual,
@@ -172,7 +176,18 @@ export default function App() {
     reconcileActiveNotes,
   });
 
-  const currentPositions = positions[selectedKeyType] ?? EMPTY_SLICE;
+  // 트리 문서 - 그룹 숨김(트리에만 있다)과 트리에만 있는 종류의 상자
+  const documentScene = useElementDocumentScene(selectedKeyType);
+  const treeGroupHidden = treeGroupHiddenKey(documentScene);
+  // 숨긴 트리 그룹 안의 키·아이템은 바깥 카운터·노트 트랙·창 크기에서도 숨긴다 (트리 층이 그리지 않는다)
+  const currentPositions = useMemo(
+    () =>
+      withTreeGroupHidden(
+        positions[selectedKeyType] ?? EMPTY_SLICE,
+        treeGroupHidden,
+      ) as typeof EMPTY_SLICE,
+    [positions, selectedKeyType, treeGroupHidden],
+  );
   // 오버레이는 방송 화면이라 스크럽 프리뷰를 구독하지 않는다 (커밋 시점만 반영).
   // 편집 중 실시간 피드백은 편집 캔버스 몫
   const currentItemArrays = useMemo(
@@ -182,11 +197,14 @@ export default function App() {
           const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
           return [
             field,
-            itemCollections[field][selectedKeyType] ?? EMPTY_SLICE,
+            withTreeGroupHidden(
+              (itemCollections[field][selectedKeyType] ?? EMPTY_SLICE) as never,
+              treeGroupHidden,
+            ),
           ];
         }),
       ) as unknown as ItemElementModeArrays,
-    [itemCollections, selectedKeyType],
+    [itemCollections, selectedKeyType, treeGroupHidden],
   );
 
   // 스프라이트 트리거(키 요소 id) -> canonical 키 문자열, 잎이 시그널을 찾을 때 쓴다
@@ -198,7 +216,6 @@ export default function App() {
   // 레이아웃 입력이 실제로 바뀔 때만 재계산 - webglTracks identity가 안정되어
   // updateTrackLayouts effect·WebGL uniform effect가 무관한 리렌더에 재실행되지 않음
   // 트리 문서에만 있는 종류(커서 트래커 등)도 창 크기 계산에 넣는다
-  const documentScene = useElementDocumentScene(selectedKeyType);
   // 상자가 그대로면 같은 배열 - 옛 종류 요소만 바뀐 트리 패치에 레이아웃을 다시 계산하지 않는다
   const documentBoxes = documentLayoutElements(documentScene, selectedKeyType);
   const layoutExtraElements = useMemo(

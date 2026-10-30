@@ -106,6 +106,42 @@ export const documentElementSlots = (
   return slots;
 };
 
+/** 숨긴 트리 그룹 안 요소 id를 정렬해 이은 열쇠 - 그룹 숨김은 트리에만 있다. 내용이 같으면 같은 문자열 */
+export const treeGroupHiddenKey = (scene: Scene | undefined): string => {
+  if (!scene) return '';
+  const ids: string[] = [];
+  const visit = (nodes: readonly Node[], hidden: boolean) => {
+    for (const node of nodes) {
+      if (node.type === 'group')
+        visit(node.children, hidden || node.hidden === true);
+      else if (hidden) ids.push(node.id);
+    }
+  };
+  visit(scene.nodes, false);
+  return ids.sort().join('\n');
+};
+
+/** 숨긴 트리 그룹 안 요소를 hidden으로 - 옛 배열로 자리를 잡는 오버레이 층(바깥 카운터·노트 트랙·창 크기)이
+ * 트리 층과 같게 보이도록. 바뀐 요소가 없으면 같은 배열 */
+export const withTreeGroupHidden = <
+  T extends { id: string; hidden?: boolean } | null | undefined,
+>(
+  positions: readonly T[],
+  hiddenKey: string,
+): readonly T[] => {
+  if (!hiddenKey) return positions;
+  const hidden = new Set(hiddenKey.split('\n'));
+  let changed = false;
+  const next = positions.map((position) => {
+    if (!position || position.hidden || !hidden.has(position.id)) {
+      return position;
+    }
+    changed = true;
+    return { ...position, hidden: true };
+  });
+  return changed ? next : positions;
+};
+
 type LayoutBox = {
   tabId: string;
   position: { x: number; y: number };
