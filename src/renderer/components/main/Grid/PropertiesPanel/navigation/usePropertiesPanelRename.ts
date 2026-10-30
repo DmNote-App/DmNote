@@ -1,15 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
-import {
-  patchElementLayerNameById,
-  renameLayerGroupById,
-} from '@src/renderer/editor/runtime/operations/elementOps';
+import { patchElementLayerNameById } from '@src/renderer/editor/runtime/operations/elementOps';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import type { Group, Node } from '@src/types/generated/elementDocument';
+import { editDocument } from '../../document/documentEditActions';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { getStatTypeLabel } from '../selection/propertyPanelAdapters';
 import type { usePropertiesPanelSelection } from '../selection/usePropertiesPanelSelection';
 
 type PropertiesPanelSelection = ReturnType<typeof usePropertiesPanelSelection>;
+
+const findGroup = (nodes: readonly Node[], id: string): Group | undefined => {
+  for (const node of nodes) {
+    if (node.type !== 'group') continue;
+    if (node.id === id) return node;
+    const inner = findGroup(node.children, id);
+    if (inner) return inner;
+  }
+  return undefined;
+};
 
 interface UsePropertiesPanelRenameOptions {
   selectedElements: PropertiesPanelSelection['selectedElements'];
@@ -76,18 +85,14 @@ export const usePropertiesPanelRename = ({
     const trimmed = value.trim();
     if (trimmed === '') return;
 
-    const currentGroups = useLayerGroupStore.getState().layerGroups;
-    const currentModeGroups = currentGroups[selectedKeyType] || [];
-    const currentGroup = currentModeGroups.find(
-      (group) => group.id === groupId,
-    );
+    // 그룹 이름은 트리 그룹 정보
+    const scene = getElementDocumentStore()?.getScene(selectedKeyType);
+    const currentGroup = scene ? findGroup(scene.nodes, groupId) : undefined;
     if (!currentGroup || currentGroup.name === trimmed) return;
 
-    try {
-      await renameLayerGroupById(selectedKeyType, groupId, trimmed);
-    } catch (error) {
-      console.error('Failed to rename group', error);
-    }
+    await editDocument([
+      { op: 'setGroup', scene: selectedKeyType, id: groupId, name: trimmed },
+    ]);
   };
 
   const handleRenameStartImpl = useRef<() => void>(() => {});
