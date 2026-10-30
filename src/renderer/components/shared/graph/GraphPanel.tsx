@@ -18,7 +18,7 @@ import { elementRotationTransform } from '@utils/element/rotation';
 const BAR_ANIMATION_DURATION_MS = 150;
 const LINE_ANIMATION_DURATION_MS = 150;
 
-interface GraphPanelProps {
+export interface GraphPanelProps {
   dx?: number;
   // 요소 회전(도) - 논리 상자 중심 기준
   rotation?: number;
