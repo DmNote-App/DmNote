@@ -15,7 +15,8 @@ import { createNativePositionDragReceipt } from '@src/renderer/editor/runtime/in
 // 함께 고른 다른 선택(트리 요소)의 끌기 - 증분 이동, 끝낼 때 커밋, 취소 때 되돌리기
 export interface CompanionDragReceipt {
   move: (deltaX: number, deltaY: number) => void;
-  commit: () => unknown;
+  // gestureId - 같은 끌기의 옛 종류 편집과 한 되돌리기 단계로 합친다
+  commit: (gestureId?: string) => unknown;
   rollback: () => void;
 }
 
@@ -117,7 +118,7 @@ export const useSelectedElementDragLifecycle = ({
   };
 
   const commitSelectedElementsDrag = () => {
-    void companionReceiptRef.current?.commit();
+    void companionReceiptRef.current?.commit(gestureIdRef.current ?? undefined);
     syncSelectedElementsToOverlay(gestureIdRef.current ?? undefined);
   };
 

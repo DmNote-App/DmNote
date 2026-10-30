@@ -204,7 +204,6 @@ export function useGridKeyboard({
       const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
       if (arrowKeys.includes(e.key)) {
         e.preventDefault();
-        markGridKeyHandled(e);
 
         let deltaX = 0;
         let deltaY = 0;
@@ -235,6 +234,8 @@ export function useGridKeyboard({
         }
         lastArrowKeyTime.current = now;
         lastArrowSelectionSignature.current = selectionSignature;
+        // 함께 고른 트리 요소 이동도 같은 되돌리기 단계로
+        markGridKeyHandled(e, arrowGestureId.current);
 
         scheduleArrowMove(deltaX, deltaY, arrowGestureId.current);
         return;

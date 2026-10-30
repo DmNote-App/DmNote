@@ -1,10 +1,13 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 import { useTranslation } from '@contexts/useTranslation';
 
 import { isModalLayerActive } from '@components/main/Modal/popupLayer';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { isGridKeyHandled } from '@stores/grid/gridKeyHandled';
+import {
+  gridKeyGestureId,
+  isGridKeyHandled,
+} from '@stores/grid/gridKeyHandled';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { isMac } from '@utils/core/platform';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
@@ -24,11 +27,18 @@ import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 const ARROW_STEP = 1;
 const ARROW_STEP_LARGE = 10;
+// 옛 종류 방향키와 같은 되돌리기 병합 간격
+const ARROW_HISTORY_MERGE_MS = 500;
 
 /** 트리 요소 키보드 - 복사·붙여넣기·삭제·화살표 이동·선택 해제 (옛 종류 선택과 같은 키).
  * 옛 종류 키보드가 처리한 다음에 불러야 섞인 선택에서 두 가족이 함께 움직인다 - 처리기를 돌려준다 */
 export const useDocumentKeyboard = () => {
   const { t } = useTranslation();
+  const arrowBurstRef = useRef<{
+    signature: string;
+    time: number;
+    gestureId: string;
+  } | null>(null);
   return useCallback(
     (event: KeyboardEvent) => {
       // 옛 종류 키보드가 처리한 편집 키는 섞인 선택이므로 트리 요소에도 같은 동작을 한다
@@ -97,7 +107,10 @@ export const useDocumentKeyboard = () => {
         void removeDocumentElements(sceneId, selectedIds);
         return;
       }
-      const step = event.shiftKey ? ARROW_STEP_LARGE : ARROW_STEP;
+      // 섞인 선택은 옛 종류와 같은 거리 (옛 종류는 Shift를 쓰지 않는다)
+      const legacyArrow = isGridKeyHandled(event);
+      const step =
+        event.shiftKey && !legacyArrow ? ARROW_STEP_LARGE : ARROW_STEP;
       const delta =
         event.key === 'ArrowLeft'
           ? { x: -step, y: 0 }
@@ -123,7 +136,19 @@ export const useDocumentKeyboard = () => {
             ]
           : [];
       });
-      void moveDocumentElements(sceneId, moves);
+      // 연달아 누른 이동은 한 되돌리기 단계로 - 섞인 선택은 옛 종류 이동과 같은 단계
+      const now = Date.now();
+      const signature = `${sceneId}:${selectedIds.join(',')}`;
+      const burst = arrowBurstRef.current;
+      const gestureId =
+        gridKeyGestureId(event) ??
+        (burst &&
+        burst.signature === signature &&
+        now - burst.time <= ARROW_HISTORY_MERGE_MS
+          ? burst.gestureId
+          : crypto.randomUUID());
+      arrowBurstRef.current = { signature, time: now, gestureId };
+      void moveDocumentElements(sceneId, moves, { gestureId });
     },
     [t],
   );

@@ -29,7 +29,10 @@ export interface ElementDocumentStore {
   getElement(sceneId: string, id: string): ElementNode | undefined;
   subscribe(listener: ElementDocumentListener): () => void;
   // 편집 창만 - 오버레이·OBS는 undefined
-  edit?: (ops: Op[]) => Promise<ElementDocumentCommitResult>;
+  edit?: (
+    ops: Op[],
+    options?: { gestureId?: string },
+  ) => Promise<ElementDocumentCommitResult>;
   // 오버레이·OBS만 - 문서를 통째로 다시 받아 온다 (OBS 재연결·놓친 패치)
   resync?: () => Promise<void>;
   dispose(): void;
@@ -38,7 +41,7 @@ export interface ElementDocumentStore {
 // 백엔드와 주고받는 통로 - 테스트에서 바꿔 끼운다
 export interface ElementDocumentTransport {
   get(): Promise<ElementDocumentGetResult>;
-  commit(ops: Op[]): Promise<ElementDocumentCommitResult>;
+  commit(ops: Op[], gestureId?: string): Promise<ElementDocumentCommitResult>;
   onChanged(listener: (event: ElementDocumentChangedEvent) => void): () => void;
 }
 
@@ -258,12 +261,12 @@ export const createEditorDocumentStore = (
     getScene: (sceneId) => readScene(view, sceneId),
     getElement: (sceneId, id) => readElement(view, sceneId, id),
     subscribe: (listener) => listeners.add(listener),
-    edit: async (ops) => {
+    edit: async (ops, options) => {
       const edit: PendingEdit = { ops, acknowledged: null };
       pending = [...pending, edit];
       rebuild();
       listeners.emit(localChanges([edit]));
-      const sent = queue.then(() => transport.commit(ops));
+      const sent = queue.then(() => transport.commit(ops, options?.gestureId));
       queue = sent.catch(() => undefined);
       let result: ElementDocumentCommitResult;
       try {

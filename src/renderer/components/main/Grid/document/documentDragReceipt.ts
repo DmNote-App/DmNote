@@ -32,7 +32,8 @@ export const createDocumentDragReceipt = (sceneId: string) => {
         });
       }
     },
-    commit: async () => {
+    // gestureId - 같은 끌기의 옛 종류 편집과 한 되돌리기 단계로 합친다
+    commit: async (gestureId?: string) => {
       if (origins.length === 0 || (offsetX === 0 && offsetY === 0)) {
         clear();
         return;
@@ -45,6 +46,7 @@ export const createDocumentDragReceipt = (sceneId: string) => {
             x: frame.x + offsetX,
             y: frame.y + offsetY,
           })),
+          { gestureId },
         );
       } finally {
         clear();

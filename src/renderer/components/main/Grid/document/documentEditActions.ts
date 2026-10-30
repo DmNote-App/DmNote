@@ -25,11 +25,12 @@ const report = (result: ElementDocumentCommitResult) => {
 
 export const editDocument = async (
   ops: Op[],
+  options?: { gestureId?: string },
 ): Promise<ElementDocumentCommitResult | null> => {
   const store = getElementDocumentStore();
   if (!store?.edit) return null;
   try {
-    const result = await store.edit(ops);
+    const result = await store.edit(ops, options);
     report(result);
     return result;
   } catch (error) {
@@ -101,6 +102,7 @@ export const setDocumentFrame = (
 export const moveDocumentElements = (
   sceneId: string,
   moves: ReadonlyArray<{ id: string; x: number; y: number }>,
+  options?: { gestureId?: string },
 ) =>
   moves.length === 0
     ? Promise.resolve(null)
@@ -111,6 +113,7 @@ export const moveDocumentElements = (
           id,
           frame: { x, y },
         })),
+        options,
       );
 
 export const setDocumentValues = (

@@ -37,9 +37,10 @@ export interface ElementDocumentChangedEvent {
 // 요소 트리 문서 - 내부 전용 (플러그인 공개 API 아님)
 export const elementDocumentApi = {
   get: () => invoke<ElementDocumentGetResult>('element_document_get'),
-  commit: (ops: Op[]) =>
+  // gestureId - 같은 동작의 옛 종류 편집과 한 되돌리기 단계로 합친다
+  commit: (ops: Op[], gestureId?: string) =>
     invoke<ElementDocumentCommitResult>('element_document_commit', {
-      request: { ops },
+      request: gestureId ? { ops, gestureId } : { ops },
     }),
   onChanged: (listener: (event: ElementDocumentChangedEvent) => void) =>
     subscribe<ElementDocumentChangedEvent>('elementDocument:changed', listener),

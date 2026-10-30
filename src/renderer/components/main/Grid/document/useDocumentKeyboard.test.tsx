@@ -89,18 +89,54 @@ describe('트리 요소 키보드', () => {
     useDocumentSelectionStore.getState().select('4key', 't1');
     press('ArrowRight');
     press('ArrowUp', { shiftKey: true });
-    expect(mocks.move).toHaveBeenNthCalledWith(1, '4key', [
-      { id: 't1', x: 11, y: 20 },
-    ]);
-    expect(mocks.move).toHaveBeenNthCalledWith(2, '4key', [
-      { id: 't1', x: 10, y: 10 },
-    ]);
+    expect(mocks.move).toHaveBeenNthCalledWith(
+      1,
+      '4key',
+      [{ id: 't1', x: 11, y: 20 }],
+      { gestureId: expect.any(String) },
+    );
+    expect(mocks.move).toHaveBeenNthCalledWith(
+      2,
+      '4key',
+      [{ id: 't1', x: 10, y: 10 }],
+      { gestureId: expect.any(String) },
+    );
+    // 연달아 누른 이동은 한 되돌리기 단계
+    const gestures = mocks.move.mock.calls.map(
+      (call) => (call as unknown[])[2] as { gestureId: string },
+    );
+    expect(gestures[1].gestureId).toBe(gestures[0].gestureId);
     useDocumentSelectionStore.getState().setSelection('4key', ['t1', 't2']);
     press('ArrowLeft');
-    expect(mocks.move).toHaveBeenNthCalledWith(3, '4key', [
-      { id: 't1', x: 9, y: 20 },
-      { id: 't2', x: 9, y: 20 },
-    ]);
+    expect(mocks.move).toHaveBeenNthCalledWith(
+      3,
+      '4key',
+      [
+        { id: 't1', x: 9, y: 20 },
+        { id: 't2', x: 9, y: 20 },
+      ],
+      // 선택이 바뀌면 새 단계
+      { gestureId: expect.not.stringMatching(gestures[0].gestureId) },
+    );
+  });
+
+  it('옛 종류 방향키와 섞이면 같은 거리·같은 되돌리기 단계로 옮긴다', () => {
+    useDocumentSelectionStore.getState().select('4key', 't1');
+    act(() => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'ArrowRight',
+        shiftKey: true,
+        cancelable: true,
+      });
+      event.preventDefault();
+      markGridKeyHandled(event, 'legacy-arrow');
+      window.dispatchEvent(event);
+    });
+    expect(mocks.move).toHaveBeenLastCalledWith(
+      '4key',
+      [{ id: 't1', x: 11, y: 20 }],
+      { gestureId: 'legacy-arrow' },
+    );
   });
 
   it('Cmd+C는 고른 트리 요소를 복사하고 Cmd+V는 트리 클립보드가 있을 때만 지금 탭에 붙인다', () => {

@@ -38,10 +38,12 @@ describe('섞인 선택 끌기의 트리 요소 영수증', () => {
       x: 17,
       y: 17,
     });
-    await receipt.commit();
-    expect(mocks.move).toHaveBeenCalledWith('4key', [
-      { id: 't1', x: 17, y: 17 },
-    ]);
+    await receipt.commit('drag-gesture');
+    expect(mocks.move).toHaveBeenCalledWith(
+      '4key',
+      [{ id: 't1', x: 17, y: 17 }],
+      { gestureId: 'drag-gesture' },
+    );
     expect(useDocumentFramePreviewStore.getState().frames.t1).toBeUndefined();
   });
 
