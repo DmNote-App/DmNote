@@ -52,6 +52,15 @@ const mocks = vi.hoisted(() => ({
   ),
 }));
 
+// 패널은 담당 키 후보·지금 값을 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
+vi.mock(
+  '@src/renderer/editor/document/elementDocumentRuntime',
+  async (importOriginal) =>
+    (
+      await import('@src/renderer/__tests__/treeFromLegacyStores')
+    ).treeFromStores(importOriginal as never),
+);
+
 // 요소 상자(위치·크기)는 resizeSprite op 경로 - 커밋 인자만 검증한다
 vi.mock(
   '@src/renderer/editor/runtime/operations/elementOps',

@@ -2,11 +2,11 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { sendTreeEditedFrame } from '@src/renderer/editor/runtime/operations/editorSemanticOps';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
-import { resolveElementById } from '@src/renderer/editor/model/elementIdMap';
+import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { treeModeArrays } from '@src/renderer/elementKinds/runtime/treeModeArrays';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { commitSingleElementBoundsById } from '@src/renderer/editor/runtime/operations/elementOps';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useSpriteStore } from '@stores/data/useSpriteStore';
 import { spriteItemsApi } from '@api/modules/editor/itemsApi';
 import { clamp } from '@utils/number/clamp';
 import { stableStringify } from '@utils/core/stableStringify';
@@ -207,10 +207,9 @@ export const SingleSpritePanel: React.FC<SingleSpritePanelProps> = ({
   t,
 }) => {
   const position = singleSpritePosition;
-  const keyMappings = useKeyStore((state) => state.keyMappings);
-  const canonicalKeyPositions = useKeyStore(
-    (state) => state.canonicalPositions,
-  );
+  // 담당 키 후보·지금 값은 트리에서 (슬롯 바꾸기·크기 조절이 트리 낙관 적용)
+  const scene = useElementDocumentScene(selectedKeyType);
+  const sceneKeys = treeModeArrays(scene);
   const loadingImageRef = useRef(false);
 
   // 편집 팝업 앵커 - 여는 순간의 행·버튼(또는 웰)을 담는다
@@ -258,12 +257,12 @@ export const SingleSpritePanel: React.FC<SingleSpritePanelProps> = ({
   // 판정은 합성 prop이 아니라 스토어 기준 - 활성 스크럽 프리뷰가 prop의 poses를
   // 덮어도 착지 감지가 빗나가지 않는다. undo 복원은 왕복 오차로 불일치할 수 있어
   // 건드리지 않는다
-  const storePosition = useSpriteStore(
-    (state: { positions: Record<string, ReactiveSpritePosition[]> }) =>
-      state.positions[selectedKeyType]?.find(
-        (candidate) => candidate.id === position.id,
-      ) ?? null,
-  );
+  const storePosition =
+    (scene &&
+      (currentTreePosition(selectedKeyType, position.id) as unknown as
+        | ReactiveSpritePosition
+        | undefined)) ??
+    null;
   const canonicalPosition = storePosition ?? position;
   const [lastPositionSnapshot, setLastPositionSnapshot] =
     useState(canonicalPosition);
@@ -391,15 +390,12 @@ export const SingleSpritePanel: React.FC<SingleSpritePanelProps> = ({
   }, [resizeGestureCancel]);
 
   // 담당 키 후보: 현재 모드의 키 요소 목록 (값은 요소 id, 라벨은 슬롯 표시명)
-  const modeSlots = keyMappings[selectedKeyType] ?? [];
-  const keyOptions = (canonicalKeyPositions[selectedKeyType] ?? []).flatMap(
-    (keyPosition, index) => {
-      if (!keyPosition.id) return [];
-      const label =
-        slotDisplayName(modeSlots[index] ?? '') || `Key ${index + 1}`;
-      return [{ id: keyPosition.id, label }];
-    },
-  );
+  const keyOptions = sceneKeys.keyPositions.flatMap((keyPosition, index) => {
+    if (!keyPosition.id) return [];
+    const label =
+      slotDisplayName(sceneKeys.keySlots[index] ?? '') || `Key ${index + 1}`;
+    return [{ id: keyPosition.id, label }];
+  });
   const displayPoses =
     posesDraft && posesDraft.id === position.id
       ? posesDraft.poses
@@ -554,11 +550,14 @@ export const SingleSpritePanel: React.FC<SingleSpritePanelProps> = ({
   // 스크럽·타이핑 실시간 프리뷰 (spritePosition 도메인)
   const previewFields = (patch: Record<string, unknown>) => {
     if (!isNativeElementId(position.id)) return;
-    const locator = resolveElementById('sprite', position.id);
-    if (!locator) return;
-    editGestureController.preview(locator.mode, [{ id: position.id, patch }], {
-      domain: 'spritePosition',
-    });
+    if (!currentTreePosition(selectedKeyType, position.id)) return;
+    editGestureController.preview(
+      selectedKeyType,
+      [{ id: position.id, patch }],
+      {
+        domain: 'spritePosition',
+      },
+    );
   };
 
   // 요소 상자(위치·크기)는 resizeSprite op - 크기가 바뀌면 자세 이동값이 비례한다.

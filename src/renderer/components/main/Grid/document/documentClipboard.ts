@@ -11,7 +11,7 @@ import { editDocument } from './documentEditActions';
 import { documentGroupNames, documentGroupRoots } from './documentGroups';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
-import { useKeyStore } from '@stores/data/useKeyStore';
+import { treeModeArrays } from '@src/renderer/elementKinds/runtime/treeModeArrays';
 import { takePastedKeyIds } from '@stores/grid/pastedKeyIds';
 import type { SpritePose } from '@src/types/key/sprites';
 import {
@@ -198,11 +198,11 @@ export const copyDocumentSelection = ({
   visit(scene.nodes);
   if (picked.length === 0) return false;
   if (!keepLegacyClipboard) useGridSelectionStore.getState().clearClipboard();
-  // 스프라이트 트리거가 가리키는 키를 canonical로 얼린다 (옛 복사와 같다)
-  const { keyMappings, canonicalPositions } = useKeyStore.getState();
+  // 스프라이트 트리거가 가리키는 키를 canonical로 얼린다 (옛 복사와 같다) - 키 슬롯은 트리에서
+  const sourceKeys = treeModeArrays(scene);
   const sourceKeyCanonicals = buildSpriteKeyCanonicalMap(
-    keyMappings[sceneId!] ?? [],
-    canonicalPositions[sceneId!] ?? [],
+    sourceKeys.keySlots,
+    sourceKeys.keyPositions,
   );
   const triggerCanonicals = Object.fromEntries(
     elementsOf(picked).flatMap((node) => {
@@ -233,8 +233,10 @@ export const pasteDocumentClipboard = async (
   // 함께 붙인 옛 붙여넣기 - 사본 키 id와 같은 동작 id(되돌리기 한 번)
   const legacyPaste = keepOther ? takePastedKeyIds() : null;
   const pastedIds = new Map([...(legacyPaste?.keyIds ?? []), ...idMap]);
-  // 다른 탭이면 그 탭의 같은 키
-  const { keyMappings, canonicalPositions } = useKeyStore.getState();
+  // 다른 탭이면 그 탭의 같은 키 - 키 슬롯은 트리에서
+  const targetKeys = treeModeArrays(
+    getElementDocumentStore()?.getScene(sceneId),
+  );
   const nodes = pastedSpriteNodes(
     copied,
     pastedIds,
@@ -242,8 +244,8 @@ export const pasteDocumentClipboard = async (
       ? {
           triggerCanonicals: source.triggerCanonicals,
           targetKeyIdsByCanonical: keyIdsByCanonical(
-            keyMappings[sceneId] ?? [],
-            canonicalPositions[sceneId] ?? [],
+            targetKeys.keySlots,
+            targetKeys.keyPositions,
           ),
         }
       : null,
