@@ -26,8 +26,6 @@ import { deleteFrozenSelection } from '@src/renderer/editor/runtime/intent/delet
 import { ElementIntentAbort } from '@src/renderer/editor/runtime/intent/elementIntent';
 
 const mocks = vi.hoisted(() => ({
-  // 트리로 옮긴 옛 종류 몫(노브) - 플러그인 섞인 지우기가 먼저 트리로 보낸다
-  sendTreeEditedOps: vi.fn((ops: readonly unknown[]) => ops),
   commitGeneratedSemanticOps: vi.fn(
     (
       _generate: (base: unknown) => unknown,
@@ -80,7 +78,6 @@ vi.mock(
 
 vi.mock('@src/renderer/editor/runtime/operations/editorSemanticOps', () => ({
   commitGeneratedSemanticOps: mocks.commitGeneratedSemanticOps,
-  sendTreeEditedOps: mocks.sendTreeEditedOps,
 }));
 
 vi.mock('@src/renderer/editor/runtime/intent/mixedElementIntent', () => ({
@@ -299,10 +296,6 @@ describe('useGridSelection compound history gesture', () => {
       ops: readonly unknown[];
     };
     expect(intentOptions.gestureId).toBe(gestureId);
-    expect(mocks.sendTreeEditedOps).toHaveBeenCalledWith(
-      [{ kind: 'deleteElement', elementType: 'key', id: STABLE_KEY_ID }],
-      gestureId,
-    );
     expect(intentOptions.pluginIds).toEqual(['plugin-a']);
     expect(intentOptions.deletedPluginFullIds).toEqual(['plugin-a:element']);
     expect(intentOptions.ops).toEqual([

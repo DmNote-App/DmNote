@@ -8,7 +8,6 @@ import {
   cancelUncommittedMixedGestureTransaction,
 } from '@plugins/runtime/displayElement/gestureTransaction';
 import { isNativeElementId } from '../../model/elementId';
-import { sendTreeEditedOps } from '../operations/editorSemanticOps';
 import { unloadedPluginGroupMembers } from './pluginGroupMembers';
 import {
   ElementIntentAbort,
@@ -71,7 +70,7 @@ export const deleteFrozenSelection = async (
 
   // 동기 프레임 내 authority 세대 재검증은 중복 - 실제 보호는 await 경계 assert가 수행
   const gestureId = options.gestureId ?? crypto.randomUUID();
-  let stableTargets: Array<{ type: NativeType; id: string }> = [];
+  const stableTargets: Array<{ type: NativeType; id: string }> = [];
   const seenNativeIds = new Set<string>();
   for (const element of selectedElements) {
     if (element.type === 'plugin') continue;
@@ -86,22 +85,6 @@ export const deleteFrozenSelection = async (
   const pluginFullIds = selectedElements
     .filter((element) => element.type === 'plugin')
     .map((element) => element.id);
-  // 플러그인 섞인 거래는 트리로 보내지 못한다 - 트리로 옮긴 옛 종류는 먼저 트리에서 지운다 (낙관 반영)
-  if (pluginFullIds.length > 0) {
-    const remaining = new Set(
-      sendTreeEditedOps(
-        stableTargets.map(
-          ({ type, id }): EditorOpV1 => ({
-            kind: 'deleteElement',
-            elementType: type,
-            id,
-          }),
-        ),
-        gestureId,
-      ).map((op) => ('id' in op ? op.id : null)),
-    );
-    stableTargets = stableTargets.filter(({ id }) => remaining.has(id));
-  }
   // eager 제거 전 스토어의 전체 fullId - 정산 시점 projection에 이 집합에
   // 없는 fullId가 보이면 재주입(undo·재로드)으로 신원이 갈린 것이다
   const sealedKnownFullIds = new Set(

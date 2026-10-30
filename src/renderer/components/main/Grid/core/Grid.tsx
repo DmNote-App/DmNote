@@ -64,7 +64,10 @@ import { useSpritePoseHandleStore } from '@stores/grid/useSpritePoseHandleStore'
 import { getGridViewportLayerStyles } from '@utils/grid/gridViewportStyles';
 import KeyCounterPreviewLayer from '../layers/KeyCounterPreviewLayer';
 import StatCounterLayer from '../layers/StatCounterLayer';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import {
+  useGridSelectionStore,
+  type SelectedElement,
+} from '@stores/grid/useGridSelectionStore';
 import { openPropertiesPanelForSelection } from '@stores/grid/usePanelHostStore';
 import { useUIStore } from '@stores/useUIStore';
 import { useSmartGuidesStore } from '@stores/grid/useSmartGuidesStore';
@@ -562,12 +565,13 @@ const Grid = ({
     setDuplicateCursor(null);
   };
 
-  // 섞인 메뉴의 맨 앞·맨 뒤 - 트리 요소와 같은 동작 id (되돌리기 한 번)
+  // 섞인 메뉴의 맨 앞·맨 뒤 - 트리로 옮긴 옛 종류도 옛 계획에 함께 넣는다(옛 그룹을 넘는 전체 순서).
+  // 트리에만 있는 종류와는 같은 동작 id (되돌리기 한 번)
   const moveSelectedTo = async (
     action: 'front' | 'back',
+    elements: readonly SelectedElement[],
     gestureId: string,
   ) => {
-    const elements = selectedElements;
     if (elements.length === 0) return;
 
     if (
@@ -1098,11 +1102,6 @@ const Grid = ({
           }
           onSelect={async (id: string) => {
             if (contextType === 'mixed') {
-              const documentSelection = useDocumentSelectionStore.getState();
-              const documentIds =
-                documentSelection.sceneId === selectedKeyType
-                  ? documentSelection.selectedIds
-                  : [];
               if (id === 'delete') {
                 // 지울 대상(트리 요소 포함)을 읽은 뒤 트리 선택을 비운다
                 const deleting = deleteSelectedElements();
@@ -1121,18 +1120,18 @@ const Grid = ({
                   });
                 }
               } else if (id === 'bringToFront' || id === 'sendToBack') {
-                // 트리 요소(노브 포함)는 트리에서 옮겨 바로 보인다
                 const action = id === 'bringToFront' ? 'front' : 'back';
                 const gestureId = crypto.randomUUID();
-                if (documentIds.length > 0) {
+                const treeOnlyIds = treeOnlySelectedIds(selectedKeyType);
+                if (treeOnlyIds.length > 0) {
                   void moveDocumentElementTo(
                     selectedKeyType,
-                    [...documentIds],
+                    treeOnlyIds,
                     action,
                     { gestureId },
                   );
                 }
-                await moveSelectedTo(action, gestureId);
+                await moveSelectedTo(action, combinedSelection(), gestureId);
               } else if (id === 'groupSelected') {
                 await groupSelectedElements(
                   selectedKeyType,
