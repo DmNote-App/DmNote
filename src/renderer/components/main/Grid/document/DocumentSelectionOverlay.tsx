@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import {
   getElementDocumentStore,
@@ -14,7 +14,8 @@ import { useSettingsStore } from '@stores/useSettingsStore';
 import CanvasRotateHandle from '../handles/CanvasRotateHandle';
 import ResizeHandles from '../handles/ResizeHandles';
 import { SELECTION_BORDER_WIDTH } from '../handles/selectionOutline';
-import { setDocumentFrame } from './documentEditActions';
+import { editDocument, setDocumentFrame } from './documentEditActions';
+import { scaleDocumentFrames } from './documentGroupResize';
 import { startDocumentRotation } from './documentRotation';
 import {
   documentSelectionFrame,
@@ -204,6 +205,125 @@ const DocumentGroupRotateHandle = ({
   );
 };
 
+/** 여러 트리 요소의 묶음 크기 조절 - 회전 없는 요소만 고른 경우 (옛 종류도 회전 섞인 선택은 닫는다) */
+const DocumentGroupResizeHandles = ({
+  sceneId,
+  ids,
+  zoom,
+  panX,
+  panY,
+}: DocumentSelectionOverlayProps & { ids: readonly string[] }) => {
+  useElementDocumentScene(sceneId);
+  const [preview, setPreview] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const store = getElementDocumentStore();
+  const entries = ids.flatMap((id) => {
+    const element = store?.getElement(sceneId, id);
+    return element ? [{ id, frame: element.frame }] : [];
+  });
+  const selection = documentSelectionFrame(entries);
+  if (
+    !selection ||
+    entries.length < 2 ||
+    entries.some(({ frame }) => frame.rotation !== 0)
+  ) {
+    return null;
+  }
+  const from = selection.bounds;
+  return (
+    <ResizeHandles
+      bounds={from}
+      previewBounds={preview}
+      zoom={zoom}
+      panX={panX}
+      panY={panY}
+      elementId="document-group"
+      rotation={0}
+      // 비율을 지키는 요소가 하나라도 있으면 묶음도 비율을 지킨다
+      lockAspect={ids.some((id) => {
+        const element = store?.getElement(sceneId, id);
+        return (
+          !!element &&
+          (elementKindDefinition(element.kind)?.lockAspect?.(
+            (element.values ?? {}) as never,
+          ) ??
+            false)
+        );
+      })}
+      onResize={(result) => {
+        // 옛 종류 묶음 크기 조절과 같은 맞추기 - 다른 요소 가장자리·간격·크기 일치
+        const settings = useSettingsStore.getState().gridSettings;
+        const alignment = settings?.alignmentGuides !== false;
+        const plan = calculateResizePreviewPlan({
+          elementId: 'document-group',
+          newBounds: result,
+          otherElements:
+            !result.suppressSmartSnap && alignment
+              ? getOtherElementBounds([...ids])
+              : undefined,
+          settings: {
+            alignmentGuidesEnabled: alignment,
+            spacingGuidesEnabled: settings?.spacingGuides !== false,
+            sizeMatchGuidesEnabled: settings?.sizeMatchGuides !== false,
+            gridSnapSize: settings?.gridSnapSize ?? 5,
+          },
+          policy: 'native',
+        });
+        const guides = useSmartGuidesStore.getState();
+        if (plan.guideUpdate.kind === 'clear') {
+          guides.clearGuides();
+        } else if (plan.guideUpdate.kind === 'set') {
+          guides.setDraggedBounds(plan.guideUpdate.draggedBounds);
+          guides.setActiveGuides(plan.guideUpdate.activeGuides);
+          guides.setSpacingGuides(plan.guideUpdate.spacingGuides);
+          guides.setSizeMatchGuides(plan.guideUpdate.sizeMatchGuides);
+        }
+        setPreview(plan.bounds);
+        const frames = useDocumentFramePreviewStore.getState();
+        for (const { id, frame } of scaleDocumentFrames(
+          entries,
+          from,
+          plan.bounds,
+        )) {
+          frames.set(id, frame);
+        }
+      }}
+      onResizeEnd={() => {
+        useSmartGuidesStore.getState().clearGuides();
+        setPreview(null);
+        const frames = useDocumentFramePreviewStore.getState().frames;
+        const ops = entries.flatMap(({ id }) =>
+          frames[id]
+            ? [
+                {
+                  op: 'setFrame' as const,
+                  scene: sceneId,
+                  id,
+                  frame: {
+                    x: frames[id].x,
+                    y: frames[id].y,
+                    width: frames[id].width,
+                    height: frames[id].height,
+                  },
+                },
+              ]
+            : [],
+        );
+        const clear = () => {
+          const preview = useDocumentFramePreviewStore.getState();
+          for (const { id } of entries) preview.clear(id);
+        };
+        if (ops.length === 0) return;
+        void editDocument(ops).finally(clear);
+      }}
+    />
+  );
+};
+
 /** 트리 요소 선택 윤곽과 크기 조절·회전 핸들 - 옛 종류 선택과 같은 모양 */
 const DocumentSelectionOverlay = (props: DocumentSelectionOverlayProps) => {
   const ids = useDocumentSelectionStore((state) =>
@@ -224,7 +344,10 @@ const DocumentSelectionOverlay = (props: DocumentSelectionOverlayProps) => {
         />
       ))}
       {ids.length > 1 && !mixed && (
-        <DocumentGroupRotateHandle {...props} ids={ids} />
+        <>
+          <DocumentGroupResizeHandles {...props} ids={ids} />
+          <DocumentGroupRotateHandle {...props} ids={ids} />
+        </>
       )}
     </>
   );
