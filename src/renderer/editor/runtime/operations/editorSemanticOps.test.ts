@@ -33,7 +33,6 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 import { enqueueEditorCompatibilityWrite } from '../lifecycle/editorCompatibilityQueue';
 import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import { composePreviewPositions } from '../gesture/previewOverlay';
-import { clearPendingTreeEdits } from '../gesture/pendingTreeEdits';
 import {
   commitGeneratedSemanticOps,
   commitSemanticOps,
@@ -275,7 +274,6 @@ describe('트리로 옮긴 종류의 겉모습 칸', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    clearPendingTreeEdits();
     revision = 0;
     listeners = [];
     useKnobItemStore.setState({ positions: { '4key': [legacyKnob] } as never });
@@ -292,7 +290,7 @@ describe('트리로 옮긴 종류의 겉모습 칸', () => {
     };
   });
 
-  it('트리 연산으로 보내고, 옛 스토어 대신 대기 편집이 확인 전까지 보여 주고, 반영된 뒤 끝난다', async () => {
+  it('트리 연산으로 보내고(트리 스토어가 낙관 적용) 옛 스토어는 건드리지 않고, 트리가 반영한 뒤 끝난다', async () => {
     let done = false;
     const commit = commitSemanticOps([patchOp] as never).then(() => {
       done = true;
@@ -303,15 +301,13 @@ describe('트리로 옮긴 종류의 겉모습 칸', () => {
     ]);
     expect(api.commitSemanticOpsInternal).not.toHaveBeenCalled();
     expect(useKnobItemStore.getState().positions['4key'][0]).toBe(legacyKnob);
-    expect(shown().sensitivity).toBe(2);
     await vi.waitFor(() => expect(listeners).toHaveLength(1));
     expect(done).toBe(false);
 
-    // 트리 스토어가 그 revision을 받고 코디네이터가 이벤트를 반영하면 내리고 끝난다
+    // 이 창의 트리 스토어가 그 revision을 받으면 끝난다
     revision = 1;
     listeners.forEach((listener) => listener());
     await commit;
-    expect(api.whenEventsApplied).toHaveBeenCalled();
     expect(shown().sensitivity).toBe(1);
   });
 
@@ -331,7 +327,7 @@ describe('트리로 옮긴 종류의 겉모습 칸', () => {
     expect(shown().sensitivity).toBe(1);
   });
 
-  it('숨김·이름·회전도 트리로 가면 먼저 쓰기에서 빼고 대기 편집으로 보여 준다', () => {
+  it('숨김·이름·회전도 트리로 가면 옛 스토어 먼저 쓰기에서 뺀다', () => {
     const hideOp = {
       ...patchOp,
       patch: { property: 'hidden', value: true },
@@ -346,9 +342,6 @@ describe('트리로 옮긴 종류의 겉모습 칸', () => {
     expect(tree.store!.edit.mock.calls[0][0]).toEqual([
       { op: 'setCommon', scene: '4key', id: KNOB, hidden: true },
     ]);
-    expect((shown() as typeof legacyKnob & { hidden?: boolean }).hidden).toBe(
-      true,
-    );
   });
 
   it('트리에 자리가 없는 옛 칸이 섞이면 옛 경로로, 먼저 쓰기도 걸러내지 않는다', async () => {
@@ -381,15 +374,12 @@ describe('트리로 옮긴 종류의 겉모습 칸', () => {
     ).toBe(0);
   });
 
-  it('트리 변경 이벤트를 놓쳐도 시한이 지나면 내리고 끝난다', async () => {
+  it('트리 변경 이벤트를 놓쳐도 시한이 지나면 끝난다', async () => {
     vi.useFakeTimers();
     try {
       const commit = commitSemanticOps([patchOp] as never);
-      await vi.advanceTimersByTimeAsync(0);
-      expect(shown().sensitivity).toBe(2);
       await vi.advanceTimersByTimeAsync(3000);
       await commit;
-      expect(shown().sensitivity).toBe(1);
       expect(listeners).toHaveLength(0);
     } finally {
       vi.useRealTimers();
@@ -401,7 +391,6 @@ describe('요소 하나의 옛 칸 패치를 트리로', () => {
   const SPRITE = '00000000-0000-4000-8000-0000000000s1';
   beforeEach(() => {
     vi.clearAllMocks();
-    clearPendingTreeEdits();
     tree.store = {
       getElement: (_scene, id) =>
         id === SPRITE

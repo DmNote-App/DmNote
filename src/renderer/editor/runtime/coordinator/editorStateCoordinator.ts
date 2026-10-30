@@ -16,11 +16,6 @@ import { stableStringify } from '@utils/core/stableStringify';
 import { createEditorCoordinator } from './editorCoordinator';
 import { markGestureSessionsDiscarded } from '../gesture/gestureSessionLifecycle';
 import { previewOverlay } from '../gesture/previewOverlay';
-import {
-  composePendingTreeEdits,
-  hasPendingTreeEdits,
-} from '../gesture/pendingTreeEdits';
-import { PREVIEW_DOMAIN_BY_ELEMENT_TYPE } from '@src/types/preview';
 
 import {
   captureElementCollections,
@@ -34,7 +29,6 @@ import type {
 import {
   assertCanonicalEditorDocument,
   EDITOR_ELEMENT_POSITION_FIELDS,
-  EDITOR_ELEMENT_TYPES,
   ITEM_ELEMENT_TYPES,
 } from '@src/types/editor';
 
@@ -102,21 +96,9 @@ export const captureEditorDocument = (): CanonicalEditorDocumentV1 => {
   };
 };
 
-/** 읽기 보기 - canonical에 대기 중인 트리 편집을 얹은 문서(미리보기 제외).
- * 지금 값에서 다음 값을 계산하는 곳(미리보기 투영 등)이 쓴다. 커밋 바탕은 captureEditorDocument */
-export const captureEditorView = (): CanonicalEditorDocumentV1 => {
-  const document = captureEditorDocument();
-  if (!hasPendingTreeEdits()) return document;
-  const view = { ...document } as Record<string, unknown>;
-  for (const type of EDITOR_ELEMENT_TYPES) {
-    const field = EDITOR_ELEMENT_POSITION_FIELDS[type];
-    view[field] = composePendingTreeEdits(
-      PREVIEW_DOMAIN_BY_ELEMENT_TYPE[type],
-      document[field] as unknown as Record<string, { id: string }[]>,
-    );
-  }
-  return view as unknown as CanonicalEditorDocumentV1;
-};
+/** 읽기 보기 - 옛 문서(미리보기 제외). 커밋 바탕은 captureEditorDocument */
+export const captureEditorView = (): CanonicalEditorDocumentV1 =>
+  captureEditorDocument();
 
 export const applyEditorDocument = (
   document: CanonicalEditorDocumentV1,
