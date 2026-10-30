@@ -15,6 +15,7 @@ import { useKnobItemStore } from '@stores/data/useKnobItemStore';
 import { useLayerGroupStore } from '@stores/data/useLayerGroupStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@components/main/Grid/document/useDocumentSelectionStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
@@ -25,6 +26,29 @@ vi.mock('@src/types/elementKinds', async (importOriginal) =>
     importOriginal,
   ),
 );
+
+// 그룹째 고르기는 장면 트리의 가장 바깥 그룹 - 트리 문서를 목으로
+const tree = vi.hoisted(() => ({ scene: null as unknown }));
+vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => {
+  const find = (nodes: Array<Record<string, unknown>>, id: string): unknown => {
+    for (const node of nodes) {
+      if (node.id === id) return node;
+      if (Array.isArray(node.children)) {
+        const inner = find(node.children as never, id);
+        if (inner) return inner;
+      }
+    }
+    return undefined;
+  };
+  return {
+    getElementDocumentStore: () => ({
+      getScene: () => tree.scene,
+      getElement: (_scene: string, id: string) =>
+        find((tree.scene as { nodes: never }).nodes, id),
+    }),
+    useElementDocumentScene: () => tree.scene,
+  };
+});
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -76,6 +100,28 @@ const seedStores = (options: {
     lastSelectedKeyBounds: null,
   });
   usePropertiesPanelStore.setState({ isCanvasPanelOpen: false });
+  const frame = { x: 0, y: 0, width: 10, height: 10, rotation: 0 };
+  const keyNode = { type: 'element', id: KEY_ID, kind: 'key', frame };
+  const pluginNode = {
+    type: 'element',
+    id: PLUGIN_FULL_ID,
+    kind: 'plugin:plugin-a',
+    frame,
+  };
+  tree.scene = {
+    nodes:
+      options.pluginGroupId && options.groupDefExists !== false
+        ? [
+            {
+              type: 'group',
+              id: GROUP_ID,
+              name: 'Group',
+              legacy: {},
+              children: [keyNode, pluginNode],
+            },
+          ]
+        : [keyNode, pluginNode],
+  };
 };
 
 let container: HTMLDivElement;
@@ -131,10 +177,11 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
 
     fireMouse(node, 'click');
 
+    // 플러그인 요소는 옛 선택, 키는 트리 선택
     expect(useGridSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: PLUGIN_FULL_ID },
-      { type: 'key', id: KEY_ID, index: 0 },
     ]);
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([KEY_ID]);
   });
 
   it('비그룹 플러그인 클릭은 단일 선택을 유지한다', () => {
@@ -148,7 +195,7 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
     ]);
   });
 
-  it('그룹 def가 없는 dangling groupId는 확장하지 않는다', () => {
+  it('그룹 노드가 없는 dangling groupId는 확장하지 않는다', () => {
     seedStores({ pluginGroupId: GROUP_ID, groupDefExists: false });
     const node = renderElement();
 
@@ -178,8 +225,8 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
 
     expect(useGridSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: PLUGIN_FULL_ID },
-      { type: 'key', id: KEY_ID, index: 0 },
     ]);
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([KEY_ID]);
     expect(usePropertiesPanelStore.getState().isCanvasPanelOpen).toBe(true);
   });
 });

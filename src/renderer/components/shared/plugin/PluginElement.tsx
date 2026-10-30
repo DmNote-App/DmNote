@@ -12,7 +12,6 @@ import { useSettingsStore } from '@stores/useSettingsStore';
 import {
   useGridSelectionStore,
   SelectedElement,
-  isElementInMarquee,
 } from '@stores/grid/useGridSelectionStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
@@ -25,7 +24,28 @@ import {
   beginPluginInstancesEditSession,
   endPluginInstancesEditSession,
 } from '@plugins/runtime/displayElement/instancesCommitQueue';
-import { expandGroupSelectionFromStores } from '@utils/grid/groupSelection';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { groupSelectionOf } from '../../main/Grid/document/documentGroups';
+import { documentRangeSelection } from '../../main/Grid/document/documentSelection';
+import { setStructureSelection } from '../../main/Grid/document/treeEditedSelection';
+
+// 그룹 멤버면 가장 바깥 그룹 전체 - 플러그인 요소는 옛 선택, 나머지는 트리 선택
+const selectGroupOf = (fullId: string) => {
+  const sceneId = useKeyStore.getState().selectedKeyType;
+  const store = getElementDocumentStore();
+  // 트리에 아직 없는 요소(만든 직후·스크립트 표시 요소)는 그 요소만
+  if (!store?.getElement(sceneId, fullId)) {
+    useGridSelectionStore
+      .getState()
+      .setSelectedElements([{ type: 'plugin', id: fullId }]);
+    return;
+  }
+  const { treeIds, plugins } = groupSelectionOf(
+    store.getScene(sceneId),
+    fullId,
+  );
+  setStructureSelection(sceneId, [...treeIds, ...plugins]);
+};
 import {
   buildPluginElementStyle,
   buildPluginOverlayHitStyle,
@@ -462,75 +482,25 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
         return;
       }
 
-      // 현재 클릭한 플러그인 요소의 bounds
-      const clickedBounds = {
-        x: element.position.x,
-        y: element.position.y,
-        width: element.measuredSize?.width || 100,
-        height: element.measuredSize?.height || 100,
-      };
-
-      // 두 요소 사이의 사각형 영역 계산
-      const minX = Math.min(lastBounds.x, clickedBounds.x);
-      const maxX = Math.max(
-        lastBounds.x + lastBounds.width,
-        clickedBounds.x + clickedBounds.width,
+      // 마지막으로 누른 요소 영역부터 이 요소까지 - 트리 요소와 플러그인 요소 (트리 요소 범위 선택과 같다)
+      const sceneId = useKeyStore.getState().selectedKeyType;
+      const { treeIds, plugins } = documentRangeSelection(
+        getElementDocumentStore()?.getScene(sceneId),
+        lastBounds,
+        {
+          x: element.position.x,
+          y: element.position.y,
+          width: element.measuredSize?.width || 100,
+          height: element.measuredSize?.height || 100,
+          rotation: 0,
+        },
+        usePluginDisplayElementStore.getState().elements,
+        sceneId,
       );
-      const minY = Math.min(lastBounds.y, clickedBounds.y);
-      const maxY = Math.max(
-        lastBounds.y + lastBounds.height,
-        clickedBounds.y + clickedBounds.height,
-      );
-
-      const rangeRect = {
-        left: minX,
-        top: minY,
-        width: maxX - minX,
-        height: maxY - minY,
-      };
-
-      // 범위 내 모든 요소 선택
-      const newSelectedElements: SelectedElement[] = [];
-      const { positions, selectedKeyType } = useKeyStore.getState();
-      const pluginElements = usePluginDisplayElementStore.getState().elements;
-
-      // 키 요소 체크
-      positions[selectedKeyType]?.forEach((pos, i) => {
-        const elementBounds = {
-          x: pos.dx,
-          y: pos.dy,
-          width: pos.width || 60,
-          height: pos.height || 60,
-        };
-        if (isElementInMarquee(elementBounds, rangeRect)) {
-          newSelectedElements.push({
-            type: 'key',
-            id: pos.id,
-            index: i,
-          });
-        }
-      });
-
-      // 플러그인 요소 체크
-      pluginElements.forEach((el) => {
-        const belongsToCurrentTab = !el.tabId || el.tabId === selectedKeyType;
-        if (belongsToCurrentTab && el.measuredSize) {
-          const elementBounds = {
-            x: el.position.x,
-            y: el.position.y,
-            width: el.measuredSize.width,
-            height: el.measuredSize.height,
-          };
-          if (isElementInMarquee(elementBounds, rangeRect)) {
-            newSelectedElements.push({
-              type: 'plugin',
-              id: el.fullId,
-            });
-          }
-        }
-      });
-
-      useGridSelectionStore.getState().setSelectedElements(newSelectedElements);
+      setStructureSelection(sceneId, [
+        ...treeIds,
+        ...plugins.map(({ id }) => id),
+      ]);
       return;
     }
 
@@ -545,15 +515,8 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
     const settingsUI = definition?.settingsUI ?? 'panel';
     if (windowType === 'main' && settingsUI !== 'modal') {
       e.stopPropagation();
-      // 그룹 멤버면 그룹 전체 선택 (native 클릭과 동일 의미론)
-      useGridSelectionStore
-        .getState()
-        .setSelectedElements(
-          expandGroupSelectionFromStores(
-            { type: 'plugin', id: element.fullId },
-            useKeyStore.getState().selectedKeyType,
-          ),
-        );
+      // 그룹 멤버면 가장 바깥 그룹 전체 선택 (트리 요소 클릭과 같다)
+      selectGroupOf(element.fullId);
       // 마지막 선택 요소 좌표 저장
       if (element.measuredSize) {
         useGridSelectionStore.getState().setLastSelectedKeyBounds({
@@ -600,15 +563,8 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
       currentSelection.length > 1 &&
       currentSelection.some((el) => el.id === element.fullId);
     if (!isMultiMember) {
-      // native 더블클릭과 동일하게 그룹 멤버 전체 선택 후 편집 진입
-      useGridSelectionStore
-        .getState()
-        .setSelectedElements(
-          expandGroupSelectionFromStores(
-            { type: 'plugin', id: element.fullId },
-            useKeyStore.getState().selectedKeyType,
-          ),
-        );
+      // 트리 요소 더블클릭과 같이 그룹 멤버 전체 선택 후 편집 진입
+      selectGroupOf(element.fullId);
     }
     openPropertiesPanelForSelection();
   };

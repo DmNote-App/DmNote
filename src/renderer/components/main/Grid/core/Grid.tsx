@@ -96,8 +96,6 @@ import {
 import { useDocumentContextMenuStore } from '../document/useDocumentContextMenuStore';
 import DocumentGridLayer from '../document/DocumentGridLayer';
 import DocumentSelectionOverlay from '../document/DocumentSelectionOverlay';
-import MixedSelectionResizeHandles from '../document/MixedSelectionResizeHandles';
-import MixedSelectionRotateHandle from '../document/MixedSelectionRotateHandle';
 import { documentKindForAddMenuItem } from '../document/documentAddMenu';
 import { insertDocumentElement } from '../document/documentEditActions';
 import { useDocumentKeyboard } from '../document/useDocumentKeyboard';
@@ -914,23 +912,6 @@ const Grid = ({
         panX={panX}
         panY={panY}
       />
-      {/* 온캔버스 그라데이션·자세 편집 중에는 그 핸들이 맡는다 */}
-      {!hasGradientEditSession && !hasSpritePoseSession && (
-        <>
-          <MixedSelectionResizeHandles
-            sceneId={selectedKeyType}
-            zoom={zoom}
-            panX={panX}
-            panY={panY}
-          />
-          <MixedSelectionRotateHandle
-            sceneId={selectedKeyType}
-            zoom={zoom}
-            panX={panX}
-            panY={panY}
-          />
-        </>
-      )}
       <DocumentContextMenu />
       {/* 우클릭 리스트 팝업 */}
       <div className="relative">
