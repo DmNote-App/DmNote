@@ -195,7 +195,7 @@ fn write_store_snapshot(path: &Path, revision: u64, state: &AppStoreData) -> Res
 pub(crate) fn serialize_store(state: &AppStoreData) -> Result<String> {
     use serde_json::{to_value, Map, Value};
 
-    let mut root = to_value(state)?;
+    let mut root = crate::models::serialize_without_legacy_fields(|| to_value(state))?;
     if let Value::Object(ref mut obj) = root {
         let reorder = |value: &mut Value| {
             if let Value::Object(current) = value {
@@ -219,22 +219,10 @@ pub(crate) fn serialize_store(state: &AppStoreData) -> Result<String> {
             }
         };
 
-        for field in [
-            "keys",
-            "keyPositions",
-            "statPositions",
-            "graphPositions",
-            "knobPositions",
-            "keyCounters",
-        ] {
-            if let Some(value) = obj.get_mut(field) {
-                reorder(value);
-            }
+        if let Some(value) = obj.get_mut("keyCounters") {
+            reorder(value);
         }
-        // 저장 원본은 트리 하나 - 옛 종류 칸은 읽을 때 트리에서 다시 만든다
-        for field in super::element_tree::LEGACY_ELEMENT_FIELDS {
-            obj.remove(field);
-        }
+        // 저장 원본은 트리 하나 - 옛 종류 칸은 싣지 않고(위 직렬화가 건너뛴다) 읽을 때 트리에서 다시 만든다
         obj.insert(
             super::element_tree::ELEMENT_DOCUMENT_FIELD.to_string(),
             to_value(super::element_tree::compact_document(

@@ -834,8 +834,30 @@ impl<'de> Deserialize<'de> for ElementDocumentCell {
     }
 }
 
+thread_local! {
+    // 저장 파일 쓰기 중 - 옛 종류 칸은 만들지 않는다 (저장 원본은 트리 하나)
+    static SKIP_LEGACY_FIELDS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// 옛 종류 칸 없이 직렬화 - 저장 파일은 트리만 싣는다(옛 모양 투영·값 만들기를 건너뛴다)
+pub(crate) fn serialize_without_legacy_fields<R>(serialize: impl FnOnce() -> R) -> R {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            SKIP_LEGACY_FIELDS.with(|flag| flag.set(self.0));
+        }
+    }
+    let _restore = Restore(SKIP_LEGACY_FIELDS.with(|flag| flag.replace(true)));
+    serialize()
+}
+
 impl Serialize for ElementDocumentCell {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        struct Empty {}
+        if SKIP_LEGACY_FIELDS.with(std::cell::Cell::get) {
+            return Empty {}.serialize(serializer);
+        }
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
         struct Wire<'a> {

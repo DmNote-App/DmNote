@@ -36,20 +36,29 @@ impl ElementDocumentPublication {
 }
 
 pub fn publish_event<T: Serialize>(app: &AppHandle, event: &str, payload: T) {
-    let value = match serde_json::to_value(payload) {
-        Ok(value) => value,
-        Err(error) => {
-            log::error!("[EventPublisher] {event} payload serialization failed: {error}");
-            return;
+    let obs_state = app
+        .try_state::<AppState>()
+        .filter(|state| state.obs_bridge.is_running());
+    match obs_state {
+        // OBS에도 보낼 때만 값으로 한 번 만들어 함께 쓴다
+        Some(state) => {
+            let value = match serde_json::to_value(payload) {
+                Ok(value) => value,
+                Err(error) => {
+                    log::error!("[EventPublisher] {event} payload serialization failed: {error}");
+                    return;
+                }
+            };
+            if let Err(error) = app.emit(event, &value) {
+                log::error!("[EventPublisher] Tauri emit failed for {event}: {error}");
+            }
+            state.obs_bridge.publish(event, value);
         }
-    };
-
-    if let Err(error) = app.emit(event, &value) {
-        log::error!("[EventPublisher] Tauri emit failed for {event}: {error}");
-    }
-
-    if let Some(state) = app.try_state::<AppState>() {
-        state.obs_bridge.publish(event, value);
+        None => {
+            if let Err(error) = app.emit(event, &payload) {
+                log::error!("[EventPublisher] Tauri emit failed for {event}: {error}");
+            }
+        }
     }
 
     // 옛 모양 경로의 커밋도 트리를 바꾸므로 어떤 발행 뒤에든 트리 변경을 따라 보낸다
