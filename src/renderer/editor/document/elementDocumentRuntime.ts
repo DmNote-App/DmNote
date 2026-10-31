@@ -11,7 +11,10 @@ import {
   type ElementDocumentStore,
 } from './elementDocumentStore';
 import { isTransientTreeWriteFailure } from './treeWriteFailure';
-import { registerHeldEditorWrites } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
+import {
+  registerCoalescedEditorWrites,
+  registerHeldEditorWrites,
+} from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
 
 let current: ElementDocumentStore | null = null;
 let loading: Promise<ElementDocumentStore> | null = null;
@@ -48,6 +51,7 @@ const create = async (): Promise<ElementDocumentStore> => {
     });
     // 보류가 없어도 차례를 탄다 - 이미 돌고 있는 다시 보내기(보류 목록은 시작하자마자 비운다)를 기다린다
     registerHeldEditorWrites(() => store.retryHeld!());
+    registerCoalescedEditorWrites(() => store.flushCoalesced!());
     return store;
   }
   const store = createMirrorDocumentStore(initial, transport);

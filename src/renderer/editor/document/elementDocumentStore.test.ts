@@ -561,3 +561,126 @@ describe('오버레이 요소 문서 스토어', () => {
     expect(store.getElement('4key', 'k1')?.frame.x).toBe(30);
   });
 });
+
+describe('이어 붙이는 편집', () => {
+  const committed = (revision: number) =>
+    Promise.resolve({
+      status: 'committed' as const,
+      revision,
+      changes: { scenes: {} },
+    });
+
+  it('같은 열쇠의 연산은 화면에 바로 얹고, 조용해진 뒤 커밋 하나로 보낸다 (같은 칸은 합친다)', async () => {
+    vi.useFakeTimers();
+    try {
+      const commit = vi.fn((_ops: Op[]) => committed(2));
+      const { store } = harness(commit);
+      const first = store.editCoalesced!(nudge('k1', 5), {
+        key: 'p',
+        quietMs: 200,
+      });
+      expect(store.getElement('4key', 'k1')?.frame.x).toBe(5);
+      const second = store.editCoalesced!(
+        [{ op: 'setFrame', scene: '4key', id: 'k1', frame: { y: 9 } }],
+        { key: 'p', quietMs: 200 },
+      );
+      expect(store.getElement('4key', 'k1')?.frame.y).toBe(9);
+      await vi.advanceTimersByTimeAsync(199);
+      expect(commit).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(commit).toHaveBeenCalledTimes(1);
+      expect(commit.mock.calls[0][0]).toEqual([
+        { op: 'setFrame', scene: '4key', id: 'k1', frame: { x: 5, y: 9 } },
+      ]);
+      expect(await first).toEqual(await second);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('다른 편집이 오면 이어 붙이던 편집을 바로 보내고 새 편집은 그 뒤에 보낸다', async () => {
+    vi.useFakeTimers();
+    try {
+      const commit = vi.fn((_ops: Op[]) => committed(2));
+      const { store } = harness(commit);
+      void store.editCoalesced!(nudge('k1', 5), { key: 'p', quietMs: 200 });
+      const later = store.edit!(nudge('k2', 3));
+      await later;
+      expect(commit.mock.calls.map(([ops]) => ops)).toEqual([
+        nudge('k1', 5),
+        nudge('k2', 3),
+      ]);
+      // 닫힌 편집에는 더 붙이지 않는다
+      void store.editCoalesced!(nudge('k1', 7), { key: 'p', quietMs: 200 });
+      await vi.advanceTimersByTimeAsync(200);
+      expect(commit).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('flushCoalesced는 조용해지길 기다리지 않고 지금 보낸다', async () => {
+    vi.useFakeTimers();
+    try {
+      const commit = vi.fn((_ops: Op[]) => committed(2));
+      const { store } = harness(commit);
+      const sent = store.editCoalesced!(nudge('k1', 5), {
+        key: 'p',
+        quietMs: 200,
+      });
+      store.flushCoalesced!();
+      await sent;
+      expect(commit).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('다른 열쇠나 다른 동작 id면 새 편집으로 시작한다', async () => {
+    vi.useFakeTimers();
+    try {
+      const commit = vi.fn((_ops: Op[]) => committed(2));
+      const { store } = harness(commit);
+      void store.editCoalesced!(nudge('k1', 5), { key: 'p', quietMs: 200 });
+      void store.editCoalesced!(nudge('k2', 5), { key: 'q', quietMs: 200 });
+      void store.editCoalesced!(nudge('k2', 6), {
+        key: 'q',
+        quietMs: 200,
+        gestureId: 'g',
+      });
+      await vi.advanceTimersByTimeAsync(200);
+      expect(commit.mock.calls.map(([ops]) => ops)).toEqual([
+        nudge('k1', 5),
+        nudge('k2', 5),
+        nudge('k2', 6),
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('거절되면 붙인 연산까지 모두 화면에서 빠진다', async () => {
+    vi.useFakeTimers();
+    try {
+      const { store } = harness(() =>
+        Promise.resolve({
+          status: 'rejected' as const,
+          revision: 1,
+          code: 'VIOLATION',
+          violations: [],
+        }),
+      );
+      const sent = store.editCoalesced!(nudge('k1', 5), {
+        key: 'p',
+        quietMs: 200,
+      });
+      void store.editCoalesced!(nudge('k2', 8), { key: 'p', quietMs: 200 });
+      await vi.advanceTimersByTimeAsync(200);
+      await sent;
+      expect(store.getElement('4key', 'k1')?.frame.x).toBe(0);
+      expect(store.getElement('4key', 'k2')?.frame.x).toBe(70);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

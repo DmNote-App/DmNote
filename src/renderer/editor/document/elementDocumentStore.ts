@@ -43,6 +43,13 @@ export interface ElementDocumentStore {
       after?: Promise<unknown>;
     },
   ) => Promise<ElementDocumentCommitResult>;
+  // 편집 창만 - 이어 붙이는 편집. 마지막 편집이 같은 열쇠·동작 id로 아직 나가지 않았으면 거기에 연산을 붙인다.
+  // 화면에는 바로 얹고, quietMs 동안 조용하거나 다른 편집·flushCoalesced가 오면 커밋 하나로 보낸다
+  editCoalesced?: (
+    ops: Op[],
+    options: { key: string; quietMs: number; gestureId?: string },
+  ) => Promise<ElementDocumentCommitResult>;
+  flushCoalesced?: () => void;
   // 편집 창만 - 일시 실패로 보류한 편집(화면에는 남는다). 다시 보내기는 보류한 차례대로
   getHeldCount?: () => number;
   subscribeHeld?: (listener: () => void) => () => void;
@@ -224,6 +231,52 @@ interface PendingEdit {
   acknowledged: number | null;
 }
 
+// 이어 붙이는 중인 편집 - 닫히면(release) 보낸다
+interface OpenCoalesced {
+  edit: PendingEdit;
+  key: string;
+  sent: Promise<ElementDocumentCommitResult>;
+  release: () => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+// 같은 요소의 고치기 연산이 이어지면 앞 연산에 합친다 (빠르게 이어지는 쓰기가 연산을 쌓지 않게)
+const appendOps = (ops: readonly Op[], next: readonly Op[]): Op[] => {
+  const merged = [...ops];
+  for (const op of next) {
+    const last = merged[merged.length - 1];
+    if (
+      last &&
+      last.op === op.op &&
+      'id' in last &&
+      'id' in op &&
+      last.scene === op.scene &&
+      last.id === op.id
+    ) {
+      if (last.op === 'setFrame' && op.op === 'setFrame') {
+        merged[merged.length - 1] = {
+          ...last,
+          frame: { ...last.frame, ...op.frame },
+        };
+        continue;
+      }
+      if (last.op === 'setValues' && op.op === 'setValues') {
+        merged[merged.length - 1] = {
+          ...last,
+          values: { ...last.values, ...op.values },
+        };
+        continue;
+      }
+      if (last.op === 'setCommon' && op.op === 'setCommon') {
+        merged[merged.length - 1] = { ...last, ...op };
+        continue;
+      }
+    }
+    merged.push(op);
+  }
+  return merged;
+};
+
 // 미확정 편집이 건드린 요소를 알림 모양으로
 const localChanges = (edits: readonly PendingEdit[]): ChangeSet => {
   const changes: ChangeSet = { scenes: {} };
@@ -278,6 +331,15 @@ export const createEditorDocumentStore = (
   const heldListeners = new Set<() => void>();
   const rejectedListeners = new Set<(failure: CommitFailure) => void>();
   let heldFailure: CommitFailure | null = null;
+  let open: OpenCoalesced | null = null;
+  // 이어 붙이기를 닫는다 - 더 붙이지 않고 지금 보낸다
+  const closeCoalesced = () => {
+    if (!open) return;
+    const { release, timer } = open;
+    open = null;
+    clearTimeout(timer);
+    release();
+  };
   const setHeld = (next: PendingEdit[], failure?: CommitFailure) => {
     held = next;
     if (failure) heldFailure = failure;
@@ -360,6 +422,8 @@ export const createEditorDocumentStore = (
     getElement: (sceneId, id) => readElement(view, sceneId, id),
     subscribe: (listener) => listeners.add(listener),
     edit: (ops, editOptions) => {
+      // 뒤에 온 편집 - 이어 붙이던 편집은 지금 보내 차례를 지킨다
+      closeCoalesced();
       const edit: PendingEdit = {
         ops,
         acknowledged: null,
@@ -382,6 +446,43 @@ export const createEditorDocumentStore = (
       queue = sent.catch(() => undefined);
       return sent;
     },
+    editCoalesced: (ops, { key, quietMs, gestureId }) => {
+      if (open && open.key === key && open.edit.gestureId === gestureId) {
+        const current = open;
+        current.edit.ops = appendOps(current.edit.ops, ops);
+        rebuild();
+        listeners.emit(localChanges([{ ...current.edit, ops }]));
+        clearTimeout(current.timer);
+        current.timer = setTimeout(closeCoalesced, quietMs);
+        return current.sent;
+      }
+      closeCoalesced();
+      const edit: PendingEdit = { ops, acknowledged: null, gestureId };
+      pending = [...pending, edit];
+      rebuild();
+      listeners.emit(localChanges([edit]));
+      let release!: () => void;
+      const quiet = new Promise<void>((resolve) => (release = resolve));
+      const sent = queue
+        .then(() => quiet)
+        .then(() => {
+          if (held.length > 0) {
+            setHeld([...held, edit]);
+            throw new ElementEditHeldError();
+          }
+          return send(edit);
+        });
+      queue = sent.catch(() => undefined);
+      open = {
+        edit,
+        key,
+        sent,
+        release,
+        timer: setTimeout(closeCoalesced, quietMs),
+      };
+      return sent;
+    },
+    flushCoalesced: closeCoalesced,
     getHeldCount: () => held.length,
     getHeldFailure: () => heldFailure,
     discardHeld: () => {

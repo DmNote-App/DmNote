@@ -4,6 +4,7 @@ import { enqueueEditorCompatibilityWrite } from './editorCompatibilityQueue';
 import {
   beginEditorWriteBarrier,
   flushHeldEditorWrites,
+  registerCoalescedEditorWrites,
   registerHeldEditorWrites,
   drainEditorWrites,
   trackEditorWrite,
@@ -102,5 +103,14 @@ describe('editor write barrier', () => {
     await expect(flushHeldEditorWrites()).resolves.toBe(false);
     expect(flush).toHaveBeenCalledOnce();
     registerHeldEditorWrites(null);
+  });
+
+  it('경계(대기·장벽)는 이어 붙이는 편집을 조용해지길 기다리지 않고 먼저 보낸다', async () => {
+    const flush = vi.fn();
+    registerCoalescedEditorWrites(flush);
+    await drainEditorWrites();
+    await beginEditorWriteBarrier()();
+    expect(flush).toHaveBeenCalledTimes(2);
+    registerCoalescedEditorWrites(null);
   });
 });

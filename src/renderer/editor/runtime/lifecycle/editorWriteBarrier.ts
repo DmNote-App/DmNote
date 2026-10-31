@@ -1,5 +1,11 @@
 const pendingWrites = new Set<Promise<boolean>>();
 const activeBarriers = new Set<Set<Promise<boolean>>>();
+// 이어 붙이는 트리 편집 - 트리 스토어가 등록한다. 경계에서는 조용해지길 기다리지 않고 지금 보낸다
+let coalescedWrites: (() => void) | null = null;
+
+export const registerCoalescedEditorWrites = (flush: (() => void) | null) => {
+  coalescedWrites = flush;
+};
 
 export const trackEditorWrite = <T>(write: Promise<T>): Promise<T> => {
   const tracked = write.then(
@@ -13,6 +19,7 @@ export const trackEditorWrite = <T>(write: Promise<T>): Promise<T> => {
 };
 
 export const drainEditorWrites = async (): Promise<boolean> => {
+  coalescedWrites?.();
   let succeeded = true;
   while (pendingWrites.size > 0) {
     const results = await Promise.all([...pendingWrites]);
@@ -22,6 +29,7 @@ export const drainEditorWrites = async (): Promise<boolean> => {
 };
 
 export const beginEditorWriteBarrier = () => {
+  coalescedWrites?.();
   const writes = new Set(pendingWrites);
   activeBarriers.add(writes);
 
