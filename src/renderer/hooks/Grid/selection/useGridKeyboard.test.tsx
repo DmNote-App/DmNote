@@ -51,12 +51,19 @@ vi.mock('@src/renderer/editor/runtime/operations/editorSemanticOps', () => ({
   ),
 }));
 
-vi.mock('@src/renderer/editor/runtime/intent/mixedElementIntent', () => ({
-  // 옛 선택(플러그인 요소) 정산 - 동작 id 운반을 같은 recorder로 기록
-  runMixedElementOpsIntent: vi.fn((options: { gestureId: string }) => {
-    commitPatchMock({ schemaVersion: 1 }, { gestureId: options.gestureId });
-    return Promise.resolve();
-  }),
+vi.mock('@plugins/runtime/displayElement/pluginTreeGeometry', () => ({
+  // 옛 선택(플러그인 요소) 정산 - 트리 틀 커밋의 동작 id 운반을 같은 recorder로 기록
+  commitPluginFrames: vi.fn(
+    (_scene: string, _ids: Set<string>, gestureId?: string) => {
+      commitPatchMock({ schemaVersion: 1 }, { gestureId });
+      return Promise.resolve();
+    },
+  ),
+  applyPluginElementEdit: (
+    _scene: string,
+    ids: ReadonlySet<string>,
+    change: (ids: ReadonlySet<string>) => void,
+  ) => change(ids),
 }));
 
 vi.mock('@utils/plugin/bridgeMessages', () => ({
@@ -293,11 +300,11 @@ describe('useGridKeyboard arrow history burst', () => {
     expect(randomUUIDMock).toHaveBeenCalledTimes(2);
   });
 
-  it('플러그인 방향키 이동은 플러그인 세션에 같은 gesture를 전달한다', () => {
+  it('플러그인 방향키 이동은 같은 gesture의 트리 틀 커밋으로 저장한다', () => {
     pressArrow('ArrowRight');
 
     expect(committedGestureIds()).toEqual([firstGestureId]);
-    expect(rotateSessionMock).toHaveBeenCalledWith('plugin-a', firstGestureId);
+    expect(pluginPosition(0)).toEqual({ x: 1, y: 0 });
   });
 
   it('같은 프레임의 방향키 burst를 누적해 한 번만 이동한다', async () => {

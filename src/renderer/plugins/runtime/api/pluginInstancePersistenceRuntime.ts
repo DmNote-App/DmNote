@@ -27,6 +27,7 @@ import {
   registerPluginInstancesStagedRelease,
   touchPluginInstancesEditSession,
 } from '../displayElement/instancesCommitQueue';
+import { isInstanceSaveSuppressed } from '../displayElement/instanceSaveSuppression';
 import {
   applyCanonicalPluginInstances,
   notePluginInstancesMutation,
@@ -356,6 +357,8 @@ export const createPluginInstancePersistenceRuntime = ({
         ) {
           // 복원 재주입 중 변경은 저장 대상이 아님 (undo 반영 echo 차단)
           if (!instanceSaveBarrier.shouldSave()) return;
+          // 편집기가 트리 커밋으로 저장하는 변경
+          if (isInstanceSaveSuppressed()) return;
           // 변경 시점 기준으로 edit-session TTL 갱신 - debounce가 세션을 쪼개지 않게
           const gestureId = touchPluginInstancesEditSession(pluginId);
           if (isPluginInstancesGestureStaged(pluginId)) {

@@ -1,15 +1,8 @@
 import { useRef } from 'react';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import {
-  beginPluginInstancesEditSession,
-  endPluginInstancesEditSession,
-} from '@plugins/runtime/displayElement/instancesCommitQueue';
-import {
-  beginMixedGestureTransaction,
-  cancelUncommittedMixedGestureTransaction,
-} from '@plugins/runtime/displayElement/gestureTransaction';
 import { createPluginPositionDragReceipt } from '@plugins/runtime/displayElement/pluginElementActions';
+import { withoutInstanceSave } from '@plugins/runtime/displayElement/instanceSaveSuppression';
 
 // 함께 고른 다른 선택(트리 요소)의 끌기 - 증분 이동, 끝낼 때 커밋, 취소 때 되돌리기
 export interface CompanionDragReceipt {
@@ -63,35 +56,22 @@ export const useSelectedElementDragLifecycle = ({
     pluginReceiptRef.current = pluginReceipt;
     const companionReceipt = createCompanionReceipt?.() ?? null;
     companionReceiptRef.current = companionReceipt;
-    const tokens = new Map<string, string>();
-    usePluginDisplayElementStore
-      .getState()
-      .elements.filter((element) =>
-        selectedPluginElementIds.has(element.fullId),
-      )
-      .forEach((element) => {
-        if (!tokens.has(element.pluginId)) {
-          tokens.set(
-            element.pluginId,
-            beginPluginInstancesEditSession(element.pluginId, gestureId),
-          );
-        }
-      });
-    if (tokens.size > 0) {
-      beginMixedGestureTransaction(gestureId, [...tokens.keys()]);
-    }
+    // 끌기 중 플러그인 이동은 저장하지 않는다 - 끝낼 때 정산이 트리로 저장하고, 취소면 시작 위치로
+    const pluginIds = [
+      ...new Set(
+        usePluginDisplayElementStore
+          .getState()
+          .elements.filter((element) =>
+            selectedPluginElementIds.has(element.fullId),
+          )
+          .map((element) => element.pluginId),
+      ),
+    ];
     return (commit = true) => {
       if (!commit) {
         companionReceipt?.rollback();
-        cancelUncommittedMixedGestureTransaction(gestureId, {
-          discardPendingSave: true,
-          beforeDiscard: pluginReceipt.rollback,
-        });
+        withoutInstanceSave(() => pluginIds.forEach(pluginReceipt.rollback));
       }
-      tokens.forEach((token, pluginId) => {
-        endPluginInstancesEditSession(pluginId, token);
-      });
-      cancelUncommittedMixedGestureTransaction(gestureId);
       if (gestureIdRef.current === gestureId) {
         gestureIdRef.current = null;
         pluginReceiptRef.current = null;
