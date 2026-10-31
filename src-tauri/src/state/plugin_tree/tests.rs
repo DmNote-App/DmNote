@@ -266,3 +266,52 @@ fn 트리에서_옮긴_플러그인_노드는_자리에_맞게_겹침값과_그�
     assert_eq!(projected[0], a);
     assert_eq!(projected[1], b);
 }
+
+#[test]
+fn 트리에서_고친_플러그인_노드의_틀_숨김_값은_항목의_위치_측정_크기_숨김_설정으로_다시_적는다() {
+    let mut doc = document(&["4key"]);
+    apply_plugin_bucket(
+        &mut doc,
+        "demo",
+        Some(&json!([
+            { "instanceId": "a", "position": { "x": 1, "y": 2, "anchor": "kept" },
+              "settings": { "label": "A" }, "tabId": "4key" },
+            { "instanceId": "b", "position": { "x": 0, "y": 0 },
+              "measuredSize": { "width": 30, "height": 40 }, "tabId": "4key", "hidden": true }
+        ])),
+    );
+    let scenes = ["4key".to_string()];
+    assert!(sync_plugin_entries_from_tree(&mut doc, &scenes).is_empty());
+
+    let scene = doc.scenes.get_mut("4key").unwrap();
+    let a = scene.element_mut("demo::a").unwrap();
+    a.frame.x = 15.0;
+    a.frame.y = 25.0;
+    a.values.insert("label".into(), json!("B"));
+    let b = scene.element_mut("demo::b").unwrap();
+    b.frame.width = 60.0;
+    b.hidden = false;
+
+    assert_eq!(
+        sync_plugin_entries_from_tree(&mut doc, &scenes),
+        vec!["demo".to_string()]
+    );
+    let a = entry_of(&doc, "demo::a");
+    // 위치 객체의 다른 칸은 지킨다
+    assert_eq!(
+        a["position"],
+        json!({ "x": 15.0, "y": 25.0, "anchor": "kept" })
+    );
+    assert_eq!(a["settings"], json!({ "label": "B" }));
+    // 크기를 바꾸지 않았으면 측정 크기를 새로 적지 않는다 (없던 칸은 없는 그대로)
+    assert!(a.get("measuredSize").is_none());
+    let b = entry_of(&doc, "demo::b");
+    assert_eq!(b["measuredSize"], json!({ "width": 60.0, "height": 40.0 }));
+    assert_eq!(b["hidden"], json!(false));
+    // 버킷 왕복 - 다시 쓰고 읽어도 같다
+    let projected = project_plugin_bucket(&doc, "demo").unwrap();
+    let mut again = document(&["4key"]);
+    apply_plugin_bucket(&mut again, "demo", Some(&projected));
+    assert_eq!(project_plugin_bucket(&again, "demo"), Some(projected));
+    assert!(sync_plugin_entries_from_tree(&mut doc, &scenes).is_empty());
+}

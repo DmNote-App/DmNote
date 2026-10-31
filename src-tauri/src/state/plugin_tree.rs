@@ -258,6 +258,8 @@ fn sync_siblings(nodes: &mut [Node], parent: Option<&str>, changed: &mut BTreeSe
         let upper = nodes[index + 1..].iter().find_map(z_of);
         if let Node::Element(element) = &mut nodes[index] {
             if let Some(plugin_id) = plugin_id_of_kind(&element.kind).map(str::to_string) {
+                let (frame, hidden, values) =
+                    (element.frame, element.hidden, element.values.clone());
                 let fits = match z {
                     Some(z) => {
                         lower.is_none_or(|lower| z >= lower) && upper.is_none_or(|upper| z < upper)
@@ -293,6 +295,7 @@ fn sync_siblings(nodes: &mut [Node], parent: Option<&str>, changed: &mut BTreeSe
                         };
                         touched = true;
                     }
+                    touched |= sync_entry_fields(entry, &frame, hidden, &values);
                     if touched {
                         changed.insert(plugin_id);
                     }
@@ -305,7 +308,52 @@ fn sync_siblings(nodes: &mut [Node], parent: Option<&str>, changed: &mut BTreeSe
     }
 }
 
+// 노드의 틀·숨김·값 → 항목의 위치·측정 크기·숨김·설정 (`placeable`의 반대). 바뀐 칸만 적는다
+fn sync_entry_fields(
+    entry: &mut Map<String, Value>,
+    frame: &Frame,
+    hidden: bool,
+    values: &Map<String, Value>,
+) -> bool {
+    let mut touched = false;
+    if let Some(position) = entry.get_mut("position").and_then(Value::as_object_mut) {
+        for (field, next) in [("x", frame.x), ("y", frame.y)] {
+            if position.get(field).and_then(Value::as_f64) != Some(next) {
+                position.insert(field.into(), json!(next));
+                touched = true;
+            }
+        }
+    }
+    let size = entry
+        .get("measuredSize")
+        .and_then(|size| Some((number(size, "width")?, number(size, "height")?)))
+        .unwrap_or(DEFAULT_SIZE);
+    if size != (frame.width, frame.height) {
+        entry.insert(
+            "measuredSize".into(),
+            json!({ "width": frame.width, "height": frame.height }),
+        );
+        touched = true;
+    }
+    if entry
+        .get("hidden")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        != hidden
+    {
+        entry.insert("hidden".into(), json!(hidden));
+        touched = true;
+    }
+    let settings = entry.get("settings").and_then(Value::as_object);
+    if settings.map_or(!values.is_empty(), |settings| settings != values) {
+        entry.insert("settings".into(), Value::Object(values.clone()));
+        touched = true;
+    }
+    touched
+}
+
 /// 트리 연산 뒤 - 장면의 플러그인 노드 자리에 맞게 항목의 zIndex·groupId를 다시 적는다.
+/// 틀·숨김·값을 고쳤으면 위치·측정 크기·숨김·설정도 다시 적는다.
 /// 플러그인 노드를 품은 그룹은 옛 그룹이므로 groupId는 부모 그룹이다. 옛 종류 번호는 다시 매기지 않는다.
 /// 바뀐 플러그인 id를 돌려준다(정렬)
 pub(crate) fn sync_plugin_entries_from_tree(

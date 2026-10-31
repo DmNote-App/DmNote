@@ -2634,3 +2634,72 @@ fn 옛_편집이_거절한_트리_쓰기는_편집_오류를_함께_싣는다() 
         .get("editorError")
         .is_none());
 }
+
+#[test]
+fn 트리에서_플러그인_노드를_옮기고_숨기면_인스턴스_위치_숨김이_바뀌고_한_번에_되돌린다() {
+    let (dir, store) = open_store();
+    let id = with_demo_instance(&store);
+    let revision = store.plugin_model_revision();
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "setFrame", "scene": "4key", "id": id, "frame": { "x": 40, "y": 30 } },
+        { "op": "setCommon", "scene": "4key", "id": id, "hidden": true }
+    ]))
+    .unwrap();
+    let (result, plugin_changes) = store
+        .commit_element_document_tree(&ops, true, None)
+        .unwrap();
+    assert!(matches!(
+        result,
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    assert_eq!(plugin_changes.len(), 1);
+    assert!(store.plugin_model_revision() > revision);
+    let entry = demo_entry(&store);
+    assert_eq!(
+        entry["position"],
+        serde_json::json!({ "x": 40.0, "y": 30.0 })
+    );
+    assert_eq!(entry["hidden"], serde_json::json!(true));
+
+    undo(&store).unwrap();
+    // 기록 스냅샷은 인스턴스를 저장 모양으로 다시 쓴다 (숫자는 실수, 숨김은 false로 적힌다)
+    let entry = demo_entry(&store);
+    assert_eq!(entry["position"]["x"].as_f64(), Some(0.0));
+    assert_eq!(entry["position"]["y"].as_f64(), Some(0.0));
+    assert_ne!(entry["hidden"], serde_json::json!(true));
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 옛_종류와_플러그인_노드를_한_트리_커밋으로_옮기면_둘_다_바뀌고_한_번에_되돌린다() {
+    let (dir, store) = open_store();
+    let plugin = with_demo_instance(&store);
+    let key = store.snapshot().legacy().key_positions["4key"][0]
+        .id
+        .clone();
+    let key_x = store.snapshot().legacy().key_positions["4key"][0].dx;
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "setFrame", "scene": "4key", "id": key, "frame": { "x": key_x + 7.0 } },
+        { "op": "setFrame", "scene": "4key", "id": plugin, "frame": { "x": 12, "y": 9 } }
+    ]))
+    .unwrap();
+    let ElementDocumentCommitPlan::Legacy { request, .. } =
+        store.plan_element_document_commit(&ops, None).unwrap()
+    else {
+        panic!("옛 편집 커밋이어야 한다");
+    };
+    let change = store.commit_editor_document(*request).unwrap();
+    assert_eq!(change.plugin_instances_changes.len(), 1);
+    assert_eq!(
+        store.snapshot().legacy().key_positions["4key"][0].dx,
+        key_x + 7.0
+    );
+    assert_eq!(demo_entry(&store)["position"]["x"].as_f64(), Some(12.0));
+
+    undo(&store).unwrap();
+    assert_eq!(store.snapshot().legacy().key_positions["4key"][0].dx, key_x);
+    assert_eq!(demo_entry(&store)["position"]["x"].as_f64(), Some(0.0));
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
