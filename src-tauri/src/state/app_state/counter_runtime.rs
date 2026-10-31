@@ -112,63 +112,6 @@ impl AppState {
         result.map(|change| (change, runtime_applied))
     }
 
-    pub(crate) fn commit_gesture_preserving_runtime_counters(
-        &self,
-        emitter: &dyn KeyCounterEventEmitter,
-        request: GestureCommitRequest,
-        admission: HistoryAdmissionLease,
-    ) -> std::result::Result<(AdmittedGestureCommit, bool), EditorCommitError> {
-        if !request.may_change_keys() {
-            return self
-                .store
-                .commit_gesture_with_admission(request, admission)
-                .map(|committed| (committed, false));
-        }
-
-        self.begin_counter_history_barrier();
-        let mut counter_guard = self.lock_key_counters_for_history();
-        let result = self.store.commit_gesture_with_runtime_counters_admission(
-            request,
-            admission,
-            &counter_guard,
-        );
-        let mut runtime_applied = false;
-        if let Ok(committed) = &result {
-            if let Some(change) = committed.outcome.change.as_ref() {
-                if change
-                    .result
-                    .changed_fields
-                    .contains(&crate::models::EditorField::Keys)
-                {
-                    self.apply_committed_editor_keys_without_counters(
-                        change.runtime_publication_generation,
-                        &change.document.keys,
-                        &change.selected_key_type,
-                    );
-                    runtime_applied = self.replace_history_counters_locked(
-                        &mut counter_guard,
-                        change.runtime_publication_generation,
-                        &change.key_counters,
-                    );
-                }
-            }
-        }
-        let publication_generation = result
-            .as_ref()
-            .ok()
-            .and_then(|committed| committed.outcome.change.as_ref())
-            .map(|change| change.runtime_publication_generation)
-            .unwrap_or_else(|| self.store.runtime_publication_generation());
-        self.finish_counter_history_barrier(
-            emitter,
-            counter_guard,
-            runtime_applied,
-            publication_generation,
-        );
-
-        result.map(|committed| (committed, runtime_applied))
-    }
-
     pub(crate) fn commit_editor_transaction_preserving_runtime_counters<T>(
         &self,
         emitter: &dyn KeyCounterEventEmitter,

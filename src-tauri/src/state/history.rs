@@ -8,11 +8,10 @@ pub(crate) use admission::{
     HistoryBarrierWaiter,
 };
 use snapshot::{
-    merge_editor_snapshot, merge_element_tree_snapshot, merge_gesture_snapshots,
-    merge_plugin_elements_snapshot, normalize_gesture_ids, refresh_history_entry_size,
-    remove_net_zero_editor_snapshot, remove_net_zero_element_tree_snapshot,
-    remove_net_zero_plugin_snapshot, snapshot_contains_plugin_elements,
-    validate_compound_snapshots, HistoryEntryPayload,
+    merge_editor_snapshot, merge_element_tree_snapshot, merge_plugin_elements_snapshot,
+    normalize_gesture_ids, refresh_history_entry_size, remove_net_zero_editor_snapshot,
+    remove_net_zero_element_tree_snapshot, remove_net_zero_plugin_snapshot,
+    snapshot_contains_plugin_elements, validate_compound_snapshots, HistoryEntryPayload,
 };
 pub(crate) use snapshot::{
     CustomTabsHistorySnapshot, ElementTreeHistorySnapshot, HistoryDirection, HistoryEntry,
@@ -318,46 +317,6 @@ impl HistoryService {
         gesture_ids: Vec<String>,
     ) -> Result<HistoryRecordPlan, String> {
         validate_compound_snapshots(&snapshots)?;
-        self.prepare_snapshot_with_gesture_ids(
-            HistoryScope::Compound,
-            HistorySnapshot::Compound { snapshots },
-            gesture_ids,
-            None,
-            Vec::new(),
-        )
-    }
-
-    pub(crate) fn prepare_gesture_entry(
-        &self,
-        snapshots: Vec<HistorySnapshot>,
-        gesture_id: String,
-    ) -> Result<HistoryRecordPlan, String> {
-        validate_compound_snapshots(&snapshots)?;
-        let gesture_ids = vec![gesture_id];
-        // 같은 gestureId의 선행 엔트리(디바운스 plugin 커밋 선착지·반복 커밋)와
-        // 병합 - 분리 기록은 undo 1회가 제스처의 반쪽만 복원한다
-        if let Some(target) = self
-            .past
-            .iter()
-            .rev()
-            .find(|entry| self.future.is_empty() && entry.matches_any_gesture(&gesture_ids))
-        {
-            let merged = merge_gesture_snapshots(&target.before, &snapshots)?;
-            let mut merged_gesture_ids = target.gesture_ids.clone();
-            merged_gesture_ids.extend(gesture_ids.iter().cloned());
-            let plan = self.prepare_snapshot_with_gesture_ids(
-                merged.scope(),
-                merged,
-                normalize_gesture_ids(merged_gesture_ids),
-                Some(target.access_sequence),
-                Vec::new(),
-            )?;
-            // 병합 결과가 엔트리 한도를 넘으면 독립 엔트리로 폴백 - gesture
-            // 경로의 Truncate는 커밋 거절이라 성공하던 커밋이 실패로 바뀐다
-            if !matches!(plan, HistoryRecordPlan::Truncate) {
-                return Ok(plan);
-            }
-        }
         self.prepare_snapshot_with_gesture_ids(
             HistoryScope::Compound,
             HistorySnapshot::Compound { snapshots },

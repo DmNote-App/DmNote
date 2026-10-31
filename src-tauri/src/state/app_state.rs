@@ -108,9 +108,7 @@ pub use window_geometry::{LogicalPoint, LogicalRect, PanelDragContext};
 use super::{
     history::HistoryAdmissionLease,
     plugin::{PluginAuthorityLease, PluginRuntimeAuthority},
-    store::{
-        AdmittedEditorTransaction, AdmittedGestureCommit, AppStore, PluginInstancesResetScope,
-    },
+    store::{AdmittedEditorTransaction, AppStore, PluginInstancesResetScope},
     window::panel_drag::PanelDragController,
 };
 #[cfg(debug_assertions)]
@@ -124,8 +122,8 @@ use crate::{
     keyboard::KeyboardManager,
     models::{
         overlay_resize_anchor_from_str, AppStoreData, BootstrapOverlayState, BootstrapPayload,
-        CommittedEditorChange, DefaultsPayload, EditorCommitRequest, GestureCommitRequest,
-        HistoryStatus, KeyCounterSettings, KeyCounters, KeyMappings, KeyPositions, KeySlot,
+        CommittedEditorChange, DefaultsPayload, EditorCommitRequest, HistoryStatus,
+        KeyCounterSettings, KeyCounters, KeyMappings, KeyPositions, KeySlot,
         KeySoundOutputBackendPersist, OverlayBounds, OverlayResizeAnchor, PanelBounds,
         SettingsDiff, SettingsState, StoredOverlayBounds, StoredOverlayNativePosition,
         TabCssOverrides, UiTheme,

@@ -5,7 +5,6 @@ pub(crate) mod editor;
 pub(crate) mod editor_ops;
 #[cfg(test)]
 mod editor_ops_parity;
-pub(crate) mod gesture;
 pub(crate) mod history;
 pub(crate) mod migration;
 pub(crate) mod native_element_id;

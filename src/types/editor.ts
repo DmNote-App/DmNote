@@ -695,29 +695,6 @@ export interface EditorCommitResult {
 
 export type EditorPluginCommitResult = Omit<EditorCommitResult, 'opResults'>;
 
-interface EditorGestureCommitContextBase {
-  editorBaseRevision: number;
-  mutationId: string;
-}
-
-export interface EditorGesturePatchCommitContext
-  extends EditorGestureCommitContextBase {
-  editorChanges?: EditorPatchV1;
-  editorOpsVersion?: never;
-  editorOps?: never;
-}
-
-export interface EditorGestureOpsCommitContext
-  extends EditorGestureCommitContextBase {
-  editorChanges?: never;
-  editorOpsVersion: typeof EDITOR_OPS_VERSION;
-  editorOps: EditorOpV1[];
-}
-
-export type EditorGestureCommitContext =
-  | EditorGesturePatchCommitContext
-  | EditorGestureOpsCommitContext;
-
 export interface EditorGetResult {
   revision: number;
   document: EditorDocumentV1;

@@ -45,9 +45,8 @@ use crate::{
     keyboard::KeyboardManager,
     models::{
         AppStoreData, CustomCss, CustomTab, EditorCommitOrigin, EditorCommitRequest, EditorField,
-        EditorFrozenKeySlotV1, EditorOpV1, GestureCommitRequest, GesturePluginInstancesChange,
-        KeyCounters, KeySlot, OverlayBounds, OverlayResizeAnchor, PanelBounds, PluginPoint,
-        SavedPluginInstance, StoredOverlayBounds, StoredOverlayNativePosition, TabCss,
+        EditorFrozenKeySlotV1, EditorOpV1, KeyCounters, KeySlot, OverlayBounds,
+        OverlayResizeAnchor, PanelBounds, StoredOverlayBounds, StoredOverlayNativePosition, TabCss,
         EDITOR_OPS_VERSION,
     },
     state::{
@@ -767,145 +766,6 @@ fn custom_tab_restore_history_preserves_unflushed_runtime_counters() {
     );
     assert_eq!(state.snapshot_key_counters()[&mode][&preserved_key], 8);
     assert_eq!(state.store.snapshot().custom_tabs[0].name, "Before");
-
-    state.shutdown();
-    drop(state);
-    std::fs::remove_dir_all(directory).unwrap();
-}
-
-#[test]
-fn mixed_gesture_history_preserves_live_and_restores_historical_counters() {
-    let directory = std::env::temp_dir().join(format!(
-        "dmnote-gesture-live-counter-test-{}",
-        uuid::Uuid::new_v4()
-    ));
-    std::fs::create_dir_all(&directory).unwrap();
-    let state = AppState::initialize(AppStore::initialize_for_test(&directory).unwrap()).unwrap();
-    state.key_counter_enabled.store(true, Ordering::SeqCst);
-    let emitter = NoopCounterEmitter;
-    let editor = state.store.editor_get();
-    let mode = state.store.snapshot().selected_key_type;
-    let preserved_key = editor.document.keys[&mode][0].canonical();
-    let replaced_key = editor.document.keys[&mode][1].canonical();
-
-    for expected in 1..=7 {
-        assert_eq!(
-            state.increment_key_counter_and_emit(&emitter, &mode, &preserved_key),
-            Some(expected)
-        );
-    }
-    for expected in 1..=12 {
-        assert_eq!(
-            state.increment_key_counter_and_emit(&emitter, &mode, &replaced_key),
-            Some(expected)
-        );
-    }
-    assert_eq!(
-        state.store.snapshot().key_counters[&mode][&preserved_key],
-        0
-    );
-
-    let replaced_id = editor.document.key_positions[&mode][1].id.clone();
-    let plugin_id = "qa-mixed-counter";
-    let plugin_instance_id = uuid::Uuid::new_v4().to_string();
-    let request = GestureCommitRequest {
-        gesture_id: uuid::Uuid::new_v4().to_string(),
-        mutation_id: uuid::Uuid::new_v4().to_string(),
-        editor_base_revision: editor.revision,
-        plugin_base_revision: state.store.plugin_model_revision(),
-        observed_history_epoch: Some(state.store.history_status().history_epoch),
-        authority_generation: 1,
-        editor_changes: None,
-        editor_ops_version: Some(EDITOR_OPS_VERSION),
-        editor_ops: Some(vec![EditorOpV1::SetKeySlot {
-            id: replaced_id,
-            slot: EditorFrozenKeySlotV1::Single("QA MIXED KEY".to_string()),
-        }]),
-        plugin_changes: vec![GesturePluginInstancesChange {
-            plugin_id: plugin_id.to_string(),
-            instances: vec![SavedPluginInstance {
-                instance_id: Some(plugin_instance_id.clone()),
-                position: PluginPoint { x: 20.0, y: 30.0 },
-                settings: None,
-                measured_size: None,
-                tab_id: None,
-                hidden: false,
-                z_index: None,
-                group_id: None,
-            }],
-        }],
-    };
-    let admission = state.store.admit_editor_mutation().unwrap();
-    let (committed, runtime_applied) = state
-        .commit_gesture_preserving_runtime_counters(&emitter, request, admission)
-        .unwrap();
-
-    assert!(runtime_applied);
-    assert_eq!(committed.outcome.changed_plugin_ids, [plugin_id]);
-    let change = committed.outcome.change.as_ref().unwrap();
-    assert_eq!(change.key_counters[&mode][&preserved_key], 7);
-    assert_eq!(state.snapshot_key_counters()[&mode][&preserved_key], 7);
-    let persisted = state.store.snapshot().key_counters;
-    assert_eq!(persisted[&mode][&preserved_key], 7);
-    assert_eq!(persisted[&mode]["QA MIXED KEY"], 0);
-    assert!(!persisted[&mode].contains_key(&replaced_key));
-    let (instances, revision) = state.store.plugin_instances_get(plugin_id).unwrap();
-    assert_eq!(revision, 1);
-    assert_eq!(instances.len(), 1);
-    assert_eq!(
-        instances[0].instance_id.as_deref(),
-        Some(plugin_instance_id.as_str())
-    );
-    drop(committed);
-
-    for expected in 1..=9 {
-        assert_eq!(
-            state.increment_key_counter_and_emit(&emitter, &mode, "QA MIXED KEY"),
-            Some(expected)
-        );
-    }
-    assert_eq!(
-        state.increment_key_counter_and_emit(&emitter, &mode, &preserved_key),
-        Some(8)
-    );
-
-    let operation_id = uuid::Uuid::new_v4().to_string();
-    let gate = state.store.history_gate();
-    let history_barrier = gate.close(&operation_id).unwrap();
-    state.begin_counter_history_barrier();
-    let mut counter_guard = state.lock_key_counters_for_history();
-    let current_counters = counter_guard.clone();
-    let undo = state
-        .store
-        .apply_history_operation(
-            HistoryDirection::Undo,
-            &operation_id,
-            &current_counters,
-            || {},
-        )
-        .unwrap();
-    assert!(state.apply_history_editor_key_runtime_locked(
-        &mut counter_guard,
-        undo.change.as_ref().unwrap(),
-    ));
-    state.finish_counter_history_barrier(
-        &emitter,
-        counter_guard,
-        true,
-        undo.runtime_publication_generation,
-    );
-    drop(history_barrier);
-
-    let restored = state.snapshot_key_counters();
-    assert_eq!(restored[&mode][&replaced_key], 12);
-    assert_eq!(restored[&mode][&preserved_key], 8);
-    assert!(!restored[&mode].contains_key("QA MIXED KEY"));
-    assert!(state
-        .store
-        .plugin_instances_get(plugin_id)
-        .unwrap()
-        .0
-        .is_empty());
 
     state.shutdown();
     drop(state);

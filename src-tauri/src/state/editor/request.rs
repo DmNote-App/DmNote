@@ -9,8 +9,8 @@ use crate::{
     defaults::default_keys,
     errors::EditorCommitError,
     models::{
-        CustomTab, EditorCommitRequest, EditorDocumentV1, GestureCommitRequest,
-        EDITOR_COMMIT_SCHEMA_VERSION_V2, EDITOR_OPS_VERSION, EDITOR_SCHEMA_VERSION,
+        CustomTab, EditorCommitRequest, EditorDocumentV1, EDITOR_COMMIT_SCHEMA_VERSION_V2,
+        EDITOR_OPS_VERSION, EDITOR_SCHEMA_VERSION,
     },
     state::tab_metadata::normalize_tab_order,
 };
@@ -107,10 +107,7 @@ pub(crate) fn decode_editor_commit_request(
     decode_exact_frozen_insert(value, "editor")
 }
 
-pub(crate) fn decode_exact_frozen_insert<T>(
-    value: Value,
-    label: &str,
-) -> Result<T, EditorCommitError>
+fn decode_exact_frozen_insert<T>(value: Value, label: &str) -> Result<T, EditorCommitError>
 where
     T: serde::de::DeserializeOwned + Serialize,
 {
@@ -799,18 +796,6 @@ pub(crate) fn request_fingerprint(
         },
         request
             .changes
-            .as_ref()
-            .and_then(|changes| changes.sprite_positions_presence.as_ref()),
-    )
-}
-
-pub(crate) fn gesture_request_fingerprint(
-    request: &GestureCommitRequest,
-) -> Result<RequestFingerprint, EditorCommitError> {
-    canonical_request_fingerprint_with_presence(
-        request,
-        request
-            .editor_changes
             .as_ref()
             .and_then(|changes| changes.sprite_positions_presence.as_ref()),
     )

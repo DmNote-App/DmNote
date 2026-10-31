@@ -138,19 +138,3 @@ pub(super) fn insert_mutation_ack(
         result,
     });
 }
-
-pub(super) fn insert_gesture_mutation_ack(
-    acks: &mut VecDeque<GestureMutationAck>,
-    id: String,
-    fingerprint: RequestFingerprint,
-    result: GestureCommitResult,
-) {
-    if acks.len() == MUTATION_ACK_CAPACITY {
-        acks.pop_front();
-    }
-    acks.push_back(GestureMutationAck {
-        id,
-        fingerprint,
-        result,
-    });
-}

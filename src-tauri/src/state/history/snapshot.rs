@@ -559,32 +559,6 @@ pub(super) fn merge_element_tree_snapshot(
     }
 }
 
-pub(super) fn merge_gesture_snapshots(
-    existing: &HistorySnapshot,
-    snapshots: &[HistorySnapshot],
-) -> Result<HistorySnapshot, String> {
-    let mut merged = existing.clone();
-    for snapshot in snapshots {
-        merged = match snapshot {
-            HistorySnapshot::Editor {
-                changed_fields,
-                before,
-                key_counters,
-            } => merge_editor_snapshot(
-                &merged,
-                changed_fields.clone(),
-                before.as_ref().clone(),
-                key_counters.clone(),
-            )?,
-            HistorySnapshot::PluginElements(before) => {
-                merge_plugin_elements_snapshot(&merged, before.clone())?
-            }
-            _ => return Err("gesture history cannot merge this snapshot scope".to_string()),
-        };
-    }
-    Ok(merged)
-}
-
 pub(super) fn validate_compound_snapshots(snapshots: &[HistorySnapshot]) -> Result<(), String> {
     let mut has_editor = false;
     let mut has_element_tree = false;

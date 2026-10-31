@@ -14,10 +14,10 @@ use crate::models::{
     key_mappings_contain_multi, normalize_key_mappings, AppStoreData, CommittedEditorChange,
     CustomCssPatch, CustomJsPatch, EditorCommitOrigin, EditorCommitRequest, EditorCommitResult,
     EditorCommittedV1, EditorDocumentV1, EditorField, EditorGetResult, EditorOpResultStatusV1,
-    EditorOpResultV1, EditorTransactionResult, GestureCommitRequest, GestureCommitResult,
-    HistoryStatus, KeyCounters, KeyMappings, NoteSettingsPatch, PluginInstancesChangedPayload,
-    PluginInstancesCommitRequest, PluginInstancesReconcileRequest, SavedPluginInstance,
-    SettingsDiff, SettingsPatchInput, SettingsState, EDITOR_SCHEMA_VERSION,
+    EditorOpResultV1, EditorTransactionResult, HistoryStatus, KeyCounters, KeyMappings,
+    NoteSettingsPatch, PluginInstancesChangedPayload, PluginInstancesCommitRequest,
+    PluginInstancesReconcileRequest, SavedPluginInstance, SettingsDiff, SettingsPatchInput,
+    SettingsState, EDITOR_SCHEMA_VERSION,
 };
 use anyhow::{anyhow, Context, Result};
 use parking_lot::{RwLock, RwLockWriteGuard};
@@ -28,16 +28,13 @@ use tauri::Runtime;
 use super::assets::builtin_sounds::seed_builtin_sounds;
 use super::atomic_file::atomic_replace;
 use super::editor::{
-    gesture_request_fingerprint, next_revision, repair_selected_mode, request_fingerprint,
-    request_payload_size, sync_key_counters, touched_pair, validate_document_transition,
+    next_revision, repair_selected_mode, request_fingerprint, request_payload_size,
+    sync_key_counters, touched_pair, validate_document_transition,
     validate_document_transition_with_keying, validate_history_restore_metadata,
     validate_paired_update, validate_request_envelope, GrandfatherKeying, RequestFingerprint,
     MUTATION_ACK_CAPACITY,
 };
-use super::editor_ops::{
-    prepare_editor_ops_transition, prepare_editor_ops_transition_with_plugin_refs,
-};
-use super::gesture::validate_gesture_commit_request;
+use super::editor_ops::prepare_editor_ops_transition;
 use super::history::{
     CustomTabsHistorySnapshot, HistoryAdmissionGate, HistoryAdmissionLease, HistoryDirection,
     HistoryEntry, HistoryRecordPlan, HistoryScope, HistoryService, HistorySnapshot,
@@ -51,11 +48,11 @@ use super::migration::{
     rehome_foreign_asset_references,
 };
 use super::plugin::{
-    add_plugin_group_refs, decode_plugin_instance_entries, decode_plugin_instances_lenient,
+    decode_plugin_instance_entries, decode_plugin_instances_lenient,
     encode_plugin_instance_entries, encode_plugin_instances, is_plugin_instances_storage_key,
-    normalize_plugin_instance_tab_id, plugin_group_refs_from_store,
-    plugin_id_from_instances_storage_key, plugin_instance_bucket_ids, plugin_instances_storage_key,
-    read_plugin_instance_bucket, validate_plugin_id, validate_plugin_instances_reconcile_request,
+    normalize_plugin_instance_tab_id, plugin_id_from_instances_storage_key,
+    plugin_instance_bucket_ids, plugin_instances_storage_key, read_plugin_instance_bucket,
+    validate_plugin_id, validate_plugin_instances_reconcile_request,
     validate_plugin_instances_request, validate_plugin_instances_transition,
     write_plugin_instance_bucket, StoredPluginInstanceEntry, PLUGIN_DATA_KEY_PREFIX,
 };
@@ -64,7 +61,6 @@ mod asset_references;
 mod editor_commit;
 mod editor_transactions;
 mod element_tree;
-mod gesture_commit;
 mod history_restore;
 mod legacy_transactions;
 mod persistence;
@@ -83,9 +79,8 @@ use asset_references::{
 };
 use editor_transactions::{
     editor_error_outcome, editor_history_error, ensure_generic_editor_unchanged,
-    insert_gesture_mutation_ack, insert_mutation_ack, prepare_editor_patch_transition,
-    project_editor_history_key_counters, project_history_key_counters, require_history_entry,
-    validate_observed_history_epoch,
+    insert_mutation_ack, prepare_editor_patch_transition, project_editor_history_key_counters,
+    project_history_key_counters, require_history_entry, validate_observed_history_epoch,
 };
 pub(crate) use element_tree::ElementDocumentCommitPlan;
 pub use element_tree::ElementDocumentCommitResult;
@@ -137,7 +132,6 @@ struct VersionedStoreState {
     dirty: bool,
     accepting_writes: bool,
     mutation_acks: VecDeque<MutationAck>,
-    gesture_mutation_acks: VecDeque<GestureMutationAck>,
     plugin_model_revision: u64,
     history: HistoryService,
 }
@@ -191,21 +185,6 @@ pub(crate) struct AdmittedPluginInstancesCommit {
 }
 
 #[derive(Debug)]
-pub(crate) struct GestureCommitOutcome {
-    pub(crate) result: GestureCommitResult,
-    pub(crate) change: Option<CommittedEditorChange>,
-    pub(crate) changed_plugin_ids: Vec<String>,
-    pub(crate) history_status: Option<HistoryStatus>,
-    pub(crate) replayed: bool,
-}
-
-#[derive(Debug)]
-pub(crate) struct AdmittedGestureCommit {
-    pub(crate) outcome: GestureCommitOutcome,
-    _admission: HistoryAdmissionLease,
-}
-
-#[derive(Debug)]
 pub(crate) struct AdmittedPluginStorageMutation<T> {
     pub(crate) value: T,
     pub(crate) history_status: Option<HistoryStatus>,
@@ -238,13 +217,6 @@ struct MutationAck {
     id: String,
     fingerprint: RequestFingerprint,
     result: EditorCommitResult,
-}
-
-#[derive(Clone)]
-struct GestureMutationAck {
-    id: String,
-    fingerprint: RequestFingerprint,
-    result: GestureCommitResult,
 }
 
 struct PluginInstancesMutationInput {
@@ -428,7 +400,6 @@ impl AppStore {
                 dirty: false,
                 accepting_writes: true,
                 mutation_acks: VecDeque::with_capacity(MUTATION_ACK_CAPACITY),
-                gesture_mutation_acks: VecDeque::with_capacity(MUTATION_ACK_CAPACITY),
                 plugin_model_revision: 0,
                 history: HistoryService::default(),
             }),

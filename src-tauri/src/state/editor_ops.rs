@@ -38,9 +38,9 @@ mod transition;
 use property_patch::*;
 use structural_ops::*;
 
-pub(crate) use transition::{
-    prepare_editor_ops_transition, prepare_editor_ops_transition_with_plugin_refs,
-};
+pub(crate) use transition::prepare_editor_ops_transition;
+#[cfg(test)]
+use transition::prepare_editor_ops_transition_with_plugin_refs;
 
 #[derive(Debug)]
 pub(crate) struct PreparedEditorOpsTransition {

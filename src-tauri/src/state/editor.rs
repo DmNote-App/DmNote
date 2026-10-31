@@ -30,10 +30,11 @@ use limits::position_bounds;
 use limits::validate_metric_limits;
 pub(crate) use limits::{validate_editor_op_bounds, validate_editor_op_target_type};
 
+#[cfg(test)]
+use request::validate_revision;
 pub(crate) use request::{
-    decode_editor_commit_request, decode_exact_frozen_insert, gesture_request_fingerprint,
-    next_revision, request_fingerprint, request_payload_size, validate_history_restore_metadata,
-    validate_request_envelope, validate_revision, RequestFingerprint,
+    decode_editor_commit_request, next_revision, request_fingerprint, request_payload_size,
+    validate_history_restore_metadata, validate_request_envelope, RequestFingerprint,
 };
 pub(crate) use violations::{
     validate_document_transition, validate_document_transition_with_keying, GrandfatherKeying,

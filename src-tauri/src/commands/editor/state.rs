@@ -367,14 +367,14 @@ mod tests {
             mutation_id: "m".to_string(),
             gesture_id: Some("g1".to_string()),
             gesture_ids: Vec::new(),
-            origin: "gestureCommit".to_string(),
+            origin: "editorCommit".to_string(),
             changed_fields: vec![EditorField::KeyPositions],
             patch: crate::models::EditorPatchV1::default(),
         };
         let wire = serde_json::to_value(EditorCommitSignal::of(&event)).unwrap();
         assert_eq!(
             wire,
-            serde_json::json!({ "revision": 7, "gestureIds": ["g1"], "origin": "gestureCommit" })
+            serde_json::json!({ "revision": 7, "gestureIds": ["g1"], "origin": "editorCommit" })
         );
         let merged = crate::models::EditorCommittedV1 {
             gesture_ids: vec!["a".to_string(), "b".to_string()],

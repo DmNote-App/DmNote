@@ -1,5 +1,4 @@
 pub mod editor;
-pub mod gesture;
 pub mod obs;
 pub mod plugin;
 
@@ -49,7 +48,6 @@ pub use element_positions::{
     SPRITE_TRANSFORM_OFFSET_MIN, SPRITE_TRANSFORM_ROTATION_MAX, SPRITE_TRANSFORM_ROTATION_MIN,
     SPRITE_TRANSFORM_SCALE_MAX, SPRITE_TRANSFORM_SCALE_MIN, SPRITE_TRANSITION_MS_MAX,
 };
-pub use gesture::*;
 pub use key_slot::{
     key_mappings_contain_multi, normalize_key_mappings, normalize_key_slot, KeyMappings, KeySlot,
     SlotMatch, MAX_SLOT_KEYS,
