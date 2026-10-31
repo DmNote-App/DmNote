@@ -18,7 +18,10 @@ import { stableStringify } from '@utils/core/stableStringify';
 import { useTranslation } from '@contexts/useTranslation';
 import { startEditorEventWiring } from '@src/renderer/editor/runtime/lifecycle/editorEventWiring';
 import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { isCapacityTreeWriteFailure } from '@src/renderer/editor/document/treeWriteFailure';
+import {
+  isCapacityTreeWriteFailure,
+  isConflictTreeWriteFailure,
+} from '@src/renderer/editor/document/treeWriteFailure';
 import { panelWindowApi } from '@api/modules/window/panelWindowApi';
 import {
   detachPropertiesPanel,
@@ -403,10 +406,63 @@ export function useAppBootstrap() {
 
     // 저장하지 못해 되돌린 트리 쓰기 안내 - 한도 초과는 한도 문구로
     let stopTreeWriteRejected: (() => void) | undefined;
+    let stopTreeWriteConflict: (() => void) | undefined;
     if (!isOverlayWindow) {
       void loadElementDocumentStore()
         .then((store) => {
           if (disposed) return;
+          // 편집 충돌 - 예전처럼 내 편집 유지(다시 보내기)·외부 변경 수용(보류분 버리기)을 묻는다
+          let conflictDialogOpen = false;
+          const askConflict = () => {
+            if (
+              disposed ||
+              conflictDialogOpen ||
+              (store.getHeldCount?.() ?? 0) === 0 ||
+              !isConflictTreeWriteFailure(store.getHeldFailure?.() ?? null)
+            ) {
+              return;
+            }
+            conflictDialogOpen = true;
+            void (async () => {
+              let keepLocal = true;
+              try {
+                keepLocal = await window.api.ui.dialog.confirm(
+                  getEditorCopy(
+                    'editorConflict.message',
+                    "현재 편집 내용과 외부 변경이 겹쳤습니다. '내 편집 유지'는 지금 편집한 내용을 다시 적용하고, '외부 변경 수용'은 저장되지 않은 내 편집을 취소합니다.",
+                    "Your edit overlaps an external change. 'Keep My Edit' reapplies your edit, while 'Accept External Change' discards the unsaved local edit.",
+                  ),
+                  {
+                    confirmText: getEditorCopy(
+                      'editorConflict.keepLocal',
+                      '내 편집 유지',
+                      'Keep My Edit',
+                    ),
+                    cancelText: getEditorCopy(
+                      'editorConflict.acceptExternal',
+                      '외부 변경 수용',
+                      'Accept External Change',
+                    ),
+                  },
+                );
+              } catch (dialogError) {
+                console.warn(
+                  '편집 충돌 대화상자를 열지 못해 내 편집을 유지합니다',
+                  dialogError,
+                );
+              }
+              try {
+                if (keepLocal) await store.retryHeld?.();
+                else store.discardHeld?.();
+              } catch (error) {
+                console.error('편집 충돌 해결 실패', error);
+              } finally {
+                conflictDialogOpen = false;
+                queueMicrotask(askConflict);
+              }
+            })();
+          };
+          stopTreeWriteConflict = store.subscribeHeld?.(askConflict);
           stopTreeWriteRejected = store.onRejected?.((failure) => {
             console.error(
               '저장할 수 없는 편집 내용을 마지막 저장 상태로 되돌렸습니다',
@@ -637,6 +693,7 @@ export function useAppBootstrap() {
       resetHistoryEditorFlushLock();
       stopPluginInstancesUndoSync?.();
       stopTreeWriteRejected?.();
+      stopTreeWriteConflict?.();
       unsubscribers.forEach((unsubscribe) => {
         try {
           unsubscribe();

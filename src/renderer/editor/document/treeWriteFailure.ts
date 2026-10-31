@@ -23,3 +23,13 @@ export const isTransientTreeWriteFailure = (
 /** 저장 한도를 넘어 거절된 실패 */
 export const isCapacityTreeWriteFailure = (failure: CommitFailure): boolean =>
   'result' in failure && isEditorCapacityFailure(failure.result.editorError);
+
+/** 다른 쓰기와 겹친 실패 (백엔드가 다시 계획해도 겹침) - 편집 충돌 안내 */
+export const isConflictTreeWriteFailure = (
+  failure: CommitFailure | null,
+): boolean =>
+  !!failure &&
+  'result' in failure &&
+  isEditorCommitError(failure.result.editorError) &&
+  (failure.result.editorError.errorCode === 'REVISION_CONFLICT' ||
+    failure.result.editorError.errorCode === 'PLUGIN_REVISION_CONFLICT');

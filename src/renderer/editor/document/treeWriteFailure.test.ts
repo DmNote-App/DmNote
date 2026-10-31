@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isCapacityTreeWriteFailure,
+  isConflictTreeWriteFailure,
   isTransientTreeWriteFailure,
 } from './treeWriteFailure';
 import type { CommitFailure } from './elementDocumentStore';
@@ -73,5 +74,23 @@ describe('트리 쓰기 실패 가르기', () => {
       ),
     ).toBe(false);
     expect(isCapacityTreeWriteFailure({ error: new Error('io') })).toBe(false);
+  });
+
+  it('다시 계획해도 겹친 옛 편집 충돌은 편집 충돌 (예전 충돌 대화상자)', () => {
+    expect(
+      isConflictTreeWriteFailure(
+        rejected('LEGACY_REJECTED', editorError('REVISION_CONFLICT')),
+      ),
+    ).toBe(true);
+    expect(
+      isConflictTreeWriteFailure(
+        rejected('LEGACY_REJECTED', editorError('PLUGIN_REVISION_CONFLICT')),
+      ),
+    ).toBe(true);
+    expect(isConflictTreeWriteFailure(rejected('HISTORY_IN_PROGRESS'))).toBe(
+      false,
+    );
+    expect(isConflictTreeWriteFailure({ error: new Error('io') })).toBe(false);
+    expect(isConflictTreeWriteFailure(null)).toBe(false);
   });
 });

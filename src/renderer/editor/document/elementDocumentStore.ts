@@ -47,6 +47,10 @@ export interface ElementDocumentStore {
   getHeldCount?: () => number;
   subscribeHeld?: (listener: () => void) => () => void;
   retryHeld?: () => Promise<boolean>;
+  // 보류하게 만든 마지막 실패 (충돌이면 편집 충돌 안내)
+  getHeldFailure?: () => CommitFailure | null;
+  // 보류한 편집을 모두 버린다 (외부 변경 수용) - 화면에서 빼고 onDropped를 부른다
+  discardHeld?: () => void;
   // 편집 창만 - 되돌린 영구 실패 알림
   onRejected?: (listener: (failure: CommitFailure) => void) => () => void;
   // 오버레이·OBS만 - 문서를 통째로 다시 받아 온다 (OBS 재연결·놓친 패치)
@@ -273,8 +277,11 @@ export const createEditorDocumentStore = (
   let held: PendingEdit[] = [];
   const heldListeners = new Set<() => void>();
   const rejectedListeners = new Set<(failure: CommitFailure) => void>();
-  const setHeld = (next: PendingEdit[]) => {
+  let heldFailure: CommitFailure | null = null;
+  const setHeld = (next: PendingEdit[], failure?: CommitFailure) => {
     held = next;
+    if (failure) heldFailure = failure;
+    if (held.length === 0) heldFailure = null;
     for (const listener of [...heldListeners]) listener();
   };
 
@@ -324,7 +331,7 @@ export const createEditorDocumentStore = (
           await wait(retryDelays[attempt]);
           continue;
         }
-        setHeld([...held, edit]);
+        setHeld([...held, edit], failure);
         throw new ElementEditHeldError();
       }
       drop(edit);
@@ -376,6 +383,15 @@ export const createEditorDocumentStore = (
       return sent;
     },
     getHeldCount: () => held.length,
+    getHeldFailure: () => heldFailure,
+    discardHeld: () => {
+      const batch = held;
+      setHeld([]);
+      for (const edit of batch) {
+        drop(edit);
+        edit.onDropped?.();
+      }
+    },
     subscribeHeld: (listener) => {
       heldListeners.add(listener);
       return () => heldListeners.delete(listener);
