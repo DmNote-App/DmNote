@@ -62,22 +62,8 @@ export const createPluginInstanceSnapshotApplier = ({
         );
       }
 
-      const maxInstances = definition.maxInstances;
-      let instancesToRestore = savedInstances;
-
-      if (maxInstances && maxInstances > 0) {
-        // 캡은 탭별 수용 카운터로 원배열 순서를 보존하며 적용.
-        // 탭별 재그룹은 canonical 순서를 깨 undo 직후 echo 저장이
-        // 실변경 커밋이 되고 redo 스택을 소거한다
-        const acceptedByTab = new Map<string, number>();
-        instancesToRestore = savedInstances.filter((instance) => {
-          const tabId = normalizePluginInstanceTabId(instance.tabId);
-          const accepted = acceptedByTab.get(tabId) ?? 0;
-          if (accepted >= maxInstances) return false;
-          acceptedByTab.set(tabId, accepted + 1);
-          return true;
-        });
-      }
+      // 저장된 것을 그대로 비춘다 - 인스턴스 수 제한(maxInstances)은 만들기 메뉴의 막기다
+      const instancesToRestore = savedInstances;
 
       // backfill 전 무ID 항목은 diff 신원이 없음 - 그 스냅샷만 전량 재주입 폴백
       const canDiff = instancesToRestore.every(

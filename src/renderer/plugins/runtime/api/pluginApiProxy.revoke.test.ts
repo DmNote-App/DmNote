@@ -30,7 +30,6 @@ const createProxy = (isRevoked: () => boolean) =>
     sourceApi: rawApi,
     registerCleanup: () => {},
     isReloading: () => false,
-    waitForReloadEnd: async () => {},
     isRevoked,
   });
 

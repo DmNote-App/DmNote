@@ -12,6 +12,12 @@ import { handlerRegistry } from '../handlers';
 import { createDefineElement } from './defineElement';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
+// 인스턴스 복원은 이 테스트 밖 - 트리 스토어를 읽는 중으로 둔다
+vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
+  loadElementDocumentStore: () => new Promise(() => undefined),
+  getElementDocumentStore: () => null,
+}));
+
 const pluginHandlerKeys = () =>
   Object.keys(window).filter(
     (key) =>
@@ -90,7 +96,6 @@ describe('defineElement modal handler lifecycle', () => {
       registerCleanup: (cleanup: () => void) => cleanups.push(cleanup),
       wrapFunctionWithContext: (fn) => fn,
       isReloading: () => false,
-      waitForReloadEnd: vi.fn().mockResolvedValue(undefined),
     } as never)({
       name: 'Example',
       settingsUI: 'modal',
@@ -170,7 +175,6 @@ describe('defineElement modal handler lifecycle', () => {
       registerCleanup: (cleanup: () => void) => cleanups.push(cleanup),
       wrapFunctionWithContext: (fn) => fn,
       isReloading: () => false,
-      waitForReloadEnd: vi.fn().mockResolvedValue(undefined),
     } as never)({
       name: 'Example',
       settingsUI: 'modal',
@@ -276,7 +280,6 @@ describe('defineElement modal handler lifecycle', () => {
       registerCleanup: (cleanup: () => void) => cleanups.push(cleanup),
       wrapFunctionWithContext: (fn) => fn,
       isReloading: () => false,
-      waitForReloadEnd: vi.fn().mockResolvedValue(undefined),
     } as never)({
       name: 'Example',
       settingsUI: 'modal',

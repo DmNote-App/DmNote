@@ -27,7 +27,6 @@ import {
   detachPropertiesPanel,
   notePanelWindowHidden,
 } from '@stores/grid/usePanelHostStore';
-import { initPluginInstancesUndoSync } from '@plugins/runtime/displayElement/instancesUndoSync';
 import { historyApi } from '@api/modules/editor/historyApi';
 import {
   useHistoryStatusStore,
@@ -398,12 +397,6 @@ export function useAppBootstrap() {
       }
     })();
 
-    // 플러그인 인스턴스 undo/redo의 canonical 재결합 (C4)
-    const stopPluginInstancesUndoSync =
-      window.__dmn_runtime !== 'obs' && window.__dmn_window_type === 'main'
-        ? initPluginInstancesUndoSync()
-        : null;
-
     // 저장하지 못해 되돌린 트리 쓰기 안내 - 한도 초과는 한도 문구로
     let stopTreeWriteRejected: (() => void) | undefined;
     let stopTreeWriteConflict: (() => void) | undefined;
@@ -691,7 +684,6 @@ export function useAppBootstrap() {
       disposed = true;
       counterRuntime.markDisposed();
       resetHistoryEditorFlushLock();
-      stopPluginInstancesUndoSync?.();
       stopTreeWriteRejected?.();
       stopTreeWriteConflict?.();
       unsubscribers.forEach((unsubscribe) => {

@@ -279,7 +279,7 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
     onPositionChange: (newX, newY) => {
       // 선택 모드가 아닐 때만 개별 이동
       if (windowType === 'main' && element.draggable && !isSelectionMode) {
-        applyPluginElementEdit(selectedKeyType, new Set([element.fullId]), () =>
+        applyPluginElementEdit(new Set([element.fullId]), () =>
           updateElement(element.fullId, {
             position: { x: newX, y: newY },
             anchor: undefined, // 드래그하면 앵커 제거

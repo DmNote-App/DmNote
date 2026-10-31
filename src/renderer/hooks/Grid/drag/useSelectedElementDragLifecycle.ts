@@ -2,7 +2,6 @@ import { useRef } from 'react';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { createPluginPositionDragReceipt } from '@plugins/runtime/displayElement/pluginElementActions';
-import { withoutInstanceSave } from '@plugins/runtime/displayElement/instanceSaveSuppression';
 import { releasePluginElementsEditing } from '@plugins/runtime/displayElement/pluginTreeEditOwnership';
 
 // 함께 고른 다른 선택(트리 요소)의 끌기 - 증분 이동, 끝낼 때 커밋, 취소 때 되돌리기
@@ -72,7 +71,8 @@ export const useSelectedElementDragLifecycle = ({
     return (commit = true) => {
       if (!commit) {
         companionReceipt?.rollback();
-        withoutInstanceSave(() => pluginIds.forEach(pluginReceipt.rollback));
+        // 미리보는 요소라 저장되지 않는다 - 풀면 트리 값으로 다시 맞춘다
+        pluginIds.forEach(pluginReceipt.rollback);
         releasePluginElementsEditing(selectedPluginElementIds);
       }
       if (gestureIdRef.current === gestureId) {

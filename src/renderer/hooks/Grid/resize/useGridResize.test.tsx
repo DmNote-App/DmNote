@@ -52,7 +52,6 @@ const mocks = vi.hoisted(() => ({
 // 플러그인 요소 최종 위치·크기는 트리 노드 틀 커밋 - 고친 요소·동작 id를 기록한다
 vi.mock('@plugins/runtime/displayElement/pluginTreeGeometry', () => ({
   applyPluginElementEdit: (
-    _scene: string,
     ids: ReadonlySet<string>,
     change: (ids: ReadonlySet<string>) => void,
   ) => change(ids),

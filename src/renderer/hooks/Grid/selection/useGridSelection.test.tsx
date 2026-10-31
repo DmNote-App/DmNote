@@ -32,7 +32,6 @@ vi.mock('@plugins/runtime/displayElement/instancesCommitQueue', () => ({
 vi.mock('@plugins/runtime/displayElement/pluginTreeGeometry', () => ({
   commitPluginFrames: mocks.commitFrames,
   applyPluginElementEdit: (
-    _scene: string,
     ids: ReadonlySet<string>,
     change: (ids: ReadonlySet<string>) => void,
   ) => change(ids),

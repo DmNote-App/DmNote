@@ -128,7 +128,7 @@ export function useGridSelection({
     );
     if (pluginUpdateIds.size > 0) {
       // 트리에 있는 요소는 자동 저장 없이 - 정산(syncSelectedElementsToOverlay)이 트리로 저장한다
-      applyPluginElementEdit(selectedKeyType, pluginUpdateIds, (ids) => {
+      applyPluginElementEdit(pluginUpdateIds, (ids) => {
         usePluginDisplayElementStore
           .getState()
           .setElements(

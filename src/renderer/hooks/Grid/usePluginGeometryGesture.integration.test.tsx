@@ -1,6 +1,6 @@
 /**
  * 플러그인 기하 게스처 × 실물 트리 틀 저장 통합 계약
- * - preview 동안 스토어 변경은 인스턴스 자동 저장을 부르지 않는다 (트리에 노드가 있는 요소)
+ * - preview 동안 스토어 변경은 인스턴스 저장을 부르지 않는다 (미리보는 요소)
  * - commit은 바뀐 틀만 같은 동작 id의 트리 커밋 한 번으로, cancel은 저장 없이 복원
  * - 끝난 뒤 쓰기 대기가 남지 않는다
  */
@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { isInstanceSaveSuppressed } from '@plugins/runtime/displayElement/instanceSaveSuppression';
+import { isPluginElementEditing } from '@plugins/runtime/displayElement/pluginTreeEditOwnership';
 import { drainEditorWrites } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
@@ -29,11 +29,6 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
         : undefined,
     edit: tree.edit,
   }),
-}));
-vi.mock('@plugins/runtime/displayElement/instancesUndoSync', () => ({
-  applyCanonicalPluginInstances: vi.fn(async () => {}),
-  notePluginTreeEdit: vi.fn(),
-  syncOwnTreeEditFields: vi.fn(),
 }));
 vi.mock('@utils/plugin/bridgeMessages', () => ({
   sendBridgeMessageBestEffort: vi.fn(),
@@ -56,7 +51,7 @@ const pluginElement = (): PluginDisplayElementInternal => ({
 const target = { fullId: FULL_ID, pluginId: PLUGIN_ID };
 
 describe('usePluginGeometryGesture 트리 틀 저장 통합', () => {
-  // defineElement의 스토어 구독을 흉내 - 막힌 변경은 자동 저장을 예약하지 않는다
+  // 인스턴스 저장의 스토어 구독을 흉내 - 미리보는 요소의 변경은 저장하지 않는다
   let scheduledSaves: number;
   let unsubscribe: () => void;
 
@@ -69,7 +64,7 @@ describe('usePluginGeometryGesture 트리 틀 저장 통합', () => {
       .getState()
       .setSelectedElements([{ type: 'plugin', id: FULL_ID }]);
     unsubscribe = usePluginDisplayElementStore.subscribe(() => {
-      if (!isInstanceSaveSuppressed()) scheduledSaves += 1;
+      if (!isPluginElementEditing(FULL_ID)) scheduledSaves += 1;
     });
   });
 

@@ -10,8 +10,8 @@ export const PLUGIN_KIND_PREFIX = 'plugin:';
 export const pluginKindName = (pluginId: string) =>
   `${PLUGIN_KIND_PREFIX}${pluginId}`;
 
-// 크기를 모를 때 - 크기 조절 플러그인의 기본 크기와 같다
-const FALLBACK_SIZE = { width: 200, height: 150 };
+// 크기를 모를 때 - 크기 조절 플러그인의 기본 크기와 같다 (측정 크기가 없는 인스턴스의 틀)
+export const PLUGIN_FALLBACK_SIZE = { width: 200, height: 150 };
 
 export const pluginKindSchema = (
   pluginId: string,
@@ -33,8 +33,8 @@ export const pluginKindSchema = (
   ),
   bundles: [],
   inputs: [],
-  defaultSize: FALLBACK_SIZE,
-  fallbackSize: FALLBACK_SIZE,
+  defaultSize: PLUGIN_FALLBACK_SIZE,
+  fallbackSize: PLUGIN_FALLBACK_SIZE,
   rotatable: false,
   migrations: [],
 });

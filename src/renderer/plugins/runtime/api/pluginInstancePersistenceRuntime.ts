@@ -1,53 +1,53 @@
-import { pluginInstancesApi } from '@api/modules/plugin/pluginInstancesApi';
-import { buildValidTabIdSet } from '@constants/keyModes';
-import { getPluginAuthorityGeneration } from '@plugins/runtime/pluginAuthorityGeneration';
-import { noteBackendPluginRevision } from '@plugins/runtime/pluginModelRevision';
+// 플러그인 인스턴스 저장 - 원본은 트리 하나 (main 전용).
+// 런타임 스토어의 이 정의 요소는 트리 보기에서 파생한다(처음 복원·되돌리기·다른 창 쓰기·트리 편집 모두 트리 알림).
+// 플러그인 스크립트·측정·설정 패널이 런타임 스토어를 바꾸면 바뀐 칸만 트리 연산으로 이어 붙여 보낸다
+// (조용해진 뒤 커밋 하나 - 예전 자동 저장의 묶어 보내기). 트리 → 런타임 반영이 만든 변경은 다시 쓰지 않고,
+// 보내지 못한 편집은 트리 보기에서 빠져 런타임도 따라 돌아간다
 import { trackPluginWork } from '@plugins/runtime/pluginRuntimeReadiness';
-import {
-  useHistoryStatusStore,
-  syncHistoryStatus,
-} from '@stores/data/useHistoryStatusStore';
-import { useKeyStore } from '@stores/data/useKeyStore';
+import { pruneStalePluginSelection } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
+import {
+  ElementEditHeldError,
+  type ElementDocumentStore,
+} from '@src/renderer/editor/document/elementDocumentStore';
+import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { trackEditorWrite } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
+import type { Op } from '@src/types/generated/elementDocument';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
-import { removeDisplayElementsInternal } from '../displayElement/displayElementApi';
+import { createPluginInstanceSaveBarrier } from '../displayElement/instanceLifecycle';
 import {
-  createPluginInstanceLifecycle,
-  createPluginInstanceSaveBarrier,
-  type PluginRestoreReadiness,
-} from '../displayElement/instanceLifecycle';
-import {
-  createPluginInstancesSaveDebounce,
-  enqueuePluginInstancesCommit,
-  hasActivePluginInstancesEditContext,
-  hasConflictingPluginInstancesGesture,
   registerPluginInstancesEditSessionFlush,
   touchPluginInstancesEditSession,
 } from '../displayElement/instancesCommitQueue';
-import { isInstanceSaveSuppressed } from '../displayElement/instanceSaveSuppression';
 import {
-  applyCanonicalPluginInstances,
-  notePluginInstancesMutation,
-  registerPluginInstancesReapplier,
-} from '../displayElement/instancesUndoSync';
+  isPluginElementEditing,
+  subscribePluginEditingReleased,
+} from '../displayElement/pluginTreeEditOwnership';
 import type { SavedInstance } from './pluginInstanceSnapshotApplier';
+import {
+  pluginInstanceOps,
+  pluginInstancesFromTree,
+} from './pluginTreeInstances';
+
+// 드래그 등 프레임 단위 변경을 커밋 하나로 - 조용해진 뒤 보낸다
+const INSTANCE_SAVE_QUIET_MS = 200;
 
 interface CreatePluginInstancePersistenceRuntimeOptions {
   pluginId: string;
   definitionId: string;
   registerCleanup: (cleanup: () => void) => void;
   isReloading: () => boolean;
-  waitForReloadEnd: () => Promise<void>;
   buildSavedPluginInstances: (
     elements: readonly PluginDisplayElementInternal[],
     definitionId: string,
   ) => SavedInstance[];
+  // 트리 문서에 이 플러그인의 요소 종류를 알린 뒤 - 쓰기는 그 뒤에 (모르는 종류 넣기는 거절된다)
+  kindRegistered?: Promise<unknown>;
 }
 
 type ApplyPluginInstancesSnapshot = (
   savedInstances: SavedInstance[],
-  readiness: Exclude<PluginRestoreReadiness, 'pending'>,
+  readiness: 'ready' | 'failed',
 ) => void;
 
 export const createPluginInstancePersistenceRuntime = ({
@@ -55,394 +55,169 @@ export const createPluginInstancePersistenceRuntime = ({
   definitionId: defId,
   registerCleanup,
   isReloading,
-  waitForReloadEnd,
   buildSavedPluginInstances,
+  kindRegistered,
 }: CreatePluginInstancePersistenceRuntimeOptions) => {
-  let pendingRestorationSave: {
-    resolve: () => void;
-    reject: (error: unknown) => void;
-  } | null = null;
+  let restoreWindowChanged = false;
+  // 트리 → 런타임 반영 중이거나 복원 전이면 저장하지 않는다 - 복원 전 변경은 복원 뒤 한 번에
   const instanceSaveBarrier = createPluginInstanceSaveBarrier(() => {
-    if (pendingRestorationSave) return;
-    let resolve!: () => void;
-    let reject!: (error: unknown) => void;
-    const pending = new Promise<void>((resolvePromise, rejectPromise) => {
-      resolve = resolvePromise;
-      reject = rejectPromise;
-    });
-    pendingRestorationSave = { resolve, reject };
-    void trackEditorWrite(pending);
+    restoreWindowChanged = true;
   });
 
-  const isHistoryRejection = (error: unknown): boolean => {
-    const message = String(error);
-    return (
-      message.includes('HISTORY_EPOCH_CONFLICT') ||
-      message.includes('HISTORY_IN_PROGRESS')
-    );
-  };
-
-  // barrier 거절 복구 - 큐 잔여 스냅샷을 먼저 폐기해 canonical 되덮기 방지
-  const reapplyCanonicalAfterRejection = async () => {
-    cancelPendingInstanceSave();
-    await applyCanonicalPluginInstances(pluginId, true).catch((pullError) => {
-      console.error(
-        `[Plugin ${pluginId}] Failed to reapply canonical instances:`,
-        pullError,
-      );
-    });
-  };
-
-  // canonical commit (C4) - admission·epoch·dedupe·no-op·gesture 병합은 백엔드 규율
-  const commitInstancesInner = async (
-    instances: SavedInstance[],
-    gestureId: string,
-    observedHistoryEpoch: number,
-  ) => {
-    const buildRequest = () => {
-      const mutationId = crypto.randomUUID();
-      notePluginInstancesMutation(mutationId);
-      return {
-        pluginId,
-        instances,
-        mutationId,
-        gestureId,
-        observedHistoryEpoch,
-        authorityGeneration: getPluginAuthorityGeneration(),
-      };
-    };
-    try {
-      const result = await pluginInstancesApi.commit(buildRequest());
-      noteBackendPluginRevision(result.modelRevision);
-    } catch (error) {
-      // 낡은 epoch 관측 = barrier(undo·프리셋 복원)와 경합 - barrier가 이긴다
-      // 캡처값 재시도는 undo 직전 상태를 되살리므로 폐기하고, 다른 gesture가
-      // 소유 중이 아니면 canonical 재주입으로 메모리와 저장을 재수렴
-      if (isHistoryRejection(error)) {
-        console.warn(
-          `[Plugin ${pluginId}] Instance save dropped by history barrier`,
-        );
-        await syncHistoryStatus();
-        if (!hasConflictingPluginInstancesGesture(pluginId, gestureId)) {
-          await reapplyCanonicalAfterRejection();
-        }
-        return;
-      }
-      throw error;
-    }
-  };
-
-  // undo 재결합 직전 pending 저장 취소용 - main 블록에서 실제 구현 주입
-  let cancelPendingInstanceSave: () => void = () => {};
-  // 취소 세대 - debounce 타이머뿐 아니라 이미 큐에 들어간 저장도 무효화
-  let instanceSaveGeneration = 0;
-
-  const instanceLifecycle =
-    window.__dmn_window_type === 'main'
-      ? createPluginInstanceLifecycle<SavedInstance>({
-          isBootstrapped: () => useKeyStore.getState().isBootstrapped,
-          subscribeBootstrap: (listener) =>
-            useKeyStore.subscribe((state, previousState) => {
-              if (state.isBootstrapped !== previousState.isBootstrapped) {
-                listener();
-              }
-            }),
-          loadInstances: async () => {
-            const snapshot = await pluginInstancesApi.get(pluginId);
-            noteBackendPluginRevision(snapshot.modelRevision);
-            return snapshot.instances as SavedInstance[];
-          },
-          // 탭 정리는 백엔드 단일 write-lock에서 원자 수행 - get과 commit
-          // 사이에 bulk clear 등이 끼어 지워진 인스턴스가 부활하지 않음.
-          // 유효 탭은 큐 실행 시점 파생, invoke 비행 중 탭 undo는 epoch가 거절
-          reconcilePersist: () => {
-            const observedHistoryEpoch =
-              useHistoryStatusStore.getState().historyEpoch;
-            return enqueuePluginInstancesCommit(pluginId, async () => {
-              const validTabIds = buildValidTabIdSet(
-                useKeyStore.getState().customTabs.map((tab) => tab.id),
-              );
-              const mutationId = crypto.randomUUID();
-              notePluginInstancesMutation(mutationId);
-              try {
-                const result = await pluginInstancesApi.reconcile({
-                  pluginId,
-                  validTabIds: [...validTabIds],
-                  mutationId,
-                  observedHistoryEpoch,
-                  authorityGeneration: getPluginAuthorityGeneration(),
-                });
-                noteBackendPluginRevision(result.modelRevision);
-              } catch (error) {
-                if (isHistoryRejection(error)) {
-                  await syncHistoryStatus();
-                  if (!hasActivePluginInstancesEditContext(pluginId)) {
-                    await reapplyCanonicalAfterRejection();
-                  }
-                  return;
-                }
-                throw error;
-              }
-            });
-          },
-          getMemoryInstances: () =>
-            usePluginDisplayElementStore
-              .getState()
-              .elements.filter((element) => element.definitionId === defId)
-              .map((element) => ({
-                fullId: element.fullId,
-                tabId: element.tabId,
-              })),
-          releaseMemoryInstances: removeDisplayElementsInternal,
-        })
-      : null;
-
-  const buildInstances = (
-    elements: readonly PluginDisplayElementInternal[],
-  ): SavedInstance[] => buildSavedPluginInstances(elements, defId);
-
-  const buildInstancesFromStore = (): SavedInstance[] =>
-    buildInstances(usePluginDisplayElementStore.getState().elements);
-
-  const saveInstances = async ({
-    waitForReload = false,
-    gestureId,
-    captureCurrentSnapshot = false,
-  }: {
-    waitForReload?: boolean;
-    gestureId?: string;
-    captureCurrentSnapshot?: boolean;
-  } = {}) => {
-    // 일반 리로드 중 저장은 폐기, 복원 중 생긴 실제 편집만 리로드 종료 뒤 저장
-    if (!instanceSaveBarrier.shouldSave()) return;
-    if (waitForReload) {
-      while (isReloading()) await waitForReloadEnd();
-    } else if (isReloading()) {
-      return;
-    }
-    if (!instanceLifecycle) return;
-
-    const generationAtCapture = instanceSaveGeneration;
-    // 스냅샷과 같은 시점의 epoch를 고정 - 앞선 큐가 끝난 뒤 현재 epoch를
-    // 다시 읽으면 undo/reset 전 저장이 새 장벽을 통과할 수 있음
-    const observedHistoryEpoch = useHistoryStatusStore.getState().historyEpoch;
-    const capturedInstances = captureCurrentSnapshot
-      ? buildInstancesFromStore().map((instance) => ({
-          ...instance,
-          position: { ...instance.position },
-          settings: instance.settings ? { ...instance.settings } : undefined,
-          measuredSize: instance.measuredSize
-            ? { ...instance.measuredSize }
-            : undefined,
-        }))
-      : null;
-    // 일반 저장은 큐 실행 시점 캡처, 제스처 경계 flush만 이전 상태 고정
-    await enqueuePluginInstancesCommit(pluginId, async () => {
-      if (waitForReload) {
-        while (isReloading()) await waitForReloadEnd();
-      } else if (isReloading()) {
-        return;
-      }
-      if (!instanceSaveBarrier.shouldSave()) return;
-      if (generationAtCapture !== instanceSaveGeneration) return;
-      await commitInstancesInner(
-        capturedInstances ?? buildInstancesFromStore(),
-        gestureId ?? touchPluginInstancesEditSession(pluginId),
-        observedHistoryEpoch,
-      );
-    });
-  };
-
-  const flushPendingRestorationSave = async () => {
-    const pending = pendingRestorationSave;
-    if (!pending) return;
-    pendingRestorationSave = null;
-    try {
-      await saveInstances({ waitForReload: true });
-      pending.resolve();
-    } catch (error) {
-      pending.reject(error);
-      throw error;
-    }
-  };
-
-  const discardPendingRestorationSave = () => {
-    const pending = pendingRestorationSave;
-    pendingRestorationSave = null;
-    pending?.resolve();
-  };
-
-  const failPendingRestorationSave = (error: unknown) => {
-    const pending = pendingRestorationSave;
-    pendingRestorationSave = null;
-    pending?.reject(error);
-  };
-
-  if (window.__dmn_window_type === 'main') {
-    // 드래그 등 프레임 단위 변경의 commit 스팸 방지 - trailing debounce
-    const INSTANCE_SAVE_DEBOUNCE_MS = 200;
-    const instanceSaveDebounce = createPluginInstancesSaveDebounce({
-      delayMs: INSTANCE_SAVE_DEBOUNCE_MS,
-      save: ({ gestureId, captureCurrentSnapshot }) =>
-        saveInstances({ gestureId, captureCurrentSnapshot }),
-      // 실패한 스냅샷을 메모리에 방치하면 저장과 화면이 갈라진다 -
-      // 다른 gesture 소유 중이 아니면 canonical로 롤백 (pendingWrite
-      // reject는 debounce가 유지해 종료 drain 실패 전파 계약 보존)
-      onError: (error, { gestureId }) => {
-        console.error(`[Plugin ${pluginId}] Failed to save instances:`, error);
-        if (
-          gestureId !== undefined &&
-          hasConflictingPluginInstancesGesture(pluginId, gestureId)
-        ) {
-          return;
-        }
-        void applyCanonicalPluginInstances(pluginId, true).catch(
-          (pullError) => {
-            console.error(
-              `[Plugin ${pluginId}] Failed to reapply canonical instances:`,
-              pullError,
-            );
-          },
-        );
-      },
-    });
-    cancelPendingInstanceSave = () => {
-      instanceSaveDebounce.cancel();
-      instanceSaveGeneration += 1;
-    };
-    registerCleanup(cancelPendingInstanceSave);
-    registerCleanup(
-      registerPluginInstancesEditSessionFlush(pluginId, () => {
-        instanceSaveDebounce.flush();
-      }),
+  const instancesOf = (elements: readonly PluginDisplayElementInternal[]) =>
+    new Map(
+      buildSavedPluginInstances(elements, defId).map((instance) => [
+        `${pluginId}::${instance.instanceId}`,
+        instance,
+      ]),
     );
 
-    const unsubStore = usePluginDisplayElementStore.subscribe(
-      (state, prevState) => {
-        const currentInstances = buildInstances(state.elements);
-        const prevInstances = buildInstances(prevState.elements);
+  let store: ElementDocumentStore | null = null;
 
-        if (
-          JSON.stringify(currentInstances) !== JSON.stringify(prevInstances)
-        ) {
-          // 복원 재주입 중 변경은 저장 대상이 아님 (undo 반영 echo 차단)
-          if (!instanceSaveBarrier.shouldSave()) return;
-          // 편집기가 트리 커밋으로 저장하는 변경
-          if (isInstanceSaveSuppressed()) return;
-          // 변경 시점 기준으로 edit-session TTL 갱신 - debounce가 세션을 쪼개지 않게
-          instanceSaveDebounce.schedule(
-            touchPluginInstancesEditSession(pluginId),
+  const send = (ops: Op[]) => {
+    if (ops.length === 0 || !store?.editCoalesced) return;
+    const sent = store.editCoalesced(ops, {
+      key: pluginId,
+      quietMs: INSTANCE_SAVE_QUIET_MS,
+      gestureId: touchPluginInstancesEditSession(pluginId),
+    });
+    void trackEditorWrite(sent).then(
+      (result) => {
+        if (result.status === 'rejected') {
+          console.warn(
+            `[Plugin ${pluginId}] Instance write rejected: ${result.code}`,
           );
         }
       },
+      (error: unknown) => {
+        if (error instanceof ElementEditHeldError) return;
+        console.error(`[Plugin ${pluginId}] Failed to save instances:`, error);
+      },
     );
-    registerCleanup(unsubStore);
-
-    const unsubValidTabs = useKeyStore.subscribe((state, previousState) => {
-      if (!state.isBootstrapped) return;
-
-      const validTabIds = buildValidTabIdSet(
-        state.customTabs.map((tab) => tab.id),
-      );
-      const previousValidTabIds = previousState.isBootstrapped
-        ? buildValidTabIdSet(previousState.customTabs.map((tab) => tab.id))
-        : null;
-      const validTabsChanged =
-        previousValidTabIds === null ||
-        validTabIds.size !== previousValidTabIds.size ||
-        [...validTabIds].some((tabId) => !previousValidTabIds.has(tabId));
-      if (!validTabsChanged) return;
-
-      void instanceLifecycle?.reconcile(validTabIds).catch((error) => {
-        console.error(
-          `[Plugin ${pluginId}] Failed to reconcile instances:`,
-          error,
-        );
-      });
-    });
-    registerCleanup(unsubValidTabs);
-  }
+  };
 
   const connectSnapshotApplier = (
     applyInstancesSnapshot: ApplyPluginInstancesSnapshot,
   ) => {
-    if (window.__dmn_window_type === 'main') {
-      // undo/redo의 canonical 재결합 - diff 적용기가 소멸·생존·신규를 정산
-      registerCleanup(
-        registerPluginInstancesReapplier(pluginId, defId, {
-          // 이벤트 도착 즉시 호출 - 낡은 메모리를 커밋할 pending 저장 차단
-          cancelPendingSave: () => cancelPendingInstanceSave(),
-          reapply: (instances) => {
-            applyInstancesSnapshot(instances as SavedInstance[], 'ready');
-          },
-        }),
-      );
-    }
-
-    if (instanceLifecycle) {
-      let restoreStarted = false;
-      let settleScheduledRestore: (() => void) | null = null;
-      const scheduledRestore = new Promise<PluginRestoreReadiness>(
-        (resolve, reject) => {
-          settleScheduledRestore = () => resolve('pending');
-          const restoreTimer = setTimeout(() => {
-            restoreStarted = true;
-            settleScheduledRestore = null;
-            try {
-              void instanceLifecycle
-                .startRestore(
-                  () => {
-                    const keyState = useKeyStore.getState();
-                    return buildValidTabIdSet(
-                      keyState.customTabs.map((tab) => tab.id),
-                    );
-                  },
-                  (savedInstances, readiness) =>
-                    applyInstancesSnapshot(savedInstances, readiness),
-                )
-                .then(resolve, reject);
-            } catch (error) {
-              reject(error);
-            }
-          }, 0);
-          registerCleanup(() => {
-            clearTimeout(restoreTimer);
-            if (!restoreStarted) {
-              settleScheduledRestore?.();
-              settleScheduledRestore = null;
-            }
-          });
-        },
-      );
-      // 인스턴스 복구까지 끝나야 오버레이 리빌 게이트가 열린다
-      const restoreWork = scheduledRestore.then(
-        async () => {
-          if (instanceSaveBarrier.finishRestoration()) {
-            await flushPendingRestorationSave();
-          }
-        },
-        (error) => {
-          instanceSaveBarrier.failRestoration();
-          failPendingRestorationSave(error);
-          throw error;
-        },
-      );
-      trackPluginWork(restoreWork);
-      void trackEditorWrite(restoreWork).catch((error) => {
-        console.error(
-          `[Plugin ${pluginId}] Failed to restore instances:`,
-          error,
-        );
-      });
-
-      registerCleanup(() => {
-        instanceLifecycle.dispose();
-        instanceSaveBarrier.cancelRestoration();
-        discardPendingRestorationSave();
-      });
-    } else {
+    if (window.__dmn_window_type !== 'main') {
       instanceSaveBarrier.finishRestoration();
+      return;
     }
+
+    let disposed = false;
+    let unsubscribeTree: (() => void) | null = null;
+    let lastApplied: string | null = null;
+    // 트리 → 런타임 반영 중 - 그 변경은 다시 쓰지 않는다
+    let applying = false;
+    registerCleanup(() => {
+      disposed = true;
+      unsubscribeTree?.();
+      unsubscribeTree = null;
+      store = null;
+    });
+
+    // 트리 → 런타임. 편집기가 미리보는 요소의 틀은 런타임 값을 지킨다 (끝날 때 트리 틀 연산으로 저장)
+    const reapply = () => {
+      if (!store) return;
+      const instances = pluginInstancesFromTree(store, pluginId);
+      const key = JSON.stringify(instances);
+      if (key === lastApplied) return;
+      lastApplied = key;
+      const runtime = new Map(
+        usePluginDisplayElementStore
+          .getState()
+          .elements.map((element) => [element.fullId, element]),
+      );
+      applying = true;
+      try {
+        applyInstancesSnapshot(
+          instances.map((instance) => {
+            const fullId = `${pluginId}::${instance.instanceId}`;
+            const element = runtime.get(fullId);
+            return element && isPluginElementEditing(fullId)
+              ? {
+                  ...instance,
+                  position: element.position,
+                  measuredSize: element.measuredSize,
+                }
+              : instance;
+          }),
+          'ready',
+        );
+      } finally {
+        applying = false;
+      }
+      pruneStalePluginSelection(
+        new Set(
+          usePluginDisplayElementStore
+            .getState()
+            .elements.map((element) => element.fullId),
+        ),
+        pluginId,
+      );
+    };
+
+    const restoreWork = (async () => {
+      const loaded = await loadElementDocumentStore();
+      await kindRegistered?.catch(() => undefined);
+      if (disposed) return;
+      store = loaded;
+      reapply();
+      unsubscribeTree = loaded.subscribe(reapply);
+      // 복원 전에 만든 요소(트리에 없는 것)를 넣는다
+      if (instanceSaveBarrier.finishRestoration() && restoreWindowChanged) {
+        const created = new Map(
+          [
+            ...instancesOf(usePluginDisplayElementStore.getState().elements),
+          ].filter(([fullId]) =>
+            loaded
+              .getSceneIds()
+              .every((sceneId) => !loaded.getElement(sceneId, fullId)),
+          ),
+        );
+        send(pluginInstanceOps(loaded, pluginId, new Map(), created));
+      }
+    })().catch((error: unknown) => {
+      instanceSaveBarrier.failRestoration();
+      throw error;
+    });
+    trackPluginWork(restoreWork);
+    void restoreWork.catch((error) => {
+      console.error(`[Plugin ${pluginId}] Failed to restore instances:`, error);
+    });
+
+    // 런타임 → 트리. 바뀐 칸만 (트리 → 런타임 반영·편집기 미리보기·다시 불러오기 중 변경은 빼고)
+    const unsubscribeStore = usePluginDisplayElementStore.subscribe(
+      (state, previous) => {
+        if (state.elements === previous.elements || applying) return;
+        if (!instanceSaveBarrier.shouldSave()) return;
+        if (isReloading() || !store) return;
+        const before = instancesOf(previous.elements);
+        const next = instancesOf(state.elements);
+        for (const fullId of new Set([...before.keys(), ...next.keys()])) {
+          if (isPluginElementEditing(fullId)) {
+            before.delete(fullId);
+            next.delete(fullId);
+          }
+        }
+        send(pluginInstanceOps(store, pluginId, before, next));
+      },
+    );
+    registerCleanup(unsubscribeStore);
+    // 미리보기를 푼 요소 - 보냈으면 이미 같은 값이고, 취소했으면 트리 값으로 돌아간다
+    registerCleanup(
+      subscribePluginEditingReleased((fullIds) => {
+        if (![...fullIds].some((id) => id.startsWith(`${pluginId}::`))) return;
+        lastApplied = null;
+        reapply();
+      }),
+    );
+    // 지우기·만들기는 끊어 보낸다 (조용해지길 기다리지 않는다)
+    registerCleanup(
+      registerPluginInstancesEditSessionFlush(pluginId, () =>
+        store?.flushCoalesced?.(),
+      ),
+    );
   };
 
   return {

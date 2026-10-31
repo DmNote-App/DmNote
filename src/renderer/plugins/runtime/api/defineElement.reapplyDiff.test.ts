@@ -1,100 +1,23 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-interface CapturedSaveRequest {
-  gestureId?: string;
-  captureCurrentSnapshot: boolean;
-}
+import type { FakeElementDocumentBackend } from '@src/renderer/__tests__/fakeElementDocumentBackend';
+import type { Document, Node } from '@src/types/generated/elementDocument';
 
-interface CapturedSaveDebounceOptions {
-  delayMs: number;
-  save: (request: CapturedSaveRequest) => Promise<void>;
-  onError: (error: unknown, request: CapturedSaveRequest) => void;
-}
-
-const mocks = vi.hoisted(() => ({
-  instancesCommit: vi.fn(() =>
-    Promise.resolve({ modelRevision: 1, changed: false }),
+// IPC 경계만 대역 - 트리 스토어·런타임·플러그인 런타임은 실물
+const ipc = vi.hoisted(() => ({
+  backend: null as FakeElementDocumentBackend | null,
+}));
+vi.mock('@api/modules/editor/elementDocumentApi', () => ({
+  elementDocumentApi: new Proxy(
+    {},
+    {
+      get: (_target, name: string) =>
+        name === 'registerKind' || name === 'unregisterKind'
+          ? async () => undefined
+          : (ipc.backend!.api as Record<string, unknown>)[name],
+    },
   ),
-  instancesReconcile: vi.fn(() =>
-    Promise.resolve({ modelRevision: 1, changed: false }),
-  ),
-  instancesGet: vi.fn(),
-  debounceSchedule: vi.fn(),
-  debounceFlush: vi.fn(),
-  debounceCancel: vi.fn(),
-  saveDebounces: [] as CapturedSaveDebounceOptions[],
-  isStaged: vi.fn(() => false),
-  hasConflicting: vi.fn(() => false),
-  hasActiveContext: vi.fn(() => false),
-  flushEditSession: vi.fn(),
-  stagedReleaseListeners: new Map<string, (gestureId: string) => void>(),
-  stagedOwners: new Map<string, string>(),
-  syncHistoryStatus: vi.fn(() => Promise.resolve()),
-  historyEpoch: 1,
-  enqueueGate: null as Promise<void> | null,
-}));
-
-vi.mock('@api/modules/plugin/pluginInstancesApi', () => ({
-  pluginInstancesApi: {
-    commit: mocks.instancesCommit,
-    reconcile: mocks.instancesReconcile,
-    get: mocks.instancesGet,
-    onChanged: vi.fn(() => () => undefined),
-  },
-}));
-
-vi.mock('../displayElement/instancesCommitQueue', () => ({
-  createPluginInstancesSaveDebounce: (options: CapturedSaveDebounceOptions) => {
-    mocks.saveDebounces.push(options);
-    return {
-      schedule: mocks.debounceSchedule,
-      flush: mocks.debounceFlush,
-      cancel: mocks.debounceCancel,
-    };
-  },
-  enqueuePluginInstancesCommit: (
-    _pluginId: string,
-    task: () => Promise<unknown>,
-  ) => (mocks.enqueueGate ? mocks.enqueueGate.then(() => task()) : task()),
-  flushPluginInstancesEditSession: mocks.flushEditSession,
-  hasActivePluginInstancesEditContext: mocks.hasActiveContext,
-  hasConflictingPluginInstancesGesture: mocks.hasConflicting,
-  isPluginInstancesGestureStaged: mocks.isStaged,
-  getStagedPluginInstancesGestureId: (pluginId: string) =>
-    mocks.stagedOwners.get(pluginId),
-  stagePluginInstancesGesture: (pluginId: string, gestureId: string) => {
-    mocks.stagedOwners.set(pluginId, gestureId);
-  },
-  unstagePluginInstancesGesture: (pluginId: string, gestureId: string) => {
-    if (mocks.stagedOwners.get(pluginId) !== gestureId) return;
-    mocks.stagedOwners.delete(pluginId);
-    mocks.isStaged.mockReturnValue(false);
-    mocks.stagedReleaseListeners.get(pluginId)?.(gestureId);
-  },
-  registerPluginInstancesEditSessionFlush: () => () => undefined,
-  registerPluginInstancesStagedRelease: (
-    pluginId: string,
-    listener: (gestureId: string) => void,
-  ) => {
-    mocks.stagedReleaseListeners.set(pluginId, listener);
-    return () => {
-      mocks.stagedReleaseListeners.delete(pluginId);
-    };
-  },
-  rotatePluginInstancesEditSession: vi.fn(),
-  touchPluginInstancesEditSession: (
-    _pluginId: string,
-    preferredGestureId?: string,
-  ) => preferredGestureId ?? 'gesture-token',
-}));
-
-vi.mock('@plugins/runtime/pluginAuthorityGeneration', () => ({
-  getPluginAuthorityGeneration: () => 1,
-}));
-
-vi.mock('@plugins/runtime/pluginModelRevision', () => ({
-  noteBackendPluginRevision: vi.fn(),
 }));
 
 vi.mock('@utils/plugin/panelModelSync', () => ({
@@ -105,17 +28,15 @@ vi.mock('@utils/plugin/bridgeMessages', () => ({
   sendBridgeMessageBestEffort: vi.fn(),
 }));
 
-vi.mock('@stores/data/useHistoryStatusStore', () => ({
-  useHistoryStatusStore: {
-    getState: () => ({ historyEpoch: mocks.historyEpoch }),
-  },
-  syncHistoryStatus: mocks.syncHistoryStatus,
-}));
-
+import { createFakeElementDocumentBackend } from '@src/renderer/__tests__/fakeElementDocumentBackend';
+import {
+  getElementDocumentStore,
+  loadElementDocumentStore,
+} from '@src/renderer/editor/document/elementDocumentRuntime';
+import { drainEditorWrites } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { applyCanonicalPluginInstances } from '../displayElement/instancesUndoSync';
 import {
   displayElementInstanceRegistry,
   getDisplayElementInstance,
@@ -125,6 +46,11 @@ import {
   displayElementApi,
 } from '../displayElement/displayElementApi';
 import {
+  markPluginElementsEditing,
+  releasePluginElementsEditing,
+  resetPluginTreeEditOwnership,
+} from '../displayElement/pluginTreeEditOwnership';
+import {
   buildSavedPluginInstances,
   createDefineElement,
   type SavedInstance,
@@ -133,36 +59,76 @@ import {
 const ID_A = '50000000-0000-4000-8000-000000000001';
 const ID_B = '50000000-0000-4000-8000-000000000002';
 const ID_C = '50000000-0000-4000-8000-000000000003';
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const saved = (
-  instanceId: string | undefined,
+  instanceId: string,
   overrides: Partial<SavedInstance> = {},
 ): SavedInstance => ({
   instanceId,
   position: { x: 0, y: 0 },
   tabId: '4key',
   hidden: false,
-  zIndex: 1,
   ...overrides,
 });
 
-describe('plugin instance reapply diff-patch', () => {
+// 저장 모양 → 트리 노드 (백엔드 버킷 → 트리와 같은 모양 - 그룹은 부모 그룹, 겹침값·순번은 항목에)
+const documentWith = (pluginId: string, instances: SavedInstance[]) => {
+  const scenes: Record<string, Node[]> = { '4key': [], '5key': [] };
+  instances.forEach((instance, order) => {
+    const node = {
+      type: 'element',
+      id: `${pluginId}::${instance.instanceId}`,
+      kind: `plugin:${pluginId}`,
+      frame: {
+        x: instance.position.x,
+        y: instance.position.y,
+        width: instance.measuredSize?.width ?? 200,
+        height: instance.measuredSize?.height ?? 150,
+        rotation: 0,
+      },
+      hidden: instance.hidden === true,
+      values: instance.settings ?? {},
+      legacy: { pluginEntry: instance, order },
+    } as unknown as Node;
+    const nodes = (scenes[instance.tabId ?? '4key'] ??= []);
+    if (!instance.groupId) {
+      nodes.push(node);
+      return;
+    }
+    const group = nodes.find(
+      (candidate) => candidate.id === instance.groupId,
+    ) as (Node & { type: 'group' }) | undefined;
+    if (group) group.children.push(node);
+    else
+      nodes.push({
+        type: 'group',
+        id: instance.groupId,
+        name: instance.groupId,
+        children: [node],
+      } as Node);
+  });
+  return {
+    formatVersion: 1,
+    kindVersions: {},
+    scenes: Object.fromEntries(
+      Object.entries(scenes).map(([sceneId, nodes]) => [sceneId, { nodes }]),
+    ),
+  } as unknown as Document;
+};
+
+ipc.backend = createFakeElementDocumentBackend(documentWith('none', []));
+const backend = () => ipc.backend!;
+
+describe('플러그인 인스턴스 저장 - 원본은 트리', () => {
   const cleanups: Array<() => void> = [];
 
   const defineFor = (
     pluginId: string,
-    stored: SavedInstance[] | null,
+    stored: SavedInstance[],
     definitionOverrides: Record<string, unknown> = {},
   ) => {
+    backend().replace(() => documentWith(pluginId, stored));
     window.__dmn_current_plugin_id = pluginId;
-    mocks.instancesGet.mockResolvedValue({
-      pluginId,
-      instances: stored ?? [],
-      modelRevision: 1,
-      authorityGeneration: 1,
-    });
     createDefineElement({
       pluginId,
       api: {
@@ -178,7 +144,6 @@ describe('plugin instance reapply diff-patch', () => {
       registerCleanup: (cleanup: () => void) => cleanups.push(cleanup),
       wrapFunctionWithContext: (fn: (...args: unknown[]) => unknown) => fn,
       isReloading: () => false,
-      waitForReloadEnd: vi.fn().mockResolvedValue(undefined),
     } as never)({
       name: 'Example',
       template: () => '',
@@ -196,39 +161,14 @@ describe('plugin instance reapply diff-patch', () => {
       .getState()
       .elements.find((element) => element.fullId === fullId);
 
-  // canonical pull 경유 undo 재결합 - 실제 등록된 reapplier가 diff 적용
-  const reapply = async (
-    pluginId: string,
-    revision: number,
-    instances: SavedInstance[],
-  ) => {
-    mocks.instancesGet.mockResolvedValue({
-      pluginId,
-      instances,
-      modelRevision: revision,
-      authorityGeneration: 1,
-    });
-    await applyCanonicalPluginInstances(pluginId);
-  };
+  // 되돌리기·다른 창 쓰기처럼 이 창 밖에서 트리가 바뀐다
+  const reapply = (pluginId: string, instances: SavedInstance[]) =>
+    backend().replace(() => documentWith(pluginId, instances));
 
-  beforeEach(() => {
+  beforeEach(async () => {
     window.__dmn_window_type = 'main';
-    mocks.instancesCommit.mockClear();
-    mocks.instancesReconcile.mockClear();
-    mocks.instancesGet.mockReset();
-    mocks.debounceSchedule.mockClear();
-    mocks.debounceFlush.mockClear();
-    mocks.debounceCancel.mockClear();
-    mocks.saveDebounces.length = 0;
-    mocks.isStaged.mockReset().mockReturnValue(false);
-    mocks.hasConflicting.mockReset().mockReturnValue(false);
-    mocks.hasActiveContext.mockReset().mockReturnValue(false);
-    mocks.flushEditSession.mockClear();
-    mocks.stagedReleaseListeners.clear();
-    mocks.stagedOwners.clear();
-    mocks.syncHistoryStatus.mockClear();
-    mocks.historyEpoch = 1;
-    mocks.enqueueGate = null;
+    await loadElementDocumentStore();
+    backend().commit.mockClear();
     useKeyStore.setState({
       isBootstrapped: true,
       customTabs: [],
@@ -241,9 +181,12 @@ describe('plugin instance reapply diff-patch', () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    getElementDocumentStore()?.flushCoalesced?.();
+    await drainEditorWrites();
     while (cleanups.length > 0) cleanups.pop()?.();
     displayElementInstanceRegistry.clearAll();
+    resetPluginTreeEditOwnership();
     usePluginDisplayElementStore.setState({
       elements: [],
       definitions: new Map(),
@@ -251,7 +194,36 @@ describe('plugin instance reapply diff-patch', () => {
     useDocumentSelectionStore.setState({ selectedElements: [] });
     useKeyStore.setState({ isBootstrapped: false });
     delete window.__dmn_current_plugin_id;
-    delete window.__dmn_window_type;
+  });
+
+  it('트리의 플러그인 노드를 인스턴스로 복원한다 - 위치·설정·측정 크기·숨김·그룹·겹침값', async () => {
+    const pluginId = 'plugin-restore';
+    defineFor(pluginId, [
+      saved(ID_A, {
+        position: { x: 10, y: 20 },
+        settings: { volume: 2 },
+        measuredSize: { width: 50, height: 60 },
+        hidden: true,
+        zIndex: 4,
+        groupId: 'group-a',
+      }),
+      saved(ID_B, { tabId: '5key' }),
+    ]);
+    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(2));
+    const a = findElement(`${pluginId}::${ID_A}`)!;
+    expect(a.position).toEqual({ x: 10, y: 20 });
+    expect(a.settings).toEqual({ volume: 2 });
+    expect(a.measuredSize).toEqual({ width: 50, height: 60 });
+    expect(a.hidden).toBe(true);
+    expect(a.zIndex).toBe(4);
+    expect(a.groupId).toBe('group-a');
+    const b = findElement(`${pluginId}::${ID_B}`)!;
+    expect(b.tabId).toBe('5key');
+    // 기본 크기 틀은 측정 전
+    expect(b.measuredSize).toBeUndefined();
+    // 복원은 다시 쓰지 않는다
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(backend().commit).not.toHaveBeenCalled();
   });
 
   it('생존 요소는 소유 7필드만 갱신하고 핸들과 렌더러 필드를 보존한다', async () => {
@@ -272,7 +244,7 @@ describe('plugin instance reapply diff-patch', () => {
     });
     const before = findElement(fullIdA)!;
 
-    await reapply(pluginId, 5, [
+    reapply(pluginId, [
       saved(ID_A, {
         position: { x: 99, y: 88 },
         settings: { volume: 2 },
@@ -285,7 +257,6 @@ describe('plugin instance reapply diff-patch', () => {
     ]);
 
     const after = findElement(fullIdA)!;
-    // canonical 소유 7필드 갱신
     expect(after.position).toEqual({ x: 99, y: 88 });
     expect(after.settings).toEqual({ volume: 2 });
     expect(after.measuredSize).toEqual({ width: 50, height: 60 });
@@ -304,7 +275,7 @@ describe('plugin instance reapply diff-patch', () => {
     expect(findElement(fullIdA)!.position).toEqual({ x: 1, y: 2 });
   });
 
-  it('same-fullId 스냅샷 재적용 후 선택이 유지된다', async () => {
+  it('same-fullId 재적용 후 선택이 유지된다', async () => {
     const pluginId = 'plugin-diff-selection';
     defineFor(pluginId, [saved(ID_A)]);
     await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(1));
@@ -314,41 +285,54 @@ describe('plugin instance reapply diff-patch', () => {
       .setSelectedElements([{ type: 'plugin', id: fullIdA }]);
     const reference = useDocumentSelectionStore.getState().selectedElements;
 
-    await reapply(pluginId, 5, [saved(ID_A, { position: { x: 77, y: 66 } })]);
+    reapply(pluginId, [saved(ID_A, { position: { x: 77, y: 66 } })]);
 
-    // pruneStalePluginSelection no-op - 생존 fullId 선택 유지
     expect(useDocumentSelectionStore.getState().selectedElements).toBe(
       reference,
     );
     expect(findElement(fullIdA)!.position).toEqual({ x: 77, y: 66 });
   });
 
-  it('reapply 후에도 열린 모달이 캡처한 fullId update가 store에 도달한다', async () => {
+  it('재적용 뒤에도 열린 모달이 캡처한 fullId 설정 고치기가 트리까지 닿는다', async () => {
     const pluginId = 'plugin-diff-modal';
     defineFor(pluginId, [saved(ID_A)]);
     await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(1));
-    // 모달이 open 시점에 캡처하는 instanceId
     const fullIdA = `${pluginId}::${ID_A}`;
 
-    await reapply(pluginId, 5, [saved(ID_A, { settings: { volume: 1 } })]);
+    reapply(pluginId, [saved(ID_A, { settings: { volume: 1 } })]);
 
-    // 모달 commitSettingValue와 동일한 update 경로
+    // 모달 commitSettingValue와 같은 update 경로
     displayElementApi.update(fullIdA, { settings: { volume: 9 } });
     expect(findElement(fullIdA)!.settings).toEqual({ volume: 9 });
+    await vi.waitFor(() => expect(backend().commit).toHaveBeenCalledOnce());
+    expect(backend().commit.mock.calls[0][0]).toEqual([
+      {
+        op: 'setValues',
+        scene: '4key',
+        id: fullIdA,
+        values: { volume: 9 },
+      },
+    ]);
   });
 
-  it('삭제 undo는 같은 fullId로 재추가하고 새 핸들을 등록한다', async () => {
+  it('지우기는 기다리지 않고 바로 보내고, 되돌리기는 같은 fullId로 다시 넣고 새 핸들을 등록한다', async () => {
     const pluginId = 'plugin-diff-revive';
     defineFor(pluginId, [saved(ID_A), saved(ID_B)]);
     await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(2));
     const fullIdB = `${pluginId}::${ID_B}`;
     const oldHandle = getDisplayElementInstance(fullIdB)!;
 
-    // 사용자 삭제 후 undo가 canonical에 같은 instanceId로 복원한 상황
     displayElementApi.remove(fullIdB);
     expect(findElement(fullIdB)).toBeUndefined();
+    await vi.waitFor(() => expect(backend().commit).toHaveBeenCalledOnce(), {
+      timeout: 100,
+    });
+    expect(backend().commit.mock.calls[0][0]).toEqual([
+      { op: 'remove', scene: '4key', ids: [fullIdB] },
+    ]);
 
-    await reapply(pluginId, 5, [saved(ID_A), saved(ID_B)]);
+    // 되돌리기가 같은 인스턴스를 되살린 트리
+    reapply(pluginId, [saved(ID_A), saved(ID_B)]);
 
     const revived = findElement(fullIdB)!;
     expect(revived.id).toBe(ID_B);
@@ -359,16 +343,15 @@ describe('plugin instance reapply diff-patch', () => {
     oldHandle.update({ position: { x: 5, y: 5 } });
     warn.mockRestore();
     expect(findElement(fullIdB)!.position).toEqual({ x: 0, y: 0 });
-    // 새 핸들은 유효
     newHandle.update({ position: { x: 6, y: 6 } });
     expect(findElement(fullIdB)!.position).toEqual({ x: 6, y: 6 });
   });
 
-  it('초기 복원 창에서 추가된 요소는 잔존하고 reapply 소멸은 유지된다', async () => {
+  it('복원 전에 만든 요소는 남기고 복원 뒤 트리에 넣는다', async () => {
     const pluginId = 'plugin-diff-restore-window';
     defineFor(pluginId, [saved(ID_A)]);
 
-    // define 직후, 초기 복원이 착지하기 전의 사용자 추가
+    // define 직후, 복원이 끝나기 전의 사용자 추가
     const added = addDisplayElementInternal({
       html: '<!-- plugin-element -->',
       position: { x: 5, y: 5 },
@@ -378,49 +361,20 @@ describe('plugin instance reapply diff-patch', () => {
     const addedFullId = added.id;
     expect(findElement(addedFullId)).toBeDefined();
 
-    // 초기 복원 완료 - 스냅샷 밖 요소지만 소멸 단계를 스킵해 잔존
     await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(2));
-    expect(findElement(addedFullId)).toBeDefined();
     expect(findElement(`${pluginId}::${ID_A}`)).toBeDefined();
-
-    // 복원 완료 후 reapply는 canonical이 진실 - 기대 밖 요소 소멸 유지
-    await reapply(pluginId, 5, [saved(ID_A)]);
-    expect(findElement(addedFullId)).toBeUndefined();
-    expect(defElements(pluginId).map((element) => element.fullId)).toEqual([
-      `${pluginId}::${ID_A}`,
-    ]);
+    await vi.waitFor(() => expect(backend().commit).toHaveBeenCalledOnce());
+    const [insert] = backend().commit.mock.calls[0][0];
+    expect(insert).toMatchObject({
+      op: 'insert',
+      scene: '4key',
+      node: { id: addedFullId, frame: { x: 5, y: 5 } },
+    });
+    // 넣은 뒤에도 런타임에 남는다 (트리 보기와 같다)
+    expect(findElement(addedFullId)).toBeDefined();
   });
 
-  it('무ID 항목이 섞이면 그 스냅샷만 전량 재주입으로 폴백한다', async () => {
-    const pluginId = 'plugin-diff-fallback';
-    defineFor(pluginId, [saved(ID_A)]);
-    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(1));
-    const fullIdA = `${pluginId}::${ID_A}`;
-    const oldHandle = getDisplayElementInstance(fullIdA)!;
-    usePluginDisplayElementStore
-      .getState()
-      .updateElement(fullIdA, { html: '<div>live</div>' });
-
-    // backfill 전 데이터 창: 무ID 항목이 하나라도 있으면 diff 신원이 없다
-    await reapply(pluginId, 5, [
-      saved(ID_A),
-      saved(undefined, { position: { x: 1, y: 2 }, zIndex: 2 }),
-    ]);
-
-    const elements = defElements(pluginId);
-    expect(elements).toHaveLength(2);
-    // 전량 재주입 - 유ID 요소도 새 요소로 갈리고 렌더러 필드가 초기화된다
-    const reA = findElement(fullIdA)!;
-    expect(reA.html).toBe('<!-- plugin-element -->');
-    expect(getDisplayElementInstance(fullIdA)).not.toBe(oldHandle);
-    // 유ID 항목은 저장 ID 유지, 무ID 항목은 새 UUID 발급
-    const other = elements.find((element) => element.fullId !== fullIdA)!;
-    expect(other.id).toMatch(UUID_PATTERN);
-    expect(other.id).not.toBe(ID_A);
-    expect(other.fullId).toBe(`${pluginId}::${other.id}`);
-  });
-
-  it('순서와 zIndex 변경 스냅샷은 store를 재배열하고 round-trip이 일치한다', async () => {
+  it('순서와 겹침값이 바뀐 트리는 store를 재배열하고 저장 모양이 같다', async () => {
     const pluginId = 'plugin-diff-order';
     defineFor(pluginId, [saved(ID_A), saved(ID_B)]);
     await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(2));
@@ -439,9 +393,8 @@ describe('plugin instance reapply diff-patch', () => {
         zIndex: 1,
       }),
     ];
-    await reapply(pluginId, 5, snapshot);
+    reapply(pluginId, snapshot);
 
-    // buildSavedPluginInstances가 순서 민감 - def 블록이 스냅샷 순서를 따른다
     expect(defElements(pluginId).map((element) => element.id)).toEqual([
       ID_B,
       ID_A,
@@ -454,42 +407,8 @@ describe('plugin instance reapply diff-patch', () => {
     ).toEqual(snapshot);
   });
 
-  it('maxInstances 캡은 탭별로 적용하되 canonical 순서를 보존한다', async () => {
-    const pluginId = 'plugin-cap-order';
-    // 탭이 섞인 canonical 순서 - 탭별 재그룹이 있었다면 [A, C, B]로 어긋난다
-    const snapshot = [
-      saved(ID_A, { tabId: '4key', settings: { volume: 1 } }),
-      saved(ID_B, { tabId: '5key', settings: { volume: 2 } }),
-      saved(ID_C, { tabId: '4key', settings: { volume: 3 } }),
-    ];
-    defineFor(pluginId, snapshot, { maxInstances: 2 });
-    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(3));
-    expect(defElements(pluginId).map((element) => element.id)).toEqual([
-      ID_A,
-      ID_B,
-      ID_C,
-    ]);
-
-    // undo 재결합도 동일 순서 - trailing echo 저장이 no-op으로 수렴하는 전제
-    await reapply(pluginId, 5, snapshot);
-    expect(defElements(pluginId).map((element) => element.id)).toEqual([
-      ID_A,
-      ID_B,
-      ID_C,
-    ]);
-    expect(
-      buildSavedPluginInstances(
-        usePluginDisplayElementStore.getState().elements,
-        pluginId,
-      ),
-    ).toEqual(snapshot);
-    // 재배열 diff가 없어 echo가 실변경 커밋으로 이어지지 않는다
-    expect(mocks.debounceSchedule).not.toHaveBeenCalled();
-    expect(mocks.instancesCommit).not.toHaveBeenCalled();
-  });
-
-  it('maxInstances 초과분은 탭별로 잘라내고 원순서를 보존한다', async () => {
-    const pluginId = 'plugin-cap-trim';
+  it('저장된 것을 그대로 비춘다 - 인스턴스 수 제한은 만들기 메뉴의 막기다', async () => {
+    const pluginId = 'plugin-cap';
     defineFor(
       pluginId,
       [
@@ -499,219 +418,87 @@ describe('plugin instance reapply diff-patch', () => {
       ],
       { maxInstances: 1 },
     );
-    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(2));
+    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(3));
     expect(defElements(pluginId).map((element) => element.id)).toEqual([
       ID_A,
       ID_B,
+      ID_C,
     ]);
   });
 
-  it('diff 적용 변이는 저장을 예약하지 않는다', async () => {
-    const pluginId = 'plugin-diff-barrier';
+  it('트리 → 런타임 반영은 다시 쓰지 않는다', async () => {
+    const pluginId = 'plugin-diff-no-echo';
     defineFor(pluginId, [saved(ID_A), saved(ID_B)]);
     await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(2));
-    // 초기 복원의 add 변이는 save barrier 안 - 예약도 커밋도 없다
-    expect(mocks.debounceSchedule).not.toHaveBeenCalled();
-    expect(mocks.instancesCommit).not.toHaveBeenCalled();
-
-    // 내용이 같은 canonical 재적용 - 갱신·재배열 diff가 전부 no-op
-    await reapply(pluginId, 5, [saved(ID_A), saved(ID_B)]);
-    expect(mocks.debounceSchedule).not.toHaveBeenCalled();
-    expect(mocks.instancesCommit).not.toHaveBeenCalled();
+    reapply(pluginId, [saved(ID_B, { position: { x: 3, y: 3 } })]);
+    expect(defElements(pluginId).map((element) => element.id)).toEqual([ID_B]);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(backend().commit).not.toHaveBeenCalled();
   });
 
-  describe('거절·실패 canonical 복구', () => {
-    const canonical = (positionX: number) => [
-      saved(ID_A, { position: { x: positionX, y: 1 } }),
-    ];
+  it('스크립트 쓰기는 화면에 바로 보이고 조용해진 뒤 커밋 하나로 보낸다', async () => {
+    const pluginId = 'plugin-diff-stream';
+    defineFor(pluginId, [saved(ID_A)]);
+    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(1));
+    const fullIdA = `${pluginId}::${ID_A}`;
 
-    const defineWithLocalEdit = async (pluginId: string) => {
-      defineFor(pluginId, canonical(1));
-      await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(1));
-      mocks.instancesGet.mockClear();
-      usePluginDisplayElementStore
-        .getState()
-        .updateElement(`${pluginId}::${ID_A}`, { position: { x: 50, y: 50 } });
-      return mocks.saveDebounces[0];
-    };
+    displayElementApi.update(fullIdA, { position: { x: 4, y: 0 } });
+    displayElementApi.update(fullIdA, { position: { x: 8, y: 2 } });
+    // 트리 보기에도 바로 (런타임과 같다)
+    expect(
+      getElementDocumentStore()!.getElement('4key', fullIdA)?.frame,
+    ).toEqual(expect.objectContaining({ x: 8, y: 2 }));
+    expect(backend().commit).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(backend().commit).toHaveBeenCalledOnce());
+    expect(backend().commit.mock.calls[0][0]).toEqual([
+      { op: 'setFrame', scene: '4key', id: fullIdA, frame: { x: 8, y: 2 } },
+    ]);
+    expect(findElement(fullIdA)!.position).toEqual({ x: 8, y: 2 });
+  });
 
-    const mockCanonicalPull = (pluginId: string, revision: number) => {
-      mocks.instancesGet.mockResolvedValue({
-        pluginId,
-        instances: canonical(1),
-        modelRevision: revision,
-        authorityGeneration: 1,
-      });
-    };
+  it('거절된 쓰기는 트리 보기에서 빠지고 런타임도 트리 값으로 돌아간다', async () => {
+    const pluginId = 'plugin-diff-rejected';
+    defineFor(pluginId, [saved(ID_A, { position: { x: 1, y: 1 } })]);
+    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(1));
+    const fullIdA = `${pluginId}::${ID_A}`;
+    backend().commit.mockImplementationOnce(async () => ({
+      status: 'rejected',
+      revision: 1,
+      code: 'VIOLATION',
+      violations: [],
+    }));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    it('history 거절 시 canonical을 강제 재주입하고 저장 호출은 성공 정산한다', async () => {
-      const pluginId = 'plugin-conflict-reinject';
-      const debounce = await defineWithLocalEdit(pluginId);
-      mocks.instancesCommit.mockRejectedValueOnce(
-        new Error('HISTORY_EPOCH_CONFLICT: history barrier'),
-      );
-      mockCanonicalPull(pluginId, 7);
-      const warn = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => undefined);
+    displayElementApi.update(fullIdA, { position: { x: 50, y: 50 } });
+    expect(findElement(fullIdA)!.position).toEqual({ x: 50, y: 50 });
+    await vi.waitFor(() =>
+      expect(findElement(fullIdA)!.position).toEqual({ x: 1, y: 1 }),
+    );
+    warn.mockRestore();
+  });
 
-      await expect(
-        debounce.save({
-          gestureId: 'gesture-token',
-          captureCurrentSnapshot: false,
-        }),
-      ).resolves.toBeUndefined();
-      warn.mockRestore();
+  it('편집기가 미리보는 요소는 바깥 변경이 틀을 덮지 않고, 풀면 트리 값으로 맞춘다', async () => {
+    const pluginId = 'plugin-diff-preview';
+    defineFor(pluginId, [saved(ID_A), saved(ID_B)]);
+    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(2));
+    const fullIdA = `${pluginId}::${ID_A}`;
 
-      expect(mocks.syncHistoryStatus).toHaveBeenCalled();
-      // 재주입 전 큐 잔여 스냅샷 폐기 - canonical 되덮기 방지
-      expect(mocks.debounceCancel).toHaveBeenCalled();
-      expect(mocks.instancesGet).toHaveBeenCalledWith(pluginId);
-      expect(findElement(`${pluginId}::${ID_A}`)!.position).toEqual({
-        x: 1,
-        y: 1,
-      });
+    markPluginElementsEditing([fullIdA]);
+    usePluginDisplayElementStore
+      .getState()
+      .updateElement(fullIdA, { position: { x: 40, y: 40 } });
+    // 같은 플러그인의 다른 요소가 바깥에서 바뀌어도 미리보기 위치는 그대로
+    reapply(pluginId, [saved(ID_A), saved(ID_B, { position: { x: 9, y: 9 } })]);
+    expect(findElement(fullIdA)!.position).toEqual({ x: 40, y: 40 });
+    expect(findElement(`${pluginId}::${ID_B}`)!.position).toEqual({
+      x: 9,
+      y: 9,
     });
 
-    it('큐 대기 중 history가 바뀌어도 스냅샷 캡처 시점 epoch를 보낸다', async () => {
-      const pluginId = 'plugin-captured-epoch';
-      const debounce = await defineWithLocalEdit(pluginId);
-      let releaseQueue!: () => void;
-      mocks.enqueueGate = new Promise<void>((resolve) => {
-        releaseQueue = resolve;
-      });
-
-      const saving = debounce.save({
-        gestureId: 'gesture-before-history',
-        captureCurrentSnapshot: true,
-      });
-      await Promise.resolve();
-      mocks.historyEpoch = 2;
-      releaseQueue();
-      await saving;
-
-      expect(mocks.instancesCommit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          gestureId: 'gesture-before-history',
-          observedHistoryEpoch: 1,
-        }),
-      );
-    });
-
-    it('다른 gesture가 소유 중이면 거절 복구 재주입을 건너뛴다', async () => {
-      const pluginId = 'plugin-conflict-skip';
-      const debounce = await defineWithLocalEdit(pluginId);
-      mocks.instancesCommit.mockRejectedValueOnce(
-        new Error('HISTORY_EPOCH_CONFLICT: history barrier'),
-      );
-      mocks.hasConflicting.mockReturnValue(true);
-      const warn = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => undefined);
-
-      await expect(
-        debounce.save({
-          gestureId: 'gesture-token',
-          captureCurrentSnapshot: false,
-        }),
-      ).resolves.toBeUndefined();
-      warn.mockRestore();
-
-      expect(mocks.hasConflicting).toHaveBeenCalledWith(
-        pluginId,
-        'gesture-token',
-      );
-      expect(mocks.syncHistoryStatus).toHaveBeenCalled();
-      expect(mocks.instancesGet).not.toHaveBeenCalled();
-      expect(mocks.debounceCancel).not.toHaveBeenCalled();
-      // 소유 gesture의 로컬 편집은 그대로 유지
-      expect(findElement(`${pluginId}::${ID_A}`)!.position).toEqual({
-        x: 50,
-        y: 50,
-      });
-    });
-
-    it('재주입 후 trailing save는 1회 no-op으로 수렴한다', async () => {
-      const pluginId = 'plugin-conflict-converge';
-      const debounce = await defineWithLocalEdit(pluginId);
-      mocks.instancesCommit.mockRejectedValueOnce(
-        new Error('HISTORY_EPOCH_CONFLICT: history barrier'),
-      );
-      mockCanonicalPull(pluginId, 7);
-      const warn = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => undefined);
-
-      await debounce.save({
-        gestureId: 'gesture-token',
-        captureCurrentSnapshot: false,
-      });
-      // 재주입 직후 잔여 trailing save - canonical과 같은 상태를 커밋
-      await debounce.save({
-        gestureId: 'gesture-token',
-        captureCurrentSnapshot: false,
-      });
-      warn.mockRestore();
-
-      expect(mocks.instancesCommit).toHaveBeenCalledTimes(2);
-      expect(mocks.instancesGet).toHaveBeenCalledTimes(1);
-      const [trailingRequest] = mocks.instancesCommit.mock
-        .calls[1] as unknown as [{ instances: SavedInstance[] }];
-      expect(trailingRequest.instances[0].position).toEqual({ x: 1, y: 1 });
-      expect(findElement(`${pluginId}::${ID_A}`)!.position).toEqual({
-        x: 1,
-        y: 1,
-      });
-    });
-
-    it('디바운스 저장 실패는 canonical 롤백을 수행한다', async () => {
-      const pluginId = 'plugin-save-error-rollback';
-      const debounce = await defineWithLocalEdit(pluginId);
-      mockCanonicalPull(pluginId, 9);
-      const consoleError = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => undefined);
-
-      debounce.onError(new Error('save failed'), {
-        gestureId: 'gesture-token',
-        captureCurrentSnapshot: false,
-      });
-      await vi.waitFor(() =>
-        expect(findElement(`${pluginId}::${ID_A}`)!.position).toEqual({
-          x: 1,
-          y: 1,
-        }),
-      );
-
-      // 다른 gesture 소유 중이면 롤백 스킵
-      mocks.instancesGet.mockClear();
-      mocks.hasConflicting.mockReturnValue(true);
-      debounce.onError(new Error('save failed'), {
-        gestureId: 'gesture-token',
-        captureCurrentSnapshot: false,
-      });
-      await Promise.resolve();
-      consoleError.mockRestore();
-      expect(mocks.instancesGet).not.toHaveBeenCalled();
-    });
-
-    it('플러그인 self update 스트림은 여전히 200ms 디바운스 예약만 한다', async () => {
-      const pluginId = 'plugin-update-stream';
-      defineFor(pluginId, [saved(ID_A)]);
-      await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(1));
-
-      expect(mocks.saveDebounces[0].delayMs).toBe(200);
-
-      usePluginDisplayElementStore
-        .getState()
-        .updateElement(`${pluginId}::${ID_A}`, { position: { x: 2, y: 2 } });
-      usePluginDisplayElementStore
-        .getState()
-        .updateElement(`${pluginId}::${ID_A}`, { position: { x: 3, y: 3 } });
-
-      expect(mocks.debounceSchedule).toHaveBeenCalledTimes(2);
-      expect(mocks.debounceFlush).not.toHaveBeenCalled();
-      expect(mocks.flushEditSession).not.toHaveBeenCalled();
-    });
+    // 취소 - 풀면 트리 값으로
+    releasePluginElementsEditing([fullIdA]);
+    expect(findElement(fullIdA)!.position).toEqual({ x: 0, y: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(backend().commit).not.toHaveBeenCalled();
   });
 });

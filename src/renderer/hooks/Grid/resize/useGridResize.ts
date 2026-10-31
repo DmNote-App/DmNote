@@ -100,7 +100,7 @@ export function useGridResize({
   ) => {
     if (updates.length === 0) return;
     const ids = new Set(updates.map(({ id }) => id));
-    applyPluginElementEdit(selectedKeyType, ids, (editable) => {
+    applyPluginElementEdit(ids, (editable) => {
       const pluginStore = usePluginDisplayElementStore.getState();
       for (const { id, bounds } of updates) {
         if (!editable.has(id)) continue;

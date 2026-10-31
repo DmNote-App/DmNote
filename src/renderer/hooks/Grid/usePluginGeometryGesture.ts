@@ -59,7 +59,7 @@ export const createPluginGeometryGestureController = () => {
   let session: PluginGeometrySession | null = null;
 
   const edit = (current: PluginGeometrySession, change: () => void) =>
-    applyPluginElementEdit(current.sceneId, new Set([current.fullId]), change);
+    applyPluginElementEdit(new Set([current.fullId]), change);
 
   const cancel = () => {
     if (!session) return;

@@ -55,7 +55,6 @@ interface DefineElementDependencies {
     fn: (...args: unknown[]) => unknown,
   ) => (...args: unknown[]) => unknown;
   isReloading: () => boolean;
-  waitForReloadEnd: () => Promise<void>;
 }
 
 /**
@@ -68,7 +67,6 @@ export const createDefineElement = (deps: DefineElementDependencies) => {
     registerCleanup,
     wrapFunctionWithContext,
     isReloading,
-    waitForReloadEnd,
   } = deps;
   const createOpenInstanceSettings = createInstanceSettingsDialogFactory({
     pluginId,
@@ -86,8 +84,9 @@ export const createDefineElement = (deps: DefineElementDependencies) => {
 
     usePluginDisplayElementStore.getState().registerDefinition(internalDef);
     // 트리 문서에 이 플러그인의 요소 종류를 알린다 - 편집 창 하나만 (내리면 모르는 종류로 보존)
+    let kindRegistered: Promise<unknown> | undefined;
     if (window.__dmn_window_type === 'main') {
-      void elementDocumentApi
+      kindRegistered = elementDocumentApi
         .registerKind(pluginKindSchema(pluginId, definition.settings))
         .catch((error) =>
           console.error(
@@ -107,8 +106,8 @@ export const createDefineElement = (deps: DefineElementDependencies) => {
       definitionId: defId,
       registerCleanup,
       isReloading,
-      waitForReloadEnd,
       buildSavedPluginInstances,
+      kindRegistered,
     });
     const { instanceSaveBarrier } = instancePersistenceRuntime;
     const defaultSettings: Record<string, string | number | boolean> =

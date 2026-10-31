@@ -61,7 +61,6 @@ vi.mock('@plugins/runtime/displayElement/pluginTreeGeometry', () => ({
     },
   ),
   applyPluginElementEdit: (
-    _scene: string,
     ids: ReadonlySet<string>,
     change: (ids: ReadonlySet<string>) => void,
   ) => change(ids),

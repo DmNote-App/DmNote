@@ -95,19 +95,10 @@ export function createCustomJsRuntime(): CustomJsRuntime {
 
   // 전역 플래그: removeAll/injectAll 실행 중에는 저장 비활성화
   let isReloading = false;
-  const reloadSettledWaiters = new Set<() => void>();
 
   const getIsReloading = () => isReloading;
   const setReloading = (next: boolean) => {
     isReloading = next;
-    if (next) return;
-    const waiters = [...reloadSettledWaiters];
-    reloadSettledWaiters.clear();
-    waiters.forEach((resolve) => resolve());
-  };
-  const waitForReloadEnd = (): Promise<void> => {
-    if (!isReloading) return Promise.resolve();
-    return new Promise((resolve) => reloadSettledWaiters.add(resolve));
   };
 
   // 주입 결과는 main 창의 관리 목록과 알림이 쓴다
@@ -238,7 +229,6 @@ export function createCustomJsRuntime(): CustomJsRuntime {
         sourceApi: internalApi,
         registerCleanup: (cleanup) => registerCleanup(pluginId, cleanup),
         isReloading: getIsReloading,
-        waitForReloadEnd,
         isRevoked: () => revoked,
       });
 

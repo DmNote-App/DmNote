@@ -253,23 +253,19 @@ export const commitMixedBatchGeometry = (
     writes.push(commitSemanticOps(nativeOps, { gestureId }));
   }
   // 플러그인 위치는 바로 보이게(자동 저장 없이) 고치고 트리 노드 틀로 저장
-  applyPluginElementEdit(
-    frozenDescriptor.mode,
-    new Set(pluginPositions.keys()),
-    (ids) => {
-      const store = usePluginDisplayElementStore.getState();
-      store.setElements(
-        store.elements.map((element) => {
-          const next = ids.has(element.fullId)
-            ? pluginPositions.get(element.fullId)
-            : undefined;
-          return next
-            ? { ...element, position: { ...element.position, ...next } }
-            : element;
-        }),
-      );
-    },
-  );
+  applyPluginElementEdit(new Set(pluginPositions.keys()), (ids) => {
+    const store = usePluginDisplayElementStore.getState();
+    store.setElements(
+      store.elements.map((element) => {
+        const next = ids.has(element.fullId)
+          ? pluginPositions.get(element.fullId)
+          : undefined;
+        return next
+          ? { ...element, position: { ...element.position, ...next } }
+          : element;
+      }),
+    );
+  });
   writes.push(
     commitPluginFrames(
       frozenDescriptor.mode,
