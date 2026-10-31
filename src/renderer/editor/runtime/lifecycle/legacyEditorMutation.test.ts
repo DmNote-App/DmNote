@@ -145,28 +145,24 @@ describe('commitLegacyEditorPatch', () => {
     vi.clearAllMocks();
   });
 
-  it('지금 revision으로 보내고 revision이 겹치면 다시 받아 보낸다', async () => {
-    order.get
-      .mockResolvedValueOnce({ revision: 3 })
-      .mockResolvedValueOnce({ revision: 4 });
-    order.commit
-      .mockRejectedValueOnce({ errorCode: 'REVISION_CONFLICT' })
-      .mockResolvedValueOnce({ revision: 5, changedFields: ['keys'] });
+  it('지금 revision으로 보내고, revision이 겹치면 다시 보내지 않고 충돌을 올린다 (예전처럼 - 다른 쓰기를 덮지 않게)', async () => {
+    order.get.mockResolvedValueOnce({ revision: 3 });
+    order.commit.mockRejectedValueOnce({ errorCode: 'REVISION_CONFLICT' });
 
-    const result = await commitLegacyEditorPatch(
-      { schemaVersion: 1, keys: { '4key': ['A'] } },
-      { multiKey: false, gestureId: 'g1' },
-    );
-
-    expect(result.revision).toBe(5);
-    expect(order.commit.mock.calls.map(([request]) => request)).toEqual([
+    await expect(
+      commitLegacyEditorPatch(
+        { schemaVersion: 1, keys: { '4key': ['A'] } },
+        { multiKey: false, gestureId: 'g1' },
+      ),
+    ).rejects.toEqual({ errorCode: 'REVISION_CONFLICT' });
+    expect(order.commit).toHaveBeenCalledOnce();
+    expect(order.commit.mock.calls[0][0]).toEqual(
       expect.objectContaining({
         baseRevision: 3,
         multiKey: false,
         gestureId: 'g1',
       }),
-      expect.objectContaining({ baseRevision: 4 }),
-    ]);
+    );
   });
 
   it('다른 오류는 그대로 올린다', async () => {

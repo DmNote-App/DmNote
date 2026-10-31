@@ -50,33 +50,28 @@ export const runExclusiveLegacyMutation = async <T>(
   return enqueueEditorCompatibilityOperation(mutation);
 };
 
-// revision이 겹치면(다른 쓰기가 먼저 들어옴) 지금 revision으로 다시 보낸다
-const MAX_COMMIT_ATTEMPTS = 3;
-
 /** 옛 모양 칸 패치(플러그인 API의 키·위치 쓰기 등)를 백엔드 옛 편집 커밋으로 - 칸을 통째로 바꾸는 패치라
- * 바탕 문서 없이 지금 revision으로 보낸다. 다른 쓰기와 같은 호환 큐에서 차례로 */
+ * 바탕 문서 없이 지금 revision으로 보낸다. 다른 쓰기와 같은 호환 큐에서 차례로.
+ * revision이 겹치면 다시 보내지 않는다(예전과 같다) - 그 사이 들어온 다른 쓰기를 덮지 않게 */
 export const commitLegacyEditorPatch = (
   changes: EditorPatchV1 | EditorLegacyPatchV1,
   options: { multiKey?: boolean; gestureId?: string } = {},
 ): Promise<EditorCommitResult> =>
   enqueueEditorCompatibilityOperation(async () => {
-    for (let attempt = 1; ; attempt += 1) {
-      try {
-        const result = await editorCommitRaw({
-          baseRevision: await knownEditorRevision(),
-          mutationId: crypto.randomUUID(),
-          changes: changes as EditorPatchV1,
-          multiKey: options.multiKey ?? true,
-          ...(options.gestureId ? { gestureId: options.gestureId } : {}),
-        });
-        noteEditorRevision(result.revision);
-        return result;
-      } catch (error) {
-        if (noteRevisionConflict(error) && attempt < MAX_COMMIT_ATTEMPTS) {
-          continue;
-        }
-        throw error;
-      }
+    try {
+      const result = await editorCommitRaw({
+        baseRevision: await knownEditorRevision(),
+        mutationId: crypto.randomUUID(),
+        changes: changes as EditorPatchV1,
+        multiKey: options.multiKey ?? true,
+        ...(options.gestureId ? { gestureId: options.gestureId } : {}),
+      });
+      noteEditorRevision(result.revision);
+      return result;
+    } catch (error) {
+      // 다음 쓰기는 지금 revision으로
+      noteRevisionConflict(error);
+      throw error;
     }
   });
 
