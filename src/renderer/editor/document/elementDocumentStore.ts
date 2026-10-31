@@ -31,10 +31,15 @@ export interface ElementDocumentStore {
   getElement(sceneId: string, id: string): ElementNode | undefined;
   subscribe(listener: ElementDocumentListener): () => void;
   // 편집 창만 - 오버레이·OBS는 undefined
-  // onDropped - 영구 실패로 편집을 버릴 때(보류했다 다시 보낸 뒤 포함) 다른 스토어에 먼저 얹은 값을 되돌린다
+  // onDropped - 영구 실패로 편집을 버릴 때(보류했다 다시 보낸 뒤 포함) 다른 스토어에 먼저 얹은 값을 되돌린다.
+  // after - 화면에는 바로 얹고, 보내기는 이것이 끝난 뒤(다른 통로의 앞선 저장이 먼저 닿게)
   edit?: (
     ops: Op[],
-    options?: { gestureId?: string; onDropped?: () => void },
+    options?: {
+      gestureId?: string;
+      onDropped?: () => void;
+      after?: Promise<unknown>;
+    },
   ) => Promise<ElementDocumentCommitResult>;
   // 편집 창만 - 일시 실패로 보류한 편집(화면에는 남는다). 다시 보내기는 보류한 차례대로
   getHeldCount?: () => number;
@@ -353,7 +358,9 @@ export const createEditorDocumentStore = (
       pending = [...pending, edit];
       rebuild();
       listeners.emit(localChanges([edit]));
-      const sent = queue.then(() => {
+      const after = editOptions?.after?.catch(() => undefined);
+      const start = after ? queue.then(() => after) : queue;
+      const sent = start.then(() => {
         if (held.length > 0) {
           setHeld([...held, edit]);
           throw new ElementEditHeldError();

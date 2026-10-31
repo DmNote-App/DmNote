@@ -227,6 +227,27 @@ describe('편집 창 요소 문서 스토어', () => {
     await second;
   });
 
+  it('after가 있으면 화면에는 바로 얹고 보내기는 그것이 끝난 뒤다', async () => {
+    const commit = vi.fn(async () => ({
+      status: 'committed' as const,
+      revision: 2,
+      changes: { scenes: {} },
+    }));
+    const { store } = harness(commit);
+    let release!: () => void;
+    const after = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const sent = store.edit!(nudge('k1', 7), { after });
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(7);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(commit).not.toHaveBeenCalled();
+    release();
+    await sent;
+    expect(commit).toHaveBeenCalledOnce();
+  });
+
   it('앞 커밋이 실패해도 다음 커밋은 보낸다', async () => {
     let calls = 0;
     const { store } = harness(async () => {

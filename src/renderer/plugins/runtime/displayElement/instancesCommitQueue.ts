@@ -139,6 +139,14 @@ export const enqueuePluginInstancesCommit = <T>(
 
 export const getPendingPluginInstancesCommitCount = (): number => queues.size;
 
+/** 그 플러그인들의 지금 줄 선 인스턴스 커밋이 모두 끝날 때 (실패도 끝난 것으로) */
+export const settledPluginInstancesCommits = (
+  pluginIds: Iterable<string>,
+): Promise<void> =>
+  Promise.all(
+    [...pluginIds].map((pluginId) => queues.get(pluginId) ?? Promise.resolve()),
+  ).then(() => undefined);
+
 interface PluginInstancesSaveRequest {
   gestureId?: string;
   captureCurrentSnapshot: boolean;
