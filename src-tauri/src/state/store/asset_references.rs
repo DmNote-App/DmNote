@@ -5,6 +5,7 @@ use std::{
 
 use serde_json::Value;
 
+use crate::models::legacy_layout::is_plugin_kind;
 #[cfg(test)]
 use crate::models::KeyPosition;
 use crate::models::{
@@ -143,6 +144,18 @@ fn for_each_tree_file_value(data: &AppStoreData, asset: AssetKind, f: &mut dyn F
                 return;
             };
             let mut files: Vec<(AssetKind, &str)> = Vec::new();
+            // 모르는 종류(새 버전 앱의 종류 등) - 어느 칸이 파일인지 몰라 모든 글자 값을 파일 후보로 본다.
+            // 앱 폴더 경로는 지키고, 풀지 못하는 경로 모양은 정리를 보류하고, 그 밖의 글자는 무시된다
+            if registry.get(&element.kind).is_none() && !is_plugin_kind(&element.kind) {
+                for value in element.values.values().chain(element.bundles.values()) {
+                    for_each_string(value, &mut |text| {
+                        if !text.is_empty() {
+                            f(&text.to_string());
+                        }
+                    });
+                }
+                return;
+            }
             if let Some(schema) = registry.get(&element.kind) {
                 visit_values(&schema.fields, &element.values, &mut |kind, value| {
                     if let (ValueKind::File { asset }, Some(path)) = (kind, value.as_str()) {
@@ -159,6 +172,15 @@ fn for_each_tree_file_value(data: &AppStoreData, asset: AssetKind, f: &mut dyn F
                 }
             }
         });
+    }
+}
+
+fn for_each_string<'a>(value: &'a Value, f: &mut dyn FnMut(&'a str)) {
+    match value {
+        Value::String(text) => f(text),
+        Value::Array(items) => items.iter().for_each(|item| for_each_string(item, f)),
+        Value::Object(fields) => fields.values().for_each(|item| for_each_string(item, f)),
+        _ => {}
     }
 }
 
@@ -354,5 +376,26 @@ mod tree_file_value_tests {
             sounds.push(path.clone())
         });
         assert!(sounds.is_empty());
+    }
+
+    #[test]
+    fn 모르는_종류는_모든_글자_값을_파일_후보로_넘긴다() {
+        let mut data = AppStoreData::default();
+        let element: element_document::Element = serde_json::from_value(serde_json::json!({
+            "id": "f1", "kind": "futureKind",
+            "frame": { "x": 0, "y": 0, "width": 10, "height": 10, "rotation": 0 },
+            "values": { "art": "/data/images/a.png", "nested": { "list": ["/data/sounds/b.wav"] }, "label": "" }
+        }))
+        .unwrap();
+        data.element_document_mut()
+            .scenes
+            .entry("tab".to_string())
+            .or_default()
+            .nodes
+            .push(Node::Element(element));
+        let mut seen = Vec::new();
+        for_each_tree_file_value(&data, AssetKind::Sound, &mut |path| seen.push(path.clone()));
+        seen.sort();
+        assert_eq!(seen, vec!["/data/images/a.png", "/data/sounds/b.wav"]);
     }
 }
