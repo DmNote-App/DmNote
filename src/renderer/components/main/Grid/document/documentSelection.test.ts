@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import type { Scene } from '@src/types/generated/elementDocument';
 import {
@@ -6,13 +6,6 @@ import {
   documentRangeSelection,
   toggleDocumentId,
 } from './documentSelection';
-
-// 키를 옛 종류 대표로 쓴다
-vi.mock('@src/types/elementKinds', async (importOriginal) =>
-  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
-    importOriginal,
-  ),
-);
 
 const tracker = (id: string, x: number, y: number, hidden = false) => ({
   type: 'element' as const,
@@ -28,10 +21,11 @@ const scene: Scene = {
     tracker('b', 100, 0),
     tracker('c', 200, 200),
     tracker('hidden', 50, 0, true),
+    // 플러그인 요소는 트리 선택 계산이 아니라 플러그인 몫(인자)으로 고른다
     {
       type: 'element',
-      id: 'k1',
-      kind: 'key',
+      id: 'demo::k1',
+      kind: 'plugin:demo',
       frame: { x: 0, y: 0, width: 60, height: 60, rotation: 0 },
     },
   ],

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import type { Node, Scene } from '@src/types/generated/elementDocument';
 import {
@@ -8,13 +8,6 @@ import {
   treeGroupHiddenKey,
 } from './documentElementOrder';
 
-// 키를 옛 종류 대표로 쓴다
-vi.mock('@src/types/elementKinds', async (importOriginal) =>
-  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
-    importOriginal,
-  ),
-);
-
 const frame = { x: 0, y: 0, width: 10, height: 10, rotation: 0 };
 
 const legacyKey = (id: string, zIndex: number | null, index: number): Node => ({
@@ -23,6 +16,14 @@ const legacyKey = (id: string, zIndex: number | null, index: number): Node => ({
   kind: 'key',
   frame,
   legacy: { index, zIndex },
+});
+
+// 플러그인 요소 - 쌓임 순번은 받되 트리 그리기 슬롯에서는 빠진다
+const pluginNode = (id: string): Node => ({
+  type: 'element',
+  id,
+  kind: 'plugin:demo',
+  frame,
 });
 
 const tracker = (id: string, hidden = false): Node => ({
@@ -38,7 +39,7 @@ describe('트리 순서로 쌓기', () => {
     const scene: Scene = {
       nodes: [
         tracker('bottom'),
-        legacyKey('k1', 5, 0),
+        pluginNode('k1'),
         tracker('t1'),
         {
           type: 'group',
@@ -48,7 +49,7 @@ describe('트리 순서로 쌓기', () => {
           children: [tracker('in-hidden-group')],
         },
         { type: 'element', id: 'demo::i1', kind: 'plugin:demo', frame } as Node,
-        legacyKey('k2', null, 3),
+        pluginNode('k2'),
         tracker('t2'),
         tracker('hidden', true),
       ],

@@ -21,13 +21,6 @@ import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
-// 키를 옛 종류 대표로 쓴다
-vi.mock('@src/types/elementKinds', async (importOriginal) =>
-  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
-    importOriginal,
-  ),
-);
-
 // 그룹째 고르기는 장면 트리의 가장 바깥 그룹 - 트리 문서를 목으로
 const tree = vi.hoisted(() => ({ scene: null as unknown }));
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => {

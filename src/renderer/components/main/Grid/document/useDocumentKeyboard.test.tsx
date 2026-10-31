@@ -8,13 +8,6 @@ import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { useDocumentKeyboard } from './useDocumentKeyboard';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
-// 키를 옛 종류 대표로 쓴다
-vi.mock('@src/types/elementKinds', async (importOriginal) =>
-  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
-    importOriginal,
-  ),
-);
-
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const mocks = vi.hoisted(() => ({
@@ -238,12 +231,12 @@ describe('트리 요소 키보드', () => {
     expect(mocks.remove).not.toHaveBeenCalled();
   });
 
-  it('옛 종류 요소를 고르면 트리 요소 선택이 풀린다', () => {
+  it('플러그인 요소를 고르면 트리 요소 선택이 풀린다', () => {
     useDocumentSelectionStore.getState().select('4key', 't1');
     act(() => {
       useDocumentSelectionStore
         .getState()
-        .setSelectedElements([{ type: 'key', id: 'k1', index: 0 }]);
+        .setSelectedElements([{ type: 'plugin', id: 'p::1' }]);
     });
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
     act(() => useDocumentSelectionStore.getState().clearSelection());

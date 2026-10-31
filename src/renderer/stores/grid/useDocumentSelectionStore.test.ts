@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import {
@@ -6,14 +6,7 @@ import {
   useDocumentSelectionStore,
 } from './useDocumentSelectionStore';
 
-// 키를 옛 종류 대표로 쓴다
-vi.mock('@src/types/elementKinds', async (importOriginal) =>
-  (await import('@src/renderer/__tests__/legacyKeyKinds')).keepKeyLegacy(
-    importOriginal,
-  ),
-);
-
-const key = { type: 'key' as const, id: 'k1', index: 0 };
+const key = { type: 'plugin' as const, id: 'p::1' };
 
 describe('플러그인 요소 선택과 트리 요소 선택', () => {
   beforeEach(() => {
@@ -74,7 +67,7 @@ describe('플러그인 요소 선택과 트리 요소 선택', () => {
     keepOtherSelection(() =>
       useDocumentSelectionStore.getState().setSelection('4key', ['t1']),
     );
-    pruneStalePluginSelection(new Set());
+    pruneStalePluginSelection(new Set([key.id]));
     expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       key,
     ]);
