@@ -210,3 +210,29 @@ export const documentGroupActions = (
     ...(canUngroup ? (['ungroup'] as const) : []),
   ];
 };
+
+/** 붙여넣을 자리 - 고른 것 중 가장 위 노드(다 고른 그룹은 그룹째) 바로 위, 같은 부모 안 (예전 붙여넣기와 같다).
+ * 고른 것이 없으면 null(장면 맨 위) */
+export const documentPasteAnchor = (
+  scene: Scene | undefined,
+  ids: readonly string[],
+): { parent: string | null; index: number } | null => {
+  if (!scene || ids.length === 0) return null;
+  const roots = new Set(documentGroupRoots(scene, ids));
+  let best: { parent: string | null; index: number; rank: number } | null =
+    null;
+  let rank = 0;
+  // 뒤 순서 - 그룹은 안쪽 다음, 목록 뒤가 위
+  const visit = (nodes: readonly Node[], parent: string | null) => {
+    nodes.forEach((node, index) => {
+      if (node.type === 'group') visit(node.children, node.id);
+      rank += 1;
+      if (roots.has(node.id) && (!best || rank > best.rank)) {
+        best = { parent, index, rank };
+      }
+    });
+  };
+  visit(scene.nodes, null);
+  const found = best as { parent: string | null; index: number } | null;
+  return found && { parent: found.parent, index: found.index + 1 };
+};

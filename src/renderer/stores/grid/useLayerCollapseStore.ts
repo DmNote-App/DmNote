@@ -4,6 +4,8 @@ import { create } from 'zustand';
 interface LayerCollapseState {
   collapsed: ReadonlySet<string>;
   toggle: (groupId: string) => void;
+  // 붙여 넣은 그룹 - 원본이 접혀 있었으면 접힌 채 (예전과 같다)
+  collapse: (groupIds: readonly string[]) => void;
 }
 
 export const useLayerCollapseStore = create<LayerCollapseState>((set) => ({
@@ -15,4 +17,10 @@ export const useLayerCollapseStore = create<LayerCollapseState>((set) => ({
       else next.add(groupId);
       return { collapsed: next };
     }),
+  collapse: (groupIds) =>
+    set((state) =>
+      groupIds.length === 0
+        ? {}
+        : { collapsed: new Set([...state.collapsed, ...groupIds]) },
+    ),
 }));

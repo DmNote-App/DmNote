@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Scene } from '@src/types/generated/elementDocument';
 import {
+  documentPasteAnchor,
   documentGroupActions,
   documentGroupOps,
   documentGroupRoots,
@@ -187,5 +188,45 @@ describe('고른 것이 그룹 하나 전체', () => {
     expect(wholeGroupOf(scene, ['d'])).toBeNull();
     expect(wholeGroupOf(scene, ['c', 'd'])).toBeNull();
     expect(wholeGroupOf(undefined, ['a', 'b'])).toBeNull();
+  });
+
+  it('붙여넣을 자리는 고른 것 중 가장 위 노드 바로 위, 같은 부모 안 (다 고른 그룹은 그룹째)', () => {
+    const tracker = (id: string) => ({
+      type: 'element' as const,
+      id,
+      kind: 'cursorTracker',
+      frame: { x: 0, y: 0, width: 1, height: 1, rotation: 0 },
+    });
+    const scene = {
+      nodes: [
+        tracker('a'),
+        {
+          type: 'group' as const,
+          id: 'G',
+          name: 'G',
+          children: [tracker('g1'), tracker('g2')],
+        },
+        tracker('b'),
+      ],
+    } as never;
+    expect(documentPasteAnchor(scene, [])).toBeNull();
+    expect(documentPasteAnchor(scene, ['a'])).toEqual({
+      parent: null,
+      index: 1,
+    });
+    // 그룹 안 멤버 하나 - 그 그룹 안 바로 위
+    expect(documentPasteAnchor(scene, ['g1', 'a'])).toEqual({
+      parent: 'G',
+      index: 1,
+    });
+    // 그룹을 다 고르면 그룹째 - 그룹 바로 위
+    expect(documentPasteAnchor(scene, ['g1', 'g2'])).toEqual({
+      parent: null,
+      index: 2,
+    });
+    expect(documentPasteAnchor(scene, ['a', 'b'])).toEqual({
+      parent: null,
+      index: 3,
+    });
   });
 });

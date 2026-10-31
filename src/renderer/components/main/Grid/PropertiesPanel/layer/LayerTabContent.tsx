@@ -54,7 +54,7 @@ import {
   LayerGroupRow,
   type LayerRowRename,
 } from './LayerRows';
-import { useLayerCollapseStore } from './useLayerCollapseStore';
+import { useLayerCollapseStore } from '@stores/grid/useLayerCollapseStore';
 
 // 끌기로 보지 않는 움직임 (화면 px)
 // 예전 레이어 끌기와 같은 시작 거리 (가로·세로 어느 쪽이든)

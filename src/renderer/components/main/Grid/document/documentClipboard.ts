@@ -8,7 +8,14 @@ import { getElementDocumentStore } from '@src/renderer/editor/document/elementDo
 import type { JsonValue, Node, Op } from '@src/types/generated/elementDocument';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { editDocument } from './documentEditActions';
-import { documentGroupNames, documentGroupRoots } from './documentGroups';
+import {
+  documentGroupNames,
+  documentGroupRoots,
+  documentParentOf,
+  documentPasteAnchor,
+  isLegacyNode,
+} from './documentGroups';
+import { useLayerCollapseStore } from '@stores/grid/useLayerCollapseStore';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { treeModeArrays } from '@src/renderer/elementKinds/runtime/treeModeArrays';
@@ -29,6 +36,8 @@ import { toPoseWireShape } from '@utils/sprite/spriteWireShape';
 interface DocumentClipboardSource {
   mode: string;
   triggerCanonicals: Record<string, Record<string, string>>;
+  // 레이어 패널에서 접혀 있던 복사한 그룹 - 붙인 그룹도 접는다 (예전과 같다)
+  collapsedGroups?: string[];
 }
 
 interface DocumentClipboardState {
@@ -154,6 +163,8 @@ export const buildDocumentPaste = (
   existingGroups: { id: string; name: string }[] = [],
   // 미리 정한 새 id (원본 id → 새 id) - 없는 것은 nextId로 받는다
   idMap: ReadonlyMap<string, string> = new Map(),
+  // 넣을 자리 - 없으면 장면 맨 위. 여럿이면 원래 순서대로 그 자리부터 쌓는다
+  at: { parent: string | null; index: number } | null = null,
 ) => {
   const idFor = (id: string) => idMap.get(id) ?? nextId();
   const groups = [...existingGroups];
@@ -163,11 +174,11 @@ export const buildDocumentPaste = (
     return next;
   };
   const pasted = nodes.map((node) => reissue(node, idFor, nameGroup));
-  const ops: Op[] = pasted.map((node) => ({
+  const ops: Op[] = pasted.map((node, order) => ({
     op: 'insert',
     scene: sceneId,
-    parent: null,
-    index: null,
+    parent: at?.parent ?? null,
+    index: at ? at.index + order : null,
     node,
   }));
   // 선택은 요소 id로 - 그룹은 안쪽 요소
@@ -212,9 +223,14 @@ export const copyDocumentSelection = ({
         : [];
     }),
   );
-  useDocumentClipboardStore
-    .getState()
-    .set(picked, { mode: sceneId!, triggerCanonicals });
+  const collapsed = useLayerCollapseStore.getState().collapsed;
+  useDocumentClipboardStore.getState().set(picked, {
+    mode: sceneId!,
+    triggerCanonicals,
+    collapsedGroups: nodesOf(picked)
+      .filter((node) => node.type === 'group' && collapsed.has(node.id))
+      .map((node) => node.id),
+  });
   return true;
 };
 
@@ -250,13 +266,40 @@ export const pasteDocumentClipboard = async (
         }
       : null,
   );
+  // 넣을 자리 - 이 탭에서 고른 것 중 가장 위 노드 바로 위 (예전 붙여넣기와 같다). 옛 모양은 그룹 안
+  // 그룹을 나타내지 못해 옛 그룹이 그룹 안에 들게 되는 자리면 장면 맨 위로
+  const targetScene = getElementDocumentStore()?.getScene(sceneId);
+  const before = useDocumentSelectionStore.getState();
+  const anchor = documentPasteAnchor(
+    targetScene,
+    before.sceneId === sceneId
+      ? [...before.selectedIds, ...before.selectedElements.map(({ id }) => id)]
+      : [],
+  );
+  const parentNested =
+    anchor?.parent != null &&
+    documentParentOf(targetScene, anchor.parent) != null;
+  const nested =
+    anchor?.parent != null &&
+    nodes.some(
+      (node) => isLegacyNode(node) && (node.type === 'group' || parentNested),
+    );
   const { ops, ids } = buildDocumentPaste(
     sceneId,
     nodes,
     undefined,
-    documentGroupNames(getElementDocumentStore()?.getScene(sceneId)),
+    documentGroupNames(targetScene),
     idMap,
+    nested ? null : anchor,
   );
+  // 접혀 있던 그룹은 붙인 그룹도 접는다
+  useLayerCollapseStore
+    .getState()
+    .collapse(
+      (source?.collapsedGroups ?? []).flatMap((id) =>
+        idMap.has(id) ? [idMap.get(id)!] : [],
+      ),
+    );
   const sent = editDocument(
     ops,
     legacyPaste?.gestureId ? { gestureId: legacyPaste.gestureId } : undefined,
