@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useBatchNotePaint, type BatchNoteSurface } from './useBatchNotePaint';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import { isNotePaintPropertyPatchV1 } from '@src/types/key/notePaint';
 import type { EditorNotePaintPropertyPatchV1 } from '@src/types/editor';
@@ -93,7 +93,7 @@ describe('useBatchNotePaint 집계·커밋', () => {
     stateCapture = { current: null };
     commitNotePaint = vi.fn<(patch: EditorNotePaintPropertyPatchV1) => void>();
     act(() => {
-      useGridSelectionStore.getState().setSelectedElements([
+      useDocumentSelectionStore.getState().setSelectedElements([
         { type: 'key', id: ID_A, index: 0 },
         { type: 'key', id: ID_B, index: 1 },
       ]);
@@ -104,7 +104,7 @@ describe('useBatchNotePaint 집계·커밋', () => {
     act(() => {
       root.unmount();
       useGradientEditStore.getState().setSession(null);
-      useGridSelectionStore.getState().clearSelection();
+      useDocumentSelectionStore.getState().clearSelection();
     });
     host.remove();
   });

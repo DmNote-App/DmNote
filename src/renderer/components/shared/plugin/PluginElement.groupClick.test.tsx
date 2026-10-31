@@ -16,7 +16,7 @@ import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobIt
 import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { useDocumentSelectionStore } from '@components/main/Grid/document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
@@ -95,8 +95,8 @@ const seedStores = (options: {
   usePluginDisplayElementStore.setState({
     elements: [makePluginElement(options.pluginGroupId)],
   });
+  useDocumentSelectionStore.setState({ selectedElements: [] });
   useGridSelectionStore.setState({
-    selectedElements: [],
     lastSelectedKeyBounds: null,
   });
   usePropertiesPanelStore.setState({ isCanvasPanelOpen: false });
@@ -178,7 +178,7 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
     fireMouse(node, 'click');
 
     // 플러그인 요소는 옛 선택, 키는 트리 선택
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: PLUGIN_FULL_ID },
     ]);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([KEY_ID]);
@@ -190,7 +190,7 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
 
     fireMouse(node, 'click');
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: PLUGIN_FULL_ID },
     ]);
   });
@@ -201,7 +201,7 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
 
     fireMouse(node, 'click');
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: PLUGIN_FULL_ID },
     ]);
   });
@@ -212,7 +212,7 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
 
     fireMouse(node, 'click', { ctrlKey: true });
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: PLUGIN_FULL_ID },
     ]);
   });
@@ -223,7 +223,7 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
 
     fireMouse(node, 'dblclick');
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: PLUGIN_FULL_ID },
     ]);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([KEY_ID]);

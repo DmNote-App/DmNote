@@ -1,5 +1,5 @@
 import { deletePluginElements } from '@plugins/runtime/displayElement/pluginElementActions';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { removeDocumentElements } from './documentEditActions';
 import { structureTargetIds } from './treeEditedSelection';
 
@@ -8,7 +8,7 @@ import { structureTargetIds } from './treeEditedSelection';
 export const deleteStructureSelection = async (sceneId: string) => {
   const gestureId = crypto.randomUUID();
   const plugins = new Set(
-    useGridSelectionStore
+    useDocumentSelectionStore
       .getState()
       .selectedElements.filter(({ type }) => type === 'plugin')
       .map(({ id }) => id),

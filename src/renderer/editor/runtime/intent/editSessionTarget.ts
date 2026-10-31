@@ -1,6 +1,5 @@
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { readOtherSelectionIds } from '@stores/grid/keepOtherSelection';
 
 // 편집 세션이 붙어 있는 대상의 지문.
 //
@@ -42,9 +41,11 @@ export const formatEditSessionTarget = (
 export const getEditSessionMode = (): string =>
   useKeyStore.getState().selectedKeyType;
 
-// 옛 종류 선택과 트리 요소 선택(트리로 옮긴 옛 종류 포함)을 함께
-export const getEditSessionTarget = (): string =>
-  formatEditSessionTarget(useKeyStore.getState().selectedKeyType, [
-    ...useGridSelectionStore.getState().selectedElements,
-    ...readOtherSelectionIds().map((id) => ({ type: 'document', id })),
+// 플러그인 요소 선택과 트리 요소 선택을 함께
+export const getEditSessionTarget = (): string => {
+  const selection = useDocumentSelectionStore.getState();
+  return formatEditSessionTarget(useKeyStore.getState().selectedKeyType, [
+    ...selection.selectedElements,
+    ...selection.selectedIds.map((id) => ({ type: 'document', id })),
   ]);
+};

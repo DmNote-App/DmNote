@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from '@contexts/useTranslation';
 import { usePanelHost } from '@contexts/PanelHostContext';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import {
@@ -42,7 +41,7 @@ import PanelToggleButton from './PropertiesPanel/navigation/PanelToggleButton';
 import { EditSessionScope } from '@src/renderer/contexts/EditSessionScope';
 import DocumentElementPanel from './PropertiesPanel/document/DocumentElementPanel';
 import DocumentBatchPanel from './PropertiesPanel/document/DocumentBatchPanel';
-import { useDocumentSelectionStore } from './document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { previewSingleGraphColor } from './PropertiesPanel/selection/previewPatchForwarders';
 import PluginSettingsForm from './PropertiesPanel/plugin/PluginSettingsForm';
 import { usePropertiesPanelSelection } from './PropertiesPanel/selection/usePropertiesPanelSelection';
@@ -255,7 +254,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   // 이전 렌더의 effect가 최신 탭을 덮지 않도록 커밋 직전 재확인
   useEffect(() => {
     const latestTab = usePropertiesPanelStore.getState().propertyPanelActiveTab;
-    const latestSelection = useGridSelectionStore.getState().selectedElements;
+    const latestSelection =
+      useDocumentSelectionStore.getState().selectedElements;
     if (shouldNormalizePropertyTabToStyle(latestSelection, latestTab)) {
       setActiveTab(TABS.STYLE);
     }

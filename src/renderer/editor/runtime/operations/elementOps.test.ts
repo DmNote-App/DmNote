@@ -23,7 +23,7 @@ import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobIt
 import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
 import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import {
   commitBatchGeometryByIds,
   commitElementGeometryById,
@@ -194,7 +194,7 @@ describe('elementOps', () => {
     useKnobItemStore.setState({ positions: {} });
     useSpriteStore.setState({ positions: {} });
     useLayerGroupStore.setState({ layerGroups: {} });
-    useGridSelectionStore.setState({ selectedElements: [] });
+    useDocumentSelectionStore.setState({ selectedElements: [] });
   });
 
   it('단일 축 기하는 슬롯 최신 base의 나머지 bounds를 보존한다', async () => {

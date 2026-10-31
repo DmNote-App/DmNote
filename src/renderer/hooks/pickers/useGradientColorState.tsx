@@ -17,7 +17,7 @@ import {
   type GradientPreviewState,
   type GradientPreviewSurface,
 } from '@stores/grid/useGradientEditStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useEditStatePreviewPublisher } from '@stores/grid/useEditStatePreviewStore';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 
@@ -82,16 +82,17 @@ export function useGradientColorState({
   // 상태 프리뷰 발행 - 앵커 존재(피커 오픈) 동안 형식과 무관하게 편집 중인
   // 상태를 캔버스에 알린다. 그라데이션 세션과 달리 단색 편집도 포함
   useEditStatePreviewPublisher(canvasAnchor ?? null, canvasState);
-  const selectedElements = useGridSelectionStore(
+  const selectedElements = useDocumentSelectionStore(
     (state) => state.selectedElements,
   );
+  const selectedIds = useDocumentSelectionStore((state) => state.selectedIds);
   const lastGradientSpecsRef = useRef(new Map<string, GradientSpec>());
 
   // 형식 왕복 기억은 연속 선택 안에서만 유효. 삭제·재선택으로 대상이
   // 바뀌면 이전 요소의 spec을 재사용하지 않는다
   useEffect(() => {
     lastGradientSpecsRef.current.clear();
-  }, [selectedElements]);
+  }, [selectedElements, selectedIds]);
 
   // 진행 중(미커밋) 드래그 초안 — 다른 대상으로 바뀌면 자동 무효
   const [draft, setDraft] = useState<{

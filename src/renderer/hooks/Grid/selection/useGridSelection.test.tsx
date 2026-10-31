@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Scene } from '@src/types/generated/elementDocument';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { takePastedKeyIds } from '@stores/grid/pastedKeyIds';
 import { PASTE_OFFSET } from '../constants';
@@ -56,7 +57,7 @@ const plugin = (
 type SelectionApi = ReturnType<typeof useGridSelection>;
 
 const Harness = ({ expose }: { expose: (api: SelectionApi) => void }) => {
-  const selectedElements = useGridSelectionStore(
+  const selectedElements = useDocumentSelectionStore(
     (state) => state.selectedElements,
   );
   const api = useGridSelection({ selectedElements, selectedKeyType: '4key' });
@@ -73,7 +74,7 @@ describe('옛 선택(플러그인 요소) 동작', () => {
 
   const select = (fullIds: string[]) =>
     act(() => {
-      useGridSelectionStore
+      useDocumentSelectionStore
         .getState()
         .setSelectedElements(fullIds.map((id) => ({ type: 'plugin', id })));
     });
@@ -85,7 +86,8 @@ describe('옛 선택(플러그인 요소) 동작', () => {
       elements: [plugin()],
       definitions: new Map(),
     });
-    useGridSelectionStore.setState({ selectedElements: [], clipboard: [] });
+    useDocumentSelectionStore.setState({ selectedElements: [] });
+    useGridSelectionStore.setState({ clipboard: [] });
     takePastedKeyIds();
     host = document.createElement('div');
     document.body.appendChild(host);
@@ -157,7 +159,7 @@ describe('옛 선택(플러그인 요소) 동작', () => {
     expect(copy.zIndex).toBe(3);
     expect(copy.groupId).toBe('g1');
     expect((copy as { _onClickId?: string })._onClickId).not.toBe('handler-1');
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: copy.fullId },
     ]);
     const gesture = mocks.rotateSession.mock.calls[0][1];

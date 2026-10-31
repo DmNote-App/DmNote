@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { useDocumentSelectionStore } from '@components/main/Grid/document/useDocumentSelectionStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 
 const KNOB = '00000000-0000-4000-8000-0000000000k1';
@@ -15,7 +14,7 @@ describe('바꿔 고르기는 중간의 빈 선택 없이', () => {
       seen.push(state.selectedIds),
     );
     // 옛 선택 스토어 경로 (레이어 행·옛 그룹 다시 누르기)
-    useGridSelectionStore
+    useDocumentSelectionStore
       .getState()
       .setSelectedElements([{ type: 'knob', id: KNOB, index: 0 }]);
     // 트리 선택 스토어 경로

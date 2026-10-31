@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import {
   applyPluginElementEdit,
@@ -45,7 +45,7 @@ const geometryPatch = (
 };
 
 const isSelectedPluginElement = (fullId: string): boolean =>
-  useGridSelectionStore
+  useDocumentSelectionStore
     .getState()
     .selectedElements.some(
       (element) => element.type === 'plugin' && element.id === fullId,

@@ -100,7 +100,7 @@ import {
   groupSelectionOf,
 } from '../document/documentGroups';
 import { documentIdsInRect } from '../document/documentSelection';
-import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { createDocumentDragReceipt } from '../document/documentDragReceipt';
 import {
@@ -225,10 +225,12 @@ const Grid = ({
   const hasSpritePoseSession = useSpritePoseHandleStore(
     (state) => state.session !== null,
   );
-  const selectedElements = useGridSelectionStore(
+  const selectedElements = useDocumentSelectionStore(
     (state) => state.selectedElements,
   );
-  const clearSelection = useGridSelectionStore((state) => state.clearSelection);
+  const clearSelection = useDocumentSelectionStore(
+    (state) => state.clearSelection,
+  );
 
   // 클립보드 상태 (복사/붙여넣기용)
   const _clipboard = useGridSelectionStore((state) => state.clipboard);
@@ -577,7 +579,7 @@ const Grid = ({
     // 옛 종류 요소와 섞인 선택이면 두 가족에 함께 적용하는 메뉴
     if (
       selected &&
-      useGridSelectionStore.getState().selectedElements.length > 0
+      useDocumentSelectionStore.getState().selectedElements.length > 0
     ) {
       openMixedSelectionContextMenu(
         event.clientX,
@@ -595,7 +597,7 @@ const Grid = ({
       selection.setSelection(selectedKeyType, group.treeIds);
       if (group.plugins.length > 0) {
         keepOtherSelection(() =>
-          useGridSelectionStore
+          useDocumentSelectionStore
             .getState()
             .setSelectedElements(
               group.plugins.map((id) => ({ type: 'plugin', id })),

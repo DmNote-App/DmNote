@@ -10,6 +10,7 @@ import {
   getMarqueeRect,
   type SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import { getActiveElement } from '@utils/dom/activeElement';
 import { isHTMLElementNode } from '@utils/dom/isElementNode';
@@ -65,10 +66,12 @@ export function useGridMarquee({
   );
   const marqueeStart = useGridSelectionStore((state) => state.marqueeStart);
   const marqueeEnd = useGridSelectionStore((state) => state.marqueeEnd);
-  const setSelectedElements = useGridSelectionStore(
+  const setSelectedElements = useDocumentSelectionStore(
     (state) => state.setSelectedElements,
   );
-  const clearSelection = useGridSelectionStore((state) => state.clearSelection);
+  const clearSelection = useDocumentSelectionStore(
+    (state) => state.clearSelection,
+  );
   const frameRef = useRef<number | null>(null);
   const pendingClientPointRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -80,7 +83,7 @@ export function useGridMarquee({
   // cleanup은 finalize를 부르지 않는다). 이 경우 브라우저 기본 blur가 finalize를
   // 마친 뒤 mouseup 정산(작은 마퀴 = 선택 해제)이 비운다
   const beginMarqueeSelection = (x: number, y: number) => {
-    if (useGridSelectionStore.getState().selectedElements.length > 0) {
+    if (useDocumentSelectionStore.getState().selectedElements.length > 0) {
       const active = getActiveElement();
       const editing =
         isHTMLElementNode(active) &&

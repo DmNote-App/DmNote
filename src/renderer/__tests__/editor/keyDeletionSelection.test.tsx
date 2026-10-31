@@ -5,8 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useKeyManager } from '@hooks/useKeyManager';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { useDocumentSelectionStore } from '@components/main/Grid/document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 
 const apiMocks = vi.hoisted(() => ({
@@ -110,33 +109,33 @@ describe('키 삭제 선택 정리', () => {
         ],
       },
     });
-    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clearSelection();
     vi.clearAllMocks();
   });
 
   afterEach(() => {
     act(() => root.unmount());
     host.remove();
-    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clearSelection();
     window.api = originalApi;
   });
 
   it('현재 탭 리셋 성공 시 grid 선택을 해제한다', async () => {
-    useGridSelectionStore
+    useDocumentSelectionStore
       .getState()
       .setSelectedElements([{ type: 'key', id: keyIds[0], index: 0 }]);
     act(() => root.render(<Harness />));
 
     await act(async () => latest().handleResetCurrentMode());
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
   });
 
   it('현재 탭 리셋 실패 시 grid 선택을 보존한다', async () => {
     resetMode.mockResolvedValueOnce({ success: false });
     const selection = [{ type: 'key' as const, id: keyIds[0], index: 0 }];
-    useGridSelectionStore.getState().setSelectedElements(selection);
+    useDocumentSelectionStore.getState().setSelectedElements(selection);
     act(() => root.render(<Harness />));
 
     await act(async () => latest().handleResetCurrentMode());

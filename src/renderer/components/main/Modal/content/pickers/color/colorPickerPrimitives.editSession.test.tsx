@@ -11,7 +11,7 @@ import {
   type Mock,
 } from 'vitest';
 
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { EditSessionScope } from '@src/renderer/contexts/EditSessionScope';
 
@@ -20,7 +20,7 @@ import { usePointerSession } from './colorPickerPrimitives';
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const selectKey = (index: number) => {
-  useGridSelectionStore.setState({
+  useDocumentSelectionStore.setState({
     selectedElements: [{ type: 'key', id: `key-${index}`, index }],
   });
 };

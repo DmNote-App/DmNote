@@ -24,11 +24,10 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { createElement, act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { panelSelectionOf, useInPanelSelection } from './treeEditedSelection';
-import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 const key = { type: 'key' as const, id: 'k1', index: 0 };
 const knob = { type: 'knob' as const, id: 'n1', index: 0 };
@@ -36,13 +35,15 @@ const knob = { type: 'knob' as const, id: 'n1', index: 0 };
 describe('옛 선택으로 들어온 트리로 옮긴 옛 종류', () => {
   beforeEach(() => {
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clearSelection();
     useDocumentSelectionStore.getState().clear();
   });
 
   it('전체 목록은 노브 몫을 트리 선택으로 보내고 나머지는 옛 선택에 둔다', () => {
-    useGridSelectionStore.getState().setSelectedElements([key, knob]);
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([key]);
+    useDocumentSelectionStore.getState().setSelectedElements([key, knob]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
+      key,
+    ]);
     expect(useDocumentSelectionStore.getState()).toMatchObject({
       sceneId: '4key',
       selectedIds: ['n1'],
@@ -50,32 +51,34 @@ describe('옛 선택으로 들어온 트리로 옮긴 옛 종류', () => {
   });
 
   it('하나 고르기는 트리 선택만, 넣고 빼기는 트리 선택에서 뒤집는다', () => {
-    useGridSelectionStore.getState().setSelectedElements([key]);
-    useGridSelectionStore.getState().toggleSelection(knob);
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([key]);
+    useDocumentSelectionStore.getState().setSelectedElements([key]);
+    useDocumentSelectionStore.getState().toggleSelection(knob);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
+      key,
+    ]);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['n1']);
-    useGridSelectionStore.getState().toggleSelection(knob);
+    useDocumentSelectionStore.getState().toggleSelection(knob);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
 
-    useGridSelectionStore.getState().selectElement(knob);
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    useDocumentSelectionStore.getState().selectElement(knob);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['n1']);
   });
 
   it('선택 해제는 트리 선택도 비운다 - 이어서 넣으면 그것만 고른다', () => {
     useDocumentSelectionStore.getState().setSelection('4key', ['n1', 't1']);
-    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clearSelection();
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
 
     // 레이어 패널 우클릭·더블클릭 - 비운 뒤 그 행만
-    useGridSelectionStore.getState().toggleSelection(knob);
+    useDocumentSelectionStore.getState().toggleSelection(knob);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['n1']);
   });
 
   it('넣고 빼기 안의 바꿔 고르기는 노브 몫만 바꾸고 트리에만 있는 종류를 지킨다', () => {
     useDocumentSelectionStore.getState().setSelection('4key', ['t1', 'n1']);
     keepOtherSelection(() =>
-      useGridSelectionStore
+      useDocumentSelectionStore
         .getState()
         .setSelectedElements([key, { ...knob, id: 'n2', index: 1 }]),
     );
@@ -83,12 +86,14 @@ describe('옛 선택으로 들어온 트리로 옮긴 옛 종류', () => {
       't1',
       'n2',
     ]);
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([key]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
+      key,
+    ]);
   });
 
   it('바꿔 고르기는 트리에만 있는 종류 선택도 비운다', () => {
     useDocumentSelectionStore.getState().setSelection('4key', ['t1']);
-    useGridSelectionStore.getState().setSelectedElements([knob]);
+    useDocumentSelectionStore.getState().setSelectedElements([knob]);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['n1']);
   });
 
@@ -108,7 +113,7 @@ describe('옛 선택으로 들어온 트리로 옮긴 옛 종류', () => {
 describe('요소 하나의 패널 선택 여부', () => {
   beforeEach(() => {
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clearSelection();
     useDocumentSelectionStore.getState().clear();
   });
 

@@ -161,8 +161,8 @@ vi.mock('@api/modules/window/panelWindowApi', () => ({
 }));
 // 모드 전환 시 창 로컬 선택을 비운다 - 비어 있지 않을 때만 clearSelection
 const clearSelection = vi.fn();
-vi.mock('@stores/grid/useGridSelectionStore', () => ({
-  useGridSelectionStore: {
+vi.mock('@stores/grid/useDocumentSelectionStore', () => ({
+  useDocumentSelectionStore: {
     getState: () => ({
       selectedElements: [{ type: 'key', id: 'k1' }],
       clearSelection,

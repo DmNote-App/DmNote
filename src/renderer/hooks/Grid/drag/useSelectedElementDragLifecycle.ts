@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { createPluginPositionDragReceipt } from '@plugins/runtime/displayElement/pluginElementActions';
 import { withoutInstanceSave } from '@plugins/runtime/displayElement/instanceSaveSuppression';
@@ -44,7 +44,8 @@ export const useSelectedElementDragLifecycle = ({
     const gestureId = crypto.randomUUID();
     gestureIdRef.current = gestureId;
     freezeSelectionForGesture();
-    const frozenSelection = useGridSelectionStore.getState().selectedElements;
+    const frozenSelection =
+      useDocumentSelectionStore.getState().selectedElements;
     const selectedPluginElementIds = new Set(
       frozenSelection
         .filter((element) => element.type === 'plugin')

@@ -24,7 +24,7 @@ import {
   useDocumentClipboardStore,
 } from './documentClipboard';
 import { structureTargetIds } from './treeEditedSelection';
-import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 const ARROW_STEP = 1;
 const ARROW_STEP_LARGE = 10;

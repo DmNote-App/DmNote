@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { formatEditSessionTarget } from '@src/renderer/editor/runtime/intent/editSessionTarget';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 
 interface EditSessionBoundaryProps {
@@ -26,7 +26,7 @@ interface EditSessionBoundaryProps {
 // 열 자체가 경계라는 사실이 코드에서 안 보인다
 const EditSessionBoundary = ({ children }: EditSessionBoundaryProps) => {
   const mode = useKeyStore((state) => state.selectedKeyType);
-  const selectedElements = useGridSelectionStore(
+  const selectedElements = useDocumentSelectionStore(
     (state) => state.selectedElements,
   );
 

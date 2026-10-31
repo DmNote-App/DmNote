@@ -26,7 +26,7 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   }),
 }));
 
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
 import { previewOverlay } from '@src/renderer/editor/runtime/gesture/previewOverlay';
@@ -54,7 +54,7 @@ describe('속성 패널 단일 요소 값', () => {
         ],
       } as never,
     });
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'knob', id: KNOB, index: 0 }],
     });
     const onRender =

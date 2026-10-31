@@ -45,7 +45,7 @@ import {
 } from '@hooks/app/useUpdateCheck';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { usePanelHostStore } from '@stores/grid/usePanelHostStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { isHistoryEditorFlushLocked } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 import { useOptimisticBooleanCommit } from '@hooks/useOptimisticBooleanCommit';
 import { keysApi } from '@api/modules/editor/keysApi';
@@ -202,7 +202,7 @@ export default function App() {
         } else if (
           selectedKeyTypeAtSettingsOpenRef.current !== selectedKeyType
         ) {
-          useGridSelectionStore.getState().clearSelection();
+          useDocumentSelectionStore.getState().clearSelection();
         }
         setIsSettingsOpen(next);
       },

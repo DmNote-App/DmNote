@@ -11,6 +11,7 @@ import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobIt
 import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
 import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import type {
   PluginDefinitionInternal,
@@ -80,8 +81,8 @@ const seedBaseStores = () => {
   useGraphItemStore.setState({ positions: {} });
   useKnobItemStore.setState({ positions: {} });
   useLayerGroupStore.setState({ layerGroups: {} });
+  useDocumentSelectionStore.setState({ selectedElements: [] });
   useGridSelectionStore.setState({
-    selectedElements: [],
     lastSelectedKeyBounds: null,
   });
 };

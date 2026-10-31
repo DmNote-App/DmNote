@@ -1,9 +1,6 @@
 // 트리로 옮긴 옛 종류(노브 등)는 트리 선택이 맡는다 - 옛 선택을 읽는 동작(지우기·묶기·레이어 끌기 등)이
 // 함께 다루도록 옛 선택 모양으로 합쳐 읽는다
-import {
-  useGridSelectionStore,
-  type SelectedElement,
-} from '@stores/grid/useGridSelectionStore';
+import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import { useSyncExternalStore } from 'react';
 import {
   getElementDocumentStore,
@@ -12,8 +9,7 @@ import {
 } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { isEditorElementType } from '@src/types/editor';
 import { isPluginKind, TREE_EDITED_KINDS } from '@src/types/elementKinds';
-import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
-import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 const selectedDocumentIds = (sceneId: string) => {
   const selection = useDocumentSelectionStore.getState();
@@ -46,7 +42,7 @@ export const treeEditedSelection = (sceneId: string) =>
 /** 구조 편집(묶기·풀기·겹침 순서) 대상 - 트리 선택 전체 + 옛 선택(플러그인 요소 - 트리 노드 id가 fullId) */
 export const structureTargetIds = (sceneId: string): string[] => {
   const ids = [...selectedDocumentIds(sceneId)];
-  for (const { id } of useGridSelectionStore.getState().selectedElements) {
+  for (const { id } of useDocumentSelectionStore.getState().selectedElements) {
     if (!ids.includes(id)) ids.push(id);
   }
   return ids;
@@ -66,34 +62,17 @@ export const setStructureSelection = (
   setSplitSelection(sceneId, treeIds, pluginIds);
 };
 
-/** 트리 몫·플러그인 몫을 이미 나눈 선택 - 트리에 아직 없는 플러그인 요소(스크립트가 막 만든 것 등)도 옛 선택으로 */
+/** 트리 몫·플러그인 몫을 이미 나눈 선택 - 트리에 아직 없는 플러그인 요소(스크립트가 막 만든 것 등)도 플러그인 몫으로 */
 export const setSplitSelection = (
   sceneId: string,
   treeIds: readonly string[],
   pluginIds: readonly string[],
-) => {
-  const plugins: SelectedElement[] = pluginIds.map((id) => ({
-    type: 'plugin',
-    id,
-  }));
-  if (treeIds.length === 0) {
-    // 빈 선택 - 두 선택 모두 비운다
-    if (plugins.length === 0) {
-      useGridSelectionStore.getState().clearSelection();
-      useDocumentSelectionStore.getState().clear();
-      return;
-    }
-    useGridSelectionStore.getState().setSelectedElements(plugins);
-    return;
-  }
-  // 트리 선택을 바꾸면 옛 선택이 비워진다 - 플러그인 몫은 그 뒤에 다시 고른다
-  useDocumentSelectionStore.getState().setSelection(sceneId, [...treeIds]);
-  if (plugins.length > 0) {
-    keepOtherSelection(() =>
-      useGridSelectionStore.getState().setSelectedElements(plugins),
-    );
-  }
-};
+) =>
+  useDocumentSelectionStore.getState().replaceSelection(
+    sceneId,
+    [...treeIds],
+    pluginIds.map((id) => ({ type: 'plugin', id })),
+  );
 
 /** 옛 속성 패널이 보는 선택 - 트리 선택이 모두 트리로 옮긴 옛 종류이고 플러그인이 섞이지 않으면
  * 그 요소까지 합친다 (플러그인 섞인 일괄 커밋은 트리로 보내지 못한다).
@@ -116,7 +95,6 @@ const EMPTY_IDS: string[] = [];
 
 const subscribePanelSelectionSources = (listener: () => void) => {
   const stops = [
-    useGridSelectionStore.subscribe(listener),
     useDocumentSelectionStore.subscribe(listener),
     subscribeElementDocument(listener),
   ];
@@ -127,7 +105,7 @@ const isInPanelSelection = (sceneId: string, id: string) => {
   const documentIds = selectedDocumentIds(sceneId);
   if (!documentIds.includes(id)) return false;
   return panelSelectionOf(
-    useGridSelectionStore.getState().selectedElements,
+    useDocumentSelectionStore.getState().selectedElements,
     sceneId,
     documentIds,
   ).some((element) => element.id === id);
@@ -144,7 +122,7 @@ export const useInPanelSelection = (sceneId: string, id: string): boolean =>
 
 /** 옛 속성 패널이 보는 선택 구독 (일괄 패널·그라데이션 축·편집 화면 얼굴의 일괄 미리보기) */
 export const usePanelSelection = (sceneId: string): SelectedElement[] => {
-  const legacy = useGridSelectionStore((state) => state.selectedElements);
+  const legacy = useDocumentSelectionStore((state) => state.selectedElements);
   const documentIds = useDocumentSelectionStore((state) =>
     state.sceneId === sceneId ? state.selectedIds : EMPTY_IDS,
   );

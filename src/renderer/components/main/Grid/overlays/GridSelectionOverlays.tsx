@@ -3,7 +3,7 @@ import ResizeHandles from '../handles/ResizeHandles';
 import GroupResizeHandles from '../handles/GroupResizeHandles';
 import GradientAxisOverlay from '../handles/GradientAxisHandle';
 import SpriteCanvasHandles from '../handles/SpriteCanvasHandles';
-import { useDocumentSelectionStore } from '../document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePanelSelection } from '../document/treeEditedSelection';
 import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
 import { projectSpriteResize } from '@utils/sprite/resizeProjection';

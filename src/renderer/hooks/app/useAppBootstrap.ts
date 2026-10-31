@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useFontStore, syncFontCSS } from '@stores/useFontStore';
 import {
   useSettingsStore,
@@ -135,7 +135,7 @@ export function useAppBootstrap() {
     // authoritative 모드 변경 시 창 로컬 선택 무효화 - 이전 모드의 index가
     // 새 모드 요소로 재해석되지 않게
     const resetSelectionForModeChange = () => {
-      const selection = useGridSelectionStore.getState();
+      const selection = useDocumentSelectionStore.getState();
       if (selection.selectedElements.length > 0) {
         selection.clearSelection();
       }

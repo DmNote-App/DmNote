@@ -31,10 +31,8 @@ import { invokeExposedAction } from '@utils/displayElementActions';
 import { sendBridgeMessageBestEffort } from '@utils/plugin/bridgeMessages';
 import { obsApi } from '@api/modules/window/obsApi';
 import { noteMainPluginsReady } from '@plugins/runtime/pluginRuntimeReadiness';
-import {
-  useGridSelectionStore,
-  SelectedElement,
-} from '@stores/grid/useGridSelectionStore';
+import { SelectedElement } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 const DEFAULT_POSITION_OFFSET = { x: 0, y: 0 };
 const EMPTY_SELECTED_ELEMENTS: SelectedElement[] = [];
@@ -188,7 +186,7 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
   const hiddenIds = hiddenByGroup ? new Set(hiddenByGroup.split('\n')) : null;
 
   // 선택 상태 가져오기 (main 윈도우에서만 실제 값 사용)
-  const selectedElementsRaw = useGridSelectionStore(
+  const selectedElementsRaw = useDocumentSelectionStore(
     (state) => state.selectedElements,
   );
   const selectedElements: SelectedElement[] =

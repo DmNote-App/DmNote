@@ -3,8 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import LayerTabContent from './LayerTabContent';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -127,7 +126,7 @@ describe('레이어 탭 - 장면 트리 하나', () => {
     act(() => root.unmount());
     container.remove();
     useDocumentSelectionStore.getState().clear();
-    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clearSelection();
   });
 
   const rows = () => [
@@ -152,16 +151,16 @@ describe('레이어 탭 - 장면 트리 하나', () => {
 
   it('플러그인 행은 옛 선택, 나머지는 트리 선택으로 고른다', () => {
     act(() => row('demo::p1').click());
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: 'demo::p1' },
     ]);
     act(() => row('t1').click());
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['t1']);
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
     // 그룹 행 - 플러그인 멤버는 옛 선택으로 함께
     act(() => row('G').click());
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['t1']);
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: 'demo::p1' },
     ]);
   });
@@ -224,7 +223,7 @@ describe('레이어 탭 - 장면 트리 하나', () => {
       'k1',
       't1',
     ]);
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: 'demo::p1' },
     ]);
 
@@ -234,7 +233,7 @@ describe('레이어 탭 - 장면 트리 하나', () => {
         new MouseEvent('click', { bubbles: true, metaKey: true }),
       ),
     );
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
   });
 });

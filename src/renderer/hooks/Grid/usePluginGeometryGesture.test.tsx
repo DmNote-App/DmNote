@@ -9,7 +9,7 @@ import React, { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
@@ -76,7 +76,7 @@ describe('createPluginGeometryGestureController', () => {
     mocks.commitFrames.mockClear();
     useKeyStore.setState({ selectedKeyType: '4key' });
     usePluginDisplayElementStore.setState({ elements: [pluginElement()] });
-    useGridSelectionStore
+    useDocumentSelectionStore
       .getState()
       .setSelectedElements([{ type: 'plugin', id: FULL_ID }]);
     unsubscribeStore = usePluginDisplayElementStore.subscribe(() => {
@@ -159,7 +159,7 @@ describe('createPluginGeometryGestureController', () => {
 
   it('선택에서 빠진 요소의 지각 preview는 세션을 열지 않는다', () => {
     const gesture = createPluginGeometryGestureController();
-    useGridSelectionStore.getState().setSelectedElements([]);
+    useDocumentSelectionStore.getState().setSelectedElements([]);
 
     gesture.preview(target, 'x', 77);
 
@@ -179,7 +179,7 @@ describe('createPluginGeometryGestureController', () => {
         }),
       ],
     });
-    useGridSelectionStore.getState().setSelectedElements([
+    useDocumentSelectionStore.getState().setSelectedElements([
       { type: 'plugin', id: FULL_ID },
       { type: 'plugin', id: OTHER_FULL_ID },
     ]);
@@ -224,7 +224,7 @@ describe('usePluginGeometryGesture', () => {
         }),
       ],
     });
-    useGridSelectionStore
+    useDocumentSelectionStore
       .getState()
       .setSelectedElements([{ type: 'plugin', id: FULL_ID }]);
     host = document.createElement('div');

@@ -1,8 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { useDocumentSelectionStore } from '../../../document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import {
   documentRotationEntries,
   documentSelectionFrame,
@@ -25,7 +24,7 @@ const SelectionRotationInput = ({ label }: SelectionRotationInputProps) => {
   const ids = useDocumentSelectionStore((state) =>
     state.sceneId === mode ? state.selectedIds : EMPTY_IDS,
   );
-  const withPlugins = useGridSelectionStore(
+  const withPlugins = useDocumentSelectionStore(
     (state) => state.selectedElements.length > 0,
   );
   const sessionRef = useRef<RotationSession | null>(null);

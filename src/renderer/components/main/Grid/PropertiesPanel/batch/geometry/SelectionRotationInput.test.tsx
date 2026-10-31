@@ -25,8 +25,7 @@ vi.mock('../../controls/RotationInputRow', () => ({
 }));
 
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { useDocumentSelectionStore } from '../../../document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import SelectionRotationInput from './SelectionRotationInput';
 
 const box = (x: number, rotation = 0): Frame => ({
@@ -67,7 +66,7 @@ describe('일괄 패널 회전 입력', () => {
       nodes: [element('a', box(0, 10)), element('b', box(40))],
     };
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useGridSelectionStore.setState({ selectedElements: [] });
+    useDocumentSelectionStore.setState({ selectedElements: [] });
     useDocumentSelectionStore.setState({
       sceneId: '4key',
       selectedIds: ['a', 'b'],
@@ -104,7 +103,7 @@ describe('일괄 패널 회전 입력', () => {
     render();
     expect(mocks.row).not.toHaveBeenCalled();
     useDocumentSelectionStore.setState({ selectedIds: ['a', 'b'] });
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'plugin', id: 'p::1' }],
     });
     render();

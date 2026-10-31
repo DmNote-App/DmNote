@@ -3,8 +3,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SettingTool from '@components/main/Tool/SettingTool';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { useDocumentSelectionStore } from '@components/main/Grid/document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 const popup = vi.hoisted(() => ({
   onSelect: null as null | ((id: string) => Promise<void>),
@@ -88,7 +87,7 @@ describe('프리셋 로드 선택 수명', () => {
     document.body.appendChild(host);
     root = createRoot(host);
     popup.onSelect = null;
-    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clearSelection();
     await act(async () => root.render(<SettingTool />));
   });
 
@@ -96,12 +95,12 @@ describe('프리셋 로드 선택 수명', () => {
     act(() => root.unmount());
     host.remove();
     window.api = originalApi;
-    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clearSelection();
     globalThis.IS_REACT_ACT_ENVIRONMENT = false;
   });
 
   const selectKey = () => {
-    useGridSelectionStore
+    useDocumentSelectionStore
       .getState()
       .setSelectedElements([{ type: 'key', id: 'key-0', index: 0 }]);
   };
@@ -152,7 +151,7 @@ describe('프리셋 로드 선택 수명', () => {
 
     await invokePopup('import-all');
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
   });
 
@@ -161,7 +160,7 @@ describe('프리셋 로드 선택 수명', () => {
 
     await invokePopup('import-tab');
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
   });
 

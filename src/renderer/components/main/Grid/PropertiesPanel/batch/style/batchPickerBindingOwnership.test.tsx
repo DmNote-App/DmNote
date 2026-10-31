@@ -8,7 +8,7 @@ import { useKeyStore } from '@stores/data/useKeyStore';
 import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
 import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 import type { CompletionBinding } from '@src/renderer/contexts/EditSessionScope';
 
@@ -437,13 +437,13 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       canonicalPositions: { '4key': [keyAt(id)] },
       positions: { '4key': [keyAt(id)] },
     });
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'key', id, index: 0 }],
     });
   };
 
   const panelProps = (): PanelProps => {
-    const selected = useGridSelectionStore.getState().selectedElements;
+    const selected = useDocumentSelectionStore.getState().selectedElements;
     const keyElements = selected.filter((element) => element.type === 'key');
     const statElements = selected.filter((element) => element.type === 'stat');
     const graphElements = selected.filter(
@@ -626,7 +626,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
         '4key': [{ ...keyAt(statId), statType: 'kps' }],
       },
     });
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [
         { type: 'key', id: keyId, index: 0 },
         { type: 'stat', id: statId, index: 0 },
@@ -964,7 +964,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
     useKnobItemStore.setState({
       positions: { '4key': [keyAt(ID_B)] } as never,
     });
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [
         { type: 'key', id: ID_A, index: 0 },
         { type: 'stat', id: 'stat-0', index: 0 },
@@ -1000,7 +1000,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
         canonicalPositions: { '4key': keys },
         positions: { '4key': keys },
       });
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [
           { type: 'key', id: ID_A, index: 0 },
           { type: 'stat', id: 'stat-0', index: 0 },
@@ -1011,7 +1011,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       const legacy = vi.fn();
       renderNotePanel(legacy);
       act(() => {
-        useGridSelectionStore.setState({
+        useDocumentSelectionStore.setState({
           selectedElements: [
             { type: 'key', id: ID_B, index: 1 },
             { type: 'stat', id: 'stat-0', index: 0 },
@@ -1049,13 +1049,13 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
         canonicalPositions: { '4key': keys },
         positions: { '4key': keys },
       });
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [{ type: 'key', id: ID_A, index: 0 }],
       });
       const legacy = vi.fn();
       renderNotePanel(legacy);
       act(() => {
-        useGridSelectionStore.setState({
+        useDocumentSelectionStore.setState({
           selectedElements: [{ type: 'key', id: ID_B, index: 1 }],
         });
       });
@@ -1143,7 +1143,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       useKnobItemStore.setState({
         positions: { '4key': [keyAt(knobId)] } as never,
       });
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [
           { type: 'key', id: keyId, index: 0 },
           { type: 'stat', id: statId, index: 0 },
@@ -1229,7 +1229,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       canonicalPositions: { '4key': [keyAt(ID_A)] },
       positions: { '4key': [keyAt(ID_A)] },
     });
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [
         { type: 'key', id: ID_A, index: 0 },
         { type: 'graph', id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', index: 0 },
@@ -1286,7 +1286,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
         positions: { '4key': [keyAt(knobId)] } as never,
       });
     }
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: types.map((type, index) => ({
         type,
         id: ids[index],
@@ -1566,7 +1566,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
   );
 
   it('soundVolume은 graph/knob synthetic를 무시하고 stable key subset만 쓴다', () => {
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [
         { type: 'key', id: ID_A, index: 0 },
         { type: 'graph', id: 'graph-0', index: 0 },
@@ -1832,7 +1832,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
           },
         });
       }
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [{ type: 'key', id: stableKeyId, index: 0 }, other],
       });
       const legacy = vi.fn();
@@ -1880,7 +1880,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
   );
 
   it('batch graph+knob counter fill completion은 빈 legacy commit을 만들지 않는다', () => {
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [
         { type: 'graph', id: 'graph-0', index: 0 },
         { type: 'knob', id: 'knob-0', index: 0 },
@@ -1958,7 +1958,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
           ? (['key', 'stat'] as const)
           : (['key', 'stat', 'graph', 'knob'] as const)
         : ([kind] as const);
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: types.map((type, index) => ({
         type,
         id: ids[index],
@@ -2072,7 +2072,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
             'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5',
           ];
     const types = ['key', 'stat', 'knob'] as const;
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: types.map((type, index) => ({
         type,
         id: ids[index],
@@ -2121,7 +2121,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
 
   it('batch active shadow는 key/knob만 쓰고 synthetic stat은 무관하다', () => {
     const legacy = vi.fn();
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [
         { type: 'key', id: ID_A, index: 0 },
         { type: 'stat', id: 'stat-0', index: 0 },
@@ -2421,7 +2421,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
   );
 
   it('soundEnabled는 graph/knob synthetic를 무시하고 stable key subset만 쓴다', () => {
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [
         { type: 'key', id: ID_A, index: 0 },
         { type: 'graph', id: 'graph-0', index: 0 },

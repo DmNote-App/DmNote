@@ -21,6 +21,7 @@ import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobIt
 import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import type {
   PluginDefinitionInternal,
   PluginDisplayElementInternal,
@@ -74,8 +75,8 @@ const seedStores = (element: PluginDisplayElementInternal) => {
       ],
     ]),
   });
+  useDocumentSelectionStore.setState({ selectedElements: [] });
   useGridSelectionStore.setState({
-    selectedElements: [],
     lastSelectedKeyBounds: null,
   });
 };
@@ -153,7 +154,7 @@ describe('문자열 템플릿 내부 DOM 안정성', () => {
     expect(inner.isConnected).toBe(true);
 
     fireMouse(inner, 'click');
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: PLUGIN_FULL_ID },
     ]);
   });

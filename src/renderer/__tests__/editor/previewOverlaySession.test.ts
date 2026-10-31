@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import {
   previewOverlay,
   previewPatchOf,
@@ -483,7 +483,7 @@ describe('editGestureController', () => {
 
   it('settleCommit 실패 뒤 편집 대상이 갈렸으면 세션을 되살리지 않는다', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'key', id: 'key-0', index: 0 }],
     });
     editGestureController.preview('4key', [
@@ -492,7 +492,7 @@ describe('editGestureController', () => {
 
     editGestureController.settleCommit(Promise.reject(new Error('io')));
     // 정산이 끝나기 전에 선택이 다른 요소로 넘어간다 (분리 패널 selection sync)
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'key', id: 'key-1', index: 1 }],
     });
     await flushPromises();
@@ -588,7 +588,7 @@ describe('editGestureController', () => {
   });
 
   it('구분자 포함 id의 서로 다른 선택은 다른 지문으로 barrier를 발화한다', () => {
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'plugin', id: 'a|plugin:b' }],
     });
     editGestureController.preview('4key', [
@@ -597,7 +597,7 @@ describe('editGestureController', () => {
     expect(editGestureController.hasActiveGesture()).toBe(true);
 
     // 이어붙이기 지문이면 두 선택 모두 'plugin:a|plugin:b'로 충돌해 미발화
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [
         { type: 'plugin', id: 'a' },
         { type: 'plugin', id: 'b' },

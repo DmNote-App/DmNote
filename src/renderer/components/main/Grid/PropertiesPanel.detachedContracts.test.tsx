@@ -8,7 +8,7 @@ import { useKeyStore } from '@stores/data/useKeyStore';
 import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
 import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
 import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useKeySlotCapture } from '@hooks/useKeySlotCapture';
@@ -611,7 +611,7 @@ const resetStores = () => {
     isCanvasPanelOpen: true,
     pluginSettingsPanel: null,
   });
-  useGridSelectionStore.setState({
+  useDocumentSelectionStore.setState({
     selectedElements: [],
   });
 };
@@ -691,7 +691,7 @@ describe('PropertiesPanel canonical native contract', () => {
         },
       });
     }
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type, id, index: staleIndex }],
     });
   };
@@ -883,7 +883,7 @@ describe('PropertiesPanel canonical native contract', () => {
         })),
       },
     });
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: ids.map((id, index) => ({
         type: 'graph',
         id,
@@ -957,7 +957,7 @@ describe('PropertiesPanel canonical native contract', () => {
           },
         });
       }
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: ids.map((id, index) => ({ type, id, index })),
       });
       mounted = mountPanel();
@@ -994,7 +994,7 @@ describe('PropertiesPanel canonical native contract', () => {
       positions: { '4key': [first, second] },
       canonicalPositions: { '4key': [first, second] },
     });
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [
         { type: 'key', id: firstId, index: 1 },
         { type: 'key', id: secondId, index: 0 },
@@ -1037,7 +1037,7 @@ describe('PropertiesPanel canonical native contract', () => {
       positions: { '4key': [stable, invalid] },
       canonicalPositions: { '4key': [stable, invalid] },
     });
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [
         { type: 'key', id: stableId, index: 0 },
         { type: 'key', id: 'key-1', index: 1 },
@@ -1078,7 +1078,7 @@ describe('PropertiesPanel canonical native contract', () => {
           ],
         },
       });
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [
           { type: 'key', id: MIXED_KEY_ID, index: 0 },
           { type: 'sprite', id: MIXED_SPRITE_ID, index: 0 },
@@ -1131,7 +1131,7 @@ describe('PropertiesPanel canonical native contract', () => {
           ],
         },
       });
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [
           { type: 'key', id: MIXED_KEY_ID, index: 0 },
           { type: 'sprite', id: MIXED_SPRITE_ID, index: 0 },
@@ -1200,7 +1200,7 @@ describe('PropertiesPanel canonical native contract', () => {
           ? { panelElements: [pluginElement()] }
           : { elements: [pluginElement()] }) as never,
       );
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [
           { type: 'key', id: FIRST_KEY_ID, index: 0 },
           { type: 'key', id: SECOND_KEY_ID, index: 1 },
@@ -1307,7 +1307,7 @@ describe('PropertiesPanel canonical native contract', () => {
       usePluginDisplayElementStore.setState({
         elements: [{ ...pluginElement(), groupId: 'group-a' }],
       } as never);
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [
           { type: 'key', id: FIRST_KEY_ID, index: 0 },
           { type: 'key', id: SECOND_KEY_ID, index: 1 },
@@ -1345,7 +1345,7 @@ describe('PropertiesPanel canonical native contract', () => {
           },
         ],
       } as never);
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [
           { type: 'plugin', id: PLUGIN_FULL_ID },
           { type: 'plugin', id: secondFullId },
@@ -1394,7 +1394,7 @@ describe('PropertiesPanel 편집 세션 scope 경계', () => {
         ],
       },
     });
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'stat', id, index: 0 }],
     });
     mounted = mountPanel();
@@ -1484,7 +1484,7 @@ describe('PropertiesPanel 배치 색상 피커 대상 결합', () => {
   let mounted: MountedPanel;
 
   const selectKeys = (...indices: number[]) => {
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: indices.map((index) => ({
         type: 'key' as const,
         id: `key-${index}`,
@@ -1560,7 +1560,7 @@ describe('PropertiesPanel detached selection sync contract', () => {
 
   it('graph 선택이면 style로 정규화한다', () => {
     usePropertiesPanelStore.setState({ propertyPanelActiveTab: 'counter' });
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'graph', id: 'graph-0', index: 0 }],
     });
     mounted = mountPanel();
@@ -1574,7 +1574,7 @@ describe('PropertiesPanel detached selection sync contract', () => {
     'selection이 있으면 %s 모드를 유지한다',
     (mode) => {
       usePropertiesPanelStore.setState({ canvasPanelMode: mode });
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [{ type: 'plugin', id: 'missing-plugin' }],
       });
       mounted = mountPanel();
@@ -1588,7 +1588,7 @@ describe('PropertiesPanel detached selection sync contract', () => {
     expect(usePropertiesPanelStore.getState().canvasPanelMode).toBe('layer');
 
     act(() => {
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [{ type: 'plugin', id: 'missing-plugin' }],
       });
     });

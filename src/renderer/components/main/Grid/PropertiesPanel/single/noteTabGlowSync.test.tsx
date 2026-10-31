@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import NoteTabContent from './NoteTabContent';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import type { EditorElementPropertyPatchV1 } from '@src/types/editor';
 import type { KeyPosition } from '@src/types/key/keys';
 
@@ -150,7 +150,7 @@ describe('NoteTabContent 글로우 색상 노트 동기화', () => {
     captured.pickerOpen = false;
     commit = vi.fn<(patch: EditorElementPropertyPatchV1) => void>();
     act(() => {
-      useGridSelectionStore
+      useDocumentSelectionStore
         .getState()
         .setSelectedElements([{ type: 'key', id: ELEMENT_ID, index: 0 }]);
     });

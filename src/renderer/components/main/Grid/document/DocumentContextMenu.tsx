@@ -13,7 +13,7 @@ import {
 } from './documentEditActions';
 import { documentGroupRoots, documentGroupsOf } from './documentGroups';
 import { useDocumentContextMenuStore } from './useDocumentContextMenuStore';
-import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 /** 트리 요소 우클릭 메뉴 - 옛 종류 요소 메뉴와 같은 항목 이름 */
 const DocumentContextMenu = () => {

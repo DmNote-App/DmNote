@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import NoteTabContent from './NoteTabContent';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import type { EditorNotePaintPropertyPatchV1 } from '@src/types/editor';
 import type { KeyPosition } from '@src/types/key/keys';
@@ -136,7 +136,7 @@ describe('NoteTabContent 열린 피커 재동기화', () => {
     captured.picker = null;
     commit = vi.fn<(patch: EditorNotePaintPropertyPatchV1) => void>();
     act(() => {
-      useGridSelectionStore
+      useDocumentSelectionStore
         .getState()
         .setSelectedElements([{ type: 'key', id: ELEMENT_ID, index: 0 }]);
     });
@@ -146,7 +146,7 @@ describe('NoteTabContent 열린 피커 재동기화', () => {
     act(() => {
       root.unmount();
       useGradientEditStore.getState().setSession(null);
-      useGridSelectionStore.getState().clearSelection();
+      useDocumentSelectionStore.getState().clearSelection();
     });
     host.remove();
   });

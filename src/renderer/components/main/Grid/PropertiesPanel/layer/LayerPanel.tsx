@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from '@contexts/useTranslation';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import {
   PANEL_ROOT_CLASS,
   PANEL_HEADER_CLASS,
@@ -69,7 +69,9 @@ const LayerPanel: React.FC<LayerPanelProps> = ({
   const setActiveTab = usePropertiesPanelStore(
     (state) => state.setCanvasPanelActiveTab,
   );
-  const clearSelection = useGridSelectionStore((state) => state.clearSelection);
+  const clearSelection = useDocumentSelectionStore(
+    (state) => state.clearSelection,
+  );
 
   // 헤더/탭 영역 빈 공간 클릭 시 선택 해제
   const handleHeaderEmptyClick = (e: React.MouseEvent) => {

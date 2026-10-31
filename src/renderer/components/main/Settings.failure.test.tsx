@@ -4,8 +4,7 @@ import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLega
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSettingsStore } from '@stores/useSettingsStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { useDocumentSelectionStore } from '@components/main/Grid/document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { getDefaultSettingsState } from '@src/renderer/defaults';
 import { beginEditorWriteBarrier } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
 
@@ -269,7 +268,7 @@ describe('Settings 실패 안내와 상태 보존', () => {
   it('전체 초기화가 실패하면 선택과 데이터를 보존하고 안내한다', async () => {
     const before = useLegacyKeyArrays.getState().keyMappings;
     const selection = [{ type: 'key' as const, id: 'key-a', index: 0 }];
-    useGridSelectionStore.getState().setSelectedElements(selection);
+    useDocumentSelectionStore.getState().setSelectedElements(selection);
     mocks.resetAll.mockRejectedValue(new Error('reset failed'));
     act(() => button('settings.resetData').click());
     await confirm();

@@ -11,7 +11,6 @@ import ListPopup, {
   type ListItem,
 } from '@components/main/Modal/listPopup/ListPopup';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import {
   selectPropertyPanelPluginElements,
   usePluginDisplayElementStore,
@@ -39,7 +38,7 @@ import {
   setStructureSelection,
   structureTargetIds,
 } from '../../document/treeEditedSelection';
-import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import {
   documentDropMove,
   documentLayerRows,
@@ -113,7 +112,7 @@ const LayerTabContent = ({
   const documentSelected = useDocumentSelectionStore((state) =>
     state.sceneId === sceneId ? state.selectedIds : EMPTY_IDS,
   );
-  const legacySelected = useGridSelectionStore(
+  const legacySelected = useDocumentSelectionStore(
     (state) => state.selectedElements,
   );
   const selectedIds = [
@@ -447,7 +446,7 @@ const LayerTabContent = ({
     if (event.target !== event.currentTarget) return;
     if (event.button !== 0) return;
     onSelectionFromPanel?.();
-    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clearSelection();
     useDocumentSelectionStore.getState().clear();
   };
 

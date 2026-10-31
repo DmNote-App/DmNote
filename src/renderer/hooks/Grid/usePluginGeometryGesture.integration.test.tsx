@@ -7,7 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { isInstanceSaveSuppressed } from '@plugins/runtime/displayElement/instanceSaveSuppression';
@@ -63,7 +63,7 @@ describe('usePluginGeometryGesture 트리 틀 저장 통합', () => {
     tree.edit.mockClear();
     useKeyStore.setState({ selectedKeyType: '4key' });
     usePluginDisplayElementStore.setState({ elements: [pluginElement()] });
-    useGridSelectionStore
+    useDocumentSelectionStore
       .getState()
       .setSelectedElements([{ type: 'plugin', id: FULL_ID }]);
     unsubscribe = usePluginDisplayElementStore.subscribe(() => {

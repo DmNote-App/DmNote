@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CanvasTool from './CanvasTool';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -45,7 +45,7 @@ describe('CanvasTool', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [],
     });
   });
@@ -73,7 +73,7 @@ describe('CanvasTool', () => {
 
   it('지우개 전환 시 남은 선택을 해제해 첫 클릭 삭제를 막지 않는다', () => {
     const setActiveTool = vi.fn();
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'key', id: 'key-1', index: 0 }],
     });
 
@@ -96,7 +96,7 @@ describe('CanvasTool', () => {
         ?.click();
     });
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
     expect(setActiveTool).toHaveBeenCalledWith('eraser');
   });
 

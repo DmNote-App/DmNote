@@ -46,7 +46,7 @@ import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import DocumentGridLayer from './DocumentGridLayer';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
-import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 const pointer = (type: string, x: number, y: number) =>
   new PointerEvent(type, {
@@ -86,7 +86,7 @@ describe('트리 요소에서 시작한 끌기', () => {
   beforeEach(() => {
     mocks.move.mockClear();
     mocks.others.mockClear();
-    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clearSelection();
     useDocumentSelectionStore.getState().clear();
   });
 
@@ -94,7 +94,7 @@ describe('트리 요소에서 시작한 끌기', () => {
     useDocumentSelectionStore.getState().setSelection('4key', ['t1']);
     // 보조키로 함께 고른 상태
     keepOtherSelection(() =>
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [{ type: 'key', id: 'k1', index: 0 }],
       }),
     );
@@ -173,7 +173,7 @@ describe('트리 요소에서 시작한 끌기', () => {
   it('끄는 중 되돌리기가 끼어들면 옮긴 것을 버린다', () => {
     useDocumentSelectionStore.getState().setSelection('4key', ['t1']);
     keepOtherSelection(() =>
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [{ type: 'key', id: 'k1', index: 0 }],
       }),
     );
@@ -216,7 +216,7 @@ describe('트리 요소에서 시작한 끌기', () => {
 
 describe('트리 요소 Shift 클릭 범위 선택', () => {
   beforeEach(() => {
-    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clearSelection();
     useGridSelectionStore.getState().setLastSelectedKeyBounds(null);
     useDocumentSelectionStore.getState().clear();
     usePluginDisplayElementStore.setState({
@@ -247,7 +247,7 @@ describe('트리 요소 Shift 클릭 범위 선택', () => {
       box.dispatchEvent(pointer('pointerup', 0, 0));
     });
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['t1']);
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: 'p:between' },
     ]);
     unmount();

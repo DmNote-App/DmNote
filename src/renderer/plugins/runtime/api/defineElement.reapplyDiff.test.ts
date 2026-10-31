@@ -113,7 +113,7 @@ vi.mock('@stores/data/useHistoryStatusStore', () => ({
 }));
 
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { applyCanonicalPluginInstances } from '../displayElement/instancesUndoSync';
 import {
@@ -234,7 +234,7 @@ describe('plugin instance reapply diff-patch', () => {
       customTabs: [],
       selectedKeyType: '4key',
     });
-    useGridSelectionStore.setState({ selectedElements: [] });
+    useDocumentSelectionStore.setState({ selectedElements: [] });
     usePluginDisplayElementStore.setState({
       elements: [],
       definitions: new Map(),
@@ -248,7 +248,7 @@ describe('plugin instance reapply diff-patch', () => {
       elements: [],
       definitions: new Map(),
     });
-    useGridSelectionStore.setState({ selectedElements: [] });
+    useDocumentSelectionStore.setState({ selectedElements: [] });
     useKeyStore.setState({ isBootstrapped: false });
     delete window.__dmn_current_plugin_id;
     delete window.__dmn_window_type;
@@ -309,15 +309,17 @@ describe('plugin instance reapply diff-patch', () => {
     defineFor(pluginId, [saved(ID_A)]);
     await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(1));
     const fullIdA = `${pluginId}::${ID_A}`;
-    useGridSelectionStore
+    useDocumentSelectionStore
       .getState()
       .setSelectedElements([{ type: 'plugin', id: fullIdA }]);
-    const reference = useGridSelectionStore.getState().selectedElements;
+    const reference = useDocumentSelectionStore.getState().selectedElements;
 
     await reapply(pluginId, 5, [saved(ID_A, { position: { x: 77, y: 66 } })]);
 
     // pruneStalePluginSelection no-op - 생존 fullId 선택 유지
-    expect(useGridSelectionStore.getState().selectedElements).toBe(reference);
+    expect(useDocumentSelectionStore.getState().selectedElements).toBe(
+      reference,
+    );
     expect(findElement(fullIdA)!.position).toEqual({ x: 77, y: 66 });
   });
 

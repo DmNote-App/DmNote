@@ -9,7 +9,7 @@ import {
   type SavedPluginInstanceWire,
 } from '@api/modules/plugin/pluginInstancesApi';
 import { noteBackendPluginRevision } from '@plugins/runtime/pluginModelRevision';
-import { pruneStalePluginSelection } from '@stores/grid/useGridSelectionStore';
+import { pruneStalePluginSelection } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 
 interface PluginInstancesRebindHandlers {

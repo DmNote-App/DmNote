@@ -12,6 +12,7 @@ import {
   type SelectedElement,
   type ClipboardItem,
 } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { reportElementOpSkipped } from '@src/renderer/editor/runtime/intent/elementIntent';
 import { sendBridgeMessageBestEffort } from '@utils/plugin/bridgeMessages';
 import {
@@ -53,7 +54,7 @@ export function useGridSelection({
   selectedElements,
   selectedKeyType,
 }: UseGridSelectionParams): UseGridSelectionReturn {
-  const setSelectedElements = useGridSelectionStore(
+  const setSelectedElements = useDocumentSelectionStore(
     (state) => state.setSelectedElements,
   );
   const clipboard = useGridSelectionStore((state) => state.clipboard);
@@ -66,7 +67,7 @@ export function useGridSelection({
   );
   const freezeSelectionForGesture = () => {
     frozenGestureTargetsRef.current =
-      useGridSelectionStore.getState().selectedElements;
+      useDocumentSelectionStore.getState().selectedElements;
   };
 
   // 선택된 요소들의 최종 위치를 한 번에 저장
@@ -80,7 +81,7 @@ export function useGridSelection({
     const frozen = frozenTargets ?? frozenGestureTargetsRef.current;
     frozenGestureTargetsRef.current = null;
     const currentSelection =
-      frozen ?? useGridSelectionStore.getState().selectedElements;
+      frozen ?? useDocumentSelectionStore.getState().selectedElements;
     const selectedPluginElementIds = new Set(
       currentSelection
         .filter((element) => element.type === 'plugin')

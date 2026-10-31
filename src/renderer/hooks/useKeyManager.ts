@@ -12,7 +12,7 @@ import {
   reportElementOpError,
   reportElementOpSkipped,
 } from '@src/renderer/editor/runtime/intent/elementIntent';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { setUndoRedoInProgress } from '@api/pluginDisplayElements';
 import type { KeySlot } from '@src/types/key/keys';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
@@ -49,7 +49,7 @@ export function useKeyManager() {
       const res = await keysApi.resetMode(selectedKeyType);
       // 백엔드가 초기화를 수행한 경우에만 후속 정리 — 커스텀 탭도 이제 지원됨
       if (!res.success) return;
-      useGridSelectionStore.getState().clearSelection();
+      useDocumentSelectionStore.getState().clearSelection();
     } catch (error) {
       console.error('Failed to reset current mode', error);
     }

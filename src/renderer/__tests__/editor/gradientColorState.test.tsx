@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGradientColorState } from '@hooks/pickers/useGradientColorState';
 import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import type { ColorModeValue, ColorPair, GradientSpec } from '@src/types/color';
 
@@ -77,7 +77,7 @@ describe('useGradientColorState 편집 수명', () => {
     stateCapture = { current: null };
     onCommit = vi.fn<(value: ColorModeValue) => void>();
     act(() => {
-      useGridSelectionStore
+      useDocumentSelectionStore
         .getState()
         .setSelectedElements([{ type: 'key', id: ELEMENT_A_ID, index: 0 }]);
     });
@@ -87,7 +87,7 @@ describe('useGradientColorState 편집 수명', () => {
     act(() => {
       root.unmount();
       useGradientEditStore.getState().setSession(null);
-      useGridSelectionStore.getState().clearSelection();
+      useDocumentSelectionStore.getState().clearSelection();
     });
     host.remove();
   });
@@ -118,9 +118,9 @@ describe('useGradientColorState 편집 수명', () => {
     changeFormat('solid');
     act(() => root.render(<Harness pair={{ color: '#ff0000' }} />));
 
-    act(() => useGridSelectionStore.getState().clearSelection());
+    act(() => useDocumentSelectionStore.getState().clearSelection());
     act(() =>
-      useGridSelectionStore
+      useDocumentSelectionStore
         .getState()
         .setSelectedElements([{ type: 'key', id: 'key-0', index: 0 }]),
     );

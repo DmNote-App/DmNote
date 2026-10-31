@@ -10,7 +10,6 @@ import {
   useDocumentElement,
   useElementDocumentScene,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import { getOtherElementBounds } from '@hooks/Grid/drag/useSmartGuidesElements';
 import { calculateResizePreviewPlan } from '@hooks/Grid/resize/resizePreviewPlan';
@@ -30,7 +29,7 @@ import {
   startDocumentGroupRotation,
 } from './documentGroupRotation';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
-import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 interface DocumentSelectionOverlayProps {
   sceneId: string;
@@ -388,7 +387,7 @@ const DocumentSelectionOverlay = (props: DocumentSelectionOverlayProps) => {
     state.sceneId === props.sceneId ? state.selectedIds : EMPTY_IDS,
   );
   // 옛 종류 요소와 섞인 선택 - 한쪽만 돌리거나 늘리지 않게 손잡이를 닫는다
-  const mixed = useGridSelectionStore(
+  const mixed = useDocumentSelectionStore(
     (state) => state.selectedElements.length > 0,
   );
   // 온캔버스 그라데이션·스프라이트 자세 편집 중에는 그 핸들이 맡는다 (옛 종류와 같다)

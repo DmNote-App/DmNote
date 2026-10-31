@@ -5,9 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { markGridKeyHandled } from '@stores/grid/gridKeyHandled';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useDocumentKeyboard } from './useDocumentKeyboard';
-import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 // 키를 옛 종류 대표로 쓴다
 vi.mock('@src/types/elementKinds', async (importOriginal) =>
@@ -182,7 +181,7 @@ describe('트리 요소 키보드', () => {
     useDocumentSelectionStore.getState().setSelection('4key', ['t1']);
     act(() =>
       keepOtherSelection(() =>
-        useGridSelectionStore
+        useDocumentSelectionStore
           .getState()
           .setSelectedElements([{ type: 'plugin', id: 'demo::p1' }]),
       ),
@@ -193,7 +192,7 @@ describe('트리 요소 키보드', () => {
       ['t1', 'demo::p1'],
       'layerGroup.newGroup',
     );
-    act(() => useGridSelectionStore.getState().clearSelection());
+    act(() => useDocumentSelectionStore.getState().clearSelection());
   });
 
   it('옛 종류 키보드가 지웠으면(트리 요소 포함) 선택만 푼다', () => {
@@ -242,12 +241,12 @@ describe('트리 요소 키보드', () => {
   it('옛 종류 요소를 고르면 트리 요소 선택이 풀린다', () => {
     useDocumentSelectionStore.getState().select('4key', 't1');
     act(() => {
-      useGridSelectionStore
+      useDocumentSelectionStore
         .getState()
         .setSelectedElements([{ type: 'key', id: 'k1', index: 0 }]);
     });
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
-    act(() => useGridSelectionStore.getState().clearSelection());
+    act(() => useDocumentSelectionStore.getState().clearSelection());
   });
 
   it('옛 종류 키보드가 처리한 편집 키(섞인 선택)는 트리 요소에도 같은 동작을 한다', () => {

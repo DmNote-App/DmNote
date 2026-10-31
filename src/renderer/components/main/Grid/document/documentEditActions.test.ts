@@ -28,7 +28,7 @@ import {
   removeDocumentElements,
   stepDocumentElements,
 } from './documentEditActions';
-import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 describe('트리 문서 편집 동작', () => {
   beforeEach(() => {

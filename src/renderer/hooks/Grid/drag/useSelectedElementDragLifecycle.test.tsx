@@ -3,7 +3,7 @@ import React, { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useSelectedElementDragLifecycle } from './useSelectedElementDragLifecycle';
 
@@ -38,7 +38,7 @@ describe('useSelectedElementDragLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('crypto', { randomUUID: () => GESTURE_ID });
-    useGridSelectionStore.getState().setSelectedElements([
+    useDocumentSelectionStore.getState().setSelectedElements([
       { type: 'plugin', id: 'plugin:first' },
       { type: 'plugin', id: 'plugin:second' },
     ]);

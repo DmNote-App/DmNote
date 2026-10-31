@@ -17,10 +17,8 @@ import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatIt
 import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
 import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
 import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
-import {
-  useGridSelectionStore,
-  type SelectedElement,
-} from '@stores/grid/useGridSelectionStore';
+import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -112,7 +110,7 @@ describe('GridSelectionOverlays', () => {
     act(() => {
       useKeyStore.setState({ selectedKeyType: '4key' });
       useLegacyKeyArrays.setState({ canonicalPositions: positions });
-      useGridSelectionStore.setState({ selectedElements });
+      useDocumentSelectionStore.setState({ selectedElements });
       useSpriteStore.setState({ positions: spritePositions });
       useStatItemStore.setState({ positions: statPositions });
       useGraphItemStore.setState({ positions: graphPositions });

@@ -13,7 +13,7 @@ import { TooltipGroup } from '../Modal/tooltip/TooltipGroup';
 import { obsApi } from '@api/modules/window/obsApi';
 import { overlayApi } from '@api/modules/window/overlayApi';
 import { presetsApi } from '@api/modules/resources/presetsApi';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useIconMotion } from '@hooks/useIconMotion';
 import IconMotion from './icons/IconMotion';
 
@@ -162,7 +162,7 @@ SettingToolProps) => {
       const result = await runPresetAction(() => presetsApi.load());
       if (!result) return;
       if (!result.success) return;
-      useGridSelectionStore.getState().clearSelection();
+      useDocumentSelectionStore.getState().clearSelection();
       showAlert?.(t('preset.loadSuccess'));
     } catch (error) {
       console.error('Failed to load preset', error);
@@ -213,7 +213,7 @@ SettingToolProps) => {
       const result = await runPresetAction(() => presetsApi.loadTab());
       if (!result) return;
       if (!result.success) return;
-      useGridSelectionStore.getState().clearSelection();
+      useDocumentSelectionStore.getState().clearSelection();
       showAlert?.(t('preset.loadTabSuccess'));
     } catch (error) {
       console.error('Failed to load tab preset', error);

@@ -2,8 +2,7 @@
 // 트리 스토어·프리뷰 오버레이(모듈 상태)를 렌더 중에 읽어서 컴파일러 메모 제외
 import { useSyncExternalStore } from 'react';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { useDocumentSelectionStore } from '../../document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { panelSelectionOf } from '../../document/treeEditedSelection';
 import { wholeGroupOf } from '../../document/documentGroups';
 import {
@@ -39,7 +38,7 @@ import { isPluginVisibleInMode } from '@utils/layerGroupUtils';
 import { resolveResizablePluginElementSize } from '@utils/plugin/layout/pluginElementMeasurement';
 
 export const usePropertiesPanelSelection = () => {
-  const legacySelection = useGridSelectionStore(
+  const legacySelection = useDocumentSelectionStore(
     (state) => state.selectedElements,
   );
   const documentSceneId = useDocumentSelectionStore((state) => state.sceneId);

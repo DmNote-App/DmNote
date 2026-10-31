@@ -2,7 +2,7 @@ import React, { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 
@@ -24,7 +24,7 @@ const pluginElement = (id: string): SelectedElement => ({
 
 const select = (...elements: SelectedElement[]) => {
   act(() => {
-    useGridSelectionStore.setState({ selectedElements: elements });
+    useDocumentSelectionStore.setState({ selectedElements: elements });
   });
 };
 
@@ -36,7 +36,7 @@ describe('EditSessionBoundary', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
-    useGridSelectionStore.setState({ selectedElements: [keyElement(0)] });
+    useDocumentSelectionStore.setState({ selectedElements: [keyElement(0)] });
     useKeyStore.setState({ selectedKeyType: '4key' });
   });
 
@@ -88,7 +88,7 @@ describe('EditSessionBoundary', () => {
   it('선택 순서만 다르면 같은 대상으로 본다', () => {
     const mount = vi.fn();
     const unmount = vi.fn();
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [keyElement(0), keyElement(1)],
     });
     renderProbe(mount, unmount);
@@ -101,7 +101,7 @@ describe('EditSessionBoundary', () => {
   it('구분자가 든 플러그인 ID 조합이 같아 보여도 다른 대상으로 본다', () => {
     const mount = vi.fn();
     const unmount = vi.fn();
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [
         pluginElement('plugin::a,b'),
         pluginElement('plugin::c'),
@@ -119,14 +119,14 @@ describe('EditSessionBoundary', () => {
     const mount = vi.fn();
     const unmount = vi.fn();
     useKeyStore.setState({ selectedKeyType: 'custom:a' });
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [pluginElement('plugin::b')],
     });
     renderProbe(mount, unmount);
 
     act(() => {
       useKeyStore.setState({ selectedKeyType: 'custom' });
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [pluginElement('a:plugin::b')],
       });
     });
@@ -138,7 +138,7 @@ describe('EditSessionBoundary', () => {
   it('배치 선택이 줄어들면 새로 마운트한다', () => {
     const mount = vi.fn();
     const unmount = vi.fn();
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [keyElement(0), keyElement(1), keyElement(2)],
     });
     renderProbe(mount, unmount);
@@ -169,7 +169,7 @@ describe('EditSessionBoundary', () => {
     const commit = vi.fn();
     const Field = () => {
       // 콜백이 매 렌더 최신 대상을 가리키는 실제 구조를 그대로 흉내낸다
-      const target = useGridSelectionStore(
+      const target = useDocumentSelectionStore(
         (state) => state.selectedElements[0]?.id ?? '',
       );
       return (

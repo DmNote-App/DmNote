@@ -11,7 +11,7 @@ import FloatingTooltip from '../Modal/tooltip/FloatingTooltip';
 import { TooltipGroup } from '../Modal/tooltip/TooltipGroup';
 import ListPopup from '../Modal/listPopup/ListPopup';
 import { useIconMotion } from '@hooks/useIconMotion';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import {
   CREATABLE_ITEM_TYPES,
   ITEM_KIND_MENUS,
@@ -71,7 +71,7 @@ const CanvasTool = ({
   const handleClick = (key: string) => {
     if (key === 'move' || key === 'eraser') {
       if (key === 'eraser') {
-        useGridSelectionStore.getState().clearSelection();
+        useDocumentSelectionStore.getState().clearSelection();
       }
       setSelectedTool(key as SelectableTool);
       setActiveTool?.(key);

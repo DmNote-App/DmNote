@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { useDocumentSelectionStore } from '@components/main/Grid/document/useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 
 import {
@@ -69,7 +68,7 @@ describe('canonical 재주입 후 선택 정리', () => {
 
   beforeEach(() => {
     instancesGetMock.mockReset();
-    useGridSelectionStore.setState({ selectedElements: [] });
+    useDocumentSelectionStore.setState({ selectedElements: [] });
     usePluginDisplayElementStore.setState({ elements: [] });
   });
 
@@ -78,7 +77,7 @@ describe('canonical 재주입 후 선택 정리', () => {
     usePluginDisplayElementStore.setState({
       elements: [pluginElement(pluginId, 'old')],
     });
-    useGridSelectionStore.getState().setSelectedElements([
+    useDocumentSelectionStore.getState().setSelectedElements([
       { type: 'plugin', id: `${pluginId}:old` },
       { type: 'key', id: '11111111-1111-4111-8111-111111111111', index: 0 },
     ]);
@@ -96,7 +95,7 @@ describe('canonical 재주입 후 선택 정리', () => {
 
     await applyCanonicalPluginInstances(pluginId);
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
     // 키 선택은 트리 선택이 맡고 플러그인 정리에 휩쓸리지 않는다
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([
       '11111111-1111-4111-8111-111111111111',
@@ -112,7 +111,7 @@ describe('canonical 재주입 후 선택 정리', () => {
     usePluginDisplayElementStore.setState({
       elements: [pluginElement(pulled, 'own')],
     });
-    useGridSelectionStore.getState().setSelectedElements([
+    useDocumentSelectionStore.getState().setSelectedElements([
       { type: 'plugin', id: `${idle}:alive` },
       { type: 'plugin', id: `${pulled}:own` },
     ]);
@@ -128,7 +127,7 @@ describe('canonical 재주입 후 선택 정리', () => {
 
     await applyCanonicalPluginInstances(pulled);
 
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
       { type: 'plugin', id: `${idle}:alive` },
       { type: 'plugin', id: `${pulled}:own` },
     ]);
@@ -140,10 +139,10 @@ describe('canonical 재주입 후 선택 정리', () => {
     usePluginDisplayElementStore.setState({
       elements: [pluginElement(pluginId, 'kept')],
     });
-    useGridSelectionStore
+    useDocumentSelectionStore
       .getState()
       .setSelectedElements([{ type: 'plugin', id: `${pluginId}:kept` }]);
-    const reference = useGridSelectionStore.getState().selectedElements;
+    const reference = useDocumentSelectionStore.getState().selectedElements;
     const unregister = registerPluginInstancesReapplier(pluginId, 'def-kept', {
       cancelPendingSave: vi.fn(),
       // diff 적용: 같은 fullId가 생존하고 소유 필드만 갱신된 상황
@@ -160,21 +159,25 @@ describe('canonical 재주입 후 선택 정리', () => {
     await applyCanonicalPluginInstances(pluginId);
 
     // prune no-op - 생존 fullId를 쥔 선택이 그대로 유지된다
-    expect(useGridSelectionStore.getState().selectedElements).toBe(reference);
+    expect(useDocumentSelectionStore.getState().selectedElements).toBe(
+      reference,
+    );
     unregister();
   });
 
   it('reapplier 미등록이면 선택을 건드리지 않는다', async () => {
     const pluginId = 'plugin-prune-b';
-    useGridSelectionStore
+    useDocumentSelectionStore
       .getState()
       .setSelectedElements([{ type: 'plugin', id: `${pluginId}:dead` }]);
-    const reference = useGridSelectionStore.getState().selectedElements;
+    const reference = useDocumentSelectionStore.getState().selectedElements;
     instancesGetMock.mockResolvedValue({ modelRevision: 1, instances: [] });
 
     await applyCanonicalPluginInstances(pluginId);
 
-    expect(useGridSelectionStore.getState().selectedElements).toBe(reference);
+    expect(useDocumentSelectionStore.getState().selectedElements).toBe(
+      reference,
+    );
   });
 
   it('낡은 revision pull은 선택을 건드리지 않는다', async () => {
@@ -182,7 +185,7 @@ describe('canonical 재주입 후 선택 정리', () => {
     usePluginDisplayElementStore.setState({
       elements: [pluginElement(pluginId, 'kept')],
     });
-    useGridSelectionStore
+    useDocumentSelectionStore
       .getState()
       .setSelectedElements([{ type: 'plugin', id: `${pluginId}:kept` }]);
     const unregister = registerPluginInstancesReapplier(pluginId, 'def-c', {
@@ -194,12 +197,14 @@ describe('canonical 재주입 후 선택 정리', () => {
 
     // 늦게 도착한 낡은 pull - 단조 게이트가 reapply와 prune 모두 스킵
     usePluginDisplayElementStore.setState({ elements: [] });
-    const reference = useGridSelectionStore.getState().selectedElements;
+    const reference = useDocumentSelectionStore.getState().selectedElements;
     instancesGetMock.mockResolvedValue({ modelRevision: 4, instances: [] });
 
     await applyCanonicalPluginInstances(pluginId);
 
-    expect(useGridSelectionStore.getState().selectedElements).toBe(reference);
+    expect(useDocumentSelectionStore.getState().selectedElements).toBe(
+      reference,
+    );
     unregister();
   });
 });

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGradientColorState } from '@hooks/pickers/useGradientColorState';
 import { AlphaSlider } from '@components/main/Modal/content/pickers/color/colorPickerPrimitives';
 import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import { hsvToColorObject } from '@utils/color/colorUtils';
 import type { ColorModeValue, GradientSpec } from '@src/types/color';
@@ -35,7 +35,7 @@ describe('undo/redo 반영 틱의 편집 세션 취소', () => {
     document.body.appendChild(host);
     root = createRoot(host);
     act(() => {
-      useGridSelectionStore
+      useDocumentSelectionStore
         .getState()
         .setSelectedElements([{ type: 'key', id: ELEMENT_ID, index: 0 }]);
     });
@@ -45,7 +45,7 @@ describe('undo/redo 반영 틱의 편집 세션 취소', () => {
     act(() => {
       root.unmount();
       useGradientEditStore.getState().setSession(null);
-      useGridSelectionStore.getState().clearSelection();
+      useDocumentSelectionStore.getState().clearSelection();
     });
     host.remove();
   });

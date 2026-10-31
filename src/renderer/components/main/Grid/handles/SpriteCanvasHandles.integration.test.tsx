@@ -88,7 +88,7 @@ const loadHarness = async () => {
       import('../overlays/GridSelectionOverlays'),
       import('@src/renderer/editor/runtime/gesture/previewOverlay'),
       import('@src/renderer/elementKinds/runtime/treePanelRecords'),
-      import('../document/useDocumentSelectionStore'),
+      import('@stores/grid/useDocumentSelectionStore'),
       import('@src/renderer/elementKinds/runtime/treeElementPosition'),
     ]);
   const dragSession = await import('@hooks/Grid/drag/dragSession');

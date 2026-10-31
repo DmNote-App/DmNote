@@ -1,7 +1,7 @@
 // 요소 문서 구조 전환 전후 비교 측정 - 앱을 그대로 띄운 채 공개 API·키보드 입력만으로
 // 같은 시나리오를 재현한다. 저장 구조가 바뀌어도 시나리오가 그대로 돌게 내부 스토어를 쓰지 않는다
 import { internalApi } from '@api/internalApi';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import {
   afterPaintOpportunity,
   summarizeDistribution,
@@ -269,7 +269,7 @@ const measure = async (config: BenchmarkConfig) => {
 
   // 방향키 이동 - 선택한 키 하나가 화면에서 움직일 때까지
   await progress(config, 'arrow-nudge');
-  useGridSelectionStore
+  useDocumentSelectionStore
     .getState()
     .setSelectedElements([{ type: 'key', id: keyIds[0], index: 0 }]);
   await afterPaintOpportunity();
@@ -283,7 +283,7 @@ const measure = async (config: BenchmarkConfig) => {
     );
     await new Promise((resolve) => setTimeout(resolve, 60));
   }
-  useGridSelectionStore.getState().clearSelection();
+  useDocumentSelectionStore.getState().clearSelection();
   await new Promise((resolve) => setTimeout(resolve, 1500));
 
   // 공개 API 커밋 왕복 - 키 하나의 위치를 바꾸는 커밋
@@ -337,7 +337,7 @@ const measure = async (config: BenchmarkConfig) => {
         id: position.id,
         index,
       }));
-    useGridSelectionStore.getState().setSelectedElements(ids);
+    useDocumentSelectionStore.getState().setSelectedElements(ids);
     await afterPaintOpportunity();
     const modifier = navigator.userAgent.includes('Mac')
       ? { metaKey: true }
@@ -351,7 +351,7 @@ const measure = async (config: BenchmarkConfig) => {
         () => keyElementCount() >= countBefore + 50,
       ),
     );
-    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clearSelection();
     await new Promise((resolve) => setTimeout(resolve, 800));
     const restored = await api().editor.get();
     await api().editor.commit({

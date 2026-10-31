@@ -19,6 +19,7 @@ import {
   useGridSelectionStore,
   SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { openPropertiesPanelForSelection } from '@stores/grid/usePanelHostStore';
@@ -52,7 +53,7 @@ const selectGroupOf = (fullId: string) => {
   const store = getElementDocumentStore();
   // 트리에 아직 없는 요소(만든 직후·스크립트 표시 요소)는 그 요소만
   if (!store?.getElement(sceneId, fullId)) {
-    useGridSelectionStore
+    useDocumentSelectionStore
       .getState()
       .setSelectedElements([{ type: 'plugin', id: fullId }]);
     return;
@@ -471,7 +472,7 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
       e.stopPropagation();
       // 넣고 빼기 - 트리 요소 선택을 지킨다
       keepOtherSelection(() =>
-        useGridSelectionStore.getState().toggleSelection({
+        useDocumentSelectionStore.getState().toggleSelection({
           type: 'plugin',
           id: element.fullId,
         }),
@@ -495,7 +496,7 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
 
       if (!lastBounds) {
         // 이전 선택이 없으면 단일 선택처럼 동작
-        useGridSelectionStore.getState().selectElement({
+        useDocumentSelectionStore.getState().selectElement({
           type: 'plugin',
           id: element.fullId,
         });
@@ -587,7 +588,7 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
     e.stopPropagation();
 
     const { selectedElements: currentSelection } =
-      useGridSelectionStore.getState();
+      useDocumentSelectionStore.getState();
     const isMultiMember =
       currentSelection.length > 1 &&
       currentSelection.some((el) => el.id === element.fullId);

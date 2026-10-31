@@ -9,6 +9,7 @@ import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobIt
 import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 
 import { useGridKeyboard } from './useGridKeyboard';
@@ -123,7 +124,7 @@ const Harness = ({
     { type: 'plugin' as const, id: PLUGIN_IDS[selectedIndex] },
   ];
   // 정산 라우팅은 선택 스토어를 읽는다 - 하네스 선택과 동기화
-  useGridSelectionStore.setState({ selectedElements });
+  useDocumentSelectionStore.setState({ selectedElements });
   const { moveSelectedElements } = useGridSelection({
     selectedElements,
     selectedKeyType: '4key',

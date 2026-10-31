@@ -34,7 +34,7 @@ import { groupSelectionOf } from './documentGroups';
 import { documentRangeSelection, toggleDocumentId } from './documentSelection';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
-import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 const EDITOR_INPUTS = {};
 const EMPTY_IDS: string[] = [];
@@ -112,8 +112,7 @@ const DocumentGridElement = ({
         usePluginDisplayElementStore.getState().elements,
         sceneId,
       );
-      gridSelection.setSelectedElements(plugins);
-      keepOtherSelection(() => selection.setSelection(sceneId, treeIds));
+      selection.replaceSelection(sceneId, treeIds, plugins);
       return;
     }
     gridSelection.setLastSelectedKeyBounds({ x, y, width, height });
@@ -126,7 +125,7 @@ const DocumentGridElement = ({
     if (ids !== current) selection.setSelection(sceneId, ids);
     if (group && group.plugins.length > 0) {
       keepOtherSelection(() =>
-        useGridSelectionStore
+        useDocumentSelectionStore
           .getState()
           .setSelectedElements(
             group.plugins.map((id) => ({ type: 'plugin', id })),
@@ -138,7 +137,7 @@ const DocumentGridElement = ({
       return frame ? [{ id, frame }] : [];
     });
     // 옛 종류 요소도 함께 골랐으면 옛 끌기 수명 주기로 둘 다 옮긴다 (트리 요소는 그 안의 영수증이)
-    const legacySelected = useGridSelectionStore
+    const legacySelected = useDocumentSelectionStore
       .getState()
       .selectedElements.map(({ id }) => id);
     const mixed = legacySelected.length > 0 ? mixedDrag : undefined;

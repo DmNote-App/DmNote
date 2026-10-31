@@ -7,6 +7,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import {
   summarizeDistribution,
   waitForAttribute,
@@ -40,8 +41,8 @@ benchmarkDescribe('GRID-09 마퀴 연속 입력 성능', () => {
     vi.stubGlobal('cancelAnimationFrame', (id: number) =>
       window.clearTimeout(id),
     );
+    useDocumentSelectionStore.setState({ selectedElements: [] });
     useGridSelectionStore.setState({
-      selectedElements: [],
       isMarqueeSelecting: false,
       marqueeStart: null,
       marqueeEnd: null,

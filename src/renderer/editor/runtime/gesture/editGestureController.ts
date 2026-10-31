@@ -6,11 +6,7 @@
 
 import { previewApi } from '@api/modules/editor/previewApi';
 import { getElementDocumentStore } from '../../document/elementDocumentRuntime';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import {
-  readOtherSelectionIds,
-  subscribeOtherSelection,
-} from '@stores/grid/keepOtherSelection';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import {
   ELEMENT_TYPE_BY_PREVIEW_DOMAIN,
   PREVIEW_SCHEMA_VERSION,
@@ -359,12 +355,14 @@ if (typeof window !== 'undefined') {
           return leftId < rightId ? -1 : 1;
         }),
     );
-  // 옛 종류 선택과 트리 요소 선택(트리로 옮긴 옛 종류 포함)을 함께
-  const currentFingerprint = () =>
-    identityFingerprint([
-      ...useGridSelectionStore.getState().selectedElements,
-      ...readOtherSelectionIds().map((id) => ({ type: 'document', id })),
+  // 플러그인 요소 선택과 트리 요소 선택을 함께
+  const currentFingerprint = () => {
+    const selection = useDocumentSelectionStore.getState();
+    return identityFingerprint([
+      ...selection.selectedElements,
+      ...selection.selectedIds.map((id) => ({ type: 'document', id })),
     ]);
+  };
   let lastSelectionFingerprint = currentFingerprint();
   const onSelectionChange = () => {
     const nextFingerprint = currentFingerprint();
@@ -373,12 +371,8 @@ if (typeof window !== 'undefined') {
       editGestureController.cancel();
     }
   };
-  const unsubscribeLegacy = useGridSelectionStore.subscribe(onSelectionChange);
-  const unsubscribeOther = subscribeOtherSelection(onSelectionChange);
-  unsubscribeSelectionChange = () => {
-    unsubscribeLegacy();
-    unsubscribeOther();
-  };
+  unsubscribeSelectionChange =
+    useDocumentSelectionStore.subscribe(onSelectionChange);
 }
 
 // 개발 중 모듈 교체에서도 활성 게스처와 로컬 프리뷰를 함께 회수

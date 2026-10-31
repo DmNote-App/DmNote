@@ -14,6 +14,7 @@ import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobIt
 import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
 import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { releaseDragSession } from '@hooks/Grid/drag/dragSession';
@@ -310,8 +311,8 @@ const seedStores = (target: Target) => {
     panelElements: [],
     definitions: new Map([[target.definition.id, target.definition]]),
   } as never);
+  useDocumentSelectionStore.setState({ selectedElements: [] });
   useGridSelectionStore.setState({
-    selectedElements: [],
     lastSelectedKeyBounds: null,
     isDraggingOrResizing: false,
   });
@@ -394,7 +395,7 @@ const dragRelease = (
   fireClick(el, { clientX: to.x, clientY: to.y });
 };
 
-const selection = () => useGridSelectionStore.getState().selectedElements;
+const selection = () => useDocumentSelectionStore.getState().selectedElements;
 const panelOpen = () => usePropertiesPanelStore.getState().isCanvasPanelOpen;
 
 beforeEach(() => {
@@ -537,7 +538,7 @@ describe.each(TARGETS)('플러그인 요소 패널 열림 계약 ($label)', (tar
 
     // 다른 요소 선택 (1→1) - manuallyClosed 유지로 열리지 않음
     act(() => {
-      useGridSelectionStore
+      useDocumentSelectionStore
         .getState()
         .setSelectedElements([{ type: 'key', id: 'other-key', index: 0 }]);
     });
@@ -545,7 +546,7 @@ describe.each(TARGETS)('플러그인 요소 패널 열림 계약 ($label)', (tar
 
     // 전체 해제 후 재선택 (0→1) - manuallyClosed 해제, 다시 열림
     act(() => {
-      useGridSelectionStore.getState().clearSelection();
+      useDocumentSelectionStore.getState().clearSelection();
     });
     expect(panelOpen()).toBe(false);
     stationaryClick(node(target));
@@ -559,7 +560,7 @@ describe.each(TARGETS)('플러그인 요소 패널 열림 계약 ($label)', (tar
 
     // Grid 마퀴 정산(useGridMarquee:213)과 동일한 스토어 호출
     act(() => {
-      useGridSelectionStore
+      useDocumentSelectionStore
         .getState()
         .setSelectedElements([{ type: 'plugin', id: target.fullId }]);
     });

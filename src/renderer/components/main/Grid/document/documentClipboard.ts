@@ -10,7 +10,7 @@ import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { editDocument } from './documentEditActions';
 import { documentGroupNames, documentGroupRoots } from './documentGroups';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
-import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { treeModeArrays } from '@src/renderer/elementKinds/runtime/treeModeArrays';
 import { takePastedKeyIds } from '@stores/grid/pastedKeyIds';
 import type { SpritePose } from '@src/types/key/sprites';

@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { I18nContext } from '@contexts/I18nContextDef';
 import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useGridViewStore } from '@stores/grid/useGridViewStore';
 import { ColorInputBenchmarkSurface } from './controls/colorInputBenchmark';
 import { ColorTrackBenchmarkSurface } from './controls/colorTrackBenchmark';
@@ -838,8 +839,8 @@ export const prepareWebViewInteractionBenchmark = (): void => {
     });
   }
   if (scenario === 'GRID-09') {
+    useDocumentSelectionStore.setState({ selectedElements: [] });
     useGridSelectionStore.setState({
-      selectedElements: [],
       isMarqueeSelecting: false,
       marqueeStart: null,
       marqueeEnd: null,

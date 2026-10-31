@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useGridMarquee } from './useGridMarquee';
 
 // (0,0)→(200,200) 마퀴가 감싸는 플러그인 요소 하나 - 잘못된 확정이 선택으로 드러나게
@@ -41,8 +42,8 @@ describe('useGridMarquee frame coalescing', () => {
       },
     );
     vi.stubGlobal('cancelAnimationFrame', (id: number) => callbacks.delete(id));
+    useDocumentSelectionStore.setState({ selectedElements: [] });
     useGridSelectionStore.setState({
-      selectedElements: [],
       isMarqueeSelecting: false,
       marqueeStart: null,
       marqueeEnd: null,
@@ -106,7 +107,7 @@ describe('useGridMarquee frame coalescing', () => {
   // 선택이 남아 있을 수 있다 - 취소는 그 선택을 건드리면 안 된다
   it('컨텍스트 메뉴가 열리면 마퀴를 취소하되 기존 선택은 남긴다', () => {
     const kept = [{ type: 'key' as const, id: 'key-1', index: 0 }];
-    act(() => useGridSelectionStore.setState({ selectedElements: kept }));
+    act(() => useDocumentSelectionStore.setState({ selectedElements: kept }));
     act(() =>
       document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true })),
     );
@@ -125,7 +126,7 @@ describe('useGridMarquee frame coalescing', () => {
     });
     // 취소는 확정과 다르다 - 예약된 프레임을 버리고 선택을 건드리지 않는다
     expect(callbacks.size).toBe(0);
-    expect(useGridSelectionStore.getState().selectedElements).toEqual(kept);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual(kept);
   });
 
   it('Chromium 순서(우클릭 mousedown → mouseup → contextmenu)에서도 선택을 확정하지 않는다', () => {
@@ -150,15 +151,15 @@ describe('useGridMarquee frame coalescing', () => {
       isMarqueeSelecting: false,
       marqueeStart: null,
       marqueeEnd: null,
-      selectedElements: [],
     });
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
   });
 
   // 취소 setState와 React 플러시 사이에 끼어든 mouseup은 렌더 캡처 값으로는
   // 아직 마퀴 중이라 옛 마퀴를 정산해 버린다 - 가드는 스토어를 직접 읽어야 한다
   it('WebKit 순서(mousedown → contextmenu → mouseup)에서 지각 mouseup이 선택을 지우지 않는다', () => {
     const kept = [{ type: 'key' as const, id: 'key-1', index: 0 }];
-    act(() => useGridSelectionStore.setState({ selectedElements: kept }));
+    act(() => useDocumentSelectionStore.setState({ selectedElements: kept }));
 
     act(() => {
       host.dispatchEvent(
@@ -171,7 +172,7 @@ describe('useGridMarquee frame coalescing', () => {
     });
 
     expect(useGridSelectionStore.getState().isMarqueeSelecting).toBe(false);
-    expect(useGridSelectionStore.getState().selectedElements).toEqual(kept);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual(kept);
   });
 
   it('좌클릭 mouseup은 그대로 마퀴를 정산한다', () => {
@@ -184,15 +185,15 @@ describe('useGridMarquee frame coalescing', () => {
 
     act(() => document.dispatchEvent(new MouseEvent('mouseup', { button: 0 })));
 
-    expect(useGridSelectionStore.getState()).toMatchObject({
-      isMarqueeSelecting: false,
-      selectedElements: [{ type: 'plugin', id: 'demo::p1' }],
-    });
+    expect(useGridSelectionStore.getState().isMarqueeSelecting).toBe(false);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
+      { type: 'plugin', id: 'demo::p1' },
+    ]);
   });
 
   it('창이 포커스를 잃으면 마퀴를 취소하되 기존 선택은 남긴다', () => {
     const kept = [{ type: 'key' as const, id: 'key-1', index: 0 }];
-    act(() => useGridSelectionStore.setState({ selectedElements: kept }));
+    act(() => useDocumentSelectionStore.setState({ selectedElements: kept }));
 
     act(() => window.dispatchEvent(new Event('blur')));
 
@@ -201,7 +202,7 @@ describe('useGridMarquee frame coalescing', () => {
       marqueeStart: null,
       marqueeEnd: null,
     });
-    expect(useGridSelectionStore.getState().selectedElements).toEqual(kept);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual(kept);
   });
 });
 
@@ -226,8 +227,8 @@ describe('useGridMarquee 빈 공간 프레스', () => {
   };
 
   beforeEach(async () => {
+    useDocumentSelectionStore.setState({ selectedElements: [] });
     useGridSelectionStore.setState({
-      selectedElements: [],
       isMarqueeSelecting: false,
       marqueeStart: null,
       marqueeEnd: null,
@@ -246,19 +247,19 @@ describe('useGridMarquee 빈 공간 프레스', () => {
   });
 
   it('마퀴 시작(프레스)이 기존 선택을 즉시 해제한다', () => {
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'key', id: 'k-1', index: 0 }],
     });
     act(() => apiRef.current?.startMarqueeSelection(0, 0));
     // mouseup까지 기다리지 않고 프레스 시점에 비워져 피커 닫힘과 한 프레임
-    expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
     expect(useGridSelectionStore.getState().isMarqueeSelecting).toBe(true);
     act(() => document.dispatchEvent(new MouseEvent('mouseup')));
     expect(useGridSelectionStore.getState().isMarqueeSelecting).toBe(false);
   });
 
   it('편집 입력이 포커스면 프레스 해제를 건너뛰고 mouseup 정산이 비운다', () => {
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'key', id: 'k-1', index: 0 }],
     });
     const input = document.createElement('input');
@@ -267,13 +268,13 @@ describe('useGridMarquee 빈 공간 프레스', () => {
     try {
       act(() => apiRef.current?.startMarqueeSelection(0, 0));
       // 프레스 시점에 비우면 입력이 blur 전에 언마운트돼 draft가 사라진다
-      expect(useGridSelectionStore.getState().selectedElements).toEqual([
+      expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
         { type: 'key', id: 'k-1', index: 0 },
       ]);
       expect(useGridSelectionStore.getState().isMarqueeSelecting).toBe(true);
       act(() => document.dispatchEvent(new MouseEvent('mouseup')));
       // 작은 마퀴(클릭) 정산이 선택을 비운다
-      expect(useGridSelectionStore.getState().selectedElements).toEqual([]);
+      expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
       expect(useGridSelectionStore.getState().isMarqueeSelecting).toBe(false);
     } finally {
       input.remove();

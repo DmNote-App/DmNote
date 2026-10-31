@@ -12,7 +12,7 @@ import {
 
 import { EditSessionScope } from '@src/renderer/contexts/EditSessionScope';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 import ImagePicker from './ImagePicker';
 
@@ -181,14 +181,14 @@ describe('ImagePicker 비동기 완료와 대상 전환', () => {
   // 가드를 전체 대상 지문으로 넓히면 이게 깨진다. 옛 index는 여전히 A를
   // 가리키므로 A에 저장하는 것이 맞다
   it('같은 모드에서 선택만 바뀌면 편집을 시작한 대상에 연결한다', async () => {
-    useGridSelectionStore.setState({
+    useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'key', id: 'key-0', index: 0 }],
     });
     mount(true);
     clickPreview();
 
     act(() => {
-      useGridSelectionStore.setState({
+      useDocumentSelectionStore.setState({
         selectedElements: [{ type: 'key', id: 'key-1', index: 1 }],
       });
     });

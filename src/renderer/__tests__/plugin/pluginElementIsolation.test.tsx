@@ -7,7 +7,7 @@ import React, { act, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useSmartGuidesElements } from '@hooks/Grid';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
@@ -174,22 +174,24 @@ describe('플러그인 요소 격리', () => {
   });
 
   it('동일한 선택을 다시 설정해도 selectedElements 참조가 유지된다', () => {
-    const store = useGridSelectionStore.getState();
+    const store = useDocumentSelectionStore.getState();
     store.setSelectedElements([
       { type: 'plugin', id: 'plugin:a' },
       { type: 'key', id: 'key-1', index: 1 },
     ]);
-    const first = useGridSelectionStore.getState().selectedElements;
+    const first = useDocumentSelectionStore.getState().selectedElements;
 
     store.setSelectedElements([
       { type: 'plugin', id: 'plugin:a' },
       { type: 'key', id: 'key-1', index: 1 },
     ]);
-    expect(useGridSelectionStore.getState().selectedElements).toBe(first);
+    expect(useDocumentSelectionStore.getState().selectedElements).toBe(first);
 
     // 실제로 다른 선택이면 교체
     store.setSelectedElements([{ type: 'plugin', id: 'plugin:b' }]);
-    expect(useGridSelectionStore.getState().selectedElements).not.toBe(first);
+    expect(useDocumentSelectionStore.getState().selectedElements).not.toBe(
+      first,
+    );
   });
 });
 

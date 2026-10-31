@@ -3,7 +3,7 @@ import type { ElementDocumentCommitResult } from '@api/modules/editor/elementDoc
 import { withResizeValues } from '@src/renderer/elementKinds/runtime/resizeValues';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { trackEditorWrite } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
-import { useDocumentSelectionStore } from './useDocumentSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import { elementKindData } from '@src/renderer/elementKinds/defineElementKind';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';

@@ -158,7 +158,7 @@ const loadHarness = async () => {
     import('@components/main/Grid/PropertiesPanel/single/SingleSpritePanel'),
     import('@src/renderer/editor/runtime/gesture/previewOverlay'),
     import('@src/renderer/elementKinds/runtime/treePanelRecords'),
-    import('../document/useDocumentSelectionStore'),
+    import('@stores/grid/useDocumentSelectionStore'),
     import('@src/renderer/elementKinds/runtime/treeElementPosition'),
     import('@hooks/Grid/drag/dragSession'),
     import('@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock'),

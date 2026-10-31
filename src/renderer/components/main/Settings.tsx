@@ -4,7 +4,7 @@ import { useLenis } from '@hooks/useLenis';
 import { useTranslation } from '@contexts/useTranslation';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import Dropdown from '@components/main/common/dropdown/Dropdown';
 import ReloadButton from '@components/main/common/ReloadButton';
 import {
@@ -448,7 +448,7 @@ const Settings = ({
               .commitSelectedKeyType(result.selectedKeyType);
           }
           // 초기화 이전 요소를 가리키는 stale 선택 제거 — 패널이 무효 대상에 쓰는 것 방지
-          useGridSelectionStore.getState().clearSelection();
+          useDocumentSelectionStore.getState().clearSelection();
         }
       } catch (error) {
         console.error('Failed to reset presets', error);
