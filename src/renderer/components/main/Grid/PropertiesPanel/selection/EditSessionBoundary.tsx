@@ -29,10 +29,15 @@ const EditSessionBoundary = ({ children }: EditSessionBoundaryProps) => {
   const selectedElements = useDocumentSelectionStore(
     (state) => state.selectedElements,
   );
+  // 트리 요소 선택도 대상 - 플러그인 몫과 함께
+  const selectedIds = useDocumentSelectionStore((state) => state.selectedIds);
 
   return (
     <div
-      key={formatEditSessionTarget(mode, selectedElements)}
+      key={formatEditSessionTarget(mode, [
+        ...selectedElements,
+        ...selectedIds.map((id) => ({ type: 'document', id })),
+      ])}
       className="px-[12px] pb-[12px] flex flex-col gap-[12px]"
     >
       {children}

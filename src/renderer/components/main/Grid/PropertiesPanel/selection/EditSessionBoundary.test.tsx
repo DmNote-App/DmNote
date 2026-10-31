@@ -74,6 +74,26 @@ describe('EditSessionBoundary', () => {
     expect(mount).toHaveBeenCalledTimes(2);
   });
 
+  it('트리 요소 선택이 갈려도 편집 트리를 새로 마운트한다', () => {
+    act(() => {
+      useDocumentSelectionStore.setState({
+        sceneId: '4key',
+        selectedIds: ['tree-a'],
+        selectedElements: [],
+      });
+    });
+    const mount = vi.fn();
+    const unmount = vi.fn();
+    renderProbe(mount, unmount);
+
+    act(() => {
+      useDocumentSelectionStore.setState({ selectedIds: ['tree-b'] });
+    });
+
+    expect(unmount).toHaveBeenCalledTimes(1);
+    expect(mount).toHaveBeenCalledTimes(2);
+  });
+
   it('배열만 새로 만들고 대상이 같으면 마운트를 유지한다', () => {
     const mount = vi.fn();
     const unmount = vi.fn();
