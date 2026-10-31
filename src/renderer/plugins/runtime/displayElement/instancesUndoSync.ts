@@ -119,13 +119,21 @@ export const applyCanonicalPluginInstances = async (
 const ownSyncedRevisions = new Map<string, number>();
 
 /** 자기 트리 편집이 확정된 뒤 저장된 값으로 맞춘다 - 밀린 저장은 그대로 둔다(취소하지 않는다).
- * 겹침·그룹 값은 늘(백엔드가 이웃 노드도 다시 정한다), 틀·숨김은 편집기가 고치는 중이 아닌 요소만
- * (끼어든 되돌리기의 다시 받기가 덮은 값 등) */
-export const syncOwnTreeEditFields = (pluginId: string): void => {
+ * 겹침·그룹 값은 늘(백엔드가 이웃 노드도 다시 정한다). 틀·숨김은 그 편집이 고친 요소(frameTargets) 중
+ * 편집기가 다시 고치는 중이 아닌 것만 (끼어든 되돌리기의 다시 받기가 덮은 값 등) - 다른 요소는 아직 저장하지
+ * 않은 스크립트 변경이 있을 수 있다 */
+export const syncOwnTreeEditFields = (
+  pluginId: string,
+  frameTargets: ReadonlySet<string> = new Set(),
+): void => {
   void pluginInstancesApi
     .get(pluginId)
     .then((snapshot) => {
-      const synced = ownSyncedRevisions.get(pluginId) ?? 0;
+      // 다른 창 되돌리기 등으로 이미 더 새 값을 받았으면 늦게 온 조회는 버린다
+      const synced = Math.max(
+        ownSyncedRevisions.get(pluginId) ?? 0,
+        appliedRevisions.get(pluginId) ?? 0,
+      );
       if (snapshot.modelRevision < synced) return;
       ownSyncedRevisions.set(pluginId, snapshot.modelRevision);
       const saved = new Map<string, SavedPluginInstanceWire>(
@@ -146,7 +154,10 @@ export const syncOwnTreeEditFields = (pluginId: string): void => {
           if (element.groupId !== instance.groupId) {
             patch.groupId = instance.groupId;
           }
-          if (!isPluginElementEditing(element.fullId)) {
+          if (
+            frameTargets.has(element.fullId) &&
+            !isPluginElementEditing(element.fullId)
+          ) {
             if (
               element.position.x !== instance.position.x ||
               element.position.y !== instance.position.y

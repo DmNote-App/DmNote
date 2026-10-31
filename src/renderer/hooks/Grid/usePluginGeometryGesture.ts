@@ -13,6 +13,7 @@ import {
   type PluginElementGeometrySnapshot,
   type PluginElementUpdatePatch,
 } from '@plugins/runtime/displayElement/pluginElementActions';
+import { releasePluginElementsEditing } from '@plugins/runtime/displayElement/pluginTreeEditOwnership';
 
 export type PluginGeometryField = 'x' | 'y' | 'width' | 'height';
 
@@ -67,6 +68,7 @@ export const createPluginGeometryGestureController = () => {
     edit(current, () =>
       restorePluginElementGeometry(current.fullId, current.snapshot),
     );
+    releasePluginElementsEditing([current.fullId]);
   };
 
   const ensureSession = (target: PluginGeometryTarget): boolean => {

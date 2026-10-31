@@ -251,9 +251,13 @@ describe('자기 트리 편집 뒤 저장된 값 맞추기', () => {
     instancesGetMock.mockReset();
   });
 
-  it('겹침·그룹 값은 늘, 틀·숨김은 고치는 중이 아닌 요소만 자동 저장 없이 맞춘다', async () => {
+  it('겹침·그룹 값은 늘, 틀·숨김은 그 편집이 고친 요소 중 고치는 중이 아닌 것만 자동 저장 없이 맞춘다', async () => {
     usePluginDisplayElementStore.setState({
-      elements: [element('a'), element('b', { position: { x: 5, y: 5 } })],
+      elements: [
+        element('a'),
+        element('b', { position: { x: 5, y: 5 } }),
+        element('c', { position: { x: 2, y: 2 } }),
+      ],
     });
     markPluginElementsEditing([`${pluginId}::b`]);
     instancesGetMock.mockResolvedValue({
@@ -261,16 +265,22 @@ describe('자기 트리 편집 뒤 저장된 값 맞추기', () => {
       instances: [
         { instanceId: 'a', position: { x: 9, y: 9 }, zIndex: 3, hidden: true },
         { instanceId: 'b', position: { x: 1, y: 1 }, zIndex: 4, groupId: 'g' },
+        { instanceId: 'c', position: { x: 8, y: 8 }, zIndex: 5 },
       ],
     });
     const suppressed: boolean[] = [];
     const stop = usePluginDisplayElementStore.subscribe(() =>
       suppressed.push(isInstanceSaveSuppressed()),
     );
-    syncOwnTreeEditFields(pluginId);
+    syncOwnTreeEditFields(
+      pluginId,
+      new Set([`${pluginId}::a`, `${pluginId}::b`]),
+    );
     await vi.waitFor(() => expect(suppressed.length).toBeGreaterThan(0));
     stop();
-    const [a, b] = usePluginDisplayElementStore.getState().elements;
+    const [a, b, c] = usePluginDisplayElementStore.getState().elements;
+    // c는 이 편집의 대상이 아니다 - 아직 저장하지 않은 스크립트 변경일 수 있어 틀은 두고 겹침만
+    expect(c).toMatchObject({ position: { x: 2, y: 2 }, zIndex: 5 });
     expect(a).toMatchObject({
       position: { x: 9, y: 9 },
       zIndex: 3,
@@ -311,6 +321,29 @@ describe('자기 트리 편집 뒤 저장된 값 맞추기', () => {
     expect(cancelPendingSave).not.toHaveBeenCalled();
     expect(reapply).not.toHaveBeenCalled();
     stop();
+    unregister();
+  });
+
+  it('이미 더 새 리비전을 받았으면 늦게 온 조회는 버린다', async () => {
+    const unregister = registerPluginInstancesReapplier(pluginId, 'def', {
+      cancelPendingSave: vi.fn(),
+      reapply: vi.fn(),
+    });
+    usePluginDisplayElementStore.setState({ elements: [element('a')] });
+    instancesGetMock.mockResolvedValueOnce({
+      modelRevision: 100,
+      instances: [],
+    });
+    await applyCanonicalPluginInstances(pluginId);
+    instancesGetMock.mockResolvedValueOnce({
+      modelRevision: 99,
+      instances: [{ instanceId: 'a', position: { x: 0, y: 0 }, zIndex: 9 }],
+    });
+    syncOwnTreeEditFields(pluginId);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(usePluginDisplayElementStore.getState().elements[0].zIndex).toBe(
+      undefined,
+    );
     unregister();
   });
 });

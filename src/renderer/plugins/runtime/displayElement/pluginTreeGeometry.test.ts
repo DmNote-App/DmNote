@@ -303,7 +303,30 @@ describe('편집 중 표시와 확정 뒤 맞추기', () => {
     expect(mocks.synced).toEqual(['a']);
 
     await sendPluginTreeEdit(ops, ['a'], 'g2');
+    expect(isPluginElementEditing('a::1')).toBe(true);
     options.onDropped?.();
     expect(isPluginElementEditing('a::1')).toBe(false);
+  });
+
+  it('보내는 중에 다시 시작한 미리보기 표시는 앞 편집이 확정돼도 남는다', async () => {
+    const {
+      isPluginElementEditing,
+      markPluginElementsEditing,
+      resetPluginTreeEditOwnership,
+    } = await import('./pluginTreeEditOwnership');
+    resetPluginTreeEditOwnership();
+    let options: { onCommitted?: () => void } = {};
+    mocks.edit.mockReset().mockImplementation((_ops, editOptions) => {
+      options = editOptions;
+      return Promise.resolve({ status: 'committed' });
+    });
+    await sendPluginTreeEdit(
+      [{ op: 'setFrame', scene: '4key', id: 'a::1', frame: { x: 1 } }],
+      ['a'],
+    );
+    markPluginElementsEditing(['a::1']);
+    options.onCommitted?.();
+    expect(isPluginElementEditing('a::1')).toBe(true);
+    expect(mocks.synced.at(-1)).toBe('a');
   });
 });

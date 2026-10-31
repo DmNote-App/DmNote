@@ -72,6 +72,7 @@ import {
 import { usePluginElementContextMenu } from './usePluginElementContextMenu';
 import { usePluginElementMeasurementRuntime } from './usePluginElementMeasurementRuntime';
 import { usePluginElementOverlayRuntime } from './usePluginElementOverlayRuntime';
+import { releasePluginElementsEditing } from '@plugins/runtime/displayElement/pluginTreeEditOwnership';
 
 const DEFAULT_POSITION_OFFSET = { x: 0, y: 0 };
 const EMPTY_SELECTED_ELEMENTS: SelectedElement[] = [];
@@ -266,7 +267,10 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
     initialY: calculatedPosition.y,
     // 끝낸 위치는 트리 노드 틀로 저장 (트리에 아직 없는 요소는 자동 저장)
     onDragStart: () => (commit?: boolean) => {
-      if (commit === false) return;
+      if (commit === false) {
+        releasePluginElementsEditing([element.fullId]);
+        return;
+      }
       commitPluginFrames(selectedKeyType, [element.fullId]).catch(
         (error: unknown) =>
           console.error('[PluginElement] Failed to save position', error),

@@ -3,6 +3,7 @@ import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStor
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { createPluginPositionDragReceipt } from '@plugins/runtime/displayElement/pluginElementActions';
 import { withoutInstanceSave } from '@plugins/runtime/displayElement/instanceSaveSuppression';
+import { releasePluginElementsEditing } from '@plugins/runtime/displayElement/pluginTreeEditOwnership';
 
 // 함께 고른 다른 선택(트리 요소)의 끌기 - 증분 이동, 끝낼 때 커밋, 취소 때 되돌리기
 export interface CompanionDragReceipt {
@@ -72,6 +73,7 @@ export const useSelectedElementDragLifecycle = ({
       if (!commit) {
         companionReceipt?.rollback();
         withoutInstanceSave(() => pluginIds.forEach(pluginReceipt.rollback));
+        releasePluginElementsEditing(selectedPluginElementIds);
       }
       if (gestureIdRef.current === gestureId) {
         gestureIdRef.current = null;

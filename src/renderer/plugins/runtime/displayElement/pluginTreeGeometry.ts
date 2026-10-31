@@ -128,7 +128,10 @@ export const sendPluginTreeEdit = (
     },
     onCommitted: () => {
       endPluginTreeEdit(targets);
-      for (const pluginId of ids) syncOwnTreeEditFields(pluginId);
+      const frameTargets = new Set(targets);
+      for (const pluginId of ids) {
+        syncOwnTreeEditFields(pluginId, frameTargets);
+      }
     },
     after: settledPluginInstancesCommits(ids),
   }).then(
