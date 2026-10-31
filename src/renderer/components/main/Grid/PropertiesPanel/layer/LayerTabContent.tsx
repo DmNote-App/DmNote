@@ -45,7 +45,7 @@ import {
   layerRowIndent,
   type DocumentLayerRowModel,
 } from './documentLayerModel';
-import { buildLayerLabels } from './layerPanelModel';
+import { buildLayerLabels, legacyIndicesOf } from './layerPanelModel';
 import { slotDisplayName } from '@utils/keySlot';
 import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
 import {
@@ -98,6 +98,8 @@ const LayerTabContent = ({
   const pluginElements = usePluginDisplayElementStore(
     selectPropertyPanelPluginElements,
   );
+  // 옛 배열 순번 - 기본 이름 번호 (구독한 장면에서)
+  const storedIndices = legacyIndicesOf(scene);
   const labels = buildLayerLabels({
     selectedKeyType: sceneId,
     positions: records.canonicalPositions as never,
@@ -107,6 +109,7 @@ const LayerTabContent = ({
     knobPositions: records.canonicalKnobItemPositions as never,
     spritePositions: records.canonicalSpritePositions as never,
     pluginElements,
+    storedIndexOf: (id) => storedIndices.get(id),
   });
 
   const documentSelected = useDocumentSelectionStore((state) =>
@@ -381,8 +384,12 @@ const LayerTabContent = ({
     const items: ListItem[] = isPluginKind(row.node.kind)
       ? []
       : [{ id: 'rename', label: t('contextMenu.rename') || 'Rename' }];
-    // 구독한 선택으로 - 렌더 중 스토어 직접 읽기는 컴파일러가 선택이 바뀌어도 다시 계산하지 않는다
-    if (documentGroupActions(scene, selectedIds).includes('group')) {
+    // 구독한 선택으로 - 렌더 중 스토어 직접 읽기는 컴파일러가 선택이 바뀌어도 다시 계산하지 않는다.
+    // 그룹 안 행에는 내지 않는다 (예전과 같다 - 대신 그룹에서 빼기)
+    if (
+      row.parentId === null &&
+      documentGroupActions(scene, selectedIds).includes('group')
+    ) {
       items.push({
         id: 'groupSelected',
         label: t('contextMenu.groupSelected') || 'Group',

@@ -180,6 +180,27 @@ describe('레이어 탭 - 장면 트리 하나', () => {
     });
   });
 
+  it('그룹 안 행 우클릭에는 그룹 항목을 내지 않는다 (예전과 같다)', () => {
+    act(() => {
+      useDocumentSelectionStore.getState().setSelection('4key', ['k1', 't2']);
+    });
+    const menuItems = (id: string) => {
+      act(() => {
+        row(id).dispatchEvent(
+          new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+        );
+      });
+      return [
+        ...document.body.querySelectorAll<HTMLElement>('[data-menu-item]'),
+      ].map((item) => item.dataset.menuItem);
+    };
+    expect(menuItems('t2')).toContain('groupSelected');
+    act(() => {
+      useDocumentSelectionStore.getState().setSelection('4key', ['t1', 't2']);
+    });
+    expect(menuItems('t1')).not.toContain('groupSelected');
+  });
+
   it('그룹에서 빼면 그 그룹 바로 위(그룹의 부모 안)로 옮긴다', async () => {
     act(() => {
       row('t1').dispatchEvent(

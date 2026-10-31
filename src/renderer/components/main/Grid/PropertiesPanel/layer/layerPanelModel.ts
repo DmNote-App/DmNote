@@ -18,12 +18,15 @@ type ItemElementCollections = Omit<ElementCollections, 'keyPositions'>;
 import { getStatTypeLabel } from '@utils/grid/statTypeLabel';
 import type { PluginPanelElementView } from '@src/types/plugin/api';
 import { isPluginVisibleInMode } from '@utils/layerGroupUtils';
+import type { Node, Scene } from '@src/types/generated/elementDocument';
 
 type BuildLayerLabelsParams = ItemElementCollections & {
   selectedKeyType: string;
   positions: CanonicalEditorDocumentV1['keyPositions'];
   keyMappings: KeyMappings;
   pluginElements: PluginPanelElementView[];
+  // 기본 이름 번호 - 옛 배열 순번 (목록은 겹침 순서라 순번과 다르다)
+  storedIndexOf?: (id: string) => number | undefined;
 };
 
 // 키 외 종류별 레이어 기본 이름
@@ -47,7 +50,15 @@ export interface LayerLabels {
 }
 
 export function buildLayerLabels(params: BuildLayerLabelsParams): LayerLabels {
-  const { selectedKeyType, positions, keyMappings, pluginElements } = params;
+  const {
+    selectedKeyType,
+    positions,
+    keyMappings,
+    pluginElements,
+    storedIndexOf,
+  } = params;
+  const numberIndex = (id: string, index: number) =>
+    storedIndexOf?.(id) ?? index;
   const defaultNames = new Map<string, string>();
   const pluginHidden = new Map<string, boolean>();
 
@@ -55,7 +66,8 @@ export function buildLayerLabels(params: BuildLayerLabelsParams): LayerLabels {
   (positions[selectedKeyType] || []).forEach((position, index) => {
     defaultNames.set(
       position.id,
-      slotDisplayName(currentKeyMappings[index] ?? '') || `Key ${index + 1}`,
+      slotDisplayName(currentKeyMappings[index] ?? '') ||
+        `Key ${numberIndex(position.id, index) + 1}`,
     );
   });
 
@@ -68,7 +80,10 @@ export function buildLayerLabels(params: BuildLayerLabelsParams): LayerLabels {
       (params[EDITOR_ELEMENT_POSITION_FIELDS[type]][selectedKeyType] ||
         []) as Array<{ id: string }>
     ).forEach((position, index) => {
-      defaultNames.set(position.id, defaultName(position as never, index));
+      defaultNames.set(
+        position.id,
+        defaultName(position as never, numberIndex(position.id, index)),
+      );
     });
   }
 
@@ -81,3 +96,20 @@ export function buildLayerLabels(params: BuildLayerLabelsParams): LayerLabels {
 
   return { defaultNames, pluginHidden };
 }
+
+/** 요소 id → 트리에 실린 옛 배열 순번 */
+export const legacyIndicesOf = (scene: Scene | undefined) => {
+  const indices = new Map<string, number>();
+  const visit = (nodes: readonly Node[]) => {
+    for (const node of nodes) {
+      if (node.type === 'group') {
+        visit(node.children);
+        continue;
+      }
+      const index = (node.legacy as { index?: unknown } | undefined)?.index;
+      if (typeof index === 'number') indices.set(node.id, index);
+    }
+  };
+  if (scene) visit(scene.nodes);
+  return indices;
+};

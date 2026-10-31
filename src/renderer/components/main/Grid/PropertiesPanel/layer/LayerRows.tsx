@@ -185,7 +185,8 @@ export const LayerGroupRow = ({
       onDoubleClick={onDoubleClick}
       onPointerDown={onPointerDown}
       onContextMenu={onContextMenu}
-      style={{ paddingLeft: layerRowIndent(depth) + 22 }}
+      // 옛 그룹 행과 같은 들여쓰기 - 폴더 아이콘이 접기 버튼 안에 든다
+      style={{ paddingLeft: layerRowIndent(depth) }}
       className={
         dropInto
           ? 'group relative flex items-center gap-[8px] pr-[4px] h-[34px] select-none bg-fill-hover text-fg-muted'
@@ -195,6 +196,7 @@ export const LayerGroupRow = ({
       <LayerGroupDisclosure
         collapsed={collapsed}
         onToggle={onToggleCollapsed}
+        offset={layerRowIndent(depth) - layerRowIndent(0)}
       />
       {rename ? (
         <LayerRenameInput {...rename} />

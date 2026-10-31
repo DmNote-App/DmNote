@@ -10,11 +10,14 @@ import { ChevronIcon, FolderIcon } from './LayerIcons';
 interface LayerGroupDisclosureProps {
   collapsed: boolean;
   onToggle: () => void;
+  // 중첩 그룹 - 접기 버튼을 행 들여쓰기만큼 옮긴다 (맨 위 그룹은 0)
+  offset?: number;
 }
 
 export const LayerGroupDisclosure = ({
   collapsed,
   onToggle,
+  offset = 0,
 }: LayerGroupDisclosureProps) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const { value: visualCollapsed, toggle } = useOptimisticBooleanCommit({
@@ -29,6 +32,7 @@ export const LayerGroupDisclosure = ({
         ref={buttonRef}
         type="button"
         aria-expanded={!visualCollapsed}
+        style={offset ? { left: offset } : undefined}
         className="absolute left-0 top-0 bottom-0 w-[34px] flex items-center pl-[1px] cursor-pointer z-[1]"
         onMouseDown={(event) => {
           // 행 드래그 시작 억제 (press 동안 grabbing 커서 방지)
