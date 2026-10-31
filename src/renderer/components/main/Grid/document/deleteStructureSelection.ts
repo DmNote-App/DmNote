@@ -1,10 +1,12 @@
 import { deletePluginElements } from '@plugins/runtime/displayElement/pluginElementActions';
+import { removePluginElementsLocally } from '@plugins/runtime/displayElement/pluginTreeGeometry';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { removeDocumentElements } from './documentEditActions';
 import { structureTargetIds } from './treeEditedSelection';
 
-/** 고른 것 지우기 - 트리 요소는 트리에서, 플러그인 요소는 플러그인 스토어에서(낙관 반영).
- * 같은 동작 id라 되돌리기 한 번 */
+/** 고른 것 지우기 - 트리 요소와 트리에 노드가 있는 플러그인 요소는 한 트리 커밋으로(다 고른 그룹은
+ * 그룹째, 비게 된 그룹도 함께), 트리에 아직 없는 플러그인 요소는 플러그인 스토어에서. 같은 동작 id라 되돌리기 한 번 */
 export const deleteStructureSelection = async (sceneId: string) => {
   const gestureId = crypto.randomUUID();
   const plugins = new Set(
@@ -13,9 +15,17 @@ export const deleteStructureSelection = async (sceneId: string) => {
       .selectedElements.filter(({ type }) => type === 'plugin')
       .map(({ id }) => id),
   );
+  const store = getElementDocumentStore();
+  const backed = [...plugins].filter((id) => store?.getElement(sceneId, id));
+  const rest = [...plugins].filter((id) => !backed.includes(id));
   const treeIds = structureTargetIds(sceneId).filter((id) => !plugins.has(id));
-  if (plugins.size > 0) deletePluginElements([...plugins], gestureId);
-  if (treeIds.length > 0) {
-    await removeDocumentElements(sceneId, treeIds, { gestureId });
-  }
+  if (rest.length > 0) deletePluginElements(rest, gestureId);
+  if (treeIds.length === 0 && backed.length === 0) return;
+  const restore = removePluginElementsLocally(backed);
+  const result = await removeDocumentElements(
+    sceneId,
+    [...treeIds, ...backed],
+    { gestureId },
+  );
+  if (result?.status !== 'committed') await restore();
 };

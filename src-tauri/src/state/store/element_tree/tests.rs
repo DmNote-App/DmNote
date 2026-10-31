@@ -2499,6 +2499,52 @@ fn 플러그인만_묶은_그룹은_옛_그룹이_되고_되돌려도_인스턴�
 }
 
 #[test]
+fn 플러그인만_묶은_그룹의_플러그인을_트리에서_지우면_빈_그룹도_사라지고_되돌리면_함께_돌아온다() {
+    let (dir, store) = open_store();
+    let second = "00000000-0000-4000-8000-0000000000a4";
+    write_demo_bucket(
+        &store,
+        serde_json::json!([
+            { "instanceId": PLUGIN_INSTANCE, "position": { "x": 0, "y": 0 }, "tabId": "4key" },
+            { "instanceId": second, "position": { "x": 5, "y": 5 }, "tabId": "4key" }
+        ]),
+    );
+    let ids = [
+        format!("demo::{PLUGIN_INSTANCE}"),
+        format!("demo::{second}"),
+    ];
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "group", "scene": "4key", "id": "plugins", "name": "묶음", "ids": ids }]),
+    );
+    let has_group = |store: &crate::state::AppStore| {
+        store.snapshot().legacy().layer_groups["4key"]
+            .iter()
+            .any(|group| group.id == "plugins")
+            || store.element_document_snapshot().1.scenes["4key"]
+                .parent_of("plugins")
+                .is_some()
+    };
+    assert!(has_group(&store));
+
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "remove", "scene": "4key", "ids": ids }]),
+    );
+    let bucket = crate::state::plugin::read_plugin_instance_bucket(&store.snapshot(), "demo");
+    assert!(bucket.is_none_or(|bucket| bucket.as_array().is_some_and(Vec::is_empty)));
+    assert!(!has_group(&store));
+
+    undo(&store).unwrap();
+    let bucket =
+        crate::state::plugin::read_plugin_instance_bucket(&store.snapshot(), "demo").unwrap();
+    assert_eq!(bucket.as_array().unwrap().len(), 2);
+    assert!(has_group(&store));
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn 트리_입력_연산으로_키_슬롯을_바꾸면_옛_키_매핑이_따라오고_되돌릴_수_있다() {
     let (dir, store) = open_store();
     let key = store.snapshot().legacy().key_positions["4key"][1]

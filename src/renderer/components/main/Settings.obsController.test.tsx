@@ -7,7 +7,6 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const obsHarness = vi.hoisted(() => ({
   appRestart: vi.fn(),
-  clearSelection: vi.fn(),
   copyText: vi.fn(),
   onStatus: vi.fn(),
   overlayResizeAnchor: 'top-left',
@@ -83,11 +82,6 @@ vi.mock('@stores/data/useKeyStore', () => ({
   useKeyStore: {
     getState: () => ({ positions: {}, keyMappings: {} }),
     setState: vi.fn(),
-  },
-}));
-vi.mock('@stores/grid/useGridSelectionStore', () => ({
-  useGridSelectionStore: {
-    getState: () => ({ clearSelection: obsHarness.clearSelection }),
   },
 }));
 vi.mock('@src/renderer/__tests__/legacyStores/useStatItemStore', () => ({

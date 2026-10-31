@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   nodes: new Map<string, { frame: Record<string, number> }>(),
   edit: vi.fn(),
   restore: vi.fn(async (_pluginId: string, _force?: boolean) => {}),
+  flushed: [] as Array<[string, string[]]>,
 }));
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   getElementDocumentStore: () => ({
@@ -19,10 +20,21 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 vi.mock('./instancesUndoSync', () => ({
   applyCanonicalPluginInstances: mocks.restore,
 }));
+vi.mock('./instancesCommitQueue', () => ({
+  flushPluginInstancesEditSession: (pluginId: string) =>
+    mocks.flushed.push([
+      pluginId,
+      usePluginDisplayElementStore
+        .getState()
+        .elements.map((element) => element.fullId),
+    ]),
+}));
 
-const { applyPluginElementEdit, commitPluginFrames } = await import(
-  './pluginTreeGeometry'
-);
+const {
+  applyPluginElementEdit,
+  commitPluginFrames,
+  removePluginElementsLocally,
+} = await import('./pluginTreeGeometry');
 
 const element = (
   fullId: string,
@@ -108,5 +120,36 @@ describe('편집기의 플러그인 요소 위치 저장', () => {
     mocks.edit.mockRejectedValueOnce(new ElementEditHeldError());
     await expect(commitPluginFrames('4key', ['a::1'])).resolves.toBeUndefined();
     expect(mocks.restore).not.toHaveBeenCalled();
+  });
+});
+
+describe('편집기의 플러그인 요소 지우기', () => {
+  beforeEach(() => {
+    mocks.restore.mockClear();
+    mocks.flushed.length = 0;
+  });
+
+  it('밀린 자동 저장을 지우기 전 목록으로 보낸 뒤 자동 저장 없이 빼고, 되돌리기는 저장된 값을 다시 받는다', async () => {
+    usePluginDisplayElementStore.setState({
+      elements: [
+        element('a::1', { x: 0, y: 0 }),
+        element('a::2', { x: 1, y: 1 }),
+      ],
+    });
+    let suppressedAtRemoval: boolean | null = null;
+    const stop = usePluginDisplayElementStore.subscribe(() => {
+      suppressedAtRemoval = isInstanceSaveSuppressed();
+    });
+    const restore = removePluginElementsLocally(['a::1']);
+    stop();
+    expect(mocks.flushed).toEqual([['a', ['a::1', 'a::2']]]);
+    expect(suppressedAtRemoval).toBe(true);
+    expect(
+      usePluginDisplayElementStore
+        .getState()
+        .elements.map((candidate) => candidate.fullId),
+    ).toEqual(['a::2']);
+    await restore();
+    expect(mocks.restore).toHaveBeenCalledWith('a', true);
   });
 });

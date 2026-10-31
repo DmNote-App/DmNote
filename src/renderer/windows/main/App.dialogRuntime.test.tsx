@@ -176,11 +176,6 @@ vi.mock('@stores/grid/usePanelHostStore', () => ({
   usePanelHostStore: <T,>(selector: (state: { placement: string }) => T) =>
     selector({ placement: 'docked' }),
 }));
-vi.mock('@stores/grid/useGridSelectionStore', () => ({
-  useGridSelectionStore: {
-    getState: () => ({ clearSelection: vi.fn() }),
-  },
-}));
 vi.mock(
   '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock',
   () => ({
