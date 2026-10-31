@@ -22,7 +22,7 @@ use crate::{
         LayerGroups, NoteSettings, NoteSettingsPatch, SettingsPatchInput, SettingsState,
         StatPositions,
     },
-    services::settings::apply_patch_to_store,
+    services::{event_publisher::publish_element_document_changes, settings::apply_patch_to_store},
     state::{
         editor::validate_history_restore_metadata,
         history::{HistoryAdmissionLease, HistoryScope},
@@ -93,6 +93,8 @@ fn publish_reset_plugin_instances(app: &AppHandle, change: &CommittedEditorChang
     for payload in &change.plugin_instances_changes {
         publish_plugin_instances_changed(app, payload);
     }
+    // 인스턴스는 트리 장면에 있다 - 창들이 트리로 따라온다
+    publish_element_document_changes(app);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

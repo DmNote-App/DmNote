@@ -9,6 +9,7 @@ use crate::{
     },
     errors::CmdResult,
     models::PluginInstancesChangedPayload,
+    services::event_publisher::publish_element_document_changes,
     state::{
         plugin::{plugin_instances_storage_key, validate_plugin_id, PLUGIN_DATA_KEY_PREFIX},
         store::PluginInstancesStorageChange,
@@ -113,6 +114,8 @@ pub async fn plugin_storage_clear(app: AppHandle, window: WebviewWindow) -> CmdR
                 .store
                 .clear_all_plugin_data_with_admission(admission)?;
             publish_plugin_instances_deletions(app, &mutation.plugin_instances_changes);
+            // 인스턴스 버킷은 트리 장면에 있다 - 기록 상태가 없어도(기록이 비었을 때) 창들이 트리로 따라오게
+            publish_element_document_changes(app);
             if let Some(status) = mutation.history_status.as_ref() {
                 emit_best_effort(app, "history:status", status);
             }
@@ -180,6 +183,8 @@ pub async fn plugin_storage_clear_by_prefix(
                 .store
                 .remove_plugin_data_by_prefix_with_admission(&storage_prefix, admission)?;
             publish_plugin_instances_deletions(app, &mutation.plugin_instances_changes);
+            // 인스턴스 버킷은 트리 장면에 있다 - 기록 상태가 없어도(기록이 비었을 때) 창들이 트리로 따라오게
+            publish_element_document_changes(app);
             if let Some(status) = mutation.history_status.as_ref() {
                 emit_best_effort(app, "history:status", status);
             }

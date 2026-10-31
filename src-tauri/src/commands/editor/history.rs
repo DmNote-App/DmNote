@@ -8,7 +8,7 @@ use crate::{
     },
     errors::{CmdResult, CommandError},
     models::{AppStoreData, CustomCss, CustomJs, HistoryStatus, PluginInstancesChangedPayload},
-    services::preview_broker::PreviewBroker,
+    services::{event_publisher::publish_element_document_changes, preview_broker::PreviewBroker},
     state::{
         history::{
             HistoryBarrierLease, HistoryDirection, PresetFullHistorySnapshot,
@@ -370,6 +370,8 @@ fn publish_history_aux_change(
                     origin_mutation_id: None,
                 },
             );
+            // 인스턴스는 트리 장면에 있다 - 창들이 트리로 따라온다
+            publish_element_document_changes(app);
         }
         Some(HistoryAuxChange::PluginElementsBatch {
             plugin_ids,
@@ -385,6 +387,7 @@ fn publish_history_aux_change(
                     },
                 );
             }
+            publish_element_document_changes(app);
         }
         None => {}
     }
