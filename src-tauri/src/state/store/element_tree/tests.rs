@@ -2608,3 +2608,29 @@ fn 옛_편집과_함께_플러그인_쓰기로_빈_그룹이_트리_전용이_�
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 옛_편집이_거절한_트리_쓰기는_편집_오류를_함께_싣는다() {
+    let result = ElementDocumentCommitResult::Rejected {
+        revision: 3,
+        code: "LEGACY_REJECTED",
+        violations: Vec::new(),
+        editor_error: Some(Box::new(
+            crate::errors::EditorCommitError::history_in_progress(),
+        )),
+    };
+    let wire = serde_json::to_value(&result).unwrap();
+    assert_eq!(wire["status"], "rejected");
+    assert_eq!(wire["editorError"]["errorCode"], "HISTORY_IN_PROGRESS");
+
+    let plain = ElementDocumentCommitResult::Rejected {
+        revision: 3,
+        code: "VIOLATION",
+        violations: Vec::new(),
+        editor_error: None,
+    };
+    assert!(serde_json::to_value(&plain)
+        .unwrap()
+        .get("editorError")
+        .is_none());
+}

@@ -44,6 +44,17 @@ fn rejected(state: &AppState, code: &'static str) -> ElementDocumentCommitResult
         revision: state.store.element_document_revision(),
         code,
         violations: Vec::new(),
+        editor_error: None,
+    }
+}
+
+// 옛 편집 커밋이 받지 않은 트리 쓰기 - 창이 일시 실패(다시 보내기)·한도 초과(안내)를 가르게 오류를 함께 싣는다
+fn legacy_rejected(state: &AppState, error: EditorCommitError) -> ElementDocumentCommitResult {
+    ElementDocumentCommitResult::Rejected {
+        revision: state.store.element_document_revision(),
+        code: "LEGACY_REJECTED",
+        violations: Vec::new(),
+        editor_error: Some(Box::new(error)),
     }
 }
 
@@ -105,6 +116,7 @@ pub async fn element_document_commit(
         |_, _| Ok(()),
         move |app, state, ()| {
             // 다른 커밋이 끼어 옛 편집 리비전이 어긋나면 한 번 다시 계획한다
+            let mut conflict = None;
             for attempt in 0..2 {
                 let plan = state
                     .store
@@ -142,10 +154,13 @@ pub async fn element_document_commit(
                     ) {
                         Ok(result) => return Ok(result),
                         Err(error)
-                            if attempt == 0
-                                && error.error_code == EditorCommitErrorCode::RevisionConflict =>
+                            if error.error_code == EditorCommitErrorCode::RevisionConflict =>
                         {
-                            continue;
+                            conflict = Some(error);
+                            if attempt == 0 {
+                                continue;
+                            }
+                            break;
                         }
                         Err(error)
                             if error.error_code == EditorCommitErrorCode::HistoryInProgress =>
@@ -158,12 +173,15 @@ pub async fn element_document_commit(
                                 error.error_code,
                                 error.message
                             );
-                            return Ok(rejected(state, "LEGACY_REJECTED"));
+                            return Ok(legacy_rejected(state, error));
                         }
                     },
                 }
             }
-            Ok(rejected(state, "LEGACY_REJECTED"))
+            Ok(match conflict {
+                Some(error) => legacy_rejected(state, error),
+                None => rejected(state, "LEGACY_REJECTED"),
+            })
         },
     )
     .await

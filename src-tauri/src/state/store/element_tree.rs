@@ -322,6 +322,9 @@ pub enum ElementDocumentCommitResult {
         // HISTORY_IN_PROGRESS: 되돌리기 중
         code: &'static str,
         violations: Vec<Violation>,
+        // LEGACY_REJECTED - 옛 편집 커밋이 돌려준 오류 (창이 일시 실패·한도 초과를 가른다)
+        #[serde(rename = "editorError", skip_serializing_if = "Option::is_none")]
+        editor_error: Option<Box<crate::errors::EditorCommitError>>,
     },
 }
 
@@ -770,6 +773,7 @@ impl AppStore {
                     revision: self.element_document_revision(),
                     code: MANAGED_ELSEWHERE,
                     violations: Vec::new(),
+                    editor_error: None,
                 },
             ));
         }
@@ -782,6 +786,7 @@ impl AppStore {
                         revision: self.element_document_revision(),
                         code: VIOLATION,
                         violations,
+                        editor_error: None,
                     },
                 ))
             }
@@ -807,6 +812,7 @@ impl AppStore {
                     revision: self.element_document_revision(),
                     code: VIOLATION,
                     violations: vec![Violation::new(ViolationCode::InvalidMove, "ops")],
+                    editor_error: None,
                 },
             ));
         }
@@ -875,6 +881,7 @@ impl AppStore {
             revision,
             code: HISTORY_IN_PROGRESS,
             violations: Vec::new(),
+            editor_error: None,
         };
         let Ok(admission) = self.admit_editor_mutation() else {
             return Ok((in_progress, Vec::new()));
@@ -887,6 +894,7 @@ impl AppStore {
             revision,
             code,
             violations,
+            editor_error: None,
         };
         let kinds = self.kind_registry();
         let engine = Engine {

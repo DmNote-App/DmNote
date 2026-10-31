@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { subscribe } from '../shared';
 
+import type { EditorCommitError } from '@src/types/editor';
 import type {
   ChangeSet,
   Document,
@@ -28,6 +29,8 @@ export type ElementDocumentCommitResult =
         | 'HISTORY_IN_PROGRESS'
         | 'LEGACY_REJECTED';
       violations: Violation[];
+      // LEGACY_REJECTED - 옛 편집 커밋이 돌려준 오류 (일시 실패·한도 초과 가르기)
+      editorError?: EditorCommitError;
     };
 
 export interface ElementDocumentChangedEvent {
