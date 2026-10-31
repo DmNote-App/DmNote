@@ -2792,3 +2792,26 @@ fn 트리_쓰기가_바꾼_플러그인_알림은_동작_id를_출처로_싣는�
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 노드_단위로_다시_읽어도_문서_단위_칸_플러그인_보존분을_지킨다() {
+    let value = serde_json::json!({
+        "formatVersion": 1,
+        "kindVersions": {},
+        "pluginInstanceRest": { "demo": { "raw": [] } },
+        "scenes": {
+            "4key": { "nodes": [
+                { "type": "element", "id": "ok", "kind": "cursorTracker",
+                  "frame": { "x": 0, "y": 0, "width": 1, "height": 1, "rotation": 0 } },
+                { "type": "element", "id": "broken", "kind": "cursorTracker", "frame": "not-a-frame" }
+            ] }
+        }
+    });
+    let (document, dropped) = super::parse_document_lenient(value);
+    assert_eq!(dropped, 1);
+    assert!(document.scenes["4key"].element("ok").is_some());
+    assert_eq!(
+        document.extra.get("pluginInstanceRest"),
+        Some(&serde_json::json!({ "demo": { "raw": [] } }))
+    );
+}

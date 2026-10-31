@@ -183,6 +183,12 @@ fn parse_document_nodes(value: Value) -> (Document, usize) {
     {
         document.kind_versions = versions;
     }
+    // 문서 단위 칸(플러그인 장면 밖 보존분 등)은 그대로 - 망가진 노드와 상관없는 데이터를 잃지 않게
+    document.extra = object
+        .iter()
+        .filter(|(name, _)| !matches!(name.as_str(), "formatVersion" | "kindVersions" | "scenes"))
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect();
     if let Some(scenes) = object.get("scenes").and_then(Value::as_object) {
         for (scene_id, scene) in scenes {
             let Some(scene_object) = scene.as_object() else {
