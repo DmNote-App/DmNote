@@ -345,3 +345,96 @@ fn 이미_사라진_플러그인_요소의_지우기만_빼고_나머지_연산�
             .unwrap();
     assert!(skip_removed_plugin_nodes(&doc, &ops).is_none());
 }
+
+fn plugin_node(id: &str, frame: (f64, f64, f64, f64), extra: Option<Value>) -> Node {
+    Node::Element(element_document::Element {
+        id: id.into(),
+        kind: "plugin:demo".into(),
+        frame: element_document::Frame {
+            x: frame.0,
+            y: frame.1,
+            width: frame.2,
+            height: frame.3,
+            rotation: 0.0,
+        },
+        name: None,
+        hidden: false,
+        class_name: None,
+        use_inline_styles: None,
+        bundles: Default::default(),
+        values: Default::default(),
+        input: None,
+        extra: extra
+            .map(|legacy| [("legacy".to_string(), legacy)].into_iter().collect())
+            .unwrap_or_default(),
+    })
+}
+
+#[test]
+fn 트리_연산으로_넣은_플러그인_노드는_자기_항목을_받아_목록_끝에_든다() {
+    let mut doc = document(&["4key", "5key"]);
+    apply_plugin_bucket(
+        &mut doc,
+        "demo",
+        Some(&json!([
+            { "instanceId": "a", "position": { "x": 1, "y": 2 }, "tabId": "4key", "keep": 1 }
+        ])),
+    );
+    let copied = doc.scenes["4key"].element("demo::a").unwrap().extra["legacy"].clone();
+    let mut fresh = plugin_node("demo::n", (10.0, 20.0, 50.0, 60.0), None);
+    if let Node::Element(element) = &mut fresh {
+        element.hidden = true;
+        element.values.insert("label".into(), json!("X"));
+    }
+    doc.scenes.get_mut("4key").unwrap().nodes.push(fresh);
+    // 다른 탭에 붙인 사본 - 원본 항목을 그대로 들고 있다
+    doc.scenes.get_mut("5key").unwrap().nodes.push(plugin_node(
+        "demo::c",
+        (1.0, 2.0, 200.0, 150.0),
+        Some(copied),
+    ));
+
+    let changed =
+        sync_plugin_entries_from_tree(&mut doc, &["4key".to_string(), "5key".to_string()]);
+    assert_eq!(changed, vec!["demo".to_string()]);
+    let projected = project_plugin_bucket(&doc, "demo").unwrap();
+    let ids: Vec<_> = projected
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["instanceId"].clone())
+        .collect();
+    assert_eq!(ids, vec![json!("a"), json!("n"), json!("c")]);
+    assert_eq!(
+        projected[1],
+        json!({ "instanceId": "n", "position": { "x": 10.0, "y": 20.0 }, "tabId": "4key",
+                "measuredSize": { "width": 50.0, "height": 60.0 }, "hidden": true,
+                "settings": { "label": "X" } })
+    );
+    // 사본은 원본 항목의 다른 칸을 지키고 자기 id·탭을 받는다 (측정 크기 없음 = 기본 크기)
+    assert_eq!(
+        projected[2],
+        json!({ "instanceId": "c", "position": { "x": 1, "y": 2 }, "tabId": "5key", "keep": 1 })
+    );
+    // 다시 맞춰도 바뀌는 것이 없다
+    assert!(
+        sync_plugin_entries_from_tree(&mut doc, &["4key".to_string(), "5key".to_string()])
+            .is_empty()
+    );
+    // 버킷 왕복
+    let mut again = document(&["4key", "5key"]);
+    apply_plugin_bucket(&mut again, "demo", Some(&projected));
+    assert_eq!(project_plugin_bucket(&again, "demo"), Some(projected));
+}
+
+#[test]
+fn 플러그인_id로_시작하지_않는_플러그인_노드는_항목을_만들지_않는다() {
+    let mut doc = document(&["4key"]);
+    doc.scenes.get_mut("4key").unwrap().nodes.push(plugin_node(
+        "stray",
+        (0.0, 0.0, 10.0, 10.0),
+        None,
+    ));
+    assert!(sync_plugin_entries_from_tree(&mut doc, &["4key".to_string()]).is_empty());
+    assert_eq!(project_plugin_bucket(&doc, "demo"), None);
+}

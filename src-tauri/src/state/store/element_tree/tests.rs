@@ -2843,3 +2843,49 @@ fn 저장용_압축은_플러그인_요소_설정의_null_칸을_지킨다() {
     );
     assert!(scene.element("t1").unwrap().values.get("monitor").is_none());
 }
+
+#[test]
+fn 트리_연산으로_플러그인_노드를_넣으면_인스턴스가_생기고_한_번에_되돌린다() {
+    let (dir, store) = open_store();
+    store.register_external_kind(plugin_kind_schema()).unwrap();
+    let id = format!("demo::{PLUGIN_INSTANCE}");
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "insert", "scene": "4key", "parent": null, "index": null, "node": {
+            "type": "element", "id": id, "kind": "plugin:demo",
+            "frame": { "x": 30, "y": 40, "width": 100, "height": 50, "rotation": 0 },
+            "values": { "label": "A" } } }
+    ]))
+    .unwrap();
+    let plan = store.plan_element_document_commit(&ops, None).unwrap();
+    assert!(
+        !matches!(plan, ElementDocumentCommitPlan::Rejected(_)),
+        "플러그인 노드 넣기는 받아들여야 한다"
+    );
+    let (result, plugin_changes) = store
+        .commit_element_document_tree(&ops, false, None)
+        .unwrap();
+    assert!(matches!(
+        result,
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    assert_eq!(plugin_changes.len(), 1);
+    let entry = demo_entry(&store);
+    assert_eq!(entry["instanceId"], serde_json::json!(PLUGIN_INSTANCE));
+    assert_eq!(entry["tabId"], serde_json::json!("4key"));
+    assert_eq!(entry["settings"], serde_json::json!({ "label": "A" }));
+    assert_eq!(
+        entry["measuredSize"],
+        serde_json::json!({ "width": 100.0, "height": 50.0 })
+    );
+
+    undo(&store).unwrap();
+    assert!(
+        crate::state::plugin::read_plugin_instance_bucket(&store.snapshot(), "demo")
+            .is_none_or(|bucket| bucket.as_array().is_some_and(Vec::is_empty))
+    );
+    assert!(store.snapshot().element_document().scenes["4key"]
+        .element(&id)
+        .is_none());
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

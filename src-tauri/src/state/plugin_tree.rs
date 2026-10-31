@@ -386,8 +386,105 @@ fn sync_entry_fields(
     touched
 }
 
+// 플러그인별 다음 목록 순번 - 트리 노드와 장면 밖 보존분 중 가장 큰 순번 다음
+fn next_orders(document: &Document) -> HashMap<String, u64> {
+    let mut next: HashMap<String, u64> = HashMap::new();
+    let mut note = |plugin_id: &str, order: Option<u64>| {
+        if let Some(order) = order {
+            let slot = next.entry(plugin_id.to_string()).or_default();
+            *slot = (*slot).max(order + 1);
+        }
+    };
+    for scene in document.scenes.values() {
+        walk(&scene.nodes, &mut |node, _| {
+            if let Node::Element(element) = node {
+                if let Some(plugin_id) = plugin_id_of_kind(&element.kind) {
+                    note(
+                        plugin_id,
+                        element
+                            .extra
+                            .get(LEGACY)
+                            .and_then(|legacy| legacy[ORDER].as_u64()),
+                    );
+                }
+            }
+        });
+    }
+    if let Some(rest) = document.extra.get(REST).and_then(Value::as_object) {
+        for (plugin_id, items) in rest {
+            for item in items.as_array().into_iter().flatten() {
+                note(plugin_id, item[ORDER].as_u64());
+            }
+        }
+    }
+    next
+}
+
+// 노드 id의 인스턴스 id - `{플러그인}::{인스턴스}`가 아니면 None
+fn instance_id_of<'a>(element: &'a Element, plugin_id: &str) -> Option<&'a str> {
+    element
+        .id
+        .strip_prefix(plugin_id)
+        .and_then(|rest| rest.strip_prefix("::"))
+        .filter(|id| !id.is_empty())
+}
+
+// 새 항목이 필요한 노드 - 항목이 없거나 다른 요소·탭의 항목(복사한 노드)
+fn needs_own_entry(element: &Element, plugin_id: &str, scene_id: &str) -> bool {
+    let Some(instance_id) = instance_id_of(element, plugin_id) else {
+        return false;
+    };
+    let entry = element.extra.get(LEGACY).map(|legacy| &legacy[ENTRY]);
+    !entry.is_some_and(|entry| {
+        entry.get("instanceId").and_then(Value::as_str) == Some(instance_id)
+            && normalize_plugin_instance_tab_id(entry.get("tabId").and_then(Value::as_str))
+                == scene_id
+    })
+}
+
+// 이 노드의 항목을 둔다 - 목록 끝에 붙는다. 사본은 원본 항목의 다른 칸을 지키고 id·탭만 바꾼다
+// (겹침값·그룹값·틀은 뒤 맞추기가 다시 적는다). id가 `{플러그인}::{인스턴스}`가 아닌 노드는 두지 않는다
+// (목록에 나타나지 않는다)
+fn own_entry(
+    element: &mut Element,
+    plugin_id: &str,
+    scene_id: &str,
+    next_orders: &mut HashMap<String, u64>,
+) -> bool {
+    if !needs_own_entry(element, plugin_id, scene_id) {
+        return false;
+    }
+    let Some(instance_id) = instance_id_of(element, plugin_id).map(str::to_string) else {
+        return false;
+    };
+    let mut entry = element
+        .extra
+        .get(LEGACY)
+        .map(|legacy| &legacy[ENTRY])
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    entry.insert("instanceId".into(), json!(instance_id));
+    entry.insert("tabId".into(), json!(scene_id));
+    if !entry.get("position").is_some_and(Value::is_object) {
+        entry.insert(
+            "position".into(),
+            json!({ "x": element.frame.x, "y": element.frame.y }),
+        );
+    }
+    let slot = next_orders.entry(plugin_id.to_string()).or_default();
+    let order = *slot;
+    *slot += 1;
+    element.extra.insert(
+        LEGACY.into(),
+        json!({ ENTRY: Value::Object(entry), ORDER: order }),
+    );
+    true
+}
+
 /// 트리 연산 뒤 - 장면의 플러그인 노드 자리에 맞게 항목의 zIndex·groupId를 다시 적는다.
-/// 틀·숨김·값을 고쳤으면 위치·측정 크기·숨김·설정도 다시 적는다.
+/// 틀·숨김·값을 고쳤으면 위치·측정 크기·숨김·설정도 다시 적는다. 트리 연산으로 넣은 노드(사본 포함)는
+/// 자기 항목을 받는다(`own_entry`).
 /// 플러그인 노드를 품은 그룹은 옛 그룹이므로 groupId는 부모 그룹이다. 옛 종류 번호는 다시 매기지 않는다.
 /// 바뀐 플러그인 id를 돌려준다(정렬)
 pub(crate) fn sync_plugin_entries_from_tree(
@@ -395,10 +492,39 @@ pub(crate) fn sync_plugin_entries_from_tree(
     scenes: &[String],
 ) -> Vec<String> {
     let mut changed = BTreeSet::new();
+    let mut orders: Option<HashMap<String, u64>> = None;
     for scene_id in scenes {
-        if let Some(scene) = document.scenes.get_mut(scene_id) {
-            sync_siblings(&mut scene.nodes, None, &mut changed);
+        let Some(scene) = document.scenes.get(scene_id) else {
+            continue;
+        };
+        // 순번은 항목을 새로 둘 때만 센다
+        let mut needs_entry = false;
+        walk(&scene.nodes, &mut |node, _| {
+            if let Node::Element(element) = node {
+                needs_entry |= plugin_id_of_kind(&element.kind)
+                    .is_some_and(|plugin_id| needs_own_entry(element, plugin_id, scene_id));
+            }
+        });
+        if needs_entry && orders.is_none() {
+            orders = Some(next_orders(document));
         }
+        let Some(scene) = document.scenes.get_mut(scene_id) else {
+            continue;
+        };
+        if let Some(orders) = orders.as_mut().filter(|_| needs_entry) {
+            element_document::document::walk_mut(&mut scene.nodes, &mut |node| {
+                let Node::Element(element) = node else {
+                    return;
+                };
+                let Some(plugin_id) = plugin_id_of_kind(&element.kind).map(str::to_string) else {
+                    return;
+                };
+                if own_entry(element, &plugin_id, scene_id, orders) {
+                    changed.insert(plugin_id);
+                }
+            });
+        }
+        sync_siblings(&mut scene.nodes, None, &mut changed);
     }
     changed.into_iter().collect()
 }
