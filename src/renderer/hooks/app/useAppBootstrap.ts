@@ -17,6 +17,8 @@ import {
 import { stableStringify } from '@utils/core/stableStringify';
 import { useTranslation } from '@contexts/useTranslation';
 import { startEditorEventWiring } from '@src/renderer/editor/runtime/lifecycle/editorEventWiring';
+import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { isCapacityTreeWriteFailure } from '@src/renderer/editor/document/treeWriteFailure';
 import { panelWindowApi } from '@api/modules/window/panelWindowApi';
 import {
   detachPropertiesPanel,
@@ -399,6 +401,43 @@ export function useAppBootstrap() {
         ? initPluginInstancesUndoSync()
         : null;
 
+    // 저장하지 못해 되돌린 트리 쓰기 안내 - 한도 초과는 한도 문구로
+    let stopTreeWriteRejected: (() => void) | undefined;
+    if (!isOverlayWindow) {
+      void loadElementDocumentStore()
+        .then((store) => {
+          if (disposed) return;
+          stopTreeWriteRejected = store.onRejected?.((failure) => {
+            console.error(
+              '저장할 수 없는 편집 내용을 마지막 저장 상태로 되돌렸습니다',
+              failure,
+            );
+            const message = isCapacityTreeWriteFailure(failure)
+              ? getEditorCopy(
+                  'editorSave.capacityFailure',
+                  '저장 한도를 넘어 변경을 되돌렸습니다.\n일부 요소를 줄이고 다시 시도해 주세요.',
+                  'This edit exceeded the save limit and was undone.\nRemove some elements and try again.',
+                )
+              : getEditorCopy(
+                  'editorSave.permanentFailure',
+                  '저장하지 못해 변경 내용을 되돌렸습니다.\n방금 바꾼 값을 확인해 주세요.',
+                  "Couldn't save this edit, so it was undone.\nCheck the value you just changed.",
+                );
+            void window.api.ui.dialog
+              .alert(message, {
+                confirmText: getEditorCopy('common.ok', '확인', 'OK'),
+              })
+              .catch((error) => {
+                console.error(
+                  '편집 저장 실패 안내를 표시하지 못했습니다',
+                  error,
+                );
+              });
+          });
+        })
+        .catch(() => undefined);
+    }
+
     const unsubscribers = [
       // 다른 창 미리보기 받기·커밋 반영 신호
       startEditorEventWiring(),
@@ -597,6 +636,7 @@ export function useAppBootstrap() {
       counterRuntime.markDisposed();
       resetHistoryEditorFlushLock();
       stopPluginInstancesUndoSync?.();
+      stopTreeWriteRejected?.();
       unsubscribers.forEach((unsubscribe) => {
         try {
           unsubscribe();

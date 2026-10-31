@@ -10,6 +10,7 @@ import {
   createMirrorDocumentStore,
   type ElementDocumentStore,
 } from './elementDocumentStore';
+import { isTransientTreeWriteFailure } from './treeWriteFailure';
 
 let current: ElementDocumentStore | null = null;
 let loading: Promise<ElementDocumentStore> | null = null;
@@ -40,7 +41,11 @@ const create = async (): Promise<ElementDocumentStore> => {
       return unsubscribe;
     },
   };
-  if (isEditingWindow()) return createEditorDocumentStore(initial, transport);
+  if (isEditingWindow()) {
+    return createEditorDocumentStore(initial, transport, {
+      isTransient: isTransientTreeWriteFailure,
+    });
+  }
   const store = createMirrorDocumentStore(initial, transport);
   // OBS 재연결·놓친 패치 - 옛 상태 재동기화와 같은 신호로 트리도 다시 받아 온다
   obsApi.onResync(() => {

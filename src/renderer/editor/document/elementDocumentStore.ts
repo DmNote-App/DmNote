@@ -38,10 +38,38 @@ export interface ElementDocumentStore {
   // 편집 창만 - 다른 통로(제스처 커밋)로 보내는 편집을 화면에 먼저 얹는다.
   // 그 커밋의 트리 리비전으로 확정하고(settle), 실패하면 뺀다(drop)
   stage?: (ops: Op[]) => StagedEdit;
+  // 편집 창만 - 일시 실패로 보류한 편집(화면에는 남는다). 다시 보내기는 보류한 차례대로
+  getHeldCount?: () => number;
+  subscribeHeld?: (listener: () => void) => () => void;
+  retryHeld?: () => Promise<boolean>;
+  // 편집 창만 - 되돌린 영구 실패 알림
+  onRejected?: (listener: (failure: CommitFailure) => void) => () => void;
   // 오버레이·OBS만 - 문서를 통째로 다시 받아 온다 (OBS 재연결·놓친 패치)
   resync?: () => Promise<void>;
   dispose(): void;
 }
+
+export type CommitFailure =
+  | { result: Extract<ElementDocumentCommitResult, { status: 'rejected' }> }
+  | { error: unknown };
+
+/** 보내지 못해 보류한 편집 - 화면에는 남고 다시 보내기를 기다린다 */
+export class ElementEditHeldError extends Error {
+  constructor() {
+    super('[ElementDocument] edit held after transient failure');
+  }
+}
+
+export interface EditorDocumentStoreOptions {
+  // 일시 실패면 쉬었다가 다시 보낸다 - 없으면 모든 실패를 영구로 본다
+  isTransient?: (failure: CommitFailure) => boolean;
+  retryDelaysMs?: readonly number[];
+}
+
+const DEFAULT_RETRY_DELAYS_MS = [300, 1000] as const;
+
+const wait = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export interface StagedEdit {
   settle(revision: number): void;
@@ -185,6 +213,7 @@ export const createMirrorDocumentStore = (
 
 interface PendingEdit {
   ops: Op[];
+  gestureId?: string;
   // 백엔드가 받아들인 리비전 - 그 리비전의 패치가 오면 목록에서 빠진다
   acknowledged: number | null;
 }
@@ -227,7 +256,10 @@ const mergeChanges = (a: ChangeSet, b: ChangeSet): ChangeSet => {
 export const createEditorDocumentStore = (
   initial: ElementDocumentGetResult,
   transport: ElementDocumentTransport,
+  options: EditorDocumentStoreOptions = {},
 ): ElementDocumentStore => {
+  const isTransient = options.isTransient ?? (() => false);
+  const retryDelays = options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
   let confirmed: Document = initial.document;
   let revision = initial.revision;
   let pending: PendingEdit[] = [];
@@ -235,6 +267,14 @@ export const createEditorDocumentStore = (
   const listeners = new Listeners();
   // 커밋은 하나씩 보낸다 - 백엔드는 동시에 온 커밋의 순서를 지키지 않는다
   let queue: Promise<unknown> = Promise.resolve();
+  // 일시 실패로 보류한 편집 - 뒤 편집도 차례를 지키려고 그 뒤에 보류한다
+  let held: PendingEdit[] = [];
+  const heldListeners = new Set<() => void>();
+  const rejectedListeners = new Set<(failure: CommitFailure) => void>();
+  const setHeld = (next: PendingEdit[]) => {
+    held = next;
+    for (const listener of [...heldListeners]) listener();
+  };
 
   const rebuild = () => {
     view = pending.reduce(
@@ -255,6 +295,41 @@ export const createEditorDocumentStore = (
     rebuild();
     listeners.emit(localChanges([edit]));
   };
+  // 보내기 - 일시 실패는 쉬었다 다시, 다 써도 안 되면 보류(화면에 남김), 영구 실패는 되돌린다
+  const send = async (
+    edit: PendingEdit,
+  ): Promise<ElementDocumentCommitResult> => {
+    for (let attempt = 0; ; attempt += 1) {
+      let failure: CommitFailure;
+      try {
+        const result = await transport.commit(edit.ops, edit.gestureId);
+        if (result.status === 'committed') {
+          edit.acknowledged = result.revision;
+          // 패치가 응답보다 먼저 왔으면 여기서 뺀다
+          if (settle()) {
+            rebuild();
+            listeners.emit(localChanges([edit]));
+          }
+          return result;
+        }
+        failure = { result };
+      } catch (error) {
+        failure = { error };
+      }
+      if (isTransient(failure)) {
+        if (attempt < retryDelays.length) {
+          await wait(retryDelays[attempt]);
+          continue;
+        }
+        setHeld([...held, edit]);
+        throw new ElementEditHeldError();
+      }
+      drop(edit);
+      for (const listener of [...rejectedListeners]) listener(failure);
+      if ('error' in failure) throw failure.error;
+      return failure.result;
+    }
+  };
 
   const unsubscribe = transport.onChanged((event) => {
     if (event.revision <= revision) return;
@@ -273,31 +348,49 @@ export const createEditorDocumentStore = (
     getSceneIds: () => Object.keys(view.scenes),
     getElement: (sceneId, id) => readElement(view, sceneId, id),
     subscribe: (listener) => listeners.add(listener),
-    edit: async (ops, options) => {
-      const edit: PendingEdit = { ops, acknowledged: null };
+    edit: (ops, editOptions) => {
+      const edit: PendingEdit = {
+        ops,
+        acknowledged: null,
+        gestureId: editOptions?.gestureId,
+      };
       pending = [...pending, edit];
       rebuild();
       listeners.emit(localChanges([edit]));
-      const sent = queue.then(() => transport.commit(ops, options?.gestureId));
+      const sent = queue.then(() => {
+        if (held.length > 0) {
+          setHeld([...held, edit]);
+          throw new ElementEditHeldError();
+        }
+        return send(edit);
+      });
       queue = sent.catch(() => undefined);
-      let result: ElementDocumentCommitResult;
-      try {
-        result = await sent;
-      } catch (error) {
-        drop(edit);
-        throw error;
-      }
-      if (result.status !== 'committed') {
-        drop(edit);
-        return result;
-      }
-      edit.acknowledged = result.revision;
-      // 패치가 응답보다 먼저 왔으면 여기서 뺀다
-      if (settle()) {
-        rebuild();
-        listeners.emit(localChanges([edit]));
-      }
-      return result;
+      return sent;
+    },
+    getHeldCount: () => held.length,
+    subscribeHeld: (listener) => {
+      heldListeners.add(listener);
+      return () => heldListeners.delete(listener);
+    },
+    retryHeld: () => {
+      const run = queue.then(async () => {
+        const batch = held;
+        setHeld([]);
+        for (const edit of batch) {
+          if (held.length > 0) {
+            setHeld([...held, edit]);
+            continue;
+          }
+          await send(edit).catch(() => undefined);
+        }
+        return held.length === 0;
+      });
+      queue = run.catch(() => undefined);
+      return run;
+    },
+    onRejected: (listener) => {
+      rejectedListeners.add(listener);
+      return () => rejectedListeners.delete(listener);
     },
     stage: (ops) => {
       const edit: PendingEdit = { ops, acknowledged: null };

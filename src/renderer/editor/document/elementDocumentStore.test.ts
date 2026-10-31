@@ -8,6 +8,7 @@ import type {
 import {
   createEditorDocumentStore,
   createMirrorDocumentStore,
+  ElementEditHeldError,
   type ElementDocumentTransport,
 } from './elementDocumentStore';
 
@@ -300,6 +301,103 @@ describe('편집 창 요소 문서 스토어', () => {
     });
     expect(store.getElement('4key', 'k1')?.frame.x).toBe(90);
     expect(store.getElement('4key', 'k2')).toBe(untouched);
+  });
+});
+
+describe('편집 창 요소 문서 스토어 - 저장 실패', () => {
+  const transientHarness = (
+    commit: (ops: Op[]) => Promise<ElementDocumentCommitResult>,
+  ) => {
+    const transport: ElementDocumentTransport = {
+      get: async () => ({ revision: 1, document: document() }),
+      commit,
+      onChanged: () => () => undefined,
+    };
+    return createEditorDocumentStore(
+      { revision: 1, document: document() },
+      transport,
+      {
+        isTransient: (failure) =>
+          'error' in failure || failure.result.code === 'HISTORY_IN_PROGRESS',
+        retryDelaysMs: [0, 0],
+      },
+    );
+  };
+  const inProgress: ElementDocumentCommitResult = {
+    status: 'rejected',
+    revision: 1,
+    code: 'HISTORY_IN_PROGRESS',
+    violations: [],
+  };
+  const committed = (revision: number): ElementDocumentCommitResult => ({
+    status: 'committed',
+    revision,
+    changes: { scenes: {} },
+  });
+
+  it('일시 실패는 쉬었다 다시 보내 저장한다', async () => {
+    const commit = vi
+      .fn<(ops: Op[]) => Promise<ElementDocumentCommitResult>>()
+      .mockRejectedValueOnce(new Error('io'))
+      .mockResolvedValueOnce(inProgress)
+      .mockResolvedValueOnce(committed(2));
+    const store = transientHarness(commit);
+    await expect(store.edit!(nudge('k1', 40))).resolves.toMatchObject({
+      status: 'committed',
+    });
+    expect(commit).toHaveBeenCalledTimes(3);
+    expect(store.getHeldCount!()).toBe(0);
+  });
+
+  it('다시 보내도 안 되면 화면에 남긴 채 보류하고, 뒤 편집도 차례대로 보류했다가 다시 보낸다', async () => {
+    let failing = true;
+    const sent: number[] = [];
+    const commit = vi.fn(async (ops: Op[]) => {
+      if (failing) throw new Error('io');
+      const op = ops[0] as { frame: { x: number } };
+      sent.push(op.frame.x);
+      return committed(sent.length + 1);
+    });
+    const store = transientHarness(commit);
+    const held = vi.fn();
+    store.subscribeHeld!(held);
+
+    await expect(store.edit!(nudge('k1', 40))).rejects.toBeInstanceOf(
+      ElementEditHeldError,
+    );
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(40);
+    expect(store.getHeldCount!()).toBe(1);
+    // 뒤 편집은 보내지 않고 보류 뒤에 선다 (기다리는 쪽이 멈추지 않게 바로 실패로 알린다)
+    const calls = commit.mock.calls.length;
+    await expect(store.edit!(nudge('k1', 50))).rejects.toBeInstanceOf(
+      ElementEditHeldError,
+    );
+    expect(commit).toHaveBeenCalledTimes(calls);
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(50);
+    expect(store.getHeldCount!()).toBe(2);
+    expect(held).toHaveBeenCalled();
+
+    failing = false;
+    await expect(store.retryHeld!()).resolves.toBe(true);
+    expect(sent).toEqual([40, 50]);
+    expect(store.getHeldCount!()).toBe(0);
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(50);
+  });
+
+  it('영구 실패는 되돌리고 알린다', async () => {
+    const rejected: ElementDocumentCommitResult = {
+      status: 'rejected',
+      revision: 1,
+      code: 'VIOLATION',
+      violations: [],
+    };
+    const store = transientHarness(async () => rejected);
+    const onRejected = vi.fn();
+    store.onRejected!(onRejected);
+    await expect(store.edit!(nudge('k1', 40))).resolves.toBe(rejected);
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(0);
+    expect(onRejected).toHaveBeenCalledWith({ result: rejected });
+    expect(store.getHeldCount!()).toBe(0);
   });
 });
 
