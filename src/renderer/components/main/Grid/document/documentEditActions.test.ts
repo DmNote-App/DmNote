@@ -17,6 +17,8 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   getElementDocumentStore: () => ({
     edit: mocks.edit,
     getScene: () => mocks.scene,
+    // 거절된 넣기는 화면에서 빠진다
+    getElement: () => undefined,
   }),
 }));
 
@@ -78,6 +80,27 @@ describe('트리 문서 편집 동작', () => {
       id: 'k-new',
       input: { type: 'key', slot: 'KeyA' },
     });
+  });
+
+  it('새 요소는 응답을 기다리지 않고 고른다, 붙지 못하면 선택에서 뺀다', async () => {
+    useDocumentSelectionStore.getState().clear();
+    let release!: (result: unknown) => void;
+    mocks.edit.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve as typeof release;
+        }) as never,
+    );
+    const inserted = insertDocumentElement('4key', 'cursorTracker', {
+      x: 0,
+      y: 0,
+    });
+    const [id] = useDocumentSelectionStore.getState().selectedIds;
+    expect(id).toEqual(expect.any(String));
+    expect(mocks.edit.mock.calls[0][0][0]).toMatchObject({ node: { id } });
+    release({ status: 'rejected', code: 'VIOLATION' });
+    await expect(inserted).resolves.toBeNull();
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
   });
 
   it('새 요소는 정의의 기본값을 채워 보내 응답 전에도 제대로 그린다', async () => {

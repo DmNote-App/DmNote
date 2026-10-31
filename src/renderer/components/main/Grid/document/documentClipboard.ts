@@ -257,15 +257,31 @@ export const pasteDocumentClipboard = async (
     documentGroupNames(getElementDocumentStore()?.getScene(sceneId)),
     idMap,
   );
-  const result = await editDocument(
+  const sent = editDocument(
     ops,
     legacyPaste?.gestureId ? { gestureId: legacyPaste.gestureId } : undefined,
   );
-  if (result?.status === 'committed') {
-    const select = () =>
-      useDocumentSelectionStore.getState().setSelection(sceneId, ids);
-    if (keepOther) keepOtherSelection(select);
-    else select();
+  // 선택 이동은 낙관 반영 직후 동기로 - 응답을 기다리면 그 사이 Delete 같은 조작이 원본에 간다
+  const select = () =>
+    useDocumentSelectionStore.getState().setSelection(sceneId, ids);
+  if (keepOther) keepOtherSelection(select);
+  else select();
+  await sent;
+  // 붙이지 못해 화면에서 빠진 사본은 선택에서 뺀다 (보류한 편집은 화면에 남아 그대로)
+  const store = getElementDocumentStore();
+  const selection = useDocumentSelectionStore.getState();
+  const gone = new Set(ids.filter((id) => !store?.getElement(sceneId, id)));
+  if (
+    gone.size > 0 &&
+    selection.sceneId === sceneId &&
+    selection.selectedIds.some((id) => gone.has(id))
+  ) {
+    keepOtherSelection(() =>
+      selection.setSelection(
+        sceneId,
+        selection.selectedIds.filter((id) => !gone.has(id)),
+      ),
+    );
   }
 };
 

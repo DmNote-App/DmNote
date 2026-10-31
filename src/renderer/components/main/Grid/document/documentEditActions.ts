@@ -58,7 +58,8 @@ export const editDocument = (
 
 const newId = () => crypto.randomUUID();
 
-/** 새 요소 - 크기는 정의의 생성 크기, 왼쪽 위가 at (다른 종류의 우클릭 추가와 같다) */
+/** 새 요소 - 크기는 정의의 생성 크기, 왼쪽 위가 at (다른 종류의 우클릭 추가와 같다).
+ * 낙관 반영 직후 고르고, 붙지 못하면 선택에서 뺀다 */
 export const insertDocumentElement = (
   sceneId: string,
   kind: string,
@@ -75,7 +76,7 @@ export const insertDocumentElement = (
       (field.default ?? null) as JsonValue,
     ]),
   );
-  return editDocument([
+  const sent = editDocument([
     {
       op: 'insert',
       scene: sceneId,
@@ -95,7 +96,23 @@ export const insertDocumentElement = (
         values,
       },
     },
-  ]).then((result) => (result?.status === 'committed' ? id : null));
+  ]);
+  useDocumentSelectionStore.getState().select(sceneId, id);
+  return sent.then((result) => {
+    if (result?.status === 'committed') return id;
+    const selection = useDocumentSelectionStore.getState();
+    if (
+      selection.sceneId === sceneId &&
+      selection.selectedIds.includes(id) &&
+      !getElementDocumentStore()?.getElement(sceneId, id)
+    ) {
+      selection.setSelection(
+        sceneId,
+        selection.selectedIds.filter((other) => other !== id),
+      );
+    }
+    return null;
+  });
 };
 
 /** 옛 위치 모양의 새 요소(키·스탯 등의 생성 기본값) - 넣기와 같은 커밋에 옛 칸 → 트리 연산

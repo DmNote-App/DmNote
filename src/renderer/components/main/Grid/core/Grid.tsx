@@ -1050,12 +1050,6 @@ const Grid = ({
               void insertDocumentElement(selectedKeyType, documentKind, {
                 x: gridAddLocalPos.dx,
                 y: gridAddLocalPos.dy,
-              }).then((elementId) => {
-                if (elementId) {
-                  useDocumentSelectionStore
-                    .getState()
-                    .select(selectedKeyType, elementId);
-                }
               });
             } else if (addType && gridAddLocalPos) {
               addCanvasElementAt(
