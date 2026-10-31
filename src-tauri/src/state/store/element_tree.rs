@@ -27,7 +27,8 @@ use crate::models::{
 };
 use crate::state::history::ElementTreeHistorySnapshot;
 use crate::state::plugin_tree::{
-    carry_plugin_buckets, changed_plugin_buckets, sync_plugin_entries_from_tree,
+    carry_plugin_buckets, changed_plugin_buckets, place_plugin_inserts,
+    sync_plugin_entries_from_tree,
 };
 
 // 저장 파일에서 트리 문서가 실리는 칸
@@ -810,6 +811,7 @@ impl AppStore {
                 changes.merge(more);
             }
         }
+        place_plugin_inserts(&mut after, ops);
         // 옮기거나 넣은 옛 종류 요소만 새 트리 자리에 맞는 zIndex를 받는다
         for (scene, moved) in moved_legacy_ids(&after, ops) {
             let fixes = moved_z_fixes(&after, &scene, &moved);
@@ -944,6 +946,7 @@ impl AppStore {
                 Err(violations) => return Ok((rejected(VIOLATION, violations), Vec::new())),
             }
         }
+        place_plugin_inserts(scratch.element_document_mut(), ops);
         // 옛 모양이 그대로인지 확인 - 트리에만 있는 요소만 바뀌었어야 한다
         let before = project_document(guard.data.element_document())?;
         let after = project_document(scratch.element_document())?;

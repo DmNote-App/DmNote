@@ -429,17 +429,31 @@ fn instance_id_of<'a>(element: &'a Element, plugin_id: &str) -> Option<&'a str> 
         .filter(|id| !id.is_empty())
 }
 
-// 새 항목이 필요한 노드 - 항목이 없거나 다른 요소·탭의 항목(복사한 노드)
-fn needs_own_entry(element: &Element, plugin_id: &str, scene_id: &str) -> bool {
+// 자기 항목을 든 노드 - 항목의 인스턴스 id·탭이 노드 id·장면과 맞다
+fn owns_entry(element: &Element, plugin_id: &str, scene_id: &str) -> bool {
     let Some(instance_id) = instance_id_of(element, plugin_id) else {
         return false;
     };
-    let entry = element.extra.get(LEGACY).map(|legacy| &legacy[ENTRY]);
-    !entry.is_some_and(|entry| {
-        entry.get("instanceId").and_then(Value::as_str) == Some(instance_id)
-            && normalize_plugin_instance_tab_id(entry.get("tabId").and_then(Value::as_str))
-                == scene_id
-    })
+    element
+        .extra
+        .get(LEGACY)
+        .map(|legacy| &legacy[ENTRY])
+        .is_some_and(|entry| {
+            entry.get("instanceId").and_then(Value::as_str) == Some(instance_id)
+                && normalize_plugin_instance_tab_id(entry.get("tabId").and_then(Value::as_str))
+                    == scene_id
+        })
+}
+
+// 새 항목·목록 순번이 필요한 노드 - 항목이 없거나 다른 요소·탭의 항목(복사한 노드), 또는 순번 없이 넣은 자기 항목
+fn needs_own_entry(element: &Element, plugin_id: &str, scene_id: &str) -> bool {
+    instance_id_of(element, plugin_id).is_some()
+        && (!owns_entry(element, plugin_id, scene_id)
+            || element
+                .extra
+                .get(LEGACY)
+                .and_then(|legacy| legacy[ORDER].as_u64())
+                .is_none())
 }
 
 // 이 노드의 항목을 둔다 - 목록 끝에 붙는다. 사본은 원본 항목의 다른 칸을 지키고 id·탭만 바꾼다
@@ -527,6 +541,40 @@ pub(crate) fn sync_plugin_entries_from_tree(
         sync_siblings(&mut scene.nodes, None, &mut changed);
     }
     changed.into_iter().collect()
+}
+
+/// 자리를 정하지 않고(index 없음) 넣은 플러그인 노드가 자기 항목에 zIndex·groupId를 들고 오면 그 값으로 다시 둔다 -
+/// 인스턴스 목록 쓰기와 같은 놓기(`place`). 런타임이 탭·겹침값·그룹을 바꾼 인스턴스를 빼고 다시 넣을 때다.
+/// 사본(다른 요소의 항목)과 항목 값이 없는 노드는 연산이 정한 자리 그대로 둔다
+pub(crate) fn place_plugin_inserts(document: &mut Document, ops: &[Op]) {
+    for op in ops {
+        let Op::Insert {
+            scene,
+            index: None,
+            node: Node::Element(inserted),
+            ..
+        } = op
+        else {
+            continue;
+        };
+        let Some(plugin_id) = plugin_id_of_kind(&inserted.kind) else {
+            continue;
+        };
+        let (z, group) = placement_of(inserted);
+        if (z.is_none() && group.is_none()) || !owns_entry(inserted, plugin_id, scene) {
+            continue;
+        }
+        let Some(scene) = document.scenes.get_mut(scene) else {
+            continue;
+        };
+        let Some(Node::Element(element)) = scene
+            .find_path(&inserted.id)
+            .and_then(|path| scene.take_at(&path))
+        else {
+            continue;
+        };
+        place(scene, element);
+    }
 }
 
 /// 두 문서 사이에 인스턴스 목록이 달라진 플러그인 - 정렬

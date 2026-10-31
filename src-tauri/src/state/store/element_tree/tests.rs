@@ -2889,3 +2889,56 @@ fn 트리_연산으로_플러그인_노드를_넣으면_인스턴스가_생기�
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 플러그인_노드를_빼고_겹침값을_든_자기_항목으로_다시_넣으면_그_값의_자리에_두고_한_번에_되돌린다()
+{
+    let (dir, store) = open_store();
+    store.register_external_kind(plugin_kind_schema()).unwrap();
+    // 키 zIndex 100, 101, ... - 플러그인은 맨 위
+    set_key_layout(&store, &[]);
+    let id = with_demo_instance(&store);
+    let document = store.element_document_snapshot().1;
+    assert_eq!(
+        document.scenes["4key"].nodes.last().map(Node::id),
+        Some(id.as_str())
+    );
+    let mut node = serde_json::to_value(document.scenes["4key"].element(&id).unwrap()).unwrap();
+    node["type"] = serde_json::json!("element");
+    node["legacy"]["pluginEntry"]["zIndex"] = serde_json::json!(100);
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "remove", "scene": "4key", "ids": [id] },
+        { "op": "insert", "scene": "4key", "parent": null, "index": null, "node": node }
+    ]))
+    .unwrap();
+    assert!(matches!(
+        store.plan_element_document_commit(&ops, None).unwrap(),
+        ElementDocumentCommitPlan::TreeOrderOnly
+    ));
+    let (result, plugin_changes) = store
+        .commit_element_document_tree(&ops, false, None)
+        .unwrap();
+    assert!(matches!(
+        result,
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    assert_eq!(plugin_changes.len(), 1);
+    // zIndex 100인 첫 키 바로 위, 101인 둘째 키 아래
+    let document = store.element_document_snapshot().1;
+    let snapshot = store.snapshot();
+    let keys = &snapshot.legacy().key_positions["4key"];
+    let ids: Vec<&str> = document.scenes["4key"].nodes.iter().map(Node::id).collect();
+    let at = |target: &str| ids.iter().position(|node| *node == target).unwrap();
+    assert_eq!(at(&id), at(&keys[0].id) + 1);
+    assert_eq!(at(&keys[1].id), at(&id) + 1);
+    assert_eq!(demo_entry(&store)["zIndex"], serde_json::json!(100));
+
+    undo(&store).unwrap();
+    let document = store.element_document_snapshot().1;
+    assert_eq!(
+        document.scenes["4key"].nodes.last().map(Node::id),
+        Some(id.as_str())
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

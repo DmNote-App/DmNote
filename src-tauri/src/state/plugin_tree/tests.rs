@@ -438,3 +438,83 @@ fn 플러그인_id로_시작하지_않는_플러그인_노드는_항목을_만�
     assert!(sync_plugin_entries_from_tree(&mut doc, &["4key".to_string()]).is_empty());
     assert_eq!(project_plugin_bucket(&doc, "demo"), None);
 }
+
+fn insert_op(node: &Node) -> Op {
+    serde_json::from_value(json!({
+        "op": "insert", "scene": "4key", "parent": null, "index": null,
+        "node": serde_json::to_value(node).unwrap()
+    }))
+    .unwrap()
+}
+
+#[test]
+fn 자리를_정하지_않고_넣은_플러그인_노드가_자기_항목에_겹침값_그룹값을_들면_그_값으로_다시_둔다() {
+    let mut doc = document(&["4key"]);
+    let own = |id: &str, entry: Value| {
+        plugin_node(
+            &format!("demo::{id}"),
+            (0.0, 0.0, 10.0, 10.0),
+            Some(json!({ "pluginEntry": entry, "order": 0 })),
+        )
+    };
+    let by_z = own(
+        "a",
+        json!({ "instanceId": "a", "tabId": "4key", "zIndex": 2 }),
+    );
+    let by_group = own(
+        "b",
+        json!({ "instanceId": "b", "tabId": "4key", "groupId": "g1" }),
+    );
+    // 다른 요소의 항목을 든 사본은 연산이 정한 자리 그대로
+    let copy = own(
+        "c",
+        json!({ "instanceId": "a", "tabId": "4key", "zIndex": 2 }),
+    );
+    // 엔진이 맨 위(목록 끝)에 넣은 상태
+    doc.scenes.get_mut("4key").unwrap().nodes = vec![
+        native("k1", 1),
+        legacy_group("g1", vec![native("k5", 5)]),
+        native("k3", 3),
+        by_z.clone(),
+        by_group.clone(),
+        copy.clone(),
+    ];
+    place_plugin_inserts(
+        &mut doc,
+        &[insert_op(&by_z), insert_op(&by_group), insert_op(&copy)],
+    );
+    let nodes = &doc.scenes["4key"].nodes;
+    assert_eq!(ids_of(nodes), vec!["k1", "demo::a", "g1", "k3", "demo::c"]);
+    let Node::Group(group) = &nodes[2] else {
+        panic!("g1");
+    };
+    assert_eq!(ids_of(&group.children), vec!["k5", "demo::b"]);
+}
+
+#[test]
+fn 순번_없이_자기_항목을_들고_넣은_노드는_목록_끝_순번을_받는다() {
+    let mut doc = document(&["4key"]);
+    apply_plugin_bucket(
+        &mut doc,
+        "demo",
+        Some(&json!([{ "instanceId": "a", "position": { "x": 1, "y": 2 }, "tabId": "4key" }])),
+    );
+    doc.scenes.get_mut("4key").unwrap().nodes.insert(
+        0,
+        plugin_node(
+            "demo::n",
+            (0.0, 0.0, 200.0, 150.0),
+            Some(json!({ "pluginEntry": { "instanceId": "n", "tabId": "4key" } })),
+        ),
+    );
+    assert_eq!(
+        sync_plugin_entries_from_tree(&mut doc, &["4key".to_string()]),
+        vec!["demo".to_string()]
+    );
+    assert_eq!(
+        doc.scenes["4key"].element("demo::n").unwrap().extra["legacy"]["order"],
+        json!(1)
+    );
+    let projected = project_plugin_bucket(&doc, "demo").unwrap();
+    assert_eq!(projected[1]["instanceId"], json!("n"));
+}
