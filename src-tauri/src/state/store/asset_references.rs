@@ -10,8 +10,10 @@ use crate::models::KeyPosition;
 use crate::models::{
     builtin_kind_registry, for_each_element, for_each_key_position, AppStoreData, FontType,
 };
+use element_document::bundles::BuiltinBundles;
 use element_document::document::walk;
-use element_document::{AssetKind, FieldRule, Node, ValueKind};
+use element_document::value::visit_values;
+use element_document::{AssetKind, BundleCatalog, Node, ValueKind};
 
 use super::super::{
     assets::local_asset_path::{
@@ -124,44 +126,29 @@ pub(super) fn warn_unresolved_asset_references(app_data_dir: &Path, data: &AppSt
     }
 }
 
-// 종류 정의의 파일 칸(값 종류 File)이 가리키는 자산 - 옛 모양 보기에 없는 트리 전용 종류의 파일도 정리에서 지킨다
+// 종류 정의의 파일 칸(값 종류 File)과 기능 묶음 안 파일 칸이 가리키는 자산 - 옛 모양 보기에 없는 트리 전용 종류의
+// 파일도 정리에서 지킨다
 fn for_each_tree_file_value(data: &AppStoreData, asset: AssetKind, f: &mut dyn FnMut(&String)) {
-    fn visit(
-        rules: &[FieldRule],
-        values: &serde_json::Map<String, Value>,
-        asset: AssetKind,
-        f: &mut dyn FnMut(&String),
-    ) {
-        for rule in rules {
-            if let Some(value) = values.get(&rule.name) {
-                visit_value(&rule.value, value, asset, f);
-            }
-        }
-    }
-    fn visit_value(kind: &ValueKind, value: &Value, asset: AssetKind, f: &mut dyn FnMut(&String)) {
-        match (kind, value) {
-            (ValueKind::File { asset: field_asset }, Value::String(path))
-                if *field_asset == asset && !path.is_empty() =>
-            {
-                f(path)
-            }
-            (ValueKind::Object { fields }, Value::Object(values)) => {
-                visit(fields, values, asset, f)
-            }
-            (ValueKind::List { item, .. }, Value::Array(items)) => {
-                for item_value in items {
-                    visit_value(item, item_value, asset, f);
-                }
-            }
-            _ => {}
-        }
-    }
     let registry = builtin_kind_registry();
     for scene in data.element_document().scenes.values() {
         walk(&scene.nodes, &mut |node, _| {
-            if let Node::Element(element) = node {
-                if let Some(schema) = registry.get(&element.kind) {
-                    visit(&schema.fields, &element.values, asset, f);
+            let Node::Element(element) = node else {
+                return;
+            };
+            let mut files: Vec<(AssetKind, &str)> = Vec::new();
+            if let Some(schema) = registry.get(&element.kind) {
+                visit_values(&schema.fields, &element.values, &mut |kind, value| {
+                    if let (ValueKind::File { asset }, Some(path)) = (kind, value.as_str()) {
+                        files.push((*asset, path));
+                    }
+                });
+            }
+            for (name, value) in &element.bundles {
+                BuiltinBundles.files(name, value, &mut files);
+            }
+            for (kind, path) in files {
+                if kind == asset && !path.is_empty() {
+                    f(&path.to_string());
                 }
             }
         });
@@ -330,6 +317,7 @@ mod tree_file_value_tests {
         let element: element_document::Element = serde_json::from_value(serde_json::json!({
             "id": "s1", "kind": "sprite",
             "frame": { "x": 0, "y": 0, "width": 10, "height": 10, "rotation": 0 },
+            "bundles": { "image": { "activeImage": "active.png" } },
             "values": {
                 "baseImage": "base.png",
                 "poses": [{ "id": "p1", "imageOverride": "pose.png" }, { "id": "p2", "imageOverride": "" }]
@@ -346,7 +334,14 @@ mod tree_file_value_tests {
         for_each_tree_file_value(&data, AssetKind::Image, &mut |path| {
             images.push(path.clone())
         });
-        assert_eq!(images, vec!["base.png".to_string(), "pose.png".to_string()]);
+        assert_eq!(
+            images,
+            vec![
+                "base.png".to_string(),
+                "pose.png".to_string(),
+                "active.png".to_string()
+            ]
+        );
         let mut sounds = Vec::new();
         for_each_tree_file_value(&data, AssetKind::Sound, &mut |path| {
             sounds.push(path.clone())
