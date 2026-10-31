@@ -19,12 +19,15 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
     }),
   }),
   useElementDocumentScene: () => undefined,
+  subscribeElementDocument: () => () => undefined,
 }));
 
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
-import { panelSelectionOf } from './treeEditedSelection';
+import { createElement, act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { panelSelectionOf, useInPanelSelection } from './treeEditedSelection';
 import { useDocumentSelectionStore } from './useDocumentSelectionStore';
 
 const key = { type: 'key' as const, id: 'k1', index: 0 };
@@ -99,5 +102,43 @@ describe('옛 선택으로 들어온 트리로 옮긴 옛 종류', () => {
     // 플러그인이 섞이면 옛 선택만
     const plugin = { type: 'plugin' as const, id: 'p:1' };
     expect(panelSelectionOf([plugin], '4key', ['n1'])).toEqual([plugin]);
+  });
+});
+
+describe('요소 하나의 패널 선택 여부', () => {
+  beforeEach(() => {
+    useKeyStore.setState({ selectedKeyType: '4key' });
+    useGridSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clear();
+  });
+
+  it('값이 바뀔 때만 다시 그리고, 트리에만 있는 종류가 섞이면 패널 선택이 아니다', () => {
+    (
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    const renders: boolean[] = [];
+    const Probe = () => {
+      renders.push(useInPanelSelection('4key', 'n1'));
+      return null;
+    };
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(createElement(Probe)));
+    expect(renders).toEqual([false]);
+
+    act(() =>
+      useDocumentSelectionStore.getState().setSelection('4key', ['n1']),
+    );
+    expect(renders).toEqual([false, true]);
+    // 다른 노브를 더 골라도 n1의 값은 그대로 - 다시 그리지 않는다
+    act(() =>
+      useDocumentSelectionStore.getState().setSelection('4key', ['n1', 'n2']),
+    );
+    expect(renders).toEqual([false, true]);
+    // 트리에만 있는 종류가 섞이면 패널은 트리 선택을 합치지 않는다
+    act(() =>
+      useDocumentSelectionStore.getState().setSelection('4key', ['n1', 't1']),
+    );
+    expect(renders).toEqual([false, true, false]);
+    act(() => root.unmount());
   });
 });

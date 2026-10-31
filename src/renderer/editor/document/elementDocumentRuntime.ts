@@ -76,7 +76,8 @@ export const loadElementDocumentStore = (): Promise<ElementDocumentStore> => {
 
 export const getElementDocumentStore = () => current;
 
-const subscribeStore = (listener: () => void) => {
+/** 트리 스토어 구독 - 스토어가 준비되기 전에 붙여도 준비되면 이어진다 */
+export const subscribeElementDocument = (listener: () => void) => {
   listeners.set(listener, current?.subscribe(listener) ?? null);
   return () => {
     listeners.get(listener)?.();
@@ -87,7 +88,7 @@ const subscribeStore = (listener: () => void) => {
 /** 스토어를 읽어 왔는지 - 오버레이 첫 공개가 트리 요소까지 기다린다 */
 export const useElementDocumentReady = (): boolean =>
   useSyncExternalStore(
-    subscribeStore,
+    subscribeElementDocument,
     () => current !== null,
     () => false,
   );
@@ -95,7 +96,7 @@ export const useElementDocumentReady = (): boolean =>
 /** 장면 하나 - 스토어가 준비되기 전이나 장면이 없으면 undefined */
 export const useElementDocumentScene = (sceneId: string): Scene | undefined =>
   useSyncExternalStore(
-    subscribeStore,
+    subscribeElementDocument,
     () => current?.getScene(sceneId),
     () => undefined,
   );
@@ -105,7 +106,7 @@ export const useDocumentElement = (
   id: string,
 ): ElementNode | undefined =>
   useSyncExternalStore(
-    subscribeStore,
+    subscribeElementDocument,
     () => current?.getElement(sceneId, id),
     () => undefined,
   );

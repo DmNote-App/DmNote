@@ -4,7 +4,7 @@ import GraphFaceView, {
   type GraphPosition,
 } from '@components/main/Grid/layers/GraphFaceView';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { usePanelSelection } from '@components/main/Grid/document/treeEditedSelection';
+import { useInPanelSelection } from '@components/main/Grid/document/treeEditedSelection';
 import { useTreeElementPosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import type { ElementRenderProps } from '@src/renderer/elementKinds/runtime/renderTypes';
 
@@ -14,9 +14,7 @@ const GraphEditorFace = ({
 }: ElementRenderProps<Record<string, unknown>>) => {
   const mode = useKeyStore((state) => state.selectedKeyType);
   // 일괄 미리보기(그라데이션·상태)는 패널이 편집하는 선택에 든 요소만
-  const inPanelSelection = usePanelSelection(mode).some(
-    ({ id }) => id === element.id,
-  );
+  const inPanelSelection = useInPanelSelection(mode, element.id);
   const position = useTreeElementPosition(element, mode) as GraphPosition;
   return (
     <GraphFaceView

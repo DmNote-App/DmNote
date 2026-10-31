@@ -10,7 +10,7 @@ import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import KeyEditorFace from './KeyEditorFace';
 
 vi.mock('@components/main/Grid/document/treeEditedSelection', () => ({
-  usePanelSelection: () => [],
+  useInPanelSelection: () => false,
 }));
 
 (

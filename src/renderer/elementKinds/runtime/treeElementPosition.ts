@@ -45,14 +45,15 @@ export const treeElementPositionOf = (
   return result;
 };
 
-/** treeElementPositionOf 구독 - 미리보기가 바뀌면 다시 그린다 */
+/** treeElementPositionOf 구독 - 이 요소의 보이는 값이 바뀔 때만 다시 그린다
+ * (미리보기가 없는 요소는 같은 객체라 다른 요소의 미리보기에 다시 그리지 않는다) */
 export const useTreeElementPosition = (
   element: ElementNode,
   sceneId: string,
-): Record<string, unknown> => {
-  useSyncExternalStore(subscribePreviewOverlay, getPreviewOverlayVersion);
-  return treeElementPositionOf(element, sceneId);
-};
+): Record<string, unknown> =>
+  useSyncExternalStore(subscribePreviewOverlay, () =>
+    treeElementPositionOf(element, sceneId),
+  );
 
 /** 장면의 요소 지금 값(옛 칸 모양) - 트리 값(낙관 적용 포함), 미리보기 없음. 요소가 없으면 undefined */
 export const currentTreePosition = (

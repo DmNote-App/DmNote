@@ -4,8 +4,10 @@ import {
   useGridSelectionStore,
   type SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
+import { useSyncExternalStore } from 'react';
 import {
   getElementDocumentStore,
+  subscribeElementDocument,
   useElementDocumentScene,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { isEditorElementType } from '@src/types/editor';
@@ -111,6 +113,34 @@ export const panelSelectionOf = (
 };
 
 const EMPTY_IDS: string[] = [];
+
+const subscribePanelSelectionSources = (listener: () => void) => {
+  const stops = [
+    useGridSelectionStore.subscribe(listener),
+    useDocumentSelectionStore.subscribe(listener),
+    subscribeElementDocument(listener),
+  ];
+  return () => stops.forEach((stop) => stop());
+};
+
+const isInPanelSelection = (sceneId: string, id: string) => {
+  const documentIds = selectedDocumentIds(sceneId);
+  if (!documentIds.includes(id)) return false;
+  return panelSelectionOf(
+    useGridSelectionStore.getState().selectedElements,
+    sceneId,
+    documentIds,
+  ).some((element) => element.id === id);
+};
+
+/** 요소 하나가 패널 선택에 드는지 (편집 화면 얼굴의 일괄 미리보기) - 장면·선택이 바뀌어도
+ * 이 값이 같으면 다시 그리지 않는다 (얼굴마다 선택 목록을 통째로 구독하면 요소 하나만 고쳐도 모두 다시 그린다) */
+export const useInPanelSelection = (sceneId: string, id: string): boolean =>
+  useSyncExternalStore(
+    subscribePanelSelectionSources,
+    () => isInPanelSelection(sceneId, id),
+    () => false,
+  );
 
 /** 옛 속성 패널이 보는 선택 구독 (일괄 패널·그라데이션 축·편집 화면 얼굴의 일괄 미리보기) */
 export const usePanelSelection = (sceneId: string): SelectedElement[] => {
