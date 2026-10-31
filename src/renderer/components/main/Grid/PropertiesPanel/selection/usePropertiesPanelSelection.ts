@@ -1,6 +1,6 @@
 'use no memo';
 // 트리 스토어·프리뷰 오버레이(모듈 상태)를 렌더 중에 읽어서 컴파일러 메모 제외
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { panelSelectionOf } from '../../document/treeEditedSelection';
@@ -44,15 +44,25 @@ export const usePropertiesPanelSelection = () => {
   const documentSceneId = useDocumentSelectionStore((state) => state.sceneId);
   const documentIds = useDocumentSelectionStore((state) => state.selectedIds);
   // 트리 문서가 바뀌면(종류 확인) 다시 합친다
-  useElementDocumentScene(documentSceneId ?? '');
+  const documentScene = useElementDocumentScene(documentSceneId ?? '');
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   // 패널이 읽는 위치 기록·키 슬롯은 트리에서 (지금 탭, 편집 미리보기 포함) - 바뀌면 다시 읽는다
   const scene = useElementDocumentScene(selectedKeyType);
   // 트리 선택이 모두 트리로 옮긴 옛 종류면 옛 패널이 옛 선택과 함께 그 요소들을 고른 것처럼 본다
   // (위치·회전·숨김·이름·지우기 커밋은 공통 커밋 경로가 트리로 보낸다)
-  const selectedElements = documentSceneId
-    ? panelSelectionOf(legacySelection, documentSceneId, documentIds)
-    : legacySelection;
+  // 같은 선택이면 같은 참조 - 선택 바뀜 effect(피커·하위 페이지 닫기)가 렌더마다 돌지 않게
+  const selectedElements = useMemo(
+    () =>
+      documentSceneId
+        ? panelSelectionOf(
+            legacySelection,
+            documentSceneId,
+            documentIds,
+            documentScene,
+          )
+        : legacySelection,
+    [legacySelection, documentSceneId, documentIds, documentScene],
+  );
   const bridgedDocumentSelection =
     selectedElements.length > legacySelection.length;
   useSyncExternalStore(

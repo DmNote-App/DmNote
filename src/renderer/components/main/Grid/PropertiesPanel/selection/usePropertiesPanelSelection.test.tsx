@@ -83,4 +83,27 @@ describe('속성 패널 단일 요소 값', () => {
       root.unmount();
     });
   });
+
+  it('트리 선택을 합친 선택 목록은 다시 그려도 같은 참조다 - 선택 바뀜 effect(피커·하위 페이지 닫기)가 렌더마다 돌지 않게', () => {
+    useKeyStore.setState({ selectedKeyType: '4key' });
+    useDocumentSelectionStore.setState({
+      sceneId: '4key',
+      selectedIds: [KNOB],
+      selectedElements: [],
+    });
+    const onRender = vi.fn<(selected: unknown) => void>();
+    const Probe = ({ tick }: { tick: number }) => {
+      onRender(usePropertiesPanelSelection().selectedElements);
+      return <span data-tick={tick} />;
+    };
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(<Probe tick={0} />));
+    act(() => root.render(<Probe tick={1} />));
+    act(() => root.render(<Probe tick={2} />));
+    const seen = onRender.mock.calls.map(([selected]) => selected);
+    expect(seen.length).toBeGreaterThanOrEqual(3);
+    expect(seen.at(-1)).toEqual([{ type: 'knob', id: KNOB, index: 0 }]);
+    expect(new Set(seen).size).toBe(1);
+    act(() => root.unmount());
+  });
 });
