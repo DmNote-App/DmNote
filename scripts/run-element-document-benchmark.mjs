@@ -73,6 +73,8 @@ if (!skipBuild) {
 let pending = null;
 // 편집 가능해진 뒤 측정 전 대기 구간 알림
 let onIdle = null;
+// 단계 시작마다 메모리를 잰다 (어느 단계가 메모리를 키우는지)
+let onStep = null;
 const server = createServer((request, response) => {
   response.setHeader('Access-Control-Allow-Origin', '*');
   response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -96,6 +98,7 @@ const server = createServer((request, response) => {
     if (parsed.phase === 'started' || parsed.phase === 'progress') {
       console.info(`  ${parsed.phase}${parsed.step ? `: ${parsed.step}` : ''}`);
       if (parsed.step?.startsWith('idle')) onIdle?.();
+      if (parsed.step) onStep?.(parsed.step.split(' ')[0]);
       return;
     }
     const resolveReport = pending;
@@ -184,7 +187,19 @@ const launch = async (phase) => {
   );
 
   let memory = null;
+  const stepMemory = [];
   if (phase === 'measure') {
+    onStep = (step) => {
+      const fresh = [...webContentPids()].filter((pid) => !before.has(pid));
+      stepMemory.push({
+        step,
+        webContent: fresh.reduce(
+          (sum, pid) => sum + (footprintBytes(pid) ?? 0),
+          0,
+        ),
+        host: footprintBytes(child.pid),
+      });
+    };
     // 편집 가능해진 뒤 측정을 시작하기 전 대기 구간 가운데에서 한 번 잰다
     // (시작 뒤 고정 시각에 재면 측정 단계가 어디까지 왔는지에 따라 값이 흔들린다)
     const sampleWhenReady = async () => {
@@ -209,6 +224,7 @@ const launch = async (phase) => {
   }
 
   const reported = await reportPromise;
+  onStep = null;
   const fresh = [...webContentPids()].filter((pid) => !before.has(pid));
   const memoryAfter =
     phase === 'measure'
@@ -224,7 +240,7 @@ const launch = async (phase) => {
   ]);
   if (child.exitCode === null) child.kill('SIGKILL');
   if (reported.error) throw new Error(`${phase} 실패: ${reported.error}`);
-  return { spawnedAt, reported, memory, memoryAfter };
+  return { spawnedAt, reported, memory, memoryAfter, stepMemory };
 };
 
 await rm(dataDir, { recursive: true, force: true });
@@ -237,9 +253,8 @@ try {
   await launch('seed');
   for (let run = 0; run < runs; run += 1) {
     console.info(`측정 ${run + 1}/${runs}`);
-    const { spawnedAt, reported, memory, memoryAfter } = await launch(
-      'measure',
-    );
+    const { spawnedAt, reported, memory, memoryAfter, stepMemory } =
+      await launch('measure');
     const origin = reported.timeOriginEpochMs;
     measured.push({
       coldStart: {
@@ -252,6 +267,7 @@ try {
       },
       memory,
       memoryAfter,
+      stepMemory,
       ...reported,
     });
   }
