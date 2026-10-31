@@ -38,6 +38,8 @@ export interface ElementDocumentStore {
     options?: {
       gestureId?: string;
       onDropped?: () => void;
+      // 백엔드가 받아들였을 때(보류했다 다시 보낸 뒤 포함)
+      onCommitted?: () => void;
       after?: Promise<unknown>;
     },
   ) => Promise<ElementDocumentCommitResult>;
@@ -213,6 +215,7 @@ interface PendingEdit {
   ops: Op[];
   gestureId?: string;
   onDropped?: () => void;
+  onCommitted?: () => void;
   // 백엔드가 받아들인 리비전 - 그 리비전의 패치가 오면 목록에서 빠진다
   acknowledged: number | null;
 }
@@ -309,6 +312,7 @@ export const createEditorDocumentStore = (
             rebuild();
             listeners.emit(localChanges([edit]));
           }
+          edit.onCommitted?.();
           return result;
         }
         failure = { result };
@@ -354,6 +358,7 @@ export const createEditorDocumentStore = (
         acknowledged: null,
         gestureId: editOptions?.gestureId,
         onDropped: editOptions?.onDropped,
+        onCommitted: editOptions?.onCommitted,
       };
       pending = [...pending, edit];
       rebuild();

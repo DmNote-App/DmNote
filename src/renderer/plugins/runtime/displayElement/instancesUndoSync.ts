@@ -11,6 +11,8 @@ import {
 import { noteBackendPluginRevision } from '@plugins/runtime/pluginModelRevision';
 import { pruneStalePluginSelection } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
+import { withoutInstanceSave } from './instanceSaveSuppression';
+import { isPluginElementEditing } from './pluginTreeEditOwnership';
 
 interface PluginInstancesRebindHandlers {
   // 이벤트 도착 즉시 - 낡은 메모리를 커밋할 pending 저장 차단
@@ -27,6 +29,18 @@ const reappliers = new Map<
 // 이 창에서 발신한 mutation id - changed echo 식별 (bounded)
 const OWN_MUTATION_LIMIT = 256;
 const ownMutationIds = new Set<string>();
+
+// 자기 트리 편집(동작 id) - 알림 뒤 저장된 값을 맞춘다
+const ownTreeEditIds = new Set<string>();
+
+export const notePluginTreeEdit = (gestureId: string): void => {
+  notePluginInstancesMutation(gestureId);
+  ownTreeEditIds.add(gestureId);
+  if (ownTreeEditIds.size > OWN_MUTATION_LIMIT) {
+    const oldest = ownTreeEditIds.values().next().value;
+    if (oldest !== undefined) ownTreeEditIds.delete(oldest);
+  }
+};
 
 export const notePluginInstancesMutation = (mutationId: string): void => {
   ownMutationIds.add(mutationId);
@@ -101,15 +115,79 @@ export const applyCanonicalPluginInstances = async (
   );
 };
 
+// 자기 트리 커밋 뒤 저장된 값 맞추기 - 플러그인별 마지막으로 맞춘 리비전 (늦게 온 조회가 되돌리지 않게)
+const ownSyncedRevisions = new Map<string, number>();
+
+/** 자기 트리 편집이 확정된 뒤 저장된 값으로 맞춘다 - 밀린 저장은 그대로 둔다(취소하지 않는다).
+ * 겹침·그룹 값은 늘(백엔드가 이웃 노드도 다시 정한다), 틀·숨김은 편집기가 고치는 중이 아닌 요소만
+ * (끼어든 되돌리기의 다시 받기가 덮은 값 등) */
+export const syncOwnTreeEditFields = (pluginId: string): void => {
+  void pluginInstancesApi
+    .get(pluginId)
+    .then((snapshot) => {
+      const synced = ownSyncedRevisions.get(pluginId) ?? 0;
+      if (snapshot.modelRevision < synced) return;
+      ownSyncedRevisions.set(pluginId, snapshot.modelRevision);
+      const saved = new Map<string, SavedPluginInstanceWire>(
+        snapshot.instances.flatMap((instance) =>
+          instance.instanceId
+            ? [[`${pluginId}::${instance.instanceId}`, instance] as const]
+            : [],
+        ),
+      );
+      const store = usePluginDisplayElementStore.getState();
+      withoutInstanceSave(() => {
+        for (const element of store.elements) {
+          const instance = saved.get(element.fullId);
+          if (!instance) continue;
+          const patch: Partial<typeof element> = {};
+          if (element.zIndex !== instance.zIndex)
+            patch.zIndex = instance.zIndex;
+          if (element.groupId !== instance.groupId) {
+            patch.groupId = instance.groupId;
+          }
+          if (!isPluginElementEditing(element.fullId)) {
+            if (
+              element.position.x !== instance.position.x ||
+              element.position.y !== instance.position.y
+            ) {
+              patch.position = instance.position;
+            }
+            if (
+              instance.measuredSize &&
+              (element.measuredSize?.width !== instance.measuredSize.width ||
+                element.measuredSize?.height !== instance.measuredSize.height)
+            ) {
+              patch.measuredSize = instance.measuredSize;
+            }
+            if ((element.hidden ?? false) !== (instance.hidden ?? false)) {
+              patch.hidden = instance.hidden ?? false;
+            }
+          }
+          if (Object.keys(patch).length > 0) {
+            store.updateElement(element.fullId, patch);
+          }
+        }
+      });
+    })
+    .catch((error) => {
+      console.error(`[Plugin ${pluginId}] Failed to sync tree edit`, error);
+    });
+};
+
 /** main 창 bootstrap에서 1회 호출 */
 export const initPluginInstancesUndoSync = (): (() => void) => {
   const unsubscribe = pluginInstancesApi.onChanged((payload) => {
     if (!payload || typeof payload.pluginId !== 'string') return;
-    // 자기 commit echo - 메모리가 이미 원본이므로 재주입 불필요
+    // 자기 commit echo - 메모리가 이미 원본이므로 재주입 불필요. 자기 트리 편집이면 백엔드가 이웃 노드의
+    // 겹침·그룹 값을 다시 정했을 수 있어 그 값만 맞춘다
     if (
       payload.originMutationId &&
       ownMutationIds.has(payload.originMutationId)
     ) {
+      if (ownTreeEditIds.has(payload.originMutationId)) {
+        syncOwnTreeEditFields(payload.pluginId);
+      }
       return;
     }
     if (typeof payload.revision === 'number') {
@@ -128,6 +206,8 @@ export const initPluginInstancesUndoSync = (): (() => void) => {
     unsubscribe?.();
     reappliers.clear();
     ownMutationIds.clear();
+    ownTreeEditIds.clear();
     appliedRevisions.clear();
+    ownSyncedRevisions.clear();
   };
 };

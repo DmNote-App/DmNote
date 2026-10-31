@@ -32,7 +32,8 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 }));
 vi.mock('@plugins/runtime/displayElement/instancesUndoSync', () => ({
   applyCanonicalPluginInstances: vi.fn(async () => {}),
-  notePluginInstancesMutation: vi.fn(),
+  notePluginTreeEdit: vi.fn(),
+  syncOwnTreeEditFields: vi.fn(),
 }));
 vi.mock('@utils/plugin/bridgeMessages', () => ({
   sendBridgeMessageBestEffort: vi.fn(),

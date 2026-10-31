@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   flushed: [] as Array<[string, string[]]>,
   settled: Promise.resolve() as Promise<void>,
   own: [] as string[],
+  synced: [] as string[],
 }));
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   getElementDocumentStore: () => ({
@@ -22,7 +23,8 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 }));
 vi.mock('./instancesUndoSync', () => ({
   applyCanonicalPluginInstances: mocks.restore,
-  notePluginInstancesMutation: (id: string) => mocks.own.push(id),
+  notePluginTreeEdit: (id: string) => mocks.own.push(id),
+  syncOwnTreeEditFields: (pluginId: string) => mocks.synced.push(pluginId),
 }));
 vi.mock('./pluginElementActions', () => ({
   setPluginElementsHidden: mocks.hideBySave,
@@ -277,5 +279,31 @@ describe('플러그인 트리 편집 보내기 순서', () => {
     expect(mocks.edit.mock.calls[1][1]).toMatchObject({
       gestureId: mocks.own[1],
     });
+  });
+});
+
+describe('편집 중 표시와 확정 뒤 맞추기', () => {
+  it('보낸 편집이 확정되면 표시를 풀고 그 플러그인의 저장된 값을 맞춘다, 버려지면 표시만 푼다', async () => {
+    const { isPluginElementEditing, resetPluginTreeEditOwnership } =
+      await import('./pluginTreeEditOwnership');
+    resetPluginTreeEditOwnership();
+    mocks.synced.length = 0;
+    let options: { onCommitted?: () => void; onDropped?: () => void } = {};
+    mocks.edit.mockReset().mockImplementation((_ops, editOptions) => {
+      options = editOptions;
+      return Promise.resolve({ status: 'committed' });
+    });
+    const ops = [
+      { op: 'setFrame' as const, scene: '4key', id: 'a::1', frame: { x: 1 } },
+    ];
+    await sendPluginTreeEdit(ops, ['a'], 'g');
+    expect(isPluginElementEditing('a::1')).toBe(true);
+    options.onCommitted?.();
+    expect(isPluginElementEditing('a::1')).toBe(false);
+    expect(mocks.synced).toEqual(['a']);
+
+    await sendPluginTreeEdit(ops, ['a'], 'g2');
+    options.onDropped?.();
+    expect(isPluginElementEditing('a::1')).toBe(false);
   });
 });

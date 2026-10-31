@@ -382,6 +382,24 @@ describe('편집 창 요소 문서 스토어 - 저장 실패', () => {
     expect(store.getHeldCount!()).toBe(0);
   });
 
+  it('onCommitted는 받아들여졌을 때 한 번 - 보류했다 다시 보낸 뒤에도', async () => {
+    let failing = true;
+    const store = transientHarness(async () => {
+      if (failing) throw new Error('io');
+      return committed(2);
+    });
+    const onCommitted = vi.fn();
+    const onDropped = vi.fn();
+    await expect(
+      store.edit!(nudge('k1', 40), { onCommitted, onDropped }),
+    ).rejects.toBeInstanceOf(ElementEditHeldError);
+    expect(onCommitted).not.toHaveBeenCalled();
+    failing = false;
+    await expect(store.retryHeld!()).resolves.toBe(true);
+    expect(onCommitted).toHaveBeenCalledOnce();
+    expect(onDropped).not.toHaveBeenCalled();
+  });
+
   it('편집을 버릴 때만 onDropped를 부른다 - 보류했다 다시 보낸 편집이 영구 거절돼도', async () => {
     const rejected: ElementDocumentCommitResult = {
       status: 'rejected',

@@ -6,15 +6,38 @@ import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayEle
 import {
   applyCanonicalPluginInstances,
   applyCommittedPluginInstancesProjection,
+  initPluginInstancesUndoSync,
+  notePluginTreeEdit,
   registerPluginInstancesReapplier,
+  syncOwnTreeEditFields,
 } from './instancesUndoSync';
+import { isInstanceSaveSuppressed } from './instanceSaveSuppression';
+import {
+  markPluginElementsEditing,
+  resetPluginTreeEditOwnership,
+} from './pluginTreeEditOwnership';
 
-const { instancesGetMock } = vi.hoisted(() => ({
+const { instancesGetMock, changed } = vi.hoisted(() => ({
   instancesGetMock: vi.fn(),
+  changed: {
+    listener: null as
+      | null
+      | ((payload: {
+          pluginId: string;
+          revision?: number;
+          originMutationId?: string;
+        }) => void),
+  },
 }));
 
 vi.mock('@api/modules/plugin/pluginInstancesApi', () => ({
-  pluginInstancesApi: { get: instancesGetMock, onChanged: vi.fn() },
+  pluginInstancesApi: {
+    get: instancesGetMock,
+    onChanged: (listener: typeof changed.listener) => {
+      changed.listener = listener;
+      return () => undefined;
+    },
+  },
 }));
 
 describe('plugin instances committed projection', () => {
@@ -205,6 +228,89 @@ describe('canonical 재주입 후 선택 정리', () => {
     expect(useDocumentSelectionStore.getState().selectedElements).toBe(
       reference,
     );
+    unregister();
+  });
+});
+
+describe('자기 트리 편집 뒤 저장된 값 맞추기', () => {
+  const pluginId = 'tree-sync';
+  const element = (id: string, extra: Record<string, unknown> = {}) =>
+    ({
+      id,
+      fullId: `${pluginId}::${id}`,
+      pluginId,
+      definitionId: 'def',
+      html: '',
+      position: { x: 0, y: 0 },
+      tabId: '4key',
+      ...extra,
+    } as never);
+
+  beforeEach(() => {
+    resetPluginTreeEditOwnership();
+    instancesGetMock.mockReset();
+  });
+
+  it('겹침·그룹 값은 늘, 틀·숨김은 고치는 중이 아닌 요소만 자동 저장 없이 맞춘다', async () => {
+    usePluginDisplayElementStore.setState({
+      elements: [element('a'), element('b', { position: { x: 5, y: 5 } })],
+    });
+    markPluginElementsEditing([`${pluginId}::b`]);
+    instancesGetMock.mockResolvedValue({
+      modelRevision: 10,
+      instances: [
+        { instanceId: 'a', position: { x: 9, y: 9 }, zIndex: 3, hidden: true },
+        { instanceId: 'b', position: { x: 1, y: 1 }, zIndex: 4, groupId: 'g' },
+      ],
+    });
+    const suppressed: boolean[] = [];
+    const stop = usePluginDisplayElementStore.subscribe(() =>
+      suppressed.push(isInstanceSaveSuppressed()),
+    );
+    syncOwnTreeEditFields(pluginId);
+    await vi.waitFor(() => expect(suppressed.length).toBeGreaterThan(0));
+    stop();
+    const [a, b] = usePluginDisplayElementStore.getState().elements;
+    expect(a).toMatchObject({
+      position: { x: 9, y: 9 },
+      zIndex: 3,
+      hidden: true,
+    });
+    expect(b).toMatchObject({
+      position: { x: 5, y: 5 },
+      zIndex: 4,
+      groupId: 'g',
+    });
+    expect(suppressed.every(Boolean)).toBe(true);
+  });
+
+  it('자기 트리 편집 알림은 밀린 저장을 취소하지 않고 저장된 값만 맞춘다', async () => {
+    const cancelPendingSave = vi.fn();
+    const reapply = vi.fn();
+    const unregister = registerPluginInstancesReapplier(pluginId, 'def', {
+      cancelPendingSave,
+      reapply,
+    });
+    const stop = initPluginInstancesUndoSync();
+    usePluginDisplayElementStore.setState({ elements: [element('a')] });
+    instancesGetMock.mockResolvedValue({
+      modelRevision: 20,
+      instances: [{ instanceId: 'a', position: { x: 0, y: 0 }, zIndex: 7 }],
+    });
+    notePluginTreeEdit('gesture-1');
+    changed.listener!({
+      pluginId,
+      revision: 20,
+      originMutationId: 'gesture-1',
+    });
+    await vi.waitFor(() =>
+      expect(usePluginDisplayElementStore.getState().elements[0].zIndex).toBe(
+        7,
+      ),
+    );
+    expect(cancelPendingSave).not.toHaveBeenCalled();
+    expect(reapply).not.toHaveBeenCalled();
+    stop();
     unregister();
   });
 });
