@@ -381,9 +381,8 @@ const LayerTabContent = ({
     const items: ListItem[] = isPluginKind(row.node.kind)
       ? []
       : [{ id: 'rename', label: t('contextMenu.rename') || 'Rename' }];
-    if (
-      documentGroupActions(scene, structureTargetIds(sceneId)).includes('group')
-    ) {
+    // 구독한 선택으로 - 렌더 중 스토어 직접 읽기는 컴파일러가 선택이 바뀌어도 다시 계산하지 않는다
+    if (documentGroupActions(scene, selectedIds).includes('group')) {
       items.push({
         id: 'groupSelected',
         label: t('contextMenu.groupSelected') || 'Group',

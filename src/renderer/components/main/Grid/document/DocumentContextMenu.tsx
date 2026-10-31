@@ -1,3 +1,5 @@
+'use no memo';
+// 렌더 중 트리 스토어(요소·장면)를 읽어서 컴파일러 메모 제외
 import React from 'react';
 
 import ListPopup from '@components/main/Modal/listPopup/ListPopup';
