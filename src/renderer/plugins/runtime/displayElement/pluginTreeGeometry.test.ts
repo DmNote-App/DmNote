@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   hideBySave: vi.fn(async () => true),
   flushed: [] as Array<[string, string[]]>,
   settled: Promise.resolve() as Promise<void>,
+  own: [] as string[],
 }));
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   getElementDocumentStore: () => ({
@@ -21,6 +22,7 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 }));
 vi.mock('./instancesUndoSync', () => ({
   applyCanonicalPluginInstances: mocks.restore,
+  notePluginInstancesMutation: (id: string) => mocks.own.push(id),
 }));
 vi.mock('./pluginElementActions', () => ({
   setPluginElementsHidden: mocks.hideBySave,
@@ -264,15 +266,16 @@ describe('플러그인 트리 편집 보내기 순서', () => {
     mocks.settled = Promise.resolve();
   });
 
-  it('트리에 노드가 있는 요소를 고치기 전에 밀린 자동 저장을 먼저 보낸다', () => {
-    mocks.nodes.set('a::1', frame(0, 0));
-    mocks.flushed.length = 0;
-    usePluginDisplayElementStore.setState({
-      elements: [element('a::1', { x: 0, y: 0 })],
+  it('보내는 동작 id를 자기 편집으로 적어 둔다 - 트리 커밋의 플러그인 알림이 밀린 저장을 취소하지 않게', async () => {
+    mocks.own.length = 0;
+    mocks.edit.mockReset().mockResolvedValue({ status: 'committed' });
+    const ops = [{ op: 'remove' as const, scene: '4key', ids: ['a::1'] }];
+    await sendPluginTreeEdit(ops, ['a'], 'g');
+    await sendPluginTreeEdit(ops, ['a']);
+    expect(mocks.own[0]).toBe('g');
+    expect(mocks.own).toHaveLength(2);
+    expect(mocks.edit.mock.calls[1][1]).toMatchObject({
+      gestureId: mocks.own[1],
     });
-    applyPluginElementEdit('4key', new Set(['a::1']), () => {
-      expect(mocks.flushed).toEqual([['a', ['a::1']]]);
-    });
-    expect(mocks.flushed).toHaveLength(1);
   });
 });

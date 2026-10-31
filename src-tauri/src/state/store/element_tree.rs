@@ -877,6 +877,8 @@ impl AppStore {
         Vec<PluginInstancesChangedPayload>,
     )> {
         let revision = self.element_document_revision();
+        // 편집 창이 보낸 플러그인 노드 편집의 알림 - 창은 이미 그 값을 들고 있어 자기 편집으로 알아본다
+        let plugin_origin = gesture_id.clone();
         let in_progress = ElementDocumentCommitResult::Rejected {
             revision,
             code: HISTORY_IN_PROGRESS,
@@ -1009,7 +1011,7 @@ impl AppStore {
             .map(|plugin_id| PluginInstancesChangedPayload {
                 plugin_id,
                 revision: plugin_model_revision,
-                origin_mutation_id: None,
+                origin_mutation_id: plugin_origin.clone(),
             })
             .collect();
         Ok((

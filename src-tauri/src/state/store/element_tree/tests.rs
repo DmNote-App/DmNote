@@ -2749,3 +2749,31 @@ fn 옛_종류와_플러그인_노드를_한_트리_커밋으로_옮기면_둘_�
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 트리_쓰기가_바꾼_플러그인_알림은_동작_id를_출처로_싣는다() {
+    let (dir, store) = open_store();
+    write_demo_bucket(
+        &store,
+        serde_json::json!([{ "instanceId": PLUGIN_INSTANCE, "position": { "x": 0, "y": 0 }, "tabId": "4key" }]),
+    );
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "setFrame", "scene": "4key", "id": format!("demo::{PLUGIN_INSTANCE}"), "frame": { "x": 7 } }
+    ]))
+    .unwrap();
+    let gesture = uuid::Uuid::new_v4().to_string();
+    let (result, plugin_changes) = store
+        .commit_element_document_tree(&ops, true, Some(gesture.clone()))
+        .unwrap();
+    assert!(matches!(
+        result,
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    assert_eq!(plugin_changes.len(), 1);
+    assert_eq!(
+        plugin_changes[0].origin_mutation_id.as_deref(),
+        Some(gesture.as_str())
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

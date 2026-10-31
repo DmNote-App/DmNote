@@ -14,7 +14,10 @@ import {
   flushPluginInstancesEditSession,
   settledPluginInstancesCommits,
 } from './instancesCommitQueue';
-import { applyCanonicalPluginInstances } from './instancesUndoSync';
+import {
+  applyCanonicalPluginInstances,
+  notePluginInstancesMutation,
+} from './instancesUndoSync';
 import { withoutInstanceSave } from './instanceSaveSuppression';
 
 const treeStore = (): ElementDocumentStore | null => {
@@ -34,10 +37,7 @@ export const applyPluginElementEdit = (
   );
   const rest = new Set([...fullIds].filter((id) => !backed.has(id)));
   if (rest.size > 0) change(rest);
-  if (backed.size > 0) {
-    flushPendingSaves(pluginIdsOf(backed));
-    withoutInstanceSave(() => change(backed));
-  }
+  if (backed.size > 0) withoutInstanceSave(() => change(backed));
 };
 
 /** 런타임 위치·측정 크기를 트리 노드 틀로 저장 - 바뀐 것만, 노드가 없으면 건너뛴다 */
@@ -89,10 +89,13 @@ export const sendPluginTreeEdit = (
       void applyCanonicalPluginInstances(pluginId, true).catch(() => undefined);
     }
   };
-  // 앞서 줄 선 인스턴스 저장(트리 연산 전 목록)이 먼저 닿게 - 트리 커밋의 플러그인 알림이 늦은 저장을 취소하지 않고,
-  // 플러그인 몫 변경이 이 동작의 기록에 들고, 거절되면 그 전 값으로 돌아간다
+  // 트리 커밋의 플러그인 알림은 동작 id를 출처로 싣는다 - 자기 편집이라 밀린 저장을 취소하거나 다시 받지 않는다
+  const id = gestureId ?? crypto.randomUUID();
+  notePluginInstancesMutation(id);
+  // 앞서 줄 선 인스턴스 저장(트리 연산 전 목록)이 먼저 닿게 - 플러그인 몫 변경이 이 동작의 기록에 들고,
+  // 거절되면 그 전 값으로 돌아간다
   const sent = store.edit!(ops, {
-    gestureId,
+    gestureId: id,
     onDropped: restore,
     after: settledPluginInstancesCommits(ids),
   }).then(
@@ -109,16 +112,13 @@ export const sendPluginTreeEdit = (
   return sent;
 };
 
-// 밀린 자동 저장을 런타임 스토어를 고치기 전 목록으로 보낸다 - 트리 커밋의 플러그인 알림이 밀린 저장을 취소하므로
-// 그 앞의 변경(막 만든 요소 등)을 잃지 않게. 트리 편집 보내기는 이 저장이 끝난 뒤다(sendPluginTreeEdit)
+// 밀린 자동 저장을 런타임 스토어를 고치기 전 목록으로 먼저 보낸다 - 트리 편집 보내기는 이 저장이 끝난 뒤라
+// (sendPluginTreeEdit) 지우기·숨기기의 플러그인 몫이 이 동작의 기록에 들고, 거절되면 그 전 값으로 돌아간다
 const flushPendingSaves = (pluginIds: Iterable<string>) => {
   for (const pluginId of new Set(pluginIds)) {
     flushPluginInstancesEditSession(pluginId);
   }
 };
-
-const pluginIdsOf = (fullIds: Iterable<string>) =>
-  [...fullIds].map((fullId) => fullId.split('::')[0]);
 
 /** 트리에서 지울 플러그인 요소를 런타임 스토어에서 먼저 뺀다(자동 저장 없이) - 그 플러그인 id들을 돌려준다
  * (sendPluginTreeEdit에 넘겨 거절되면 되돌린다) */
