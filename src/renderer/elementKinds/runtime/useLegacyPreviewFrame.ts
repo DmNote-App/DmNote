@@ -4,17 +4,17 @@ import { useSyncExternalStore } from 'react';
 
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import {
-  getPreviewOverlayVersion,
   previewPatchOf,
   subscribePreviewOverlay,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
+import { treeElementPositionOf } from './treeElementPosition';
 import { isEditorElementType } from '@src/types/editor';
 import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import type { Frame } from '@src/types/generated/elementDocument';
 import { PREVIEW_DOMAIN_BY_ELEMENT_TYPE } from '@src/types/preview';
 
 const noSubscribe = () => () => {};
-const noVersion = () => 0;
+const noSnapshot = () => null;
 
 /** 트리로 옮긴 옛 종류 - 옛 패널 미리보기(편집 제스처)가 바꾼 위치·크기·회전을 얹은 틀 (없으면 null) */
 export const legacyPreviewFrameOf = (
@@ -61,9 +61,10 @@ export const useLegacyPreviewFrame = (
     !!element &&
     isEditorElementType(element.kind) &&
     TREE_EDITED_KINDS.has(element.kind);
+  // 이 요소의 보이는 값(미리보기가 없으면 같은 객체)이 바뀔 때만 다시 그린다
   useSyncExternalStore(
     treeEdited ? subscribePreviewOverlay : noSubscribe,
-    treeEdited ? getPreviewOverlayVersion : noVersion,
+    treeEdited ? () => treeElementPositionOf(element, sceneId) : noSnapshot,
   );
   return element ? legacyPreviewFrameOf(element, sceneId) : null;
 };
