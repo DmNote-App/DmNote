@@ -1,14 +1,11 @@
 import { useEffect, useState } from 'react';
 
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useKeyStore } from '@stores/data/useKeyStore';
 import {
-  beginPluginInstancesEditSession,
-  endPluginInstancesEditSession,
-} from '@plugins/runtime/displayElement/instancesCommitQueue';
-import {
-  beginMixedGestureTransaction,
-  cancelUncommittedMixedGestureTransaction,
-} from '@plugins/runtime/displayElement/gestureTransaction';
+  applyPluginElementEdit,
+  commitPluginFrames,
+} from '@plugins/runtime/displayElement/pluginTreeGeometry';
 import {
   capturePluginElementGeometry,
   restorePluginElementGeometry,
@@ -26,9 +23,8 @@ export interface PluginGeometryTarget {
 
 interface PluginGeometrySession {
   fullId: string;
-  pluginId: string;
+  sceneId: string;
   gestureId: string;
-  token: string;
   snapshot: PluginElementGeometrySnapshot;
 }
 
@@ -56,29 +52,21 @@ const isSelectedPluginElement = (fullId: string): boolean =>
     );
 
 // 속성 패널 숫자 입력(X/Y/W/H)의 플러그인 요소 게스처. 값의 원본이 프론트
-// 스토어라 preview_broker를 타지 않고, 캔버스 드래그(Grid)와 같은 세션을
-// 쓴다 - staged 동안은 스토어만 바뀌고 저장은 세션 경계에서 한 번,
-// 히스토리는 gestureId로 한 항목
+// 스토어라 preview_broker를 타지 않는다 - 미리보기는 스토어만 바꾸고(자동 저장 없이),
+// 확정은 트리 노드 틀 커밋 한 번(캔버스 끌기와 같은 저장)
 export const createPluginGeometryGestureController = () => {
   let session: PluginGeometrySession | null = null;
 
-  const endSession = () => {
-    if (!session) return;
-    const { pluginId, token, gestureId } = session;
-    session = null;
-    endPluginInstancesEditSession(pluginId, token);
-    // 종료 경로가 혼합 커밋을 타지 않으므로 staged를 여기서 정산해야
-    // release 저장이 나가고 barrier가 영구 대기하지 않는다
-    cancelUncommittedMixedGestureTransaction(gestureId);
-  };
+  const edit = (current: PluginGeometrySession, change: () => void) =>
+    applyPluginElementEdit(current.sceneId, new Set([current.fullId]), change);
 
   const cancel = () => {
     if (!session) return;
-    const { fullId, snapshot } = session;
-    // 복원이 세션 종료보다 먼저여야 release 저장이 원본과 같은 상태를
-    // 실어 백엔드 no-op 판정(changed: false)으로 끝난다
-    restorePluginElementGeometry(fullId, snapshot);
-    endSession();
+    const current = session;
+    session = null;
+    edit(current, () =>
+      restorePluginElementGeometry(current.fullId, current.snapshot),
+    );
   };
 
   const ensureSession = (target: PluginGeometryTarget): boolean => {
@@ -89,14 +77,10 @@ export const createPluginGeometryGestureController = () => {
     if (!isSelectedPluginElement(target.fullId)) return false;
     const snapshot = capturePluginElementGeometry(target.fullId);
     if (!snapshot) return false;
-    const gestureId = crypto.randomUUID();
-    const token = beginPluginInstancesEditSession(target.pluginId, gestureId);
-    beginMixedGestureTransaction(gestureId, [target.pluginId]);
     session = {
       fullId: target.fullId,
-      pluginId: target.pluginId,
-      gestureId,
-      token,
+      sceneId: useKeyStore.getState().selectedKeyType,
+      gestureId: crypto.randomUUID(),
       snapshot,
     };
     return true;
@@ -107,8 +91,10 @@ export const createPluginGeometryGestureController = () => {
     field: PluginGeometryField,
     value: number,
   ) => {
-    if (!ensureSession(target)) return;
-    updatePluginElement(target.fullId, geometryPatch(field, value));
+    if (!ensureSession(target) || !session) return;
+    edit(session, () =>
+      updatePluginElement(target.fullId, geometryPatch(field, value)),
+    );
   };
 
   // preview 없이 온 확정(짧은 타이핑 후 blur)도 같은 세션 경계로 저장한다
@@ -117,9 +103,19 @@ export const createPluginGeometryGestureController = () => {
     field: PluginGeometryField,
     value: number,
   ) => {
-    if (!ensureSession(target)) return;
-    updatePluginElement(target.fullId, geometryPatch(field, value));
-    endSession();
+    if (!ensureSession(target) || !session) return;
+    const current = session;
+    session = null;
+    edit(current, () =>
+      updatePluginElement(target.fullId, geometryPatch(field, value)),
+    );
+    commitPluginFrames(
+      current.sceneId,
+      [current.fullId],
+      current.gestureId,
+    ).catch((error: unknown) =>
+      console.error('[Plugin] Failed to save geometry', error),
+    );
   };
 
   return { preview, commit, cancel };

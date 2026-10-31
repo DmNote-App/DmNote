@@ -22,9 +22,7 @@ import {
   enqueuePluginInstancesCommit,
   hasActivePluginInstancesEditContext,
   hasConflictingPluginInstancesGesture,
-  isPluginInstancesGestureStaged,
   registerPluginInstancesEditSessionFlush,
-  registerPluginInstancesStagedRelease,
   touchPluginInstancesEditSession,
 } from '../displayElement/instancesCommitQueue';
 import { isInstanceSaveSuppressed } from '../displayElement/instanceSaveSuppression';
@@ -308,23 +306,7 @@ export const createPluginInstancePersistenceRuntime = ({
         );
       },
     });
-    let stagedSavePending = false;
-    // staged 중 삼킨 변경도 barrier가 관측하도록 release까지 tracked write 유지
-    let settleStagedPendingWrite: (() => void) | null = null;
-    const noteStagedSavePending = () => {
-      if (stagedSavePending) return;
-      stagedSavePending = true;
-      const pending = new Promise<void>((resolve) => {
-        settleStagedPendingWrite = () => {
-          settleStagedPendingWrite = null;
-          resolve();
-        };
-      });
-      void trackEditorWrite(pending);
-    };
     cancelPendingInstanceSave = () => {
-      stagedSavePending = false;
-      settleStagedPendingWrite?.();
       instanceSaveDebounce.cancel();
       instanceSaveGeneration += 1;
     };
@@ -332,18 +314,6 @@ export const createPluginInstancePersistenceRuntime = ({
     registerCleanup(
       registerPluginInstancesEditSessionFlush(pluginId, () => {
         instanceSaveDebounce.flush();
-      }),
-    );
-    registerCleanup(
-      registerPluginInstancesStagedRelease(pluginId, (gestureId) => {
-        if (!stagedSavePending) return;
-        stagedSavePending = false;
-        // staged gestureId 계승 + 즉시 flush - release 후 새 세션 분열 방지
-        instanceSaveDebounce.schedule(
-          touchPluginInstancesEditSession(pluginId, gestureId),
-        );
-        instanceSaveDebounce.flush();
-        settleStagedPendingWrite?.();
       }),
     );
 
@@ -360,12 +330,9 @@ export const createPluginInstancePersistenceRuntime = ({
           // 편집기가 트리 커밋으로 저장하는 변경
           if (isInstanceSaveSuppressed()) return;
           // 변경 시점 기준으로 edit-session TTL 갱신 - debounce가 세션을 쪼개지 않게
-          const gestureId = touchPluginInstancesEditSession(pluginId);
-          if (isPluginInstancesGestureStaged(pluginId)) {
-            noteStagedSavePending();
-            return;
-          }
-          instanceSaveDebounce.schedule(gestureId);
+          instanceSaveDebounce.schedule(
+            touchPluginInstancesEditSession(pluginId),
+          );
         }
       },
     );

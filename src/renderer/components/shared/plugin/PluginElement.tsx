@@ -27,9 +27,9 @@ import { useTranslation } from '@contexts/useTranslation';
 import { html, styleMap, css } from '@utils/plugin/components/templateEngine';
 import { translatePluginMessage } from '@utils/plugin/pluginI18n';
 import {
-  beginPluginInstancesEditSession,
-  endPluginInstancesEditSession,
-} from '@plugins/runtime/displayElement/instancesCommitQueue';
+  applyPluginElementEdit,
+  commitPluginFrames,
+} from '@plugins/runtime/displayElement/pluginTreeGeometry';
 import {
   getElementDocumentStore,
   useElementDocumentScene,
@@ -263,17 +263,23 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
     gridSize: gridSnapSize,
     initialX: calculatedPosition.x,
     initialY: calculatedPosition.y,
-    onDragStart: () => {
-      const token = beginPluginInstancesEditSession(element.pluginId);
-      return () => endPluginInstancesEditSession(element.pluginId, token);
+    // 끝낸 위치는 트리 노드 틀로 저장 (트리에 아직 없는 요소는 자동 저장)
+    onDragStart: () => (commit?: boolean) => {
+      if (commit === false) return;
+      commitPluginFrames(selectedKeyType, [element.fullId]).catch(
+        (error: unknown) =>
+          console.error('[PluginElement] Failed to save position', error),
+      );
     },
     onPositionChange: (newX, newY) => {
       // 선택 모드가 아닐 때만 개별 이동
       if (windowType === 'main' && element.draggable && !isSelectionMode) {
-        updateElement(element.fullId, {
-          position: { x: newX, y: newY },
-          anchor: undefined, // 드래그하면 앵커 제거
-        });
+        applyPluginElementEdit(selectedKeyType, new Set([element.fullId]), () =>
+          updateElement(element.fullId, {
+            position: { x: newX, y: newY },
+            anchor: undefined, // 드래그하면 앵커 제거
+          }),
+        );
 
         // onPositionChange 핸들러 호출 (자동 래핑되어 있음)
         if (

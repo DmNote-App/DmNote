@@ -17,7 +17,6 @@ import { treeEditorDocument } from '@src/renderer/elementKinds/runtime/treeEdito
 import {
   ElementEditHeldError,
   type ElementDocumentStore,
-  type StagedEdit,
 } from '@src/renderer/editor/document/elementDocumentStore';
 import type { ElementDocumentCommitResult } from '@api/modules/editor/elementDocumentApi';
 import type { Op } from '@src/types/generated/elementDocument';
@@ -150,16 +149,6 @@ const sendTreeEdit = async (
     throw new Error(`[ElementDocument] edit rejected: ${result.code}`);
   }
   await whenTreeCaughtUp(store, result.revision);
-};
-
-/** 다른 통로(제스처 커밋)로 보내는 옛 모양 연산의 트리 몫을 화면에 먼저 얹는다 - 트리 몫이 없으면 null */
-export const stageSemanticOps = (
-  ops: readonly EditorOpV1[],
-): StagedEdit | null => {
-  const store = getElementDocumentStore();
-  if (!store?.stage || ops.length === 0) return null;
-  const { treeOps } = routeForTree(ops, store);
-  return treeOps.length > 0 ? store.stage(withResizeValues(treeOps)) : null;
 };
 
 /** 트리로 옮긴 종류 요소 하나의 옛 칸 패치를 트리로 - 지금 장면 트리에 있고 칸이 모두 트리에 자리가 있을 때만.

@@ -20,11 +20,6 @@ interface PluginEditSession {
 
 const editSessions = new Map<string, PluginEditSession>();
 const editSessionFlushers = new Map<string, Set<() => void>>();
-const stagedGestures = new Map<string, string>();
-const stagedReleaseListeners = new Map<
-  string,
-  Set<(gestureId: string) => void>
->();
 
 const schedulePluginInstancesEditSessionCleanup = (
   pluginId: string,
@@ -83,27 +78,9 @@ export const registerPluginInstancesEditSessionFlush = (
   };
 };
 
-// 등록된 flusher만 실행 - 세션·staged 상태는 건드리지 않는 확정 경계용
+// 등록된 flusher만 실행 - 세션 상태는 건드리지 않는 확정 경계용
 export const flushPluginInstancesEditSession = (pluginId: string): void => {
   editSessionFlushers.get(pluginId)?.forEach((flush) => flush());
-};
-
-export const registerPluginInstancesStagedRelease = (
-  pluginId: string,
-  listener: (gestureId: string) => void,
-): (() => void) => {
-  const listeners =
-    stagedReleaseListeners.get(pluginId) ??
-    new Set<(gestureId: string) => void>();
-  listeners.add(listener);
-  stagedReleaseListeners.set(pluginId, listeners);
-
-  return () => {
-    const current = stagedReleaseListeners.get(pluginId);
-    if (!current) return;
-    current.delete(listener);
-    if (current.size === 0) stagedReleaseListeners.delete(pluginId);
-  };
 };
 
 export const rotatePluginInstancesEditSession = (
@@ -122,87 +99,18 @@ export const rotatePluginInstancesEditSession = (
   return touchPluginInstancesEditSession(pluginId, preferredGestureId);
 };
 
-export const beginPluginInstancesEditSession = (
-  pluginId: string,
-  gestureId: string = crypto.randomUUID(),
-): string => {
-  flushPluginInstancesEditSession(pluginId);
-
-  const previous = editSessions.get(pluginId);
-  if (previous?.cleanupTimer) clearTimeout(previous.cleanupTimer);
-  const session = {
-    id: gestureId,
-    active: true,
-    expiresAt: Number.POSITIVE_INFINITY,
-    cleanupTimer: null,
-  };
-  editSessions.set(pluginId, session);
-  return session.id;
-};
-
-export const endPluginInstancesEditSession = (
-  pluginId: string,
-  token: string,
-): void => {
-  const session = editSessions.get(pluginId);
-  if (!session?.active || session.id !== token) return;
-  flushPluginInstancesEditSession(pluginId);
-  const current = editSessions.get(pluginId);
-  if (!current?.active || current.id !== token) return;
-  if (current.cleanupTimer) clearTimeout(current.cleanupTimer);
-  editSessions.delete(pluginId);
-};
-
+// 테스트·창 재시작 - 세션 상태 비우기
 export const clearPluginInstancesEditSessions = (): void => {
   editSessions.forEach((session) => {
     if (session.cleanupTimer) clearTimeout(session.cleanupTimer);
   });
   editSessions.clear();
-  stagedGestures.clear();
-};
-
-export const stagePluginInstancesGesture = (
-  pluginId: string,
-  gestureId: string,
-): void => {
-  stagedGestures.set(pluginId, gestureId);
-};
-
-export const getStagedPluginInstancesGestureId = (
-  pluginId: string,
-): string | undefined => stagedGestures.get(pluginId);
-
-export const unstagePluginInstancesGesture = (
-  pluginId: string,
-  gestureId: string,
-): void => {
-  if (stagedGestures.get(pluginId) === gestureId) {
-    stagedGestures.delete(pluginId);
-    // release 후 저장이 staged와 다른 gestureId로 갈라지지 않게 원 소유 id 전달
-    stagedReleaseListeners
-      .get(pluginId)
-      ?.forEach((listener) => listener(gestureId));
-  }
-};
-
-export const isPluginInstancesGestureStaged = (
-  pluginId: string,
-  gestureId?: string,
-): boolean => {
-  const staged = stagedGestures.get(pluginId);
-  return (
-    staged !== undefined && (gestureId === undefined || staged === gestureId)
-  );
 };
 
 export const hasConflictingPluginInstancesGesture = (
   pluginId: string,
   gestureId: string,
 ): boolean => {
-  const stagedGestureId = stagedGestures.get(pluginId);
-  if (stagedGestureId !== undefined && stagedGestureId !== gestureId) {
-    return true;
-  }
   const session = editSessions.get(pluginId);
   return session !== undefined && session.id !== gestureId;
 };
@@ -210,7 +118,7 @@ export const hasConflictingPluginInstancesGesture = (
 // gesture 무관 편집 문맥 존재 판정 - reconcile류 실패 복구의 재주입 가드
 export const hasActivePluginInstancesEditContext = (
   pluginId: string,
-): boolean => stagedGestures.has(pluginId) || editSessions.has(pluginId);
+): boolean => editSessions.has(pluginId);
 
 export const enqueuePluginInstancesCommit = <T>(
   pluginId: string,
@@ -230,19 +138,6 @@ export const enqueuePluginInstancesCommit = <T>(
 };
 
 export const getPendingPluginInstancesCommitCount = (): number => queues.size;
-
-export const drainPluginInstancesCommitQueues = async (
-  pluginIds: readonly string[],
-): Promise<void> => {
-  const uniquePluginIds = [...new Set(pluginIds)];
-  while (true) {
-    const tails = uniquePluginIds
-      .map((pluginId) => queues.get(pluginId))
-      .filter((tail): tail is Promise<unknown> => tail !== undefined);
-    if (tails.length === 0) return;
-    await Promise.all(tails);
-  }
-};
 
 interface PluginInstancesSaveRequest {
   gestureId?: string;

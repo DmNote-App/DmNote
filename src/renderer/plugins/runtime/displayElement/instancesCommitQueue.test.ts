@@ -2,23 +2,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { drainEditorWrites } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
 import {
-  beginPluginInstancesEditSession,
   clearPluginInstancesEditSessions,
   createPluginInstancesSaveDebounce,
-  endPluginInstancesEditSession,
   enqueuePluginInstancesCommit,
-  drainPluginInstancesCommitQueues,
-  flushPluginInstancesEditSession,
   getPendingPluginInstancesCommitCount,
   hasActivePluginInstancesEditContext,
   hasConflictingPluginInstancesGesture,
   registerPluginInstancesEditSessionFlush,
-  registerPluginInstancesStagedRelease,
   rotatePluginInstancesEditSession,
-  stagePluginInstancesGesture,
   touchPluginInstancesEditSession,
-  isPluginInstancesGestureStaged,
-  unstagePluginInstancesGesture,
 } from './instancesCommitQueue';
 
 const deferred = () => {
@@ -82,153 +74,6 @@ describe('plugin instances commit queue lifecycle', () => {
 
     expect(secondDrag).not.toBe(firstDrag);
     expect(committedGestureIds).toEqual([firstDrag, firstDrag, secondDrag]);
-  });
-
-  it('active gesture는 TTL보다 오래 멈춰도 같은 gestureId를 유지한다', async () => {
-    vi.useFakeTimers();
-
-    const token = beginPluginInstancesEditSession('plugin-long-drag');
-    await vi.advanceTimersByTimeAsync(10_000);
-
-    expect(touchPluginInstancesEditSession('plugin-long-drag')).toBe(token);
-
-    endPluginInstancesEditSession('plugin-long-drag', token);
-    expect(touchPluginInstancesEditSession('plugin-long-drag')).not.toBe(token);
-  });
-
-  it('명시적으로 끝난 두 resize는 TTL 안에서도 서로 다른 gestureId를 쓴다', () => {
-    const first = beginPluginInstancesEditSession('plugin-resize');
-    endPluginInstancesEditSession('plugin-resize', first);
-    const second = beginPluginInstancesEditSession('plugin-resize');
-    endPluginInstancesEditSession('plugin-resize', second);
-
-    expect(second).not.toBe(first);
-  });
-
-  it('하나의 복합 동작은 여러 plugin session에 같은 gestureId를 주입한다', () => {
-    const sharedGestureId = '00000000-0000-4000-8000-0000000000f4';
-    const first = beginPluginInstancesEditSession('plugin-a', sharedGestureId);
-    const second = beginPluginInstancesEditSession('plugin-b', sharedGestureId);
-    const flush = vi.fn();
-    cleanups.push(registerPluginInstancesEditSessionFlush('plugin-a', flush));
-
-    expect(first).toBe(sharedGestureId);
-    expect(second).toBe(sharedGestureId);
-    expect(rotatePluginInstancesEditSession('plugin-a', sharedGestureId)).toBe(
-      sharedGestureId,
-    );
-    expect(flush).not.toHaveBeenCalled();
-  });
-
-  it('transaction staging은 해당 plugin과 gesture에만 적용된다', () => {
-    const gestureId = '00000000-0000-4000-8000-0000000000f4';
-    stagePluginInstancesGesture('plugin-a', gestureId);
-
-    expect(isPluginInstancesGestureStaged('plugin-a')).toBe(true);
-    expect(isPluginInstancesGestureStaged('plugin-a', gestureId)).toBe(true);
-    expect(isPluginInstancesGestureStaged('plugin-a', 'other')).toBe(false);
-    expect(isPluginInstancesGestureStaged('plugin-b')).toBe(false);
-
-    unstagePluginInstancesGesture('plugin-a', 'other');
-    expect(isPluginInstancesGestureStaged('plugin-a')).toBe(true);
-    unstagePluginInstancesGesture('plugin-a', gestureId);
-    expect(isPluginInstancesGestureStaged('plugin-a')).toBe(false);
-  });
-
-  it('staging 해제는 보류된 저장을 정확한 owner에서만 재개한다', () => {
-    const released = vi.fn();
-    cleanups.push(registerPluginInstancesStagedRelease('plugin-a', released));
-    stagePluginInstancesGesture('plugin-a', 'gesture-a');
-
-    unstagePluginInstancesGesture('plugin-a', 'gesture-b');
-    expect(released).not.toHaveBeenCalled();
-
-    unstagePluginInstancesGesture('plugin-a', 'gesture-a');
-    expect(released).toHaveBeenCalledOnce();
-    // release 후 저장이 staged와 같은 세션으로 이어지도록 소유 id를 전달
-    expect(released).toHaveBeenCalledWith('gesture-a');
-  });
-
-  it('flush 함수는 등록된 flusher만 호출하고 세션 상태를 바꾸지 않는다', () => {
-    const flush = vi.fn();
-    cleanups.push(
-      registerPluginInstancesEditSessionFlush('plugin-flush-only', flush),
-    );
-    const sessionId = touchPluginInstancesEditSession('plugin-flush-only');
-    stagePluginInstancesGesture('plugin-flush-only', 'gesture-staged');
-
-    flushPluginInstancesEditSession('plugin-flush-only');
-
-    expect(flush).toHaveBeenCalledOnce();
-    expect(touchPluginInstancesEditSession('plugin-flush-only')).toBe(
-      sessionId,
-    );
-    expect(
-      isPluginInstancesGestureStaged('plugin-flush-only', 'gesture-staged'),
-    ).toBe(true);
-  });
-
-  it('staged 또는 세션이 있으면 활성 편집 문맥으로 판정한다', () => {
-    expect(hasActivePluginInstancesEditContext('plugin-ctx')).toBe(false);
-
-    stagePluginInstancesGesture('plugin-ctx', 'gesture-a');
-    expect(hasActivePluginInstancesEditContext('plugin-ctx')).toBe(true);
-    unstagePluginInstancesGesture('plugin-ctx', 'gesture-a');
-    expect(hasActivePluginInstancesEditContext('plugin-ctx')).toBe(false);
-
-    touchPluginInstancesEditSession('plugin-ctx');
-    expect(hasActivePluginInstancesEditContext('plugin-ctx')).toBe(true);
-  });
-
-  it('실패 복구는 같은 plugin의 후속 gesture 소유권을 감지한다', () => {
-    stagePluginInstancesGesture('plugin-a', 'gesture-a');
-    expect(hasConflictingPluginInstancesGesture('plugin-a', 'gesture-a')).toBe(
-      false,
-    );
-
-    beginPluginInstancesEditSession('plugin-a', 'gesture-b');
-    expect(hasConflictingPluginInstancesGesture('plugin-a', 'gesture-a')).toBe(
-      true,
-    );
-  });
-
-  it('명시적 end는 최종 pending 저장을 같은 gestureId로 flush한다', async () => {
-    const committedGestureIds: Array<string | undefined> = [];
-    const debounce = createPluginInstancesSaveDebounce({
-      delayMs: 200,
-      save: vi.fn(async ({ gestureId }) => {
-        committedGestureIds.push(gestureId);
-      }),
-      onError: vi.fn(),
-    });
-    cleanups.push(
-      registerPluginInstancesEditSessionFlush('plugin-end-flush', () => {
-        debounce.flush();
-      }),
-    );
-
-    const token = beginPluginInstancesEditSession('plugin-end-flush');
-    debounce.schedule(touchPluginInstancesEditSession('plugin-end-flush'));
-    endPluginInstancesEditSession('plugin-end-flush', token);
-    await Promise.resolve();
-
-    expect(committedGestureIds).toEqual([token]);
-    expect(touchPluginInstancesEditSession('plugin-end-flush')).not.toBe(token);
-  });
-
-  it('stale end는 현재 active gesture를 종료하지 않는다', async () => {
-    vi.useFakeTimers();
-
-    const stale = beginPluginInstancesEditSession('plugin-stale');
-    const current = beginPluginInstancesEditSession('plugin-stale');
-    endPluginInstancesEditSession('plugin-stale', stale);
-    await vi.advanceTimersByTimeAsync(10_000);
-
-    expect(touchPluginInstancesEditSession('plugin-stale')).toBe(current);
-
-    endPluginInstancesEditSession('plugin-stale', current);
-    await vi.advanceTimersByTimeAsync(1_201);
-    expect(touchPluginInstancesEditSession('plugin-stale')).not.toBe(current);
   });
 
   it('rotate 시 pending debounce를 이전 gestureId와 경계 직전 상태로 flush한다', async () => {
@@ -326,27 +171,6 @@ describe('plugin instances commit queue lifecycle', () => {
     await expect(secondRun).resolves.toBe('second');
     await Promise.resolve();
     expect(getPendingPluginInstancesCommitCount()).toBe(0);
-  });
-
-  it('transaction drain은 지정한 plugin의 직렬화 tail을 모두 기다린다', async () => {
-    const first = deferred();
-    const second = deferred();
-    void enqueuePluginInstancesCommit('plugin-a', () => first.promise);
-    void enqueuePluginInstancesCommit('plugin-b', () => second.promise);
-
-    let drained = false;
-    const draining = drainPluginInstancesCommitQueues(['plugin-a']).then(() => {
-      drained = true;
-    });
-    await Promise.resolve();
-    expect(drained).toBe(false);
-
-    second.resolve();
-    await Promise.resolve();
-    expect(drained).toBe(false);
-    first.resolve();
-    await draining;
-    expect(drained).toBe(true);
   });
 
   it('실패한 마지막 tail도 제거한다', async () => {
@@ -455,5 +279,17 @@ describe('plugin instances commit queue lifecycle', () => {
       gestureId: 'gesture-fail',
       captureCurrentSnapshot: true,
     });
+  });
+
+  it('세션이 있으면 활성 편집 문맥이고 다른 동작이면 충돌로 판정한다', () => {
+    expect(hasActivePluginInstancesEditContext('plugin-a')).toBe(false);
+    const gestureId = touchPluginInstancesEditSession('plugin-a');
+    expect(hasActivePluginInstancesEditContext('plugin-a')).toBe(true);
+    expect(hasConflictingPluginInstancesGesture('plugin-a', gestureId)).toBe(
+      false,
+    );
+    expect(hasConflictingPluginInstancesGesture('plugin-a', 'other')).toBe(
+      true,
+    );
   });
 });

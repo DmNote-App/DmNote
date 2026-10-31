@@ -691,8 +691,6 @@ export interface EditorCommitResult {
   revision: number;
   changedFields: EditorField[];
   opResults?: EditorOpResultV1[];
-  // 커밋 뒤 트리 문서 리비전 (제스처 커밋) - 먼저 얹은 트리 편집의 확정 기준
-  treeRevision?: number;
 }
 
 export type EditorPluginCommitResult = Omit<EditorCommitResult, 'opResults'>;

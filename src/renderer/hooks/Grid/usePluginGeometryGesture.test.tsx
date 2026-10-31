@@ -1,7 +1,7 @@
 /**
- * 플러그인 요소 기하 입력(X/Y/W/H) 게스처 세션 계약 테스트
- * - preview는 세션을 한 번만 열고(begin → stage) 스토어만 바꾼다
- * - commit/cancel은 Grid 드래그와 같은 순서로 닫는다 (end → unstage)
+ * 플러그인 요소 기하 입력(X/Y/W/H) 게스처 계약 테스트
+ * - preview는 스토어만 바꾼다(자동 저장 없이 - 트리에 있는 요소)
+ * - commit은 마지막 값을 반영하고 같은 동작 id의 트리 틀 커밋을 한 번 보낸다
  * - cancel은 스냅샷(measuredSize 부재 포함)을 복원하고 멱등이다
  */
 
@@ -10,6 +10,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
+import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
@@ -21,34 +22,20 @@ import {
 
 const mocks = vi.hoisted(() => ({
   order: [] as string[],
-  beginSession: vi.fn((_pluginId: string, gestureId: string) => gestureId),
-  endSession: vi.fn(),
-  flushSession: vi.fn(),
-  beginMixedGesture: vi.fn(),
-  cancelUncommittedMixedGesture: vi.fn(),
+  commitFrames: vi.fn((_scene: string, _ids: string[], _gestureId?: string) =>
+    Promise.resolve(),
+  ),
 }));
 
-vi.mock('@plugins/runtime/displayElement/instancesCommitQueue', () => ({
-  beginPluginInstancesEditSession: (...args: [string, string]) => {
-    mocks.order.push('begin');
-    return mocks.beginSession(...args);
-  },
-  endPluginInstancesEditSession: (...args: unknown[]) => {
-    mocks.order.push('end');
-    return mocks.endSession(...(args as [never]));
-  },
-  flushPluginInstancesEditSession: mocks.flushSession,
-  rotatePluginInstancesEditSession: vi.fn(),
-}));
-
-vi.mock('@plugins/runtime/displayElement/gestureTransaction', () => ({
-  beginMixedGestureTransaction: (...args: unknown[]) => {
-    mocks.order.push('stage');
-    return mocks.beginMixedGesture(...(args as [never]));
-  },
-  cancelUncommittedMixedGestureTransaction: (...args: unknown[]) => {
-    mocks.order.push('unstage');
-    return mocks.cancelUncommittedMixedGesture(...(args as [never]));
+vi.mock('@plugins/runtime/displayElement/pluginTreeGeometry', () => ({
+  applyPluginElementEdit: (
+    _scene: string,
+    ids: ReadonlySet<string>,
+    change: (ids: ReadonlySet<string>) => void,
+  ) => change(ids),
+  commitPluginFrames: (scene: string, ids: string[], gestureId?: string) => {
+    mocks.order.push('commit');
+    return mocks.commitFrames(scene, ids, gestureId);
   },
 }));
 
@@ -86,11 +73,8 @@ describe('createPluginGeometryGestureController', () => {
 
   beforeEach(() => {
     mocks.order.length = 0;
-    mocks.beginSession.mockClear();
-    mocks.endSession.mockClear();
-    mocks.flushSession.mockClear();
-    mocks.beginMixedGesture.mockClear();
-    mocks.cancelUncommittedMixedGesture.mockClear();
+    mocks.commitFrames.mockClear();
+    useKeyStore.setState({ selectedKeyType: '4key' });
     usePluginDisplayElementStore.setState({ elements: [pluginElement()] });
     useGridSelectionStore
       .getState()
@@ -104,74 +88,56 @@ describe('createPluginGeometryGestureController', () => {
     unsubscribeStore();
   });
 
-  it('preview는 세션을 한 번만 열고 스토어만 갱신한다', () => {
+  it('preview는 스토어만 갱신하고 저장하지 않는다', () => {
     const gesture = createPluginGeometryGestureController();
 
     gesture.preview(target, 'x', 35);
     gesture.preview(target, 'x', 41);
 
-    expect(mocks.order).toEqual(['begin', 'stage', 'update', 'update']);
-    const gestureId = mocks.beginSession.mock.calls[0][1];
-    expect(typeof gestureId).toBe('string');
-    expect(mocks.beginSession).toHaveBeenCalledWith(PLUGIN_ID, gestureId);
-    expect(mocks.beginMixedGesture).toHaveBeenCalledWith(gestureId, [
-      PLUGIN_ID,
-    ]);
+    expect(mocks.order).toEqual(['update', 'update']);
     expect(findElement(FULL_ID)?.position).toEqual({ x: 41, y: 40 });
-    expect(mocks.endSession).not.toHaveBeenCalled();
   });
 
-  it('commit은 마지막 값을 반영한 뒤 end → unstage 순서로 닫는다', () => {
+  it('commit은 마지막 값을 반영한 뒤 같은 동작 id로 트리 틀 커밋을 한 번 보낸다', () => {
     const gesture = createPluginGeometryGestureController();
 
     gesture.preview(target, 'y', 45);
     gesture.commit(target, 'y', 50);
 
-    expect(mocks.order).toEqual([
-      'begin',
-      'stage',
-      'update',
-      'update',
-      'end',
-      'unstage',
-    ]);
-    const gestureId = mocks.beginSession.mock.calls[0][1];
-    expect(mocks.endSession).toHaveBeenCalledWith(PLUGIN_ID, gestureId);
-    expect(mocks.cancelUncommittedMixedGesture).toHaveBeenCalledWith(gestureId);
+    expect(mocks.order).toEqual(['update', 'update', 'commit']);
+    const [scene, ids, gestureId] = mocks.commitFrames.mock.calls[0];
+    expect(scene).toBe('4key');
+    expect(ids).toEqual([FULL_ID]);
+    expect(typeof gestureId).toBe('string');
     expect(findElement(FULL_ID)?.position).toEqual({ x: 30, y: 50 });
 
-    // 다음 preview는 새 게스처
-    gesture.preview(target, 'y', 60);
-    expect(mocks.beginSession).toHaveBeenCalledTimes(2);
-    expect(mocks.beginSession.mock.calls[1][1]).not.toBe(gestureId);
+    // 다음 입력은 새 동작
+    gesture.commit(target, 'y', 60);
+    expect(mocks.commitFrames.mock.calls[1][2]).not.toBe(gestureId);
   });
 
-  it('preview 없이 온 commit도 세션을 열고 닫아 저장 한 번을 보장한다', () => {
+  it('preview 없이 온 commit도 저장을 한 번 보낸다', () => {
     const gesture = createPluginGeometryGestureController();
 
     gesture.commit(target, 'width', 120);
 
-    expect(mocks.order).toEqual(['begin', 'stage', 'update', 'end', 'unstage']);
+    expect(mocks.order).toEqual(['update', 'commit']);
     expect(findElement(FULL_ID)?.measuredSize).toEqual({
       width: 120,
       height: 150,
     });
   });
 
-  it('cancel은 measuredSize 부재까지 스냅샷으로 복원한 뒤 세션을 닫는다', () => {
+  it('cancel은 measuredSize 부재까지 스냅샷으로 복원하고 저장하지 않는다', () => {
     const gesture = createPluginGeometryGestureController();
 
     gesture.preview(target, 'width', 120);
     gesture.preview(target, 'x', 99);
-    expect(findElement(FULL_ID)?.measuredSize).toEqual({
-      width: 120,
-      height: 150,
-    });
     mocks.order.length = 0;
 
     gesture.cancel();
 
-    expect(mocks.order).toEqual(['update', 'end', 'unstage']);
+    expect(mocks.order).toEqual(['update']);
     const restored = findElement(FULL_ID);
     expect(restored?.position).toEqual({ x: 30, y: 40 });
     expect(restored?.measuredSize).toBeUndefined();
@@ -188,7 +154,7 @@ describe('createPluginGeometryGestureController', () => {
     gesture.cancel();
 
     expect(mocks.order).toEqual([]);
-    expect(mocks.endSession).toHaveBeenCalledTimes(1);
+    expect(mocks.commitFrames).not.toHaveBeenCalled();
   });
 
   it('선택에서 빠진 요소의 지각 preview는 세션을 열지 않는다', () => {
@@ -222,14 +188,7 @@ describe('createPluginGeometryGestureController', () => {
 
     gesture.preview({ fullId: OTHER_FULL_ID, pluginId: PLUGIN_ID }, 'x', 15);
 
-    expect(mocks.order).toEqual([
-      'update',
-      'end',
-      'unstage',
-      'begin',
-      'stage',
-      'update',
-    ]);
+    expect(mocks.order).toEqual(['update', 'update']);
     expect(findElement(FULL_ID)?.position).toEqual({ x: 30, y: 40 });
     expect(findElement(OTHER_FULL_ID)?.position).toEqual({ x: 15, y: 6 });
   });
@@ -253,10 +212,8 @@ describe('usePluginGeometryGesture', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     mocks.order.length = 0;
-    mocks.beginSession.mockClear();
-    mocks.endSession.mockClear();
-    mocks.beginMixedGesture.mockClear();
-    mocks.cancelUncommittedMixedGesture.mockClear();
+    mocks.commitFrames.mockClear();
+    useKeyStore.setState({ selectedKeyType: '4key' });
     usePluginDisplayElementStore.setState({
       elements: [
         pluginElement(),
@@ -303,8 +260,7 @@ describe('usePluginGeometryGesture', () => {
     });
 
     expect(findElement(FULL_ID)?.position).toEqual({ x: 30, y: 40 });
-    expect(mocks.endSession).toHaveBeenCalledTimes(1);
-    expect(mocks.cancelUncommittedMixedGesture).toHaveBeenCalledTimes(1);
+    expect(mocks.commitFrames).not.toHaveBeenCalled();
   });
 
   it('언마운트되면 열려 있던 세션을 취소 복원한다', () => {
@@ -324,7 +280,7 @@ describe('usePluginGeometryGesture', () => {
     root = createRoot(host);
 
     expect(findElement(FULL_ID)?.measuredSize).toBeUndefined();
-    expect(mocks.endSession).toHaveBeenCalledTimes(1);
+    expect(mocks.commitFrames).not.toHaveBeenCalled();
   });
 
   it('대상이 없으면 preview·commit은 무시된다', () => {
@@ -340,7 +296,7 @@ describe('usePluginGeometryGesture', () => {
       api?.commit('x', 2);
     });
 
-    expect(mocks.beginSession).not.toHaveBeenCalled();
+    expect(mocks.commitFrames).not.toHaveBeenCalled();
     expect(findElement(FULL_ID)?.position).toEqual({ x: 30, y: 40 });
   });
 });

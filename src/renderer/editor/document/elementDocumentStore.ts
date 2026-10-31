@@ -35,9 +35,6 @@ export interface ElementDocumentStore {
     ops: Op[],
     options?: { gestureId?: string },
   ) => Promise<ElementDocumentCommitResult>;
-  // 편집 창만 - 다른 통로(제스처 커밋)로 보내는 편집을 화면에 먼저 얹는다.
-  // 그 커밋의 트리 리비전으로 확정하고(settle), 실패하면 뺀다(drop)
-  stage?: (ops: Op[]) => StagedEdit;
   // 편집 창만 - 일시 실패로 보류한 편집(화면에는 남는다). 다시 보내기는 보류한 차례대로
   getHeldCount?: () => number;
   subscribeHeld?: (listener: () => void) => () => void;
@@ -70,11 +67,6 @@ const DEFAULT_RETRY_DELAYS_MS = [300, 1000] as const;
 
 const wait = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-export interface StagedEdit {
-  settle(revision: number): void;
-  drop(): void;
-}
 
 // 백엔드와 주고받는 통로 - 테스트에서 바꿔 끼운다
 export interface ElementDocumentTransport {
@@ -391,25 +383,6 @@ export const createEditorDocumentStore = (
     onRejected: (listener) => {
       rejectedListeners.add(listener);
       return () => rejectedListeners.delete(listener);
-    },
-    stage: (ops) => {
-      const edit: PendingEdit = { ops, acknowledged: null };
-      pending = [...pending, edit];
-      rebuild();
-      listeners.emit(localChanges([edit]));
-      return {
-        settle: (acknowledged) => {
-          if (!pending.includes(edit)) return;
-          edit.acknowledged = acknowledged;
-          if (settle()) {
-            rebuild();
-            listeners.emit(localChanges([edit]));
-          }
-        },
-        drop: () => {
-          if (pending.includes(edit)) drop(edit);
-        },
-      };
     },
     dispose: unsubscribe,
   };

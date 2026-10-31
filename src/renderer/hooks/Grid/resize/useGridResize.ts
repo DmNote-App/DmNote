@@ -2,16 +2,12 @@ import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import {
   reportElementOpError,
   reportElementOpSkipped,
-  type ElementIntentReceipt,
-  type PropertyIntents,
 } from '@src/renderer/editor/runtime/intent/elementIntent';
-import type { EditorElementTypeV1, EditorOpV1 } from '@src/types/editor';
-import { runMixedElementOpsIntent } from '@src/renderer/editor/runtime/intent/mixedElementIntent';
+import type { EditorElementTypeV1 } from '@src/types/editor';
 import { sendBridgeMessageBestEffort } from '@utils/plugin/bridgeMessages';
 import {
   commitElementBoundsById,
   commitSingleElementBoundsById,
-  elementBoundsOp,
 } from '@src/renderer/editor/runtime/operations/elementOps';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
@@ -26,13 +22,9 @@ import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import type { ElementBounds } from '@utils/grid/smartGuides';
 import {
-  beginPluginInstancesEditSession,
-  endPluginInstancesEditSession,
-} from '@plugins/runtime/displayElement/instancesCommitQueue';
-import {
-  beginMixedGestureTransaction,
-  cancelUncommittedMixedGestureTransaction,
-} from '@plugins/runtime/displayElement/gestureTransaction';
+  applyPluginElementEdit,
+  commitPluginFrames,
+} from '@plugins/runtime/displayElement/pluginTreeGeometry';
 import {
   calculateResizePreviewPlan,
   type ResizeBounds,
@@ -67,10 +59,10 @@ interface UseGridResizeOptions {
  */
 export function useGridResize({
   selectedElements,
+  selectedKeyType,
   getOtherElements,
 }: UseGridResizeOptions) {
   const resizeStartRef = useRef(false);
-  const pluginResizeTokensRef = useRef(new Map<string, string>());
   const resizeGestureIdRef = useRef<string | null>(null);
   // 드래그 중 프리뷰 bounds (드래그 중일 때만 값이 있음)
   const [previewBounds, setPreviewBounds] = useState<ResizeBounds | null>(null);
@@ -91,25 +83,6 @@ export function useGridResize({
     elementBounds: GroupElementBounds[];
   } | null>(null);
 
-  const beginPluginResizeSessions = (gestureId: string) => {
-    const pluginElementIds = new Set(
-      selectedElements
-        .filter((element) => element.type === 'plugin')
-        .map((element) => element.id),
-    );
-    usePluginDisplayElementStore
-      .getState()
-      .elements.filter((element) => pluginElementIds.has(element.fullId))
-      .forEach((element) => {
-        if (!pluginResizeTokensRef.current.has(element.pluginId)) {
-          pluginResizeTokensRef.current.set(
-            element.pluginId,
-            beginPluginInstancesEditSession(element.pluginId, gestureId),
-          );
-        }
-      });
-  };
-
   // plugin-only·혼합 완료의 오버레이 동기화 - editor 커밋과 분리
   const syncPluginElementsToOverlay = () => {
     sendBridgeMessageBestEffort('overlay', 'plugin:displayElements:sync', {
@@ -117,17 +90,32 @@ export function useGridResize({
     });
   };
 
-  const endPluginResizeSessions = useCallback(() => {
-    const tokens = pluginResizeTokensRef.current;
-    pluginResizeTokensRef.current = new Map();
-    tokens.forEach((token, pluginId) => {
-      endPluginInstancesEditSession(pluginId, token);
-    });
-    // 완료 경로가 혼합 커밋을 타지 않은 경우의 staged 잔존 정산
-    const gestureId = resizeGestureIdRef.current;
-    if (gestureId) cancelUncommittedMixedGestureTransaction(gestureId);
+  const endResizeGesture = useCallback(() => {
     resizeGestureIdRef.current = null;
   }, []);
+
+  // 플러그인 요소 최종 위치·크기 - 자동 저장 없이 반영하고 트리 노드 틀로 저장 (같은 동작 id)
+  const commitPluginBounds = (
+    updates: ReadonlyArray<{ id: string; bounds: ResizeBounds }>,
+  ) => {
+    if (updates.length === 0) return;
+    const ids = new Set(updates.map(({ id }) => id));
+    applyPluginElementEdit(selectedKeyType, ids, (editable) => {
+      const pluginStore = usePluginDisplayElementStore.getState();
+      for (const { id, bounds } of updates) {
+        if (!editable.has(id)) continue;
+        pluginStore.updateElement(id, {
+          position: { x: bounds.x, y: bounds.y },
+          measuredSize: { width: bounds.width, height: bounds.height },
+        });
+      }
+    });
+    commitPluginFrames(
+      selectedKeyType,
+      ids,
+      resizeGestureIdRef.current ?? undefined,
+    ).catch(reportElementOpError);
+  };
 
   // history 적용·flush 시작이 끼어들면 진행 중 리사이즈를 커밋 없이 버린다 -
   // 되돌아간 문서 위에 마지막 프리뷰를 다시 쓰지 않게
@@ -141,8 +129,8 @@ export function useGridResize({
     setPreviewElementBounds(null);
     useGridSelectionStore.getState().setResizing(false);
     useSmartGuidesStore.getState().clearGuides();
-    endPluginResizeSessions();
-  }, [endPluginResizeSessions]);
+    endResizeGesture();
+  }, [endResizeGesture]);
 
   useEffect(
     () =>
@@ -167,15 +155,13 @@ export function useGridResize({
 
   useEffect(
     () => () => {
-      const gestureId = resizeGestureIdRef.current;
       if (resizeStartRef.current) {
         resizeStartRef.current = false;
         useGridSelectionStore.getState().setResizing(false);
       }
-      endPluginResizeSessions();
-      if (gestureId) cancelUncommittedMixedGestureTransaction(gestureId);
+      endResizeGesture();
     },
-    [endPluginResizeSessions],
+    [endResizeGesture],
   );
 
   const handleResizeStart = (_handle?: ResizeHandle) => {
@@ -189,12 +175,6 @@ export function useGridResize({
       type: element.type,
       id: element.id,
     }));
-    beginPluginResizeSessions(gestureId);
-    if (pluginResizeTokensRef.current.size > 0) {
-      beginMixedGestureTransaction(gestureId, [
-        ...pluginResizeTokensRef.current.keys(),
-      ]);
-    }
 
     // 기존 스마트 가이드 클리어
     useSmartGuidesStore.getState().clearGuides();
@@ -314,15 +294,7 @@ export function useGridResize({
           resizeGestureIdRef.current ?? undefined,
         ).catch(reportElementOpError);
       } else if (element.type === 'plugin') {
-        // 플러그인 요소에 최종 크기 적용
-        const pluginStore = usePluginDisplayElementStore.getState();
-        pluginStore.updateElement(element.id, {
-          position: { x: finalBounds.x, y: finalBounds.y },
-          measuredSize: {
-            width: finalBounds.width,
-            height: finalBounds.height,
-          },
-        });
+        commitPluginBounds([{ id: element.id, bounds: finalBounds }]);
       }
     }
 
@@ -336,7 +308,7 @@ export function useGridResize({
     if (frozenTargets.some((target) => target.type === 'plugin')) {
       syncPluginElementsToOverlay();
     }
-    endPluginResizeSessions();
+    endResizeGesture();
   };
 
   // 그룹 리사이즈 핸들러 - 프리뷰 모드
@@ -358,17 +330,6 @@ export function useGridResize({
       return;
     }
     resizeStartRef.current = false;
-    let groupHandledNatively = false;
-    let groupPluginInvolved = false;
-    let groupHasNative = false;
-    let groupSettlement:
-      | {
-          kind: 'intents';
-          stableIntents: PropertyIntents;
-          receipt: ElementIntentReceipt | null;
-        }
-      | { kind: 'failClosed' }
-      | null = null;
     frozenResizeTargetsRef.current = [];
 
     // 스마트 가이드 클리어
@@ -378,78 +339,46 @@ export function useGridResize({
     useGridSelectionStore.getState().setResizing(false);
 
     const finalData = finalGroupBoundsRef.current;
+    let pluginInvolved = false;
     if (finalData && finalData.elementBounds.length > 0) {
-      const pluginStore = usePluginDisplayElementStore.getState();
-      // 프리뷰 값을 그대로 사용 (스냅은 이미 드래그 중에 적용됨)
-      // 추가 스냅 적용 시 프리뷰와 최종 위치가 달라지는 문제 발생
-
-      // 시작 시 동결된 entries(elementBounds)의 안정 id에 최종 bounds 의도
-      // 구성. native-only는 전용 의도 커밋이 eager와 wire를 함께 소유하고,
-      // plugin 혼합은 eager receipt와 슬롯 generator가 각 경계를 소유한다
-      const stableBoundsIntents = new Map<
-        EditorElementTypeV1,
-        Map<string, Record<string, number>>
-      >();
-      const isStableEntry = (element: { type: string; id: string }): boolean =>
-        element.type !== 'plugin' && isNativeElementId(element.id);
-      for (const { element, bounds } of finalData.elementBounds) {
-        if (!isStableEntry(element)) continue;
-        const type = element.type as EditorElementTypeV1;
-        const byId = stableBoundsIntents.get(type) ?? new Map();
-        byId.set(element.id, {
-          dx: bounds.x,
-          dy: bounds.y,
-          width: bounds.width,
-          height: bounds.height,
-        });
-        stableBoundsIntents.set(type, byId);
-      }
-      const pluginInvolved = finalData.elementBounds.some(
-        ({ element }) => element.type === 'plugin',
-      );
+      // 시작 시 동결된 entries(elementBounds)의 안정 id - 합성 id가 섞이면 편집 전체 무커밋
       const hasInvalidNative = finalData.elementBounds.some(
         ({ element }) =>
           element.type !== 'plugin' && !isNativeElementId(element.id),
       );
-      const allStable = finalData.elementBounds.every(({ element }) =>
-        element.type === 'plugin' ? true : isStableEntry(element),
-      );
-      groupPluginInvolved = pluginInvolved && !hasInvalidNative;
-      groupHasNative = finalData.elementBounds.some(
-        ({ element }) => element.type !== 'plugin',
-      );
-
       if (hasInvalidNative) {
-        groupSettlement = { kind: 'failClosed' };
-      } else if (!pluginInvolved && allStable && stableBoundsIntents.size > 0) {
-        groupHandledNatively = true;
-        void commitElementBoundsById(
-          stableBoundsIntents,
-          resizeGestureIdRef.current ?? undefined,
-        ).catch(reportElementOpError);
+        reportElementOpSkipped('group resize settlement');
       } else {
-        groupSettlement = {
-          kind: 'intents',
-          stableIntents: stableBoundsIntents,
-          receipt: null,
-        };
-      }
-
-      // 플러그인 요소들 업데이트
-      const pluginUpdates = finalData.elementBounds.filter(
-        ({ element }) => element.type === 'plugin',
-      );
-
-      if (!hasInvalidNative) {
-        for (const { element, bounds } of pluginUpdates) {
-          pluginStore.updateElement(element.id, {
-            position: { x: bounds.x, y: bounds.y },
-            measuredSize: {
-              width: bounds.width,
-              height: bounds.height,
-            },
+        // 프리뷰 값을 그대로 사용 (스냅은 이미 드래그 중에 적용됨)
+        const nativeIntents = new Map<
+          EditorElementTypeV1,
+          Map<string, Record<string, number>>
+        >();
+        const pluginUpdates: Array<{ id: string; bounds: ResizeBounds }> = [];
+        for (const { element, bounds } of finalData.elementBounds) {
+          if (element.type === 'plugin') {
+            pluginUpdates.push({ id: element.id, bounds });
+            continue;
+          }
+          const type = element.type as EditorElementTypeV1;
+          const byId = nativeIntents.get(type) ?? new Map();
+          byId.set(element.id, {
+            dx: bounds.x,
+            dy: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
           });
+          nativeIntents.set(type, byId);
         }
+        // 옛 종류와 플러그인은 같은 동작 id의 트리 커밋 - 한 번에 되돌린다
+        if (nativeIntents.size > 0) {
+          void commitElementBoundsById(
+            nativeIntents,
+            resizeGestureIdRef.current ?? undefined,
+          ).catch(reportElementOpError);
+        }
+        commitPluginBounds(pluginUpdates);
+        pluginInvolved = pluginUpdates.length > 0;
       }
     }
 
@@ -458,67 +387,10 @@ export function useGridResize({
     setPreviewElementBounds(null);
     finalGroupBoundsRef.current = null;
 
-    // 정산 완결 - 완료 시점 live 선택 금지. wire patch는 coordinator 직렬
-    // 슬롯 안에서 시작 동결 의도(안정 id + fingerprint 증명된 index)를 최신
-    // base에 재생성한다 - 호출 시점 full-record 캡처는 대기 중 정산된 격리
-    // plugin 쓰기의 다른 필드를 되돌린다. 혼합은 시작 plugin ID 집합과 mixed
-    // 트랜잭션으로 / plugin-only: editor 무커밋 + 오버레이 동기화
-    const settlementGestureId = resizeGestureIdRef.current ?? undefined;
-    if (
-      !groupHandledNatively &&
-      groupHasNative &&
-      groupSettlement &&
-      groupSettlement.kind === 'failClosed'
-    ) {
-      // native ID 검증 실패 - 편집 전체 무커밋
-      reportElementOpSkipped('group resize settlement');
-    } else if (
-      !groupHandledNatively &&
-      groupHasNative &&
-      groupSettlement &&
-      groupSettlement.kind === 'intents'
-    ) {
-      const settlement = groupSettlement;
-      if (groupPluginInvolved && settlementGestureId) {
-        const frozenPluginIds = [...pluginResizeTokensRef.current.keys()];
-        const ops: EditorOpV1[] = [];
-        for (const [elementType, byId] of settlement.stableIntents) {
-          for (const [id, bounds] of byId) {
-            ops.push(
-              elementBoundsOp(elementType, id, {
-                dx: bounds.dx as number,
-                dy: bounds.dy as number,
-                width: bounds.width as number,
-                height: bounds.height as number,
-              }),
-            );
-          }
-        }
-        void runMixedElementOpsIntent({
-          gestureId: settlementGestureId,
-          pluginIds: frozenPluginIds,
-          ops,
-          receipt: settlement.receipt,
-        }).catch(reportElementOpError);
-      }
-    } else if (
-      !groupHandledNatively &&
-      !groupHasNative &&
-      groupPluginInvolved &&
-      groupSettlement?.kind === 'intents' &&
-      settlementGestureId
-    ) {
-      void runMixedElementOpsIntent({
-        gestureId: settlementGestureId,
-        pluginIds: [...pluginResizeTokensRef.current.keys()],
-        ops: [],
-        receipt: groupSettlement.receipt,
-      }).catch(reportElementOpError);
-    }
-    if (groupPluginInvolved) {
+    if (pluginInvolved) {
       syncPluginElementsToOverlay();
     }
-    endPluginResizeSessions();
+    endResizeGesture();
   };
 
   return {

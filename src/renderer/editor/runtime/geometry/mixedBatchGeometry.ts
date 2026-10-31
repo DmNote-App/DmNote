@@ -1,13 +1,12 @@
 // 혼합(native+plugin) 배치 기하 진입점: 정렬·분배·간격 결과를 native는
-// setBounds op, 플러그인은 같은 gestureId의 position pluginChanges로
-// 단일 커밋에 실린다 - history compound 병합으로 undo가 원자 복원된다
+// setBounds op의 트리 커밋, 플러그인은 트리 노드 틀 커밋으로 - 같은 동작 id라
+// 한 번에 되돌린다
 
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import {
-  beginMixedGestureTransaction,
-  cancelUncommittedMixedGestureTransaction,
-} from '@plugins/runtime/displayElement/gestureTransaction';
-import { rotatePluginInstancesEditSession } from '@plugins/runtime/displayElement/instancesCommitQueue';
+  applyPluginElementEdit,
+  commitPluginFrames,
+} from '@plugins/runtime/displayElement/pluginTreeGeometry';
 import { isPluginVisibleInMode } from '@utils/layerGroupUtils';
 import { resolveResizablePluginElementSize } from '@utils/plugin/layout/pluginElementMeasurement';
 import { isNativeElementId } from '../../model/elementId';
@@ -16,15 +15,10 @@ import {
   type BatchGeometryLayoutElement,
 } from './batchGeometryPlan';
 import {
-  ElementIntentAbort,
-  type ElementIntentReceipt,
-} from '../intent/elementIntent';
-import {
   commitBatchGeometryByIds,
   elementBoundsOp,
   type BatchGeometryDescriptor,
 } from '../operations/elementOps';
-import { runMixedGestureElementIntent } from '../intent/mixedElementIntent';
 
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
@@ -32,7 +26,10 @@ import {
 } from '@src/types/editor';
 import type { CanonicalEditorDocumentV1, EditorOpV1 } from '@src/types/editor';
 import type { NativeElementType } from '../../model/elementIdMap';
-import { captureEditorDocument } from '../operations/editorSemanticOps';
+import {
+  captureEditorDocument,
+  commitSemanticOps,
+} from '../operations/editorSemanticOps';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
 const MAX_BATCH_GEOMETRY_TARGETS = 4096;
@@ -185,70 +182,6 @@ const planMixedBatchGeometry = (
   };
 };
 
-// 플러그인 position eager 반영 - CAS receipt (groupId eager 패턴과 동일)
-const applyPluginPositionsEagerly = (
-  targets: ReadonlyMap<string, { x: number; y: number }>,
-): ElementIntentReceipt | null => {
-  const store = usePluginDisplayElementStore.getState();
-  const entries: Array<{
-    fullId: string;
-    before: { x: number; y: number };
-    expected: { x: number; y: number };
-  }> = [];
-  const next = store.elements.map((element) => {
-    const expected = targets.get(element.fullId);
-    if (
-      !expected ||
-      (element.position.x === expected.x && element.position.y === expected.y)
-    ) {
-      return element;
-    }
-    entries.push({
-      fullId: element.fullId,
-      before: element.position,
-      expected,
-    });
-    return {
-      ...element,
-      position: { ...element.position, x: expected.x, y: expected.y },
-    };
-  });
-  if (entries.length === 0) return null;
-  try {
-    store.setElements(next);
-  } catch (error) {
-    try {
-      usePluginDisplayElementStore
-        .getState()
-        .setElements([...store.elements], { skipSync: true });
-    } catch {
-      // 원래 오류 보존
-    }
-    throw error;
-  }
-  return {
-    rollback: () => {
-      const currentStore = usePluginDisplayElementStore.getState();
-      const byId = new Map(entries.map((entry) => [entry.fullId, entry]));
-      let touched = false;
-      const restored = currentStore.elements.map((element) => {
-        const entry = byId.get(element.fullId);
-        // CAS: 우리가 쓴 값 그대로일 때만 복원
-        if (
-          !entry ||
-          element.position.x !== entry.expected.x ||
-          element.position.y !== entry.expected.y
-        ) {
-          return element;
-        }
-        touched = true;
-        return { ...element, position: entry.before };
-      });
-      if (touched) currentStore.setElements(restored);
-    },
-  };
-};
-
 /**
  * 선택된 native+plugin 요소의 배치 기하 조작 (main 창 전용)
  * plugin 대상이 없으면 기존 native 전용 경로에 위임.
@@ -293,9 +226,6 @@ export const commitMixedBatchGeometry = (
   ) {
     return Promise.resolve(false);
   }
-  const pluginIds = [
-    ...new Set(targetedPlugins.map((element) => element.pluginId)),
-  ];
 
   // 현재 스토어 기준 초기 계획 - eager 반영과 no-op 게이트에 사용
   const initialNative = readNativeLayoutElements(
@@ -315,94 +245,37 @@ export const commitMixedBatchGeometry = (
     return Promise.resolve(false);
   }
 
-  const projectDesiredPlugins = (
-    projection: readonly PluginDisplayElementInternal[],
-    positions: ReadonlyMap<string, { x: number; y: number }>,
-  ): PluginDisplayElementInternal[] =>
-    projection.map((element) => {
-      const next = positions.get(element.fullId);
-      return next &&
-        (element.position.x !== next.x || element.position.y !== next.y)
-        ? {
-            ...element,
-            position: { ...element.position, x: next.x, y: next.y },
-          }
-        : element;
-    });
-
-  const run = async (): Promise<boolean> => {
-    const gestureId = options.gestureId ?? crypto.randomUUID();
-    let receipt: ElementIntentReceipt | null = null;
-    let runnerStarted = false;
-    try {
-      beginMixedGestureTransaction(gestureId, pluginIds);
-      pluginIds.forEach((pluginId) =>
-        rotatePluginInstancesEditSession(pluginId, gestureId),
+  options.preflight?.();
+  const gestureId = options.gestureId ?? crypto.randomUUID();
+  const { nativeOps, pluginPositions } = initialPlanned;
+  const writes: Promise<unknown>[] = [];
+  if (nativeOps.length > 0) {
+    writes.push(commitSemanticOps(nativeOps, { gestureId }));
+  }
+  // 플러그인 위치는 바로 보이게(자동 저장 없이) 고치고 트리 노드 틀로 저장
+  applyPluginElementEdit(
+    frozenDescriptor.mode,
+    new Set(pluginPositions.keys()),
+    (ids) => {
+      const store = usePluginDisplayElementStore.getState();
+      store.setElements(
+        store.elements.map((element) => {
+          const next = ids.has(element.fullId)
+            ? pluginPositions.get(element.fullId)
+            : undefined;
+          return next
+            ? { ...element, position: { ...element.position, ...next } }
+            : element;
+        }),
       );
-
-      // eager: 플러그인 position CAS (옛 종류 몫은 트리에 먼저 얹고 커밋의 트리 리비전에서 확정)
-      receipt = applyPluginPositionsEagerly(initialPlanned.pluginPositions);
-
-      runnerStarted = true;
-      const result = await runMixedGestureElementIntent({
-        gestureId,
-        initialPluginIds: pluginIds,
-        pluginScope: () => pluginIds,
-        receipt,
-        optimisticOps: initialPlanned.nativeOps,
-        generate: ({ base, pluginProjection }) => {
-          options.preflight?.();
-          // 슬롯 재계획: native는 base, plugin은 projection에서 bounds를
-          // 읽어 같은 plan에 합쳐 넣는다 - 대상 소실·모드 이탈은 부분 커밋
-          // 대신 전체 중단 (fail-closed)
-          const nativeElements = readNativeLayoutElements(
-            readDocumentPositions(base),
-            frozenDescriptor,
-          );
-          const pluginLayout = readPluginLayoutElements(
-            pluginProjection,
-            frozenDescriptor.mode,
-            fullIds,
-          );
-          const planned =
-            nativeElements && pluginLayout
-              ? planMixedBatchGeometry(
-                  nativeElements,
-                  pluginLayout,
-                  frozenDescriptor,
-                )
-              : null;
-          if (!planned) {
-            throw new ElementIntentAbort('mixed batch geometry settlement');
-          }
-          // 계약: scope 전체 projection 반환 - 부분 반환은 scope 요소의
-          // 무음 삭제로 해석된다
-          const desiredPluginProjection = projectDesiredPlugins(
-            pluginProjection,
-            planned.pluginPositions,
-          );
-          // plugin 단독은 editor 변경 없음 - 빈 ops 배열을 실으면
-          // editorOps: []가 전송되어 백엔드 EMPTY_EDITOR_OPS 거절이 난다.
-          // patch:null 경로는 editorChanges 없이 transaction callback만 실행
-          if (planned.nativeOps.length === 0) {
-            return { kind: 'patch', patch: null, desiredPluginProjection };
-          }
-          return {
-            kind: 'ops',
-            ops: planned.nativeOps,
-            desiredPluginProjection,
-          };
-        },
-        skipContext: 'mixed batch geometry settlement',
-      });
-      return result.committed;
-    } catch (error) {
-      if (!runnerStarted) receipt?.rollback();
-      throw error;
-    } finally {
-      cancelUncommittedMixedGestureTransaction(gestureId);
-    }
-  };
-
-  return run();
+    },
+  );
+  writes.push(
+    commitPluginFrames(
+      frozenDescriptor.mode,
+      pluginPositions.keys(),
+      gestureId,
+    ),
+  );
+  return Promise.all(writes).then(() => true);
 };
