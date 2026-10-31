@@ -14,8 +14,6 @@
 
 import { pluginAuthorityApi } from '@api/modules/plugin/pluginAuthorityApi';
 import { internalApi } from '@api/internalApi';
-import { setPluginAuthorityGeneration } from '@plugins/runtime/pluginAuthorityGeneration';
-import { noteBackendPluginRevision } from '@plugins/runtime/pluginModelRevision';
 import { usePluginMenuStore } from '@stores/plugin/usePluginMenuStore';
 import {
   pushDisplayElementsToOverlay,
@@ -414,9 +412,7 @@ ${plugin.content}
     }
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const snapshot = await pluginAuthorityApi.reset();
-        setPluginAuthorityGeneration(snapshot.authorityGeneration);
-        noteBackendPluginRevision(snapshot.modelRevision);
+        await pluginAuthorityApi.reset();
         return true;
       } catch (error) {
         console.error('Failed to reset plugin authority', error);
