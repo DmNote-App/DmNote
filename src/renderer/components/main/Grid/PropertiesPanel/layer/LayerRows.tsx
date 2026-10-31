@@ -50,9 +50,14 @@ interface LayerRowHandlers {
   onContextMenu: (event: React.MouseEvent) => void;
 }
 
-const rowClass = (selected: boolean, hidden: boolean, dragging: boolean) => `
+const rowClass = (
+  selected: boolean,
+  hidden: boolean,
+  dragging: boolean,
+  dimmed = false,
+) => `
   group relative flex items-center gap-[8px] pr-[4px] h-[34px] select-none dmn-row-grabbable
-  ${hidden ? 'opacity-60' : ''}
+  ${dimmed ? 'opacity-30' : hidden ? 'opacity-60' : ''}
   ${
     selected
       ? 'bg-accent-muted text-fg'
@@ -71,6 +76,8 @@ interface LayerElementRowProps extends LayerRowHandlers {
   hidden: boolean;
   selected: boolean;
   dragging: boolean;
+  // 끄는 그룹 안 행
+  dimmed?: boolean;
   rename: LayerRowRename | null;
   onToggleHidden: () => void;
   t: (key: string) => string | undefined;
@@ -86,6 +93,7 @@ export const LayerElementRow = ({
   hidden,
   selected,
   dragging,
+  dimmed = false,
   rename,
   onToggleHidden,
   onClick,
@@ -102,7 +110,7 @@ export const LayerElementRow = ({
     onPointerDown={onPointerDown}
     onContextMenu={onContextMenu}
     style={{ paddingLeft: layerRowIndent(depth) }}
-    className={rowClass(selected, hidden, dragging)}
+    className={rowClass(selected, hidden, dragging, dimmed)}
   >
     <div className="flex-shrink-0">
       <KindIcon kind={kind} />
@@ -153,6 +161,8 @@ interface LayerGroupRowProps extends LayerRowHandlers {
   collapsed: boolean;
   selected: boolean;
   dragging: boolean;
+  // 끄는 그룹 (또는 그 안 그룹)
+  dimmed?: boolean;
   dropInto: boolean;
   rename: LayerRowRename | null;
   onToggleCollapsed: () => void;
@@ -167,6 +177,7 @@ export const LayerGroupRow = ({
   collapsed,
   selected,
   dragging,
+  dimmed = false,
   dropInto,
   rename,
   onToggleCollapsed,
@@ -190,7 +201,7 @@ export const LayerGroupRow = ({
       className={
         dropInto
           ? 'group relative flex items-center gap-[8px] pr-[4px] h-[34px] select-none bg-fill-hover text-fg-muted'
-          : rowClass(selected, hidden, dragging)
+          : rowClass(selected, hidden, dragging, dimmed)
       }
     >
       <LayerGroupDisclosure

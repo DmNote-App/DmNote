@@ -201,7 +201,7 @@ describe('레이어 탭 - 장면 트리 하나', () => {
     expect(menuItems('t1')).not.toContain('groupSelected');
   });
 
-  it('그룹에서 빼면 그 그룹 바로 위(그룹의 부모 안)로 옮긴다', async () => {
+  it('그룹에서 빼면 맨 위 멤버는 그룹 바로 위, 나머지는 그룹 바로 아래(그룹의 부모 안)로 옮긴다', async () => {
     act(() => {
       row('t1').dispatchEvent(
         new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
@@ -214,13 +214,14 @@ describe('레이어 탭 - 장면 트리 하나', () => {
     await act(async () => {
       item!.click();
     });
+    // 맨 위 멤버가 아니면 그룹 바로 아래로 (예전 패널과 같은 자리)
     expect(mocks.edit).toHaveBeenCalledWith([
       {
         op: 'move',
         scene: '4key',
         ids: ['t1'],
         parent: null,
-        index: 2,
+        index: 1,
       },
     ]);
   });
@@ -246,13 +247,118 @@ describe('레이어 탭 - 장면 트리 하나', () => {
       { type: 'plugin', id: 'demo::p1' },
     ]);
 
+    // 고른 행을 처음 누르면 기준만 옮긴다 (예전과 같다)
     act(() => row('demo::p1').click());
+    expect(useDocumentSelectionStore.getState().selectedIds.sort()).toEqual([
+      'k1',
+      't1',
+    ]);
     act(() =>
       row('demo::p1').dispatchEvent(
         new MouseEvent('click', { bubbles: true, metaKey: true }),
       ),
     );
     expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedIds.sort()).toEqual([
+      'k1',
+      't1',
+    ]);
+  });
+
+  it('기준 행을 다시 누르면 잠시 뒤 그 행만 남기고(하나면 해제), 기준이 없으면 Shift는 보통 클릭이다', async () => {
+    vi.useFakeTimers();
+    try {
+      act(() => row('k1').click());
+      act(() =>
+        row('t2').dispatchEvent(
+          new MouseEvent('click', { bubbles: true, metaKey: true }),
+        ),
+      );
+      // t2가 기준 - 다시 누르면 50ms 뒤 t2만
+      act(() => row('t2').click());
+      expect(useDocumentSelectionStore.getState().selectedIds.sort()).toEqual([
+        'k1',
+        't2',
+      ]);
+      act(() => vi.advanceTimersByTime(60));
+      expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['t2']);
+      // 하나만 고른 기준 행을 다시 누르면 해제
+      act(() => row('t2').click());
+      act(() => vi.advanceTimersByTime(60));
+      expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  const openMenu = (id: string) =>
+    act(() => {
+      row(id).dispatchEvent(
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+      );
+    });
+  const pick = async (item: string) => {
+    const button = document.body.querySelector<HTMLElement>(
+      `[data-menu-item="${item}"]`,
+    );
+    expect(button).not.toBeNull();
+    await act(async () => button!.click());
+  };
+
+  it('숨긴 그룹을 풀면 숨김을 멤버에게 남기고 선택을 푼다 (예전과 같다)', async () => {
+    (mocks.scene as { nodes: Array<Record<string, unknown>> }).nodes[1].hidden =
+      true;
+    act(() => root.render(<LayerTabContent />));
+    act(() => {
+      useDocumentSelectionStore.getState().setSelection('4key', ['t1']);
+    });
+    openMenu('G');
+    await pick('ungroup');
+    expect(mocks.edit).toHaveBeenCalledWith([
+      { op: 'ungroup', scene: '4key', id: 'G' },
+      { op: 'setCommon', scene: '4key', id: 't1', hidden: true },
+      { op: 'setCommon', scene: '4key', id: 'demo::p1', hidden: true },
+    ]);
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
+  });
+
+  it('숨긴 그룹 안 행은 숨김으로 보이고, 그룹 행 더블클릭은 이름 바꾸기가 아니다', () => {
+    (mocks.scene as { nodes: Array<Record<string, unknown>> }).nodes[1].hidden =
+      true;
+    act(() => root.render(<LayerTabContent />));
+    expect(row('t1').className).toContain('opacity-60');
+    act(() => {
+      row('G').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    expect(container.querySelector('input')).toBeNull();
+  });
+
+  it('기본 이름과 같게 입력해도 그 이름으로 둔다 (예전과 같다)', async () => {
+    openMenu('t2');
+    await pick('rename');
+    const input = container.querySelector<HTMLInputElement>('input')!;
+    const fallback = input.value;
+    act(() => {
+      input.focus();
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+      );
+    });
+    expect(mocks.setCommon).toHaveBeenCalledWith('4key', 't2', {
+      name: fallback,
+    });
+  });
+
+  it('숨긴 그룹 안 요소의 눈을 누르면 예전처럼 그 요소만 보인다', () => {
+    (mocks.scene as { nodes: Array<Record<string, unknown>> }).nodes[1].hidden =
+      true;
+    act(() => root.render(<LayerTabContent />));
+    act(() => {
+      row('t1').querySelector<HTMLButtonElement>('button')!.click();
+    });
+    expect(mocks.edit).toHaveBeenCalledWith([
+      { op: 'setGroup', scene: '4key', id: 'G', hidden: false },
+      { op: 'setCommon', scene: '4key', id: 'demo::p1', hidden: true },
+    ]);
   });
 });
