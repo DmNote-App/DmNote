@@ -1,11 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { beginEditorWriteBarrier, commitPendingAsync } = vi.hoisted(() => ({
-  beginEditorWriteBarrier: vi.fn(),
-  commitPendingAsync: vi.fn(),
-}));
+const { beginEditorWriteBarrier, commitPendingAsync, flushHeldEditorWrites } =
+  vi.hoisted(() => ({
+    beginEditorWriteBarrier: vi.fn(),
+    commitPendingAsync: vi.fn(),
+    flushHeldEditorWrites: vi.fn(async () => true),
+  }));
 
-vi.mock('./editorWriteBarrier', () => ({ beginEditorWriteBarrier }));
+vi.mock('./editorWriteBarrier', () => ({
+  beginEditorWriteBarrier,
+  flushHeldEditorWrites,
+}));
 vi.mock('../gesture/editGestureController', () => ({
   editGestureController: { commitPendingAsync },
 }));
@@ -114,5 +119,14 @@ describe('flushFocusedEditor', () => {
 
     await pending;
     expect(commitPendingAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('정산 뒤 보류한 편집을 다시 보내고, 남으면 실패로 알린다', async () => {
+    beginEditorWriteBarrier.mockReturnValue(vi.fn(async () => true));
+    commitPendingAsync.mockResolvedValue(true);
+    flushHeldEditorWrites.mockResolvedValueOnce(false);
+
+    await expect(flushFocusedEditor()).resolves.toBe(false);
+    expect(flushHeldEditorWrites).toHaveBeenCalled();
   });
 });

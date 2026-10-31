@@ -37,3 +37,16 @@ export const beginEditorWriteBarrier = () => {
     return succeeded;
   };
 };
+
+// 일시 실패로 보류한 편집 - 트리 스토어가 등록한다. 경계(포커스 확정·종료·되돌리기)에서 다시 보내고,
+// 그래도 남으면 실패 (보류한 편집의 쓰기 약속은 이미 끝나 위 대기에 잡히지 않는다)
+let heldWrites: (() => Promise<boolean>) | null = null;
+
+export const registerHeldEditorWrites = (
+  flush: (() => Promise<boolean>) | null,
+) => {
+  heldWrites = flush;
+};
+
+export const flushHeldEditorWrites = (): Promise<boolean> =>
+  heldWrites?.() ?? Promise.resolve(true);

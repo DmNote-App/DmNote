@@ -16,6 +16,7 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 }));
 
 import { drainEditorWrites } from '../lifecycle/editorWriteBarrier';
+import { ElementEditHeldError } from '@src/renderer/editor/document/elementDocumentStore';
 import {
   commitGeneratedSemanticOps,
   commitPropertyIntents,
@@ -110,6 +111,14 @@ describe('옛 편집 연산을 트리로', () => {
       commitSemanticOps([patchOp] as never, { gestureId: 'g1' }),
     ).rejects.toThrow('HISTORY_IN_PROGRESS');
     expect(tree.store!.edit.mock.calls[0][1]).toEqual({ gestureId: 'g1' });
+  });
+
+  it('보류한 편집은 스토어가 다시 보내므로 보낸 쪽(동작 정산)은 끝난 것으로 둔다', async () => {
+    tree.store!.edit.mockRejectedValueOnce(new ElementEditHeldError());
+    const outcome = await commitSemanticOps([patchOp] as never, {
+      gestureId: 'g1',
+    });
+    expect(outcome.opResults).toEqual([{ status: 'applied' }]);
   });
 
   it('숨김·이름·회전은 공통 정보·틀 연산으로', () => {

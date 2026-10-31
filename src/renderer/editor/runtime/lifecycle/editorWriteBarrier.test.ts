@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { enqueueEditorCompatibilityWrite } from './editorCompatibilityQueue';
 import {
   beginEditorWriteBarrier,
+  flushHeldEditorWrites,
+  registerHeldEditorWrites,
   drainEditorWrites,
   trackEditorWrite,
 } from './editorWriteBarrier';
@@ -90,5 +92,15 @@ describe('editor write barrier', () => {
     await Promise.resolve();
 
     await expect(drainBlurWrites()).resolves.toBe(false);
+  });
+
+  it('보류한 편집은 등록된 입구로 다시 보내고 그 결과를 돌려준다 (없으면 성공)', async () => {
+    registerHeldEditorWrites(null);
+    await expect(flushHeldEditorWrites()).resolves.toBe(true);
+    const flush = vi.fn(async () => false);
+    registerHeldEditorWrites(flush);
+    await expect(flushHeldEditorWrites()).resolves.toBe(false);
+    expect(flush).toHaveBeenCalledOnce();
+    registerHeldEditorWrites(null);
   });
 });

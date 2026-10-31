@@ -8,6 +8,7 @@ const { invoke, drainEditorWrites } = vi.hoisted(() => ({
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
 vi.mock('@src/renderer/editor/runtime/lifecycle/editorWriteBarrier', () => ({
   beginEditorWriteBarrier: () => drainEditorWrites,
+  flushHeldEditorWrites: async () => true,
 }));
 
 import {

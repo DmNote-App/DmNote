@@ -7,7 +7,10 @@ import type {
 } from '@src/types/plugin/api';
 import { subscribe } from '../shared';
 import { assertCanonicalEditorDocument } from '@src/types/editor';
-import { beginEditorWriteBarrier } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
+import {
+  beginEditorWriteBarrier,
+  flushHeldEditorWrites,
+} from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
 
 import type {
   BootstrapPayload,
@@ -20,7 +23,8 @@ export async function runAfterEditorFlush<T>(
 ): Promise<T> {
   try {
     // 줄 선 편집 쓰기(트리·호환 큐)가 모두 저장될 때까지
-    const writesCommitted = await beginEditorWriteBarrier()();
+    const writesCommitted =
+      (await beginEditorWriteBarrier()()) && (await flushHeldEditorWrites());
     if (!writesCommitted) {
       throw new Error('pending window writes failed to drain');
     }

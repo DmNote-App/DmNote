@@ -31,8 +31,7 @@ const editorError = (
 });
 
 describe('트리 쓰기 실패 가르기', () => {
-  it('전송 오류·되돌리기 중·재시도 정책이 영구가 아닌 옛 편집 오류는 일시 실패', () => {
-    expect(isTransientTreeWriteFailure({ error: new Error('io') })).toBe(true);
+  it('되돌리기 중·재시도 정책이 영구가 아닌 옛 편집 오류는 일시 실패', () => {
     expect(isTransientTreeWriteFailure(rejected('HISTORY_IN_PROGRESS'))).toBe(
       true,
     );
@@ -48,7 +47,16 @@ describe('트리 쓰기 실패 가르기', () => {
     ).toBe(true);
   });
 
-  it('규칙 위반·검증 실패·오류 없는 옛 거절은 영구 실패, 한도 코드는 한도 초과', () => {
+  it('던진 오류·규칙 위반·검증 실패·이름표 없는 코드는 영구 실패, 한도 코드는 한도 초과', () => {
+    expect(isTransientTreeWriteFailure({ error: new Error('io') })).toBe(false);
+    expect(
+      isTransientTreeWriteFailure(
+        rejected('LEGACY_REJECTED', {
+          ...editorError('IO_ERROR'),
+          errorCode: 'NEW_UNKNOWN_CODE' as never,
+        }),
+      ),
+    ).toBe(false);
     expect(isTransientTreeWriteFailure(rejected('VIOLATION'))).toBe(false);
     expect(isTransientTreeWriteFailure(rejected('LEGACY_REJECTED'))).toBe(
       false,

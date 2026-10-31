@@ -11,6 +11,7 @@ import {
   type ElementDocumentStore,
 } from './elementDocumentStore';
 import { isTransientTreeWriteFailure } from './treeWriteFailure';
+import { registerHeldEditorWrites } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
 
 let current: ElementDocumentStore | null = null;
 let loading: Promise<ElementDocumentStore> | null = null;
@@ -42,9 +43,15 @@ const create = async (): Promise<ElementDocumentStore> => {
     },
   };
   if (isEditingWindow()) {
-    return createEditorDocumentStore(initial, transport, {
+    const store = createEditorDocumentStore(initial, transport, {
       isTransient: isTransientTreeWriteFailure,
     });
+    registerHeldEditorWrites(() =>
+      store.getHeldCount?.()
+        ? store.retryHeld?.() ?? Promise.resolve(false)
+        : Promise.resolve(true),
+    );
+    return store;
   }
   const store = createMirrorDocumentStore(initial, transport);
   // OBS 재연결·놓친 패치 - 옛 상태 재동기화와 같은 신호로 트리도 다시 받아 온다

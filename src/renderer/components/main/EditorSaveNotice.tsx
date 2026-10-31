@@ -4,12 +4,10 @@ import { useSingleFlightAction } from '@hooks/useSingleFlightAction';
 import { useHistoryStatusStore } from '@stores/data/useHistoryStatusStore';
 import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { flushFocusedEditor } from '@src/renderer/editor/runtime/lifecycle/lifecycleEditorFlush';
-import type { ElementDocumentStore } from '@src/renderer/editor/document/elementDocumentStore';
 
 // 일시 실패로 보류한 트리 편집 안내 - 편집은 화면에 남아 있고 다시 저장을 기다린다
 const EditorSaveNotice = () => {
   const { t } = useTranslation();
-  const [store, setStore] = useState<ElementDocumentStore | null>(null);
   const [heldCount, setHeldCount] = useState(0);
   const historyBusy = useHistoryStatusStore((state) => state.busy);
 
@@ -19,7 +17,6 @@ const EditorSaveNotice = () => {
     void loadElementDocumentStore()
       .then((loaded) => {
         if (disposed) return;
-        setStore(loaded);
         const update = () => setHeldCount(loaded.getHeldCount?.() ?? 0);
         unsubscribe = loaded.subscribeHeld?.(update);
         update();
@@ -31,10 +28,10 @@ const EditorSaveNotice = () => {
     };
   }, []);
 
+  // 포커스 입력 확정이 보류한 편집도 차례대로 다시 보낸다
   const { run: retry, pending } = useSingleFlightAction(async () => {
     try {
-      if (!(await flushFocusedEditor())) return;
-      await store?.retryHeld?.();
+      await flushFocusedEditor();
     } catch (error) {
       console.error('편집 내용 다시 저장 실패', error);
     }

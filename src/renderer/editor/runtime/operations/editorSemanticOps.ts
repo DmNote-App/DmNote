@@ -14,10 +14,12 @@ import {
   legacyPositionOf,
 } from '@src/renderer/elementKinds/runtime/legacyPosition';
 import { treeEditorDocument } from '@src/renderer/elementKinds/runtime/treeEditorDocument';
-import type {
-  ElementDocumentStore,
-  StagedEdit,
+import {
+  ElementEditHeldError,
+  type ElementDocumentStore,
+  type StagedEdit,
 } from '@src/renderer/editor/document/elementDocumentStore';
+import type { ElementDocumentCommitResult } from '@api/modules/editor/elementDocumentApi';
 import type { Op } from '@src/types/generated/elementDocument';
 import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
 import type { PropertyIntents } from '../intent/elementIntent';
@@ -119,11 +121,18 @@ const sendTreeEdit = async (
   // 크기가 바뀌면 함께 맞출 값(스프라이트 이동값 비례) - 크기 조절만. 옛 필드 패치는 맞추지 않았다
   resizeValues = true,
 ): Promise<void> => {
-  const result = await store.edit!(
-    // 크기와 함께 맞출 값(스프라이트 이동값 등)도 같은 커밋에
-    resizeValues ? withResizeValues(treeOps) : treeOps,
-    gestureId ? { gestureId } : undefined,
-  );
+  let result: ElementDocumentCommitResult;
+  try {
+    result = await store.edit!(
+      // 크기와 함께 맞출 값(스프라이트 이동값 등)도 같은 커밋에
+      resizeValues ? withResizeValues(treeOps) : treeOps,
+      gestureId ? { gestureId } : undefined,
+    );
+  } catch (error) {
+    // 보류한 편집은 화면에 남고 스토어가 다시 보낸다 - 동작은 끝난 것으로 둬야 다시 확정해 겹쳐 쌓지 않는다
+    if (error instanceof ElementEditHeldError) return;
+    throw error;
+  }
   if (result.status !== 'committed') {
     // 다시 해도 받지 않는 거절이면 이 동작의 미리보기를 버린다 (되돌리기 중은 다시 할 수 있다)
     if (gestureId && result.code !== 'HISTORY_IN_PROGRESS') {
