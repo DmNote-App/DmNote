@@ -45,7 +45,8 @@ pub(crate) const LEGACY_ELEMENT_FIELDS: [&str; 7] = [
 ];
 
 /// 저장용 압축 - 기능 묶음·고유 값의 빈(null) 칸을 뺀다. 읽을 때 빈 칸은 null과 같이 읽힌다
-/// (옛 종류는 Option 칸, 트리 전용 종류는 읽기 정리가 기본값으로 채운다)
+/// (옛 종류는 Option 칸, 트리 전용 종류는 읽기 정리가 기본값으로 채운다).
+/// 플러그인 요소의 값은 규칙표 없는 설정이라 null도 값이다 - 그대로 둔다
 pub(crate) fn compact_document(document: &Document) -> Document {
     let mut compact = document.clone();
     for scene in compact.scenes.values_mut() {
@@ -53,6 +54,9 @@ pub(crate) fn compact_document(document: &Document) -> Document {
             let Node::Element(element) = node else {
                 return;
             };
+            if is_plugin_kind(&element.kind) {
+                return;
+            }
             element.values.retain(|_, value| !value.is_null());
             for bundle in element.bundles.values_mut() {
                 if let Value::Object(fields) = bundle {

@@ -2815,3 +2815,31 @@ fn 노드_단위로_다시_읽어도_문서_단위_칸_플러그인_보존분을
         Some(&serde_json::json!({ "demo": { "raw": [] } }))
     );
 }
+
+#[test]
+fn 저장용_압축은_플러그인_요소_설정의_null_칸을_지킨다() {
+    let mut document = Document::default();
+    let nodes: Vec<element_document::Node> = serde_json::from_value(serde_json::json!([
+        { "type": "element", "id": "demo::i1", "kind": "plugin:demo",
+          "frame": { "x": 0, "y": 0, "width": 1, "height": 1, "rotation": 0 },
+          "values": { "label": null, "size": 3 } },
+        { "type": "element", "id": "t1", "kind": "cursorTracker",
+          "frame": { "x": 0, "y": 0, "width": 1, "height": 1, "rotation": 0 },
+          "values": { "monitor": null } }
+    ]))
+    .unwrap();
+    document.scenes.insert(
+        "4key".into(),
+        element_document::Scene {
+            nodes,
+            extra: Default::default(),
+        },
+    );
+    let compact = super::compact_document(&document);
+    let scene = &compact.scenes["4key"];
+    assert_eq!(
+        scene.element("demo::i1").unwrap().values.get("label"),
+        Some(&serde_json::Value::Null)
+    );
+    assert!(scene.element("t1").unwrap().values.get("monitor").is_none());
+}
