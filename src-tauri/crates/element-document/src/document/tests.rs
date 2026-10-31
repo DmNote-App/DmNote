@@ -71,3 +71,16 @@ fn 키_슬롯은_단일_키나_정규형_멀티_슬롯만_받는다() {
     ));
     assert!(!is_valid_key_slot(&json!(3)));
 }
+
+#[test]
+fn 모르는_입력_종류는_원본_그대로_읽고_그대로_쓴다() {
+    let raw = json!({ "type": "gamepadButton", "button": 3, "pad": "p1" });
+    let input: InputBinding = serde_json::from_value(raw.clone()).unwrap();
+    assert!(matches!(input, InputBinding::Other(_)));
+    assert!(!input.is_valid());
+    assert_eq!(serde_json::to_value(&input).unwrap(), raw);
+    // 아는 종류는 그대로 아는 변형
+    let key: InputBinding =
+        serde_json::from_value(json!({ "type": "key", "slot": "KeyA" })).unwrap();
+    assert!(matches!(key, InputBinding::Key { .. }));
+}

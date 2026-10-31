@@ -1333,7 +1333,10 @@ pub(crate) fn project_document_lenient(document: &Document) -> Result<(EditorDoc
             }
             element.extra = Map::from_iter([(LEGACY.to_string(), Value::Object(info))]);
             if kind == EditorElementTypeV1::Key
-                && !matches!(element.input, Some(InputBinding::Key { .. }))
+                && !matches!(
+                    element.input,
+                    Some(InputBinding::Key { .. }) | Some(InputBinding::Other(_))
+                )
             {
                 element.input = Some(InputBinding::Key {
                     slot: serde_json::to_value(KeySlot::default()).unwrap_or(Value::Null),
@@ -1371,13 +1374,87 @@ fn replace_legacy_elements(nodes: &mut [Node], fresh: &mut HashMap<String, Eleme
             Node::Group(group) => replace_legacy_elements(&mut group.children, fresh),
             Node::Element(element) => {
                 if is_legacy_kind(&element.kind) {
-                    if let Some(next) = fresh.remove(&element.id) {
+                    if let Some(mut next) = fresh.remove(&element.id) {
+                        carry_tree_only(element, &mut next);
                         *element = next;
                     }
                 }
             }
         }
     }
+}
+
+/// 옛 모양에서 다시 만든 요소에 옛 모양이 나타내지 못하는 정보를 그 전 요소에서 옮긴다 -
+/// 이 앱이 모르는 것만(새 버전 앱이 붙인 묶음·묶음 칸·고유 값·요소 칸과 모르는 입력 종류).
+/// 아는 칸은 옛 모양 쓰기가 정한 값 그대로 (지운 값을 되살리지 않게) - 읽기는 너그럽게, 설계 3.5
+fn carry_tree_only(old: &Element, next: &mut Element) {
+    let schema = builtin_kind_registry().get(&next.kind);
+    for (name, value) in &old.values {
+        if schema.is_some_and(|schema| schema.field(name).is_none()) {
+            next.values
+                .entry(name.clone())
+                .or_insert_with(|| value.clone());
+        }
+    }
+    for (name, value) in &old.bundles {
+        match BuiltinBundles::fields(name) {
+            // 이 종류가 쓰는 아는 묶음 - 묶음 안 모르는 칸만
+            Some(fields) if schema.is_some_and(|schema| schema.uses_bundle(name)) => {
+                let (Some(old_fields), Some(Value::Object(next_fields))) =
+                    (value.as_object(), next.bundles.get_mut(name))
+                else {
+                    continue;
+                };
+                for (field, field_value) in old_fields {
+                    if !fields.iter().any(|rule| &rule.name == field) {
+                        next_fields
+                            .entry(field.clone())
+                            .or_insert_with(|| field_value.clone());
+                    }
+                }
+            }
+            // 모르는 묶음이거나 이 종류가 쓰지 않는 묶음
+            _ => {
+                next.bundles
+                    .entry(name.clone())
+                    .or_insert_with(|| value.clone());
+            }
+        }
+    }
+    for (name, value) in &old.extra {
+        if name != LEGACY {
+            next.extra
+                .entry(name.clone())
+                .or_insert_with(|| value.clone());
+        }
+    }
+    if let Some(InputBinding::Other(raw)) = &old.input {
+        let unset = match &next.input {
+            None => true,
+            Some(InputBinding::Key { slot }) => {
+                serde_json::from_value::<KeySlot>(slot.clone()).unwrap_or_default()
+                    == KeySlot::default()
+            }
+            Some(_) => false,
+        };
+        if unset {
+            next.input = Some(InputBinding::Other(raw.clone()));
+        }
+    }
+}
+
+// 다시 만든 장면의 옛 종류 요소마다 그 전 요소의 트리 전용 정보를 옮긴다
+fn carry_scene_tree_only(old: &Scene, scene: &mut Scene) {
+    let previous = take_elements(&old.nodes);
+    element_document::document::walk_mut(&mut scene.nodes, &mut |node| {
+        if let Node::Element(element) = node {
+            if is_legacy_kind(&element.kind) {
+                if let Some(old) = previous.get(&element.id) {
+                    carry_tree_only(old, element);
+                }
+            }
+        }
+    });
 }
 
 fn take_elements(nodes: &[Node]) -> HashMap<String, Element> {
@@ -1553,12 +1630,11 @@ fn reconcile_scene(previous: Option<&Scene>, legacy: LegacyRef<'_>, mode: &str) 
         } else {
             graft_tree_only(old, &mut scene);
         }
+        carry_scene_tree_only(old, &mut scene);
     }
     Ok(scene)
 }
 
-/// 옛 모양으로 들어온 쓰기를 트리에 맞춘다. `before`는 이 쓰기 전 옛 모양 -
-/// 주면 바뀐 장면만, 구조가 그대로면 바뀐 요소만 다시 변환한다
 // 요소 id → 옛 모양에 보이는 숨김 (요소 숨김 또는 숨긴 그룹 안)
 fn effective_hidden(scene: &Scene) -> HashMap<String, bool> {
     let mut hidden = HashMap::new();
@@ -1638,6 +1714,8 @@ fn settle_group_hidden(
     }
 }
 
+/// 옛 모양으로 들어온 쓰기를 트리에 맞춘다. `before`는 이 쓰기 전 옛 모양 -
+/// 주면 바뀐 장면만, 구조가 그대로면 바뀐 요소만 다시 변환한다
 pub(crate) fn reconcile_document<'a, 'b>(
     previous: &Document,
     before: Option<LegacyRef<'b>>,

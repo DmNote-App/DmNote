@@ -123,6 +123,10 @@ pub enum InputBinding {
     },
     // 마우스 포인터 (이동량·화면 위치는 종류 값으로 고른다)
     Pointer {},
+    // 모르는 입력 종류(새 버전 앱이 넣은 것) - 원본 그대로 보존하고 그대로 저장한다
+    #[serde(untagged)]
+    #[cfg_attr(test, ts(skip))]
+    Other(Map<String, Value>),
 }
 
 impl InputBinding {
@@ -131,6 +135,7 @@ impl InputBinding {
             InputBinding::Key { .. } => "keySlot",
             InputBinding::Axis { .. } => "axis",
             InputBinding::Pointer {} => "pointer",
+            InputBinding::Other(_) => "unknown",
         }
     }
 
@@ -138,6 +143,8 @@ impl InputBinding {
         match self {
             InputBinding::Key { slot } => is_valid_key_slot(slot),
             InputBinding::Axis { .. } | InputBinding::Pointer {} => true,
+            // 쓰기는 아는 입력만 - 읽기는 보존한다(load)
+            InputBinding::Other(_) => false,
         }
     }
 }

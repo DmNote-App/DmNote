@@ -203,3 +203,17 @@ fn 다른_장면과_겹쳐_새로_받은_id는_그_장면_참조도_옮긴다() 
         json!("new-1")
     );
 }
+
+#[test]
+fn 불러올_때_모르는_입력_종류는_지우지_않고_보존한다() {
+    let kinds = registry();
+    let mut pad = element("p", "pad", json!({}));
+    pad.input =
+        Some(serde_json::from_value(json!({ "type": "gamepadButton", "button": 3 })).unwrap());
+    let mut doc = document(vec![Node::Element(pad)]);
+    loader(&kinds).load(&mut doc, &mut Sequence(0));
+    assert_eq!(
+        serde_json::to_value(&doc.scenes["tab"].element("p").unwrap().input).unwrap(),
+        json!({ "type": "gamepadButton", "button": 3 })
+    );
+}

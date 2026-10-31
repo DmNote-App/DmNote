@@ -999,3 +999,79 @@ fn 숨긴_그룹의_멤버_하나를_보이게_쓰면_예전처럼_그_멤버만
             .hidden
     );
 }
+
+// 새 버전 앱이 붙인 것 - 이 앱이 모르는 고유 값·묶음·요소 칸과 모르는 입력 종류
+fn decorate_with_future_data(document: &mut Document, id: &str) {
+    let scene = document.scenes.get_mut("4key").unwrap();
+    let element = scene.element_mut(id).unwrap();
+    element.values.insert("futureValue".into(), json!(7));
+    element
+        .bundles
+        .insert("futureBundle".into(), json!({ "glow": true }));
+    if let Some(Value::Object(surface)) = element.bundles.get_mut("surface") {
+        surface.insert("futureSurfaceField".into(), json!("x"));
+    }
+    element.extra.insert("futureCommon".into(), json!("kept"));
+    element.input =
+        Some(serde_json::from_value(json!({ "type": "gamepadButton", "button": 3 })).unwrap());
+}
+
+fn assert_future_data_kept(document: &Document, id: &str) {
+    let element = document.scenes["4key"].element(id).unwrap();
+    assert_eq!(element.values.get("futureValue"), Some(&json!(7)));
+    assert_eq!(
+        element.bundles.get("futureBundle"),
+        Some(&json!({ "glow": true }))
+    );
+    if let Some(Value::Object(surface)) = element.bundles.get("surface") {
+        assert_eq!(surface.get("futureSurfaceField"), Some(&json!("x")));
+    }
+    assert_eq!(element.extra.get("futureCommon"), Some(&json!("kept")));
+    assert_eq!(
+        serde_json::to_value(&element.input).unwrap(),
+        json!({ "type": "gamepadButton", "button": 3 })
+    );
+}
+
+#[test]
+fn 옛_모양_쓰기로_다시_만든_요소도_모르는_새_버전_정보를_지킨다() {
+    let legacy = sample();
+    let id = legacy.key_positions["4key"][0].id.clone();
+    let mut document = import_document(&legacy).unwrap();
+    decorate_with_future_data(&mut document, &id);
+    let seen = project_document(&document).unwrap();
+
+    // 구조가 같은 쓰기 - 바뀐 요소만 다시 만든다
+    let mut edited = seen.clone();
+    edited.key_positions.get_mut("4key").unwrap()[0].dx = 321.0;
+    let next = reconcile_document(&document, Some(LegacyRef::from(&seen)), &edited).unwrap();
+    assert_eq!(next.scenes["4key"].element(&id).unwrap().frame.x, 321.0);
+    assert_future_data_kept(&next, &id);
+
+    // 구조가 바뀐 쓰기 - 장면을 다시 만든다
+    let mut reordered = seen.clone();
+    reordered.key_positions.get_mut("4key").unwrap().swap(1, 2);
+    reordered.keys.get_mut("4key").unwrap().swap(1, 2);
+    let next = reconcile_document(&document, Some(LegacyRef::from(&seen)), &reordered).unwrap();
+    assert_future_data_kept(&next, &id);
+}
+
+#[test]
+fn 옛_모양_쓰기가_지운_아는_칸은_되살리지_않는다() {
+    let legacy = sample();
+    let mut document = import_document(&legacy).unwrap();
+    let sprite_id = legacy.sprite_positions["4key"][0].id.clone();
+    let seen = project_document(&document).unwrap();
+    let mut edited = seen.clone();
+    edited.sprite_positions.get_mut("4key").unwrap()[0].base_image = None;
+    document = reconcile_document(&document, Some(LegacyRef::from(&seen)), &edited).unwrap();
+    let projected = project_document(&document).unwrap();
+    assert_eq!(
+        projected.sprite_positions["4key"]
+            .iter()
+            .find(|sprite| sprite.id == sprite_id)
+            .unwrap()
+            .base_image,
+        None
+    );
+}

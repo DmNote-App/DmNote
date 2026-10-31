@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::bundles::BundleCatalog;
-use crate::document::{walk_mut, Document, Element, Frame, Node};
+use crate::document::{walk_mut, Document, Element, Frame, InputBinding, Node};
 use crate::schema::{KindRegistry, KindSchema, MigrationStep};
 use crate::value::{normalize_fields, ReferenceScope};
 
@@ -241,7 +241,12 @@ impl Loader<'_> {
             element.bundles = bundles;
             changed = true;
         }
-        if let Some(input) = &element.input {
+        // 모르는 입력 종류(새 버전 앱)는 보존한다 - 읽기는 너그럽게
+        if let Some(input) = element
+            .input
+            .as_ref()
+            .filter(|input| !matches!(input, InputBinding::Other(_)))
+        {
             if !schema.accepts_input(input.type_name()) || !input.is_valid() {
                 element.input = None;
                 changed = true;
