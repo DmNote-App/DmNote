@@ -378,8 +378,9 @@ impl AppStore {
         // 공개 storage의 개별 키는 canonical 배치와 독립이다. 다만 플러그인
         // 전체 namespace clear는 1.6.1의 "모든 데이터 삭제" 계약대로 내부
         // 배치도 함께 지운다. cache/ 같은 하위 prefix에는 적용하지 않음
-        // 인스턴스 버킷은 트리에 있다 - 플러그인 전체 namespace면 그 버킷도 지운다
-        let bucket_plugin_id = namespace_plugin_id
+        // 인스턴스 버킷은 트리에 있다 - 예전처럼 접두어가 버킷 키에 맞으면(전체 namespace 포함) 그 버킷도 지운다
+        let bucket_plugin_id = plugin_id_under_prefix(prefix)
+            .filter(|plugin_id| plugin_instances_storage_key(plugin_id).starts_with(prefix))
             .filter(|plugin_id| read_plugin_instance_bucket(&guard.data, plugin_id).is_some())
             .map(str::to_string);
         let mut keys = guard
@@ -440,4 +441,12 @@ impl AppStore {
             _admission: admission,
         })
     }
+}
+
+// 접두어가 가리키는 플러그인 - `plugin_data_{id}/…`의 id (namespace 안 하위 접두어 포함)
+fn plugin_id_under_prefix(prefix: &str) -> Option<&str> {
+    let rest = prefix.strip_prefix(crate::state::plugin::PLUGIN_DATA_KEY_PREFIX)?;
+    let (plugin_id, _) = rest.split_once('/')?;
+    crate::state::plugin::validate_plugin_id(plugin_id).ok()?;
+    Some(plugin_id)
 }

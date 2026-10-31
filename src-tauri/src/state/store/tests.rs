@@ -18306,3 +18306,38 @@ fn plugin_instance_bucket_assets_in_tree_remain_until_released() {
     assert!(!image_path.exists());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn clear_by_sub_prefix_still_removes_the_instances_bucket_like_before() {
+    // 예전에는 인스턴스 버킷도 storage 키였다 - 키에 맞는 하위 접두어로 지우면 함께 지워졌다
+    let dir = test_directory("plugin-clear-sub-prefix");
+    let store = AppStore::initialize_in_dir(&dir).unwrap();
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        crate::state::plugin::write_plugin_instance_bucket(
+            &mut scratch,
+            "demo",
+            Some(
+                json!([{ "instanceId": "00000000-0000-4000-8000-0000000000d1",
+                "position": { "x": 0, "y": 0 }, "tabId": "4key" }]),
+            ),
+        );
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    // 버킷 키와 맞지 않는 하위 접두어는 버킷을 지키고
+    drop(
+        store
+            .remove_plugin_data_by_prefix("plugin_data_demo/cache/")
+            .unwrap(),
+    );
+    assert!(crate::state::plugin::read_plugin_instance_bucket(&store.snapshot(), "demo").is_some());
+    // 맞으면 지운다
+    let removed = store
+        .remove_plugin_data_by_prefix("plugin_data_demo/inst")
+        .unwrap();
+    assert_eq!(removed.value, 1);
+    assert!(crate::state::plugin::read_plugin_instance_bucket(&store.snapshot(), "demo").is_none());
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(dir);
+}
