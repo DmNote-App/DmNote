@@ -112,6 +112,13 @@ const whenTreeCaughtUp = (store: ElementDocumentStore, revision: number) =>
     });
   });
 
+// 다시 해도 받지 않는 실패 - 이 동작의 미리보기를 버린다
+const discardGesture = (gestureId: string) => {
+  markGestureSessionsDiscarded([gestureId]);
+  previewOverlay.endSessions([gestureId]);
+  previewApi.cancel(gestureId).catch(() => {});
+};
+
 // 트리 편집 보내기 - 트리 스토어가 낙관 적용하고, 반영된 뒤 끝난다.
 // 거부·실패는 오류로 올린다(호출자가 알린다) - 옛 경로로 다시 보내면 뒤에 줄 선 편집을 덮을 수 있다
 const sendTreeEdit = async (
@@ -131,14 +138,14 @@ const sendTreeEdit = async (
   } catch (error) {
     // 보류한 편집은 화면에 남고 스토어가 다시 보낸다 - 동작은 끝난 것으로 둬야 다시 확정해 겹쳐 쌓지 않는다
     if (error instanceof ElementEditHeldError) return;
+    // 되돌린 실패 - 거절과 같이 이 동작을 버려 다음 정산이 같은 실패(안내)를 되풀이하지 않게
+    if (gestureId) discardGesture(gestureId);
     throw error;
   }
   if (result.status !== 'committed') {
     // 다시 해도 받지 않는 거절이면 이 동작의 미리보기를 버린다 (되돌리기 중은 다시 할 수 있다)
     if (gestureId && result.code !== 'HISTORY_IN_PROGRESS') {
-      markGestureSessionsDiscarded([gestureId]);
-      previewOverlay.endSessions([gestureId]);
-      previewApi.cancel(gestureId).catch(() => {});
+      discardGesture(gestureId);
     }
     throw new Error(`[ElementDocument] edit rejected: ${result.code}`);
   }

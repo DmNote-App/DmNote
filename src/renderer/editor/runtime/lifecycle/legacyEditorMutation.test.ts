@@ -29,6 +29,7 @@ vi.mock('@api/modules/editor/editorApi', () => ({
 }));
 
 import { enqueueEditorCompatibilityWrite } from './editorCompatibilityQueue';
+import { registerHeldEditorWrites } from './editorWriteBarrier';
 import {
   commitLegacyEditorPatch,
   runExclusiveLegacyMutation,
@@ -93,6 +94,20 @@ describe('runExclusiveLegacyMutation', () => {
     await runExclusiveLegacyMutation(async () => 'ok');
 
     expect(order.cancel).not.toHaveBeenCalled();
+  });
+
+  it('보류한 트리 편집을 먼저 보내고, 남으면 mutation을 하지 않는다', async () => {
+    registerHeldEditorWrites(async () => {
+      order.calls.push('held');
+      return false;
+    });
+    const mutation = vi.fn(async () => 'ok');
+    await expect(runExclusiveLegacyMutation(mutation)).rejects.toThrow(
+      'held editor writes',
+    );
+    expect(order.calls).toEqual(['settle', 'held']);
+    expect(mutation).not.toHaveBeenCalled();
+    registerHeldEditorWrites(null);
   });
 
   it('compat 큐 선행 작업 뒤에 실행된다', async () => {

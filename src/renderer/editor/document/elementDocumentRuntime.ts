@@ -46,11 +46,8 @@ const create = async (): Promise<ElementDocumentStore> => {
     const store = createEditorDocumentStore(initial, transport, {
       isTransient: isTransientTreeWriteFailure,
     });
-    registerHeldEditorWrites(() =>
-      store.getHeldCount?.()
-        ? store.retryHeld?.() ?? Promise.resolve(false)
-        : Promise.resolve(true),
-    );
+    // 보류가 없어도 차례를 탄다 - 이미 돌고 있는 다시 보내기(보류 목록은 시작하자마자 비운다)를 기다린다
+    registerHeldEditorWrites(() => store.retryHeld!());
     return store;
   }
   const store = createMirrorDocumentStore(initial, transport);

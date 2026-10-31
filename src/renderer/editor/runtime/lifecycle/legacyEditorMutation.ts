@@ -1,5 +1,6 @@
 import { editGestureController } from '../gesture/editGestureController';
 import { enqueueEditorCompatibilityOperation } from './editorCompatibilityQueue';
+import { flushHeldEditorWrites } from './editorWriteBarrier';
 import { editorApi, editorCommitRaw } from '@api/modules/editor/editorApi';
 import type {
   CanonicalEditorDocumentV1,
@@ -36,6 +37,10 @@ export const runExclusiveLegacyMutation = async <T>(
     // 재작성한 참조 위에 옛 patch가 blur·flush 재시도로 재적용되어 삭제된
     // 참조가 부활한다 - 지금의 사용자 의도는 mutation 쪽이다
     editGestureController.cancel();
+  }
+  // 보류한 트리 편집도 먼저 보낸다 - mutation 뒤에 다시 보내면 재작성한 참조 위에 옛 값을 덮는다
+  if (!(await flushHeldEditorWrites())) {
+    throw new Error('held editor writes failed before exclusive mutation');
   }
   return enqueueEditorCompatibilityOperation(mutation);
 };
