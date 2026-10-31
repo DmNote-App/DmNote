@@ -182,27 +182,42 @@ fn 트리_쓰기는_옛_종류_요소를_고치지_못한다() {
 }
 
 #[test]
-fn 그룹_숨김처럼_트리에만_있는_정보는_커밋하고_리비전이_오른다() {
+fn 그룹_숨김은_트리_플래그로_두고_옛_모양에는_예전처럼_멤버_숨김으로_보인다() {
     let (dir, store) = open_store();
-    let (revision, _) = store.element_document_snapshot();
-    let op: Op = serde_json::from_value(serde_json::json!({
-        "op": "setGroup", "scene": "4key", "id": "g1", "hidden": true
-    }))
-    .unwrap();
-    let result = store.commit_element_document(&[op]).unwrap();
-    let ElementDocumentCommitResult::Committed {
-        revision: next,
-        changes,
-    } = result
-    else {
-        panic!("{result:?}");
-    };
-    assert_eq!(next, revision + 1);
-    assert!(changes.scenes["4key"].changed.contains("g1"));
-    // 옛 모양은 그대로
-    assert!(store.snapshot().legacy().layer_groups["4key"]
+    let members: Vec<String> = store.snapshot().legacy().key_positions["4key"]
         .iter()
-        .any(|group| group.id == "g1"));
+        .filter(|position| position.group_id.as_deref() == Some("g1"))
+        .map(|position| position.id.clone())
+        .collect();
+    assert!(!members.is_empty());
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "setGroup", "scene": "4key", "id": "g1", "hidden": true }]),
+    );
+    let (_, document) = store.element_document_snapshot();
+    let scene = &document.scenes["4key"];
+    let mut group_hidden = None;
+    element_document::document::walk(&scene.nodes, &mut |node, _| {
+        if let element_document::Node::Group(group) = node {
+            if group.id == "g1" {
+                group_hidden = Some(group.hidden);
+            }
+        }
+    });
+    assert_eq!(group_hidden, Some(true));
+    for id in &members {
+        // 요소 자체 숨김은 그대로 - 그룹 숨김을 풀면 다시 보인다
+        assert!(!scene.element(id).unwrap().hidden);
+        assert!(store.snapshot().legacy().key_positions["4key"]
+            .iter()
+            .any(|position| &position.id == id && position.hidden));
+    }
+    // 되돌리면 그룹 숨김이 풀리고 옛 모양 멤버도 다시 보인다
+    undo(&store).unwrap();
+    assert!(store.snapshot().legacy().key_positions["4key"]
+        .iter()
+        .filter(|position| members.contains(&position.id))
+        .all(|position| !position.hidden));
 
     let rename: Op = serde_json::from_value(serde_json::json!({
         "op": "setGroup", "scene": "4key", "id": "g1", "name": "바뀜"

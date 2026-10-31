@@ -906,3 +906,96 @@ fn 정의에_있는_묶음_칸이_옛_칸에_남아_있으면_묶음으로_올�
         Some("a.png")
     );
 }
+
+// 그룹 숨김(트리 플래그)을 옛 모양에서는 예전처럼 멤버마다 숨김으로 보인다
+fn hide_group(document: &mut Document, group: &str) {
+    let engine = Engine {
+        kinds: builtin_kind_registry(),
+        bundles: &BuiltinBundles,
+    };
+    engine
+        .apply(
+            document,
+            &[Op::SetGroup {
+                scene: "4key".into(),
+                id: group.into(),
+                name: None,
+                hidden: Some(true),
+            }],
+        )
+        .unwrap();
+}
+
+fn group_hidden(document: &Document, group: &str) -> Option<bool> {
+    let mut hidden = None;
+    walk(&document.scenes["4key"].nodes, &mut |node, _| {
+        if let Node::Group(found) = node {
+            if found.id == group {
+                hidden = Some(found.hidden);
+            }
+        }
+    });
+    hidden
+}
+
+#[test]
+fn 숨긴_그룹의_멤버는_옛_모양에서_숨김으로_보인다() {
+    let legacy = sample();
+    let mut document = import_document(&legacy).unwrap();
+    hide_group(&mut document, "g1");
+    let projected = project_document(&document).unwrap();
+    let keys = &projected.key_positions["4key"];
+    assert!(keys[0].hidden);
+    assert!(keys[2].hidden);
+    assert!(!keys[1].hidden);
+    assert!(projected.graph_positions["4key"][0].position.hidden);
+}
+
+#[test]
+fn 숨긴_그룹의_멤버를_읽은_그대로_되써도_요소_숨김은_박히지_않는다() {
+    let legacy = sample();
+    let mut document = import_document(&legacy).unwrap();
+    hide_group(&mut document, "g1");
+    let seen = project_document(&document).unwrap();
+    let mut edited = seen.clone();
+    edited.key_positions.get_mut("4key").unwrap()[0].dx = 777.0;
+    let next = reconcile_document(&document, Some(LegacyRef::from(&seen)), &edited).unwrap();
+    let key = next.scenes["4key"]
+        .element(&legacy.key_positions["4key"][0].id)
+        .unwrap();
+    assert_eq!(key.frame.x, 777.0);
+    // 그룹 숨김에서 온 값 - 요소 자체 숨김은 그대로, 그룹은 계속 숨김
+    assert!(!key.hidden);
+    assert_eq!(group_hidden(&next, "g1"), Some(true));
+}
+
+#[test]
+fn 숨긴_그룹의_멤버_하나를_보이게_쓰면_예전처럼_그_멤버만_보인다() {
+    let legacy = sample();
+    let mut document = import_document(&legacy).unwrap();
+    hide_group(&mut document, "g1");
+    let seen = project_document(&document).unwrap();
+    let mut edited = seen.clone();
+    edited.key_positions.get_mut("4key").unwrap()[0].hidden = false;
+    let next = reconcile_document(&document, Some(LegacyRef::from(&seen)), &edited).unwrap();
+    let scene = &next.scenes["4key"];
+    assert_eq!(group_hidden(&next, "g1"), Some(false));
+    assert!(
+        !scene
+            .element(&legacy.key_positions["4key"][0].id)
+            .unwrap()
+            .hidden
+    );
+    assert!(
+        scene
+            .element(&legacy.key_positions["4key"][2].id)
+            .unwrap()
+            .hidden
+    );
+    assert!(
+        scene
+            .element(&legacy.graph_positions["4key"][0].position.id)
+            .unwrap()
+            .hidden
+    );
+}

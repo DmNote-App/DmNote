@@ -142,6 +142,27 @@ impl<'a> ModeView<'a> {
         }
     }
 
+    // 요소 id → 옛 모양 숨김
+    fn element_hidden(&self) -> HashMap<&'a str, bool> {
+        let mut hidden = HashMap::new();
+        for position in self.key.into_iter().flatten() {
+            hidden.insert(position.id.as_str(), position.hidden);
+        }
+        for stat in self.stat.into_iter().flatten() {
+            hidden.insert(stat.position.id.as_str(), stat.position.hidden);
+        }
+        for graph in self.graph.into_iter().flatten() {
+            hidden.insert(graph.position.id.as_str(), graph.position.hidden);
+        }
+        for knob in self.knob.into_iter().flatten() {
+            hidden.insert(knob.position.id.as_str(), knob.position.hidden);
+        }
+        for sprite in self.sprite.into_iter().flatten() {
+            hidden.insert(sprite.id.as_str(), sprite.hidden);
+        }
+        hidden
+    }
+
     fn len(&self, kind: EditorElementTypeV1) -> Option<usize> {
         match kind {
             EditorElementTypeV1::Key => self.key.map(Vec::len),
@@ -731,6 +752,8 @@ struct ProjectedElement<'a> {
     // 트리에서의 겹치는 순서 (아래가 0)
     order: usize,
     group_id: Option<String>,
+    // 숨긴 그룹 안 - 옛 모양은 예전처럼 멤버 숨김으로 보인다
+    hidden_by_group: bool,
 }
 
 fn projected_object(entry: &ProjectedElement<'_>, z_index: Option<i64>) -> Map<String, Value> {
@@ -791,7 +814,10 @@ fn projected_object(entry: &ProjectedElement<'_>, z_index: Option<i64>) -> Map<S
     object.insert("width".into(), json!(element.frame.width));
     object.insert("height".into(), json!(element.frame.height));
     object.insert("rotation".into(), json!(element.frame.rotation));
-    object.insert("hidden".into(), json!(element.hidden));
+    object.insert(
+        "hidden".into(),
+        json!(element.hidden || entry.hidden_by_group),
+    );
     object.insert("layerName".into(), json!(element.name));
     object.insert("className".into(), json!(element.class_name));
     object.insert("useInlineStyles".into(), json!(element.use_inline_styles));
@@ -809,17 +835,19 @@ fn projected_object(entry: &ProjectedElement<'_>, z_index: Option<i64>) -> Map<S
 fn collect_projection(scene: &Scene) -> (Vec<ProjectedElement<'_>>, Vec<&Group>) {
     let mut elements = Vec::new();
     let mut groups = Vec::new();
-    let mut ancestors: Vec<(usize, String)> = Vec::new();
+    // (깊이, 그룹 id, 이 그룹까지 숨김)
+    let mut ancestors: Vec<(usize, String, bool)> = Vec::new();
     let mut order = 0;
     walk(&scene.nodes, &mut |node, path| {
-        ancestors.retain(|(depth, _)| *depth < path.len());
+        ancestors.retain(|(depth, _, _)| *depth < path.len());
+        let hidden_above = ancestors.last().is_some_and(|(_, _, hidden)| *hidden);
         match node {
             Node::Group(group) => {
                 // 트리 전용 그룹은 옛 모양(layerGroups)에 나타나지 않는다
                 if !is_tree_only_group(group) {
                     groups.push(group);
                 }
-                ancestors.push((path.len(), group.id.clone()));
+                ancestors.push((path.len(), group.id.clone(), hidden_above || group.hidden));
             }
             Node::Element(element) => {
                 if let Some(kind) = kind_of(&element.kind) {
@@ -827,7 +855,8 @@ fn collect_projection(scene: &Scene) -> (Vec<ProjectedElement<'_>>, Vec<&Group>)
                         element,
                         kind,
                         order,
-                        group_id: ancestors.last().map(|(_, id)| id.clone()),
+                        group_id: ancestors.last().map(|(_, id, _)| id.clone()),
+                        hidden_by_group: hidden_above,
                     });
                 }
                 order += 1;
@@ -1530,6 +1559,85 @@ fn reconcile_scene(previous: Option<&Scene>, legacy: LegacyRef<'_>, mode: &str) 
 
 /// 옛 모양으로 들어온 쓰기를 트리에 맞춘다. `before`는 이 쓰기 전 옛 모양 -
 /// 주면 바뀐 장면만, 구조가 그대로면 바뀐 요소만 다시 변환한다
+// 요소 id → 옛 모양에 보이는 숨김 (요소 숨김 또는 숨긴 그룹 안)
+fn effective_hidden(scene: &Scene) -> HashMap<String, bool> {
+    let mut hidden = HashMap::new();
+    let mut ancestors: Vec<(usize, bool)> = Vec::new();
+    walk(&scene.nodes, &mut |node, path| {
+        ancestors.retain(|(depth, _)| *depth < path.len());
+        let above = ancestors.last().is_some_and(|(_, hidden)| *hidden);
+        match node {
+            Node::Group(group) => ancestors.push((path.len(), above || group.hidden)),
+            Node::Element(element) => {
+                hidden.insert(element.id.clone(), above || element.hidden);
+            }
+        }
+    });
+    hidden
+}
+
+/// 숨긴 그룹 멤버의 옛 모양 숨김을 트리에 맞춘다 - 옛 모양은 그룹 숨김을 멤버 숨김으로 보인다.
+/// 쓴 쪽이 본 값 그대로면(그룹 숨김에서 온 값) 요소 숨김은 그 전 값으로 두고, 숨긴 그룹의 멤버를
+/// 보이게 바꿨으면 예전처럼 그 멤버만 보이게(그룹 숨김을 풀고 나머지 멤버를 숨긴다)
+fn settle_group_hidden(
+    scene: &mut Scene,
+    old: Option<&Scene>,
+    written: &HashMap<&str, bool>,
+    seen: &HashMap<String, bool>,
+) {
+    // 가장 바깥 숨긴 그룹과 그 안 요소
+    let mut outermost: Vec<(String, Vec<String>)> = Vec::new();
+    let mut ancestors: Vec<(usize, bool)> = Vec::new();
+    walk(&scene.nodes, &mut |node, path| {
+        ancestors.retain(|(depth, _)| *depth < path.len());
+        let above = ancestors.last().is_some_and(|(_, hidden)| *hidden);
+        match node {
+            Node::Group(group) => {
+                if group.hidden && !above {
+                    outermost.push((group.id.clone(), Vec::new()));
+                }
+                ancestors.push((path.len(), above || group.hidden));
+            }
+            Node::Element(element) if above => {
+                if let Some((_, members)) = outermost.last_mut() {
+                    members.push(element.id.clone());
+                }
+            }
+            Node::Element(_) => {}
+        }
+    });
+    for (group_id, members) in outermost {
+        let shown = members
+            .iter()
+            .any(|id| written.get(id.as_str()) == Some(&false) && seen.get(id) != Some(&false));
+        let own_hidden = |id: &str| {
+            old.and_then(|old| old.element(id))
+                .map(|element| element.hidden)
+                .unwrap_or(false)
+        };
+        let mut flags: HashMap<String, bool> = HashMap::new();
+        for id in &members {
+            let flag = match written.get(id.as_str()) {
+                // 예전처럼 그 멤버만 보이게 - 쓰지 않은 멤버(트리 전용·플러그인)는 숨김 유지
+                _ if shown => written.get(id.as_str()).copied().unwrap_or(true),
+                // 그룹 숨김에서 온 값 - 요소 자체 숨김은 그 전 값
+                Some(_) => own_hidden(id),
+                None => continue,
+            };
+            flags.insert(id.clone(), flag);
+        }
+        element_document::document::walk_mut(&mut scene.nodes, &mut |node| match node {
+            Node::Group(group) if shown && group.id == group_id => group.hidden = false,
+            Node::Element(element) => {
+                if let Some(flag) = flags.get(&element.id) {
+                    element.hidden = *flag;
+                }
+            }
+            Node::Group(_) => {}
+        });
+    }
+}
+
 pub(crate) fn reconcile_document<'a, 'b>(
     previous: &Document,
     before: Option<LegacyRef<'b>>,
@@ -1549,9 +1657,12 @@ pub(crate) fn reconcile_document<'a, 'b>(
         let old = previous.scenes.get(&mode);
         let after_view = ModeView::of(legacy, &mode);
         let before_view = before.map(|before| ModeView::of(before, &mode));
-        let scene = match (old, before_view) {
+        let mut scene = match (old, &before_view) {
             // 이 탭은 그대로
-            (Some(old), Some(before_view)) if before_view == after_view => old.clone(),
+            (Some(old), Some(before_view)) if *before_view == after_view => {
+                next.scenes.insert(mode, old.clone());
+                continue;
+            }
             // 구조가 같으면 바뀐 요소만
             (Some(old), Some(before_view)) if before_view.structure() == after_view.structure() => {
                 let mut scene = old.clone();
@@ -1574,6 +1685,16 @@ pub(crate) fn reconcile_document<'a, 'b>(
             }
             _ => reconcile_scene(old, legacy, &mode)?,
         };
+        // 쓴 쪽이 본 숨김 - 이전 보기, 없으면 지금 트리가 옛 모양에 보이는 값
+        let seen: HashMap<String, bool> = match &before_view {
+            Some(view) => view
+                .element_hidden()
+                .into_iter()
+                .map(|(id, hidden)| (id.to_string(), hidden))
+                .collect(),
+            None => old.map(effective_hidden).unwrap_or_default(),
+        };
+        settle_group_hidden(&mut scene, old, &after_view.element_hidden(), &seen);
         next.scenes.insert(mode, scene);
     }
     Ok(next)

@@ -372,10 +372,13 @@ fn touches_legacy(document: &Document, op: &Op) -> bool {
         | Op::SetValues { scene, id, .. }
         | Op::SetBundle { scene, id, .. }
         | Op::SetInput { scene, id, .. } => !element_target(scene, id),
-        // 그룹 숨김은 트리에만 있는 정보, 이름은 트리 전용 그룹만
+        // 옛 그룹의 이름·숨김은 옛 모양에 보인다(숨김은 멤버 숨김으로) - 트리 전용 그룹만 트리 커밋
         Op::SetGroup {
-            scene, id, name, ..
-        } => name.is_some() && !tree_only_target(document, scene, id),
+            scene,
+            id,
+            name,
+            hidden,
+        } => (name.is_some() || hidden.is_some()) && !tree_only_target(document, scene, id),
         Op::Ungroup { scene, id } => !tree_only_target(document, scene, id),
         Op::AddScene { .. } | Op::RemoveScene { .. } => true,
     }
