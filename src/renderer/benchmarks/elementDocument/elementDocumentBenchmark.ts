@@ -238,6 +238,15 @@ const dispatchKey = (key: string, init: KeyboardEventInit = {}) => {
 const firstKeyNode = () =>
   document.querySelector<HTMLElement>('[data-key-element]');
 
+// 키가 화면에 놓인 상자 - 트리 편집 화면은 요소 틀(data-element-id)이, 옛 화면은 키 자체가 위치를 든다
+const keyBoxStyle = (id: string | undefined) =>
+  (id
+    ? document.querySelector<HTMLElement>(`[data-element-id="${id}"]`)
+    : null
+  )?.getAttribute('style') ??
+  firstKeyNode()?.getAttribute('style') ??
+  '';
+
 const measure = async (config: BenchmarkConfig) => {
   const samples: Record<string, number[]> = {
     arrowNudgePaintMs: [],
@@ -265,12 +274,11 @@ const measure = async (config: BenchmarkConfig) => {
     .setSelectedElements([{ type: 'key', id: keyIds[0], index: 0 }]);
   await afterPaintOpportunity();
   for (let iteration = 0; iteration < config.iterations; iteration += 1) {
-    const node = firstKeyNode();
-    const before = node?.getAttribute('style') ?? '';
+    const before = keyBoxStyle(keyIds[0]);
     samples.arrowNudgePaintMs.push(
       await paintAfterMutation(
         () => dispatchKey(iteration % 2 === 0 ? 'ArrowRight' : 'ArrowLeft'),
-        () => (firstKeyNode()?.getAttribute('style') ?? '') !== before,
+        () => keyBoxStyle(keyIds[0]) !== before,
       ),
     );
     await new Promise((resolve) => setTimeout(resolve, 60));
@@ -383,8 +391,7 @@ const measure = async (config: BenchmarkConfig) => {
         }
       }
     }
-    const node = firstKeyNode();
-    const before = node?.getAttribute('style') ?? '';
+    const before = keyBoxStyle(keyIds[0]);
     samples.documentReplaceMs.push(
       await paintAfterMutation(
         async () => {
@@ -402,7 +409,7 @@ const measure = async (config: BenchmarkConfig) => {
             multiKey: true,
           } as never);
         },
-        () => (firstKeyNode()?.getAttribute('style') ?? '') !== before,
+        () => keyBoxStyle(keyIds[0]) !== before,
       ),
     );
   }
