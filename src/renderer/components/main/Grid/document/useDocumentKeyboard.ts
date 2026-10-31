@@ -26,8 +26,8 @@ import {
 import { structureTargetIds } from './treeEditedSelection';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
+// 옛 종류 방향키와 같은 거리 (Shift를 쓰지 않는다)
 const ARROW_STEP = 1;
-const ARROW_STEP_LARGE = 10;
 // 옛 종류 방향키와 같은 되돌리기 병합 간격
 const ARROW_HISTORY_MERGE_MS = 500;
 
@@ -124,10 +124,7 @@ export const useDocumentKeyboard = () => {
         }
         return;
       }
-      // 섞인 선택은 옛 종류와 같은 거리 (옛 종류는 Shift를 쓰지 않는다)
-      const legacyArrow = isGridKeyHandled(event);
-      const step =
-        event.shiftKey && !legacyArrow ? ARROW_STEP_LARGE : ARROW_STEP;
+      const step = ARROW_STEP;
       const delta =
         event.key === 'ArrowLeft'
           ? { x: -step, y: 0 }

@@ -88,7 +88,7 @@ describe('트리 요소 키보드', () => {
     useDocumentSelectionStore.getState().clear();
   });
 
-  it('화살표는 1px, Shift는 10px 옮기고 여러 개는 한 커밋으로 옮긴다', () => {
+  it('화살표는 Shift와 상관없이 1px 옮기고(옛 종류와 같다) 여러 개는 한 커밋으로 옮긴다', () => {
     useDocumentSelectionStore.getState().select('4key', 't1');
     press('ArrowRight');
     press('ArrowUp', { shiftKey: true });
@@ -101,7 +101,7 @@ describe('트리 요소 키보드', () => {
     expect(mocks.move).toHaveBeenNthCalledWith(
       2,
       '4key',
-      [{ id: 't1', x: 10, y: 10 }],
+      [{ id: 't1', x: 10, y: 19 }],
       { gestureId: expect.any(String) },
     );
     // 연달아 누른 이동은 한 되돌리기 단계
