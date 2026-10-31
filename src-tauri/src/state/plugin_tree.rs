@@ -8,7 +8,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use element_document::document::walk;
 use element_document::schema::EXTERNAL_KIND_PREFIX;
-use element_document::{Document, Element, Frame, Node};
+use element_document::{Document, Element, Frame, Node, Op};
 use serde_json::{json, Map, Value};
 
 use super::plugin::normalize_plugin_instance_tab_id;
@@ -29,6 +29,40 @@ pub(crate) fn plugin_kind(plugin_id: &str) -> String {
 /// 요소 id - 프론트 fullId와 같다 (플러그인 사이 instanceId 중복은 합법)
 pub(crate) fn plugin_element_id(plugin_id: &str, instance_id: &str) -> String {
     format!("{plugin_id}::{instance_id}")
+}
+
+/// 이미 사라진 플러그인 요소의 지우기는 뺀다 - 플러그인 노드는 인스턴스 목록 쓰기(플러그인 스크립트·자동 저장)로도
+/// 사라지므로, 편집기가 먼저 보낸(또는 보류했다 다시 보낸) 지우기가 함께 지우는 다른 요소까지 거절당하지 않게
+pub(crate) fn skip_removed_plugin_nodes(document: &Document, ops: &[Op]) -> Option<Vec<Op>> {
+    let gone = |scene: &str, id: &str| {
+        id.contains("::")
+            && document
+                .scenes
+                .get(scene)
+                .is_none_or(|scene| scene.parent_of(id).is_none())
+    };
+    let touches = ops.iter().any(|op| match op {
+        Op::Remove { scene, ids } => ids.iter().any(|id| gone(scene, id)),
+        _ => false,
+    });
+    if !touches {
+        return None;
+    }
+    Some(
+        ops.iter()
+            .filter_map(|op| match op {
+                Op::Remove { scene, ids } => {
+                    let ids: Vec<String> =
+                        ids.iter().filter(|id| !gone(scene, id)).cloned().collect();
+                    (!ids.is_empty()).then(|| Op::Remove {
+                        scene: scene.clone(),
+                        ids,
+                    })
+                }
+                op => Some(op.clone()),
+            })
+            .collect(),
+    )
 }
 
 pub(crate) fn plugin_id_of_kind(kind: &str) -> Option<&str> {

@@ -146,17 +146,13 @@ export const insertLegacyShapedElement = (
   ]).then((result) => (result?.status === 'committed' ? id : null));
 };
 
-/** 지우기 - 다 고른 트리 그룹은 그룹째 지운다 */
-export const removeDocumentElements = (
-  sceneId: string,
-  ids: string[],
-  options?: { gestureId?: string },
-) => {
+/** 지우기 연산 - 다 고른 트리 그룹은 그룹째. 지운 요소는 선택에서 뺀다 (남은 id가 다음 편집에 실리면
+ * 백엔드가 편집 전체를 거절한다) */
+export const documentRemoveOps = (sceneId: string, ids: string[]): Op[] => {
   const roots = documentGroupRoots(
     getElementDocumentStore()?.getScene(sceneId),
     ids,
   );
-  // 지운 요소는 선택에서 뺀다 - 남은 id가 다음 편집에 실리면 백엔드가 편집 전체를 거절한다
   const selection = useDocumentSelectionStore.getState();
   const removed = new Set(ids);
   if (
@@ -168,11 +164,17 @@ export const removeDocumentElements = (
       selection.selectedIds.filter((id) => !removed.has(id)),
     );
   }
-  return editDocument(
-    [{ op: 'remove', scene: sceneId, ids: roots.length > 0 ? roots : ids }],
-    options,
-  );
+  return [
+    { op: 'remove', scene: sceneId, ids: roots.length > 0 ? roots : ids },
+  ];
 };
+
+/** 지우기 - 다 고른 트리 그룹은 그룹째 지운다 */
+export const removeDocumentElements = (
+  sceneId: string,
+  ids: string[],
+  options?: { gestureId?: string },
+) => editDocument(documentRemoveOps(sceneId, ids), options);
 
 export const setDocumentFrame = (
   sceneId: string,

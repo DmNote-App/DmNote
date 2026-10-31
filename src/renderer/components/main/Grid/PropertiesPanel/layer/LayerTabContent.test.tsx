@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   edit: vi.fn(() => Promise.resolve(null)),
   setCommon: vi.fn(() => Promise.resolve(null)),
   group: vi.fn(() => Promise.resolve(null)),
-  pluginHidden: vi.fn(() => Promise.resolve(true)),
+  pluginHidden: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
@@ -41,8 +41,8 @@ vi.mock('../../document/documentEditActions', () => ({
   removeDocumentElements: vi.fn(() => Promise.resolve(null)),
 }));
 
-vi.mock('@plugins/runtime/displayElement/pluginElementActions', () => ({
-  setPluginElementsHidden: mocks.pluginHidden,
+vi.mock('@plugins/runtime/displayElement/pluginTreeGeometry', () => ({
+  setPluginElementHiddenInTree: mocks.pluginHidden,
 }));
 
 vi.mock('@utils/core/platform', () => ({ isMac: () => true }));
@@ -173,9 +173,7 @@ describe('레이어 탭 - 장면 트리 하나', () => {
       { op: 'setGroup', scene: '4key', id: 'G', hidden: true },
     ]);
     act(() => eye('demo::p1').click());
-    expect(mocks.pluginHidden).toHaveBeenCalledWith([
-      { fullId: 'demo::p1', hidden: true },
-    ]);
+    expect(mocks.pluginHidden).toHaveBeenCalledWith('4key', 'demo::p1', true);
     act(() => eye('t2').click());
     expect(mocks.setCommon).toHaveBeenCalledWith('4key', 't2', {
       hidden: true,

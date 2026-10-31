@@ -11,7 +11,10 @@ use crate::{
     errors::{CmdResult, CommandError, EditorCommitError, EditorCommitErrorCode},
     models::{EditorCommitRequest, EditorField, PluginInstancesChangedPayload},
     services::event_publisher::publish_element_document_changes,
-    state::{AppState, ElementDocumentCommitPlan, ElementDocumentCommitResult},
+    state::{
+        plugin_tree::skip_removed_plugin_nodes, AppState, ElementDocumentCommitPlan,
+        ElementDocumentCommitResult,
+    },
 };
 
 #[derive(Serialize)]
@@ -118,9 +121,14 @@ pub async fn element_document_commit(
             // 다른 커밋이 끼어 옛 편집 리비전이 어긋나면 한 번 다시 계획한다
             let mut conflict = None;
             for attempt in 0..2 {
+                let skipped = skip_removed_plugin_nodes(
+                    &state.store.element_document_snapshot().1,
+                    &request.ops,
+                );
+                let ops = skipped.as_deref().unwrap_or(&request.ops);
                 let plan = state
                     .store
-                    .plan_element_document_commit(&request.ops, request.gesture_id.clone())
+                    .plan_element_document_commit(ops, request.gesture_id.clone())
                     .map_err(|error| CommandError::msg(format!("{error:#}")))?;
                 match plan {
                     ElementDocumentCommitPlan::Rejected(result) => return Ok(result),
@@ -130,7 +138,7 @@ pub async fn element_document_commit(
                         let (result, plugin_changes) = state
                             .store
                             .commit_element_document_tree(
-                                &request.ops,
+                                ops,
                                 check_legacy,
                                 request.gesture_id.clone(),
                             )

@@ -1,8 +1,14 @@
 import { deletePluginElements } from '@plugins/runtime/displayElement/pluginElementActions';
-import { removePluginElementsLocally } from '@plugins/runtime/displayElement/pluginTreeGeometry';
+import {
+  removePluginElementsLocally,
+  sendPluginTreeEdit,
+} from '@plugins/runtime/displayElement/pluginTreeGeometry';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
-import { removeDocumentElements } from './documentEditActions';
+import {
+  documentRemoveOps,
+  removeDocumentElements,
+} from './documentEditActions';
 import { structureTargetIds } from './treeEditedSelection';
 
 /** 고른 것 지우기 - 트리 요소와 트리에 노드가 있는 플러그인 요소는 한 트리 커밋으로(다 고른 그룹은
@@ -20,12 +26,18 @@ export const deleteStructureSelection = async (sceneId: string) => {
   const rest = [...plugins].filter((id) => !backed.includes(id));
   const treeIds = structureTargetIds(sceneId).filter((id) => !plugins.has(id));
   if (rest.length > 0) deletePluginElements(rest, gestureId);
-  if (treeIds.length === 0 && backed.length === 0) return;
-  const restore = removePluginElementsLocally(backed);
-  const result = await removeDocumentElements(
-    sceneId,
-    [...treeIds, ...backed],
-    { gestureId },
-  );
-  if (result?.status !== 'committed') await restore();
+  if (backed.length === 0) {
+    if (treeIds.length > 0) {
+      await removeDocumentElements(sceneId, treeIds, { gestureId });
+    }
+    return;
+  }
+  const pluginIds = removePluginElementsLocally(backed);
+  await sendPluginTreeEdit(
+    documentRemoveOps(sceneId, [...treeIds, ...backed]),
+    pluginIds,
+    gestureId,
+  ).catch((error: unknown) => {
+    console.error('[ElementDocument] edit was not applied', error);
+  });
 };

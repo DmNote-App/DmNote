@@ -18,7 +18,7 @@ import {
 import { isMac } from '@utils/core/platform';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
-import { setPluginElementsHidden } from '@plugins/runtime/displayElement/pluginElementActions';
+import { setPluginElementHiddenInTree } from '@plugins/runtime/displayElement/pluginTreeGeometry';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
 import { isPluginKind } from '@src/types/elementKinds';
 import type { Node } from '@src/types/generated/elementDocument';
@@ -269,9 +269,11 @@ const LayerTabContent = ({
       ]);
       return;
     }
-    // 플러그인 요소는 플러그인 스토어가 낙관 반영한다
+    // 플러그인 요소는 런타임 스토어에 바로 반영하고 트리 연산으로 저장한다
     if (isPluginKind(node.kind)) {
-      void setPluginElementsHidden([{ fullId: node.id, hidden: !hidden }]);
+      void setPluginElementHiddenInTree(sceneId, node.id, !hidden).catch(
+        reportElementOpError,
+      );
       return;
     }
     void setDocumentCommon(sceneId, node.id, { hidden: !hidden });

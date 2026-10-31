@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   nodes: new Map<string, { frame: Record<string, number> }>(),
   edit: vi.fn(),
   restore: vi.fn(async (_pluginId: string, _force?: boolean) => {}),
-  flushed: [] as Array<[string, string[]]>,
+  hideBySave: vi.fn(async () => true),
 }));
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   getElementDocumentStore: () => ({
@@ -20,20 +20,15 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 vi.mock('./instancesUndoSync', () => ({
   applyCanonicalPluginInstances: mocks.restore,
 }));
-vi.mock('./instancesCommitQueue', () => ({
-  flushPluginInstancesEditSession: (pluginId: string) =>
-    mocks.flushed.push([
-      pluginId,
-      usePluginDisplayElementStore
-        .getState()
-        .elements.map((element) => element.fullId),
-    ]),
+vi.mock('./pluginElementActions', () => ({
+  setPluginElementsHidden: mocks.hideBySave,
 }));
-
 const {
   applyPluginElementEdit,
   commitPluginFrames,
   removePluginElementsLocally,
+  sendPluginTreeEdit,
+  setPluginElementHiddenInTree,
 } = await import('./pluginTreeGeometry');
 
 const element = (
@@ -125,11 +120,11 @@ describe('편집기의 플러그인 요소 위치 저장', () => {
 
 describe('편집기의 플러그인 요소 지우기', () => {
   beforeEach(() => {
+    mocks.edit.mockReset();
     mocks.restore.mockClear();
-    mocks.flushed.length = 0;
   });
 
-  it('밀린 자동 저장을 지우기 전 목록으로 보낸 뒤 자동 저장 없이 빼고, 되돌리기는 저장된 값을 다시 받는다', async () => {
+  it('자동 저장 없이 빼고 그 플러그인 id를 돌려준다', async () => {
     usePluginDisplayElementStore.setState({
       elements: [
         element('a::1', { x: 0, y: 0 }),
@@ -140,16 +135,70 @@ describe('편집기의 플러그인 요소 지우기', () => {
     const stop = usePluginDisplayElementStore.subscribe(() => {
       suppressedAtRemoval = isInstanceSaveSuppressed();
     });
-    const restore = removePluginElementsLocally(['a::1']);
+    const pluginIds = removePluginElementsLocally(['a::1']);
     stop();
-    expect(mocks.flushed).toEqual([['a', ['a::1', 'a::2']]]);
+    expect(pluginIds).toEqual(['a']);
     expect(suppressedAtRemoval).toBe(true);
     expect(
       usePluginDisplayElementStore
         .getState()
         .elements.map((candidate) => candidate.fullId),
     ).toEqual(['a::2']);
-    await restore();
-    expect(mocks.restore).toHaveBeenCalledWith('a', true);
+  });
+
+  it('보류한 지우기는 되돌리지 않고, 거절·실패한 지우기만 저장된 값으로 되돌린다', async () => {
+    const ops = [{ op: 'remove' as const, scene: '4key', ids: ['a::1'] }];
+    mocks.edit.mockRejectedValueOnce(new ElementEditHeldError());
+    await sendPluginTreeEdit(ops, ['a'], 'g');
+    expect(mocks.restore).not.toHaveBeenCalled();
+    mocks.edit.mockResolvedValueOnce({ status: 'rejected', code: 'violation' });
+    await expect(sendPluginTreeEdit(ops, ['a'], 'g')).rejects.toThrow();
+    mocks.edit.mockRejectedValueOnce(new Error('ipc'));
+    await expect(sendPluginTreeEdit(ops, ['a', 'a'])).rejects.toThrow('ipc');
+    expect(mocks.restore.mock.calls).toEqual([
+      ['a', true],
+      ['a', true],
+    ]);
+    expect(mocks.edit.mock.calls[0][1]).toEqual({ gestureId: 'g' });
+  });
+});
+
+describe('편집기의 플러그인 요소 숨기기', () => {
+  beforeEach(() => {
+    mocks.nodes.clear();
+    mocks.edit.mockReset().mockResolvedValue({ status: 'committed' });
+    mocks.hideBySave.mockClear();
+    usePluginDisplayElementStore.setState({
+      elements: [
+        element('a::1', { x: 0, y: 0 }),
+        element('a::new', { x: 0, y: 0 }),
+      ],
+    });
+  });
+
+  it('트리에 노드가 있으면 자동 저장 없이 바로 숨기고 공통 정보 연산으로 저장한다', async () => {
+    mocks.nodes.set('a::1', frame(0, 0));
+    let suppressed: boolean | null = null;
+    const stop = usePluginDisplayElementStore.subscribe(() => {
+      suppressed = isInstanceSaveSuppressed();
+    });
+    await setPluginElementHiddenInTree('4key', 'a::1', true);
+    stop();
+    expect(suppressed).toBe(true);
+    expect(usePluginDisplayElementStore.getState().elements[0].hidden).toBe(
+      true,
+    );
+    expect(mocks.edit.mock.calls[0][0]).toEqual([
+      { op: 'setCommon', scene: '4key', id: 'a::1', hidden: true },
+    ]);
+    expect(mocks.hideBySave).not.toHaveBeenCalled();
+  });
+
+  it('트리에 노드가 없으면 인스턴스 자동 저장으로 숨긴다', async () => {
+    await setPluginElementHiddenInTree('4key', 'a::new', true);
+    expect(mocks.hideBySave).toHaveBeenCalledWith([
+      { fullId: 'a::new', hidden: true },
+    ]);
+    expect(mocks.edit).not.toHaveBeenCalled();
   });
 });

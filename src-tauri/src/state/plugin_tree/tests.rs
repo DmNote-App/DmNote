@@ -315,3 +315,33 @@ fn 트리에서_고친_플러그인_노드의_틀_숨김_값은_항목의_위치
     assert_eq!(project_plugin_bucket(&again, "demo"), Some(projected));
     assert!(sync_plugin_entries_from_tree(&mut doc, &scenes).is_empty());
 }
+
+#[test]
+fn 이미_사라진_플러그인_요소의_지우기만_빼고_나머지_연산은_그대로_둔다() {
+    let mut doc = document(&["4key"]);
+    doc.scenes.get_mut("4key").unwrap().nodes = vec![native("k1", 1)];
+    apply_plugin_bucket(
+        &mut doc,
+        "demo",
+        Some(&json!([{ "instanceId": "a", "position": { "x": 0, "y": 0 }, "tabId": "4key" }])),
+    );
+    let ops: Vec<Op> = serde_json::from_value(json!([
+        { "op": "remove", "scene": "4key", "ids": ["k1", "demo::a", "demo::gone"] },
+        { "op": "remove", "scene": "4key", "ids": ["demo::gone"] },
+        { "op": "setFrame", "scene": "4key", "id": "k1", "frame": { "x": 1 } }
+    ]))
+    .unwrap();
+    let skipped = skip_removed_plugin_nodes(&doc, &ops).unwrap();
+    assert_eq!(
+        serde_json::to_value(&skipped).unwrap(),
+        json!([
+            { "op": "remove", "scene": "4key", "ids": ["k1", "demo::a"] },
+            { "op": "setFrame", "scene": "4key", "id": "k1", "frame": { "x": 1.0 } }
+        ])
+    );
+    // 없는 옛 요소는 그대로 두어 거절되게 한다, 건드릴 것이 없으면 None
+    let ops: Vec<Op> =
+        serde_json::from_value(json!([{ "op": "remove", "scene": "4key", "ids": ["missing"] }]))
+            .unwrap();
+    assert!(skip_removed_plugin_nodes(&doc, &ops).is_none());
+}
