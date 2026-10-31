@@ -32,6 +32,8 @@ export const treeStackingRanks = (
   return ranks;
 };
 
+const ALL_PLUGIN_KINDS = () => true;
+
 /** 트리 편집기가 그리는 요소를 겹치는 순서대로 - 숨긴 요소·숨긴 그룹 안은 뺀다.
  * 트리에만 있는 종류에 더해 legacyKinds의 옛 종류도 넣는다
  * (편집 화면은 트리로 옮긴 옛 종류, 오버레이는 트리에서 그리는 옛 종류, 창 크기 계산은 없음).
@@ -42,11 +44,14 @@ export const documentElementSlots = (
     includeHidden = false,
     legacyKinds = TREE_EDITED_KINDS,
     stackNatives = false,
+    pluginRendered = ALL_PLUGIN_KINDS,
   }: {
     includeHidden?: boolean;
     legacyKinds?: ReadonlySet<string>;
     // 오버레이 - 옛 종류도 쌓인 칸에
     stackNatives?: boolean;
+    // 플러그인 렌더러가 그리는 플러그인 종류 - 아닌 것(정의 없는 플러그인)은 모르는 종류로 넣는다
+    pluginRendered?: (kind: string) => boolean;
   } = {},
 ): DocumentElementSlot[] => {
   if (!scene) return [];
@@ -59,8 +64,8 @@ export const documentElementSlots = (
         visit(node.children, hidden || node.hidden === true);
         continue;
       }
-      // 플러그인 인스턴스는 옛 플러그인 렌더러가 그린다
-      if (isPluginKind(node.kind)) continue;
+      // 플러그인 인스턴스는 플러그인 렌더러가 그린다
+      if (isPluginKind(node.kind) && pluginRendered(node.kind)) continue;
       const native = isEditorElementType(node.kind);
       if (native) legacyBelow = true;
       if (native && !legacyKinds.has(node.kind)) continue;

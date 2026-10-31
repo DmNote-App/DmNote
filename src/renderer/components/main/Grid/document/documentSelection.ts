@@ -5,6 +5,7 @@ import {
   type SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
 import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documentElementOrder';
+import { pluginRendersKind } from '@plugins/runtime/displayElement/pluginKindPresence';
 
 type Rect = { left: number; top: number; width: number; height: number };
 
@@ -21,7 +22,7 @@ export const toggleDocumentId = (ids: readonly string[], id: string) =>
 
 /** 마퀴 영역과 겹치는 보이는 트리 요소 - 겹치는 순서대로 */
 export const documentIdsInRect = (scene: Scene | undefined, rect: Rect) =>
-  documentElementSlots(scene)
+  documentElementSlots(scene, { pluginRendered: pluginRendersKind })
     .filter(({ element }) => isElementInMarquee(boundsOf(element.frame), rect))
     .map(({ element }) => element.id);
 

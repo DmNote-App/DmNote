@@ -7,6 +7,7 @@ import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayEle
 import { calculateBounds, type ElementBounds } from '@utils/grid/smartGuides';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documentElementOrder';
+import { pluginRendersKind } from '@plugins/runtime/displayElement/pluginKindPresence';
 
 /**
  * 특정 요소를 제외한 모든 요소의 bounds를 반환
@@ -49,7 +50,9 @@ const getOtherElementsSnapshot = (
 
   // 트리 요소(옛 종류 포함) - 보이는 것만
   const scene = getElementDocumentStore()?.getScene(selectedKeyType);
-  for (const { element } of documentElementSlots(scene)) {
+  for (const { element } of documentElementSlots(scene, {
+    pluginRendered: pluginRendersKind,
+  })) {
     if (excludeSet.has(element.id)) continue;
     bounds.push(
       calculateBounds(

@@ -207,4 +207,21 @@ describe('플러그인 인스턴스 요소', () => {
       ),
     ).toEqual(['t1']);
   });
+
+  it('플러그인 렌더러가 그리지 않는 플러그인 요소(정의 없음)는 모르는 종류로 넣는다', () => {
+    const scene: Scene = {
+      nodes: [
+        { type: 'element', id: 'demo::a', kind: 'plugin:demo', frame } as Node,
+        { type: 'element', id: 'gone::b', kind: 'plugin:gone', frame } as Node,
+      ],
+    };
+    expect(
+      documentElementSlots(scene).map(({ element }) => element.id),
+    ).toEqual([]);
+    expect(
+      documentElementSlots(scene, {
+        pluginRendered: (kind) => kind === 'plugin:demo',
+      }).map(({ element }) => element.id),
+    ).toEqual(['gone::b']);
+  });
 });

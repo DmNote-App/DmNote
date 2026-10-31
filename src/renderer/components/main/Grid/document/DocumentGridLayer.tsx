@@ -35,6 +35,7 @@ import { documentRangeSelection, toggleDocumentId } from './documentSelection';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
+import { useRenderedPluginKinds } from '@plugins/runtime/displayElement/pluginKindPresence';
 
 const EDITOR_INPUTS = {};
 const EMPTY_IDS: string[] = [];
@@ -337,9 +338,10 @@ const DocumentGridLayer = ({
     );
   }, []);
   const scene = useElementDocumentScene(sceneId);
+  const pluginRendered = useRenderedPluginKinds();
   return (
     <>
-      {documentElementSlots(scene)
+      {documentElementSlots(scene, { pluginRendered })
         .filter(({ aboveLegacy }) => aboveLegacy === (placement === 'stacked'))
         .map(({ element, zIndex }) => (
           <DocumentGridElement

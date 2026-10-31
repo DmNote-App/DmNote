@@ -20,6 +20,7 @@ import {
   createRafLatestScheduler,
   type ContinuousInputStrategy,
 } from '@utils/animation/rafLatestScheduler';
+import { useRenderedPluginKinds } from '@plugins/runtime/displayElement/pluginKindPresence';
 
 interface Position {
   dx: number;
@@ -179,12 +180,15 @@ const GridMinimap = ({
 
   // 트리 요소 - 옛 종류는 종류별 모양, 트리에만 있는 종류(커서 트래커 등)는 플러그인 요소와 같은 모양
   const storedScene = useElementDocumentScene(selectedKeyType);
+  const pluginRendered = useRenderedPluginKinds();
   const documentScene = sceneOverride ?? storedScene;
   const nativeRects = Object.fromEntries(
     EDITOR_ELEMENT_TYPES.map((type) => [type, [] as Position[]]),
   ) as Record<EditorElementTypeV1, Position[]>;
   const documentPositions: PluginElementPosition[] = [];
-  for (const { element } of documentElementSlots(documentScene)) {
+  for (const { element } of documentElementSlots(documentScene, {
+    pluginRendered,
+  })) {
     const { x, y, width, height } = element.frame;
     if (isEditorElementType(element.kind)) {
       nativeRects[element.kind].push({ dx: x, dy: y, width, height });
