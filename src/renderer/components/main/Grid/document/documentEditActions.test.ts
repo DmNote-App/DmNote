@@ -208,4 +208,43 @@ describe('트리 문서 편집 동작', () => {
     await stepDocumentElements('4key', ['d'], 'forward');
     expect(mocks.edit).not.toHaveBeenCalled();
   });
+
+  it('키·플러그인 요소의 한 칸은 겹치는 키·플러그인 요소 바로 위·아래로 간다 (예전 동작) - 없으면 한 칸', async () => {
+    const box = (
+      id: string,
+      kind: string,
+      x: number,
+    ): Record<string, unknown> => ({
+      type: 'element',
+      id,
+      kind,
+      frame: { x, y: 0, width: 10, height: 10, rotation: 0 },
+    });
+    mocks.scene = {
+      nodes: [
+        box('k1', 'key', 0),
+        box('far', 'key', 500),
+        box('t', 'cursorTracker', 0),
+        box('k2', 'key', 5),
+        box('p', 'plugin:demo', 5),
+      ],
+    };
+    // k1과 겹치는 위쪽 키·플러그인 중 가장 가까운 k2 바로 위로 (트래커는 후보가 아니다)
+    await stepDocumentElements('4key', ['k1'], 'forward');
+    expect(mocks.edit.mock.calls[0][0]).toEqual([
+      { op: 'move', scene: '4key', ids: ['k1'], parent: null, index: 4 },
+    ]);
+    mocks.edit.mockClear();
+    // 플러그인 요소도 같은 규칙 - 뒤로는 겹치는 k2 바로 아래로
+    await stepDocumentElements('4key', ['p'], 'backward');
+    expect(mocks.edit.mock.calls[0][0]).toEqual([
+      { op: 'move', scene: '4key', ids: ['p'], parent: null, index: 3 },
+    ]);
+    mocks.edit.mockClear();
+    // 겹치는 요소가 없으면 한 칸
+    await stepDocumentElements('4key', ['far'], 'forward');
+    expect(mocks.edit.mock.calls[0][0]).toEqual([
+      { op: 'move', scene: '4key', ids: ['far'], parent: null, index: 3 },
+    ]);
+  });
 });

@@ -10,7 +10,9 @@ import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
 import { legacyPatchOps } from '@src/renderer/elementKinds/runtime/legacyPosition';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import type { KeySlot } from '@src/types/key/keys';
+import { isPluginKind } from '@src/types/elementKinds';
 import type {
+  Frame,
   FramePatch,
   JsonValue,
   Node,
@@ -269,16 +271,19 @@ export const moveDocumentElementTo = (
   );
 };
 
-// 부모의 자식 id 목록 (null이면 장면 맨 위)
-const childIdsOf = (scene: Scene | undefined, parent: string | null) => {
+// 부모의 자식 (null이면 장면 맨 위)
+const childrenOf = (
+  scene: Scene | undefined,
+  parent: string | null,
+): readonly Node[] => {
   if (!scene) return [];
-  if (parent === null) return scene.nodes.map((node) => node.id);
-  let found: string[] = [];
+  if (parent === null) return scene.nodes;
+  let found: readonly Node[] = [];
   const visit = (nodes: readonly Node[]) => {
     for (const node of nodes) {
       if (node.type !== 'group') continue;
       if (node.id === parent) {
-        found = node.children.map((child) => child.id);
+        found = node.children;
         return;
       }
       visit(node.children);
@@ -288,7 +293,17 @@ const childIdsOf = (scene: Scene | undefined, parent: string | null) => {
   return found;
 };
 
-/** 한 칸 앞·뒤로 - 부모 안에서 바로 위·아래 형제를 넘는다. 함께 고른 것끼리는 넘지 않는다 */
+// 한 칸을 겹치는 요소 기준으로 옮기는 종류 (예전 키·플러그인 요소 동작)
+const stepsPastOverlap = (kind: string) => kind === 'key' || isPluginKind(kind);
+
+const framesOverlap = (a: Frame, b: Frame) =>
+  a.x < b.x + b.width &&
+  b.x < a.x + a.width &&
+  a.y < b.y + b.height &&
+  b.y < a.y + a.height;
+
+/** 한 칸 앞·뒤로 - 부모 안에서 바로 위·아래 형제를 넘는다. 키·플러그인 요소는 예전처럼 겹치는
+ * 키·플러그인 요소 바로 위·아래로 (없으면 한 칸). 함께 고른 것끼리는 넘지 않는다 */
 export const stepDocumentElements = (
   sceneId: string,
   ids: string[],
@@ -304,7 +319,9 @@ export const stepDocumentElements = (
   }
   const ops: Op[] = [];
   for (const parent of parents) {
-    const order = childIdsOf(scene, parent);
+    const children = childrenOf(scene, parent);
+    const nodeById = new Map(children.map((node) => [node.id, node]));
+    const order = children.map((node) => node.id);
     // 앞으로는 위(목록 끝)부터, 뒤로는 아래부터 옮겨야 서로의 자리에 영향이 없다
     const indices = order.map((_, index) => index);
     if (direction === 'forward') indices.reverse();
@@ -315,8 +332,26 @@ export const stepDocumentElements = (
         continue;
       }
       if (picked.has(order[neighbor])) continue;
-      // 자리는 옮기기 전 목록 기준 - 앞으로는 이웃 다음, 뒤로는 이웃 자리
-      const target = direction === 'forward' ? index + 2 : index - 1;
+      // 넘을 형제 - 겹치는 키·플러그인 요소 중 가장 가까운 것, 없으면 바로 옆
+      const node = nodeById.get(id);
+      let passed = neighbor;
+      if (node?.type === 'element' && stepsPastOverlap(node.kind)) {
+        const step = direction === 'forward' ? 1 : -1;
+        for (let at = neighbor; at >= 0 && at < order.length; at += step) {
+          const other = nodeById.get(order[at]);
+          if (
+            !picked.has(order[at]) &&
+            other?.type === 'element' &&
+            stepsPastOverlap(other.kind) &&
+            framesOverlap(node.frame, other.frame)
+          ) {
+            passed = at;
+            break;
+          }
+        }
+      }
+      // 자리는 옮기기 전 목록 기준 - 앞으로는 넘은 형제 다음, 뒤로는 넘은 형제 자리
+      const target = direction === 'forward' ? passed + 1 : passed;
       ops.push({
         op: 'move',
         scene: sceneId,
@@ -325,7 +360,7 @@ export const stepDocumentElements = (
         index: target >= order.length ? null : target,
       });
       order.splice(index, 1);
-      order.splice(direction === 'forward' ? index + 1 : index - 1, 0, id);
+      order.splice(passed, 0, id);
     }
   }
   return ops.length === 0 ? Promise.resolve(null) : editDocument(ops);
