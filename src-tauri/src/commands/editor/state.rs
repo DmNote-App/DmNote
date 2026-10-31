@@ -120,6 +120,29 @@ pub(crate) fn publish_legacy_editor_fields(
     }
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EditorCommitSignal<'a> {
+    revision: u64,
+    gesture_ids: Vec<&'a str>,
+    origin: &'a str,
+}
+
+impl<'a> EditorCommitSignal<'a> {
+    fn of(event: &'a crate::models::EditorCommittedV1) -> Self {
+        let gesture_ids = if event.gesture_ids.is_empty() {
+            event.gesture_id.as_deref().into_iter().collect()
+        } else {
+            event.gesture_ids.iter().map(String::as_str).collect()
+        };
+        Self {
+            revision: event.revision,
+            gesture_ids,
+            origin: &event.origin,
+        }
+    }
+}
+
 pub(crate) fn publish_editor_change(
     state: &AppState,
     app: &AppHandle,
@@ -160,6 +183,8 @@ fn publish_editor_change_with_options(
         return;
     };
     emit_best_effort(app, "editor:committed", event);
+    // 편집 창 신호 - 패치 없이 동작 id·출처만 (editor:committed는 플러그인 공개 이벤트라 컬렉션 전체를 싣는다)
+    emit_best_effort(app, "editor:commit-signal", &EditorCommitSignal::of(event));
 
     let keys_changed = change.result.changed_fields.contains(&EditorField::Keys);
     let previous_mode = (keys_changed
@@ -333,6 +358,33 @@ pub(crate) fn publish_editor_commit(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn 커밋_신호는_패치_없이_동작_id와_출처만_싣는다() {
+        let event = crate::models::EditorCommittedV1 {
+            schema_version: 1,
+            revision: 7,
+            mutation_id: "m".to_string(),
+            gesture_id: Some("g1".to_string()),
+            gesture_ids: Vec::new(),
+            origin: "gestureCommit".to_string(),
+            changed_fields: vec![EditorField::KeyPositions],
+            patch: crate::models::EditorPatchV1::default(),
+        };
+        let wire = serde_json::to_value(EditorCommitSignal::of(&event)).unwrap();
+        assert_eq!(
+            wire,
+            serde_json::json!({ "revision": 7, "gestureIds": ["g1"], "origin": "gestureCommit" })
+        );
+        let merged = crate::models::EditorCommittedV1 {
+            gesture_ids: vec!["a".to_string(), "b".to_string()],
+            ..event
+        };
+        assert_eq!(
+            serde_json::to_value(EditorCommitSignal::of(&merged)).unwrap()["gestureIds"],
+            serde_json::json!(["a", "b"])
+        );
+    }
 
     #[test]
     fn history_restore_uses_same_legacy_projection_for_every_editor_field() {

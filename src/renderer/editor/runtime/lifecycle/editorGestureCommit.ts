@@ -1,4 +1,8 @@
-import { editorApi } from '@api/modules/editor/editorApi';
+import {
+  knownEditorRevision,
+  noteEditorRevision,
+  noteRevisionConflict,
+} from './editorRevision';
 import {
   captureEditorDocument,
   stageSemanticOps,
@@ -40,11 +44,6 @@ const isOpsMutation = (
 // revision이 겹치면(다른 쓰기가 먼저 들어옴) 지금 revision으로 다시 만든다
 const MAX_COMMIT_ATTEMPTS = 3;
 
-const isRevisionConflict = (error: unknown) =>
-  typeof error === 'object' &&
-  error !== null &&
-  (error as { errorCode?: unknown }).errorCode === 'REVISION_CONFLICT';
-
 /** 플러그인 동작 거래(편집 몫 + 플러그인 몫 한 기록)의 편집 몫 - 바탕(트리 문서)에서 만들고
  * 지금 revision과 함께 커밋 함수에 넘긴다. 다른 쓰기와 같은 호환 큐에서 차례로.
  * 연산의 트리 몫(정해진 연산, 만드는 함수면 optimisticOps)은 화면에 먼저 얹고 커밋의 트리 리비전에서 확정한다 */
@@ -64,7 +63,7 @@ export const commitEditorGesture = (
   const committed = enqueueEditorCompatibilityOperation(async () => {
     await meta?.prepare?.();
     for (let attempt = 1; ; attempt += 1) {
-      const { revision } = await editorApi.get();
+      const revision = await knownEditorRevision();
       const mutation =
         typeof changes === 'function'
           ? changes(captureEditorDocument())
@@ -84,12 +83,13 @@ export const commitEditorGesture = (
         : base;
       meta?.onEnrolled?.();
       try {
-        const { treeRevision } = await commit(context);
+        const { revision: committed, treeRevision } = await commit(context);
+        noteEditorRevision(committed);
         if (treeRevision === undefined) staged?.drop();
         else staged?.settle(treeRevision);
         return;
       } catch (error) {
-        if (attempt < MAX_COMMIT_ATTEMPTS && isRevisionConflict(error)) {
+        if (noteRevisionConflict(error) && attempt < MAX_COMMIT_ATTEMPTS) {
           continue;
         }
         throw error;

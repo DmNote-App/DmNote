@@ -1,5 +1,10 @@
 import { editGestureController } from '../gesture/editGestureController';
 import { enqueueEditorCompatibilityOperation } from './editorCompatibilityQueue';
+import {
+  knownEditorRevision,
+  noteEditorRevision,
+  noteRevisionConflict,
+} from './editorRevision';
 import { flushHeldEditorWrites } from './editorWriteBarrier';
 import { editorApi, editorCommitRaw } from '@api/modules/editor/editorApi';
 import type {
@@ -48,11 +53,6 @@ export const runExclusiveLegacyMutation = async <T>(
 // revision이 겹치면(다른 쓰기가 먼저 들어옴) 지금 revision으로 다시 보낸다
 const MAX_COMMIT_ATTEMPTS = 3;
 
-const isRevisionConflict = (error: unknown) =>
-  typeof error === 'object' &&
-  error !== null &&
-  (error as { errorCode?: unknown }).errorCode === 'REVISION_CONFLICT';
-
 /** 옛 모양 칸 패치(플러그인 API의 키·위치 쓰기 등)를 백엔드 옛 편집 커밋으로 - 칸을 통째로 바꾸는 패치라
  * 바탕 문서 없이 지금 revision으로 보낸다. 다른 쓰기와 같은 호환 큐에서 차례로 */
 export const commitLegacyEditorPatch = (
@@ -61,17 +61,18 @@ export const commitLegacyEditorPatch = (
 ): Promise<EditorCommitResult> =>
   enqueueEditorCompatibilityOperation(async () => {
     for (let attempt = 1; ; attempt += 1) {
-      const { revision } = await editorApi.get();
       try {
-        return await editorCommitRaw({
-          baseRevision: revision,
+        const result = await editorCommitRaw({
+          baseRevision: await knownEditorRevision(),
           mutationId: crypto.randomUUID(),
           changes: changes as EditorPatchV1,
           multiKey: options.multiKey ?? true,
           ...(options.gestureId ? { gestureId: options.gestureId } : {}),
         });
+        noteEditorRevision(result.revision);
+        return result;
       } catch (error) {
-        if (attempt < MAX_COMMIT_ATTEMPTS && isRevisionConflict(error)) {
+        if (noteRevisionConflict(error) && attempt < MAX_COMMIT_ATTEMPTS) {
           continue;
         }
         throw error;

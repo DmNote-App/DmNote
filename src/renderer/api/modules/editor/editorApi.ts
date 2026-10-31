@@ -44,6 +44,12 @@ export const editorCommitRaw = async (
   return result;
 };
 
+export interface EditorCommitSignal {
+  revision: number;
+  gestureIds: string[];
+  origin: string;
+}
+
 export const editorApi = {
   get: async (): Promise<CanonicalEditorGetResult> => {
     const result = await invoke<EditorGetResult>('editor_get');
@@ -55,6 +61,9 @@ export const editorApi = {
     request: EditorCommitRequest | PluginEditorCommitRequest,
   ): Promise<EditorCommitResult> =>
     editorCommitRaw({ multiKey: true, ...request }),
+  // 편집 창 내부 신호 - 커밋된 동작 id·출처만 (패치 전체는 플러그인 공개 이벤트 editor:committed)
+  onCommitSignal: (listener: (signal: EditorCommitSignal) => void) =>
+    subscribe<EditorCommitSignal>('editor:commit-signal', listener),
   onCommitted: (listener: (event: EditorCommittedV1) => void) =>
     subscribe<EditorCommittedV1>('editor:committed', (event) => {
       try {

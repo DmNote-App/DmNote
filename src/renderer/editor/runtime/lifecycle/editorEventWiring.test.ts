@@ -3,8 +3,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import { useHistoryStatusStore } from '@stores/data/useHistoryStatusStore';
 
+const signal = vi.hoisted(() => ({
+  listener: null as
+    | null
+    | ((event: {
+        revision: number;
+        gestureIds: string[];
+        origin: string;
+      }) => void),
+}));
 vi.mock('@api/modules/editor/editorApi', () => ({
-  editorApi: { onCommitted: () => () => undefined },
+  editorApi: {
+    onCommitSignal: (listener: typeof signal.listener) => {
+      signal.listener = listener;
+      return () => undefined;
+    },
+  },
 }));
 vi.mock('@api/modules/editor/previewApi', () => ({
   previewApi: { subscribe: vi.fn().mockResolvedValue(1) },
@@ -44,5 +58,26 @@ describe('편집 창 이벤트 연결', () => {
 
     applyStatus(status(5, false, 14));
     expect(useCommittedApplyStore.getState().historyTick).toBe(1);
+  });
+
+  it('커밋 신호는 같은 커밋의 미리보기 세션을 끝내고 되돌리기 출처면 끌기 취소 신호를 보낸다', async () => {
+    const { previewOverlay, previewPatchOf } = await import(
+      '../gesture/previewOverlay'
+    );
+    previewOverlay.applyLocalPatchByIds('g1', '4key', ['k1'], { width: 9 });
+    const stop = startEditorEventWiring();
+    signal.listener!({
+      revision: 2,
+      gestureIds: ['g1'],
+      origin: 'strictEditorCommit',
+    });
+    expect(previewPatchOf('keyPosition', '4key', 'k1')).toBeNull();
+    expect(useCommittedApplyStore.getState()).toMatchObject({
+      commitTick: 1,
+      historyTick: 0,
+    });
+    signal.listener!({ revision: 3, gestureIds: [], origin: 'historyUndo' });
+    expect(useCommittedApplyStore.getState().historyTick).toBe(1);
+    stop();
   });
 });

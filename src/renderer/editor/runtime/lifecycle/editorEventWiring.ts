@@ -3,6 +3,7 @@ import { previewApi } from '@api/modules/editor/previewApi';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import { useHistoryStatusStore } from '@stores/data/useHistoryStatusStore';
 import { previewOverlay } from '../gesture/previewOverlay';
+import { noteEditorRevision } from './editorRevision';
 
 // 프리뷰 봉투는 편집 UI가 있는 창(main·panel)끼리의 실시간 피드백 전용.
 // 오버레이·OBS는 방송 화면이라 스크럽 중 덜덜거림 없이 커밋 시점만 반영한다
@@ -28,12 +29,12 @@ const ensurePreviewSubscription = () => {
 /** 편집 창의 공용 이벤트 연결 - 다른 창 미리보기 받기, 커밋 반영 신호(열린 피커 재동기화·되돌리기 때 끌기 취소) */
 export const startEditorEventWiring = (): (() => void) => {
   ensurePreviewSubscription();
-  const stopCommitted = editorApi.onCommitted((event) => {
+  // 패치 없는 가벼운 신호 - 커밋마다 컬렉션 전체를 싣는 editor:committed는 플러그인만 듣는다
+  const stopCommitted = editorApi.onCommitSignal((signal) => {
     // 같은 커밋에 실린 미리보기 세션 정리 (다른 창 것 포함)
-    previewOverlay.endSessions(
-      event.gestureIds ?? (event.gestureId ? [event.gestureId] : []),
-    );
-    useCommittedApplyStore.getState().bump(event.origin);
+    previewOverlay.endSessions(signal.gestureIds);
+    noteEditorRevision(signal.revision);
+    useCommittedApplyStore.getState().bump(signal.origin);
   });
   // 되돌리기·다시하기·프리셋 복원 끝 - 트리 전용 기록은 editor:committed가 없어 기록 상태의 epoch로 알린다
   let appliedEpoch = useHistoryStatusStore.getState().historyEpoch;
