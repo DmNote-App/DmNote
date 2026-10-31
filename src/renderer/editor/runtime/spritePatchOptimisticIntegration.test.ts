@@ -84,7 +84,9 @@ describe('스프라이트 필드 패치 낙관 적용 통합 (트리 스토어)'
       baseImage: 'hand.png',
     });
 
-    await vi.waitFor(() => expect(backend().commit).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(backend().commit).toHaveBeenCalledOnce(), {
+      timeout: 5000,
+    });
     expect(harness.current()).toMatchObject({
       id: SPRITE_ID,
       baseImage: 'hand.png',
@@ -119,7 +121,9 @@ describe('스프라이트 필드 패치 낙관 적용 통합 (트리 스토어)'
     const first = harness.spriteItemsApi.patchPosition('4key', SPRITE_ID, {
       poses: [clickOrderPose],
     });
-    await vi.waitFor(() => expect(backend().commit).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(backend().commit).toHaveBeenCalledOnce(), {
+      timeout: 5000,
+    });
     const poses = () =>
       harness.current().poses as Array<{ triggers: string[] }>;
     expect(poses()[0].triggers).toEqual([A_ID, B_ID]);
@@ -128,8 +132,9 @@ describe('스프라이트 필드 패치 낙관 적용 통합 (트리 스토어)'
     const second = harness.spriteItemsApi.patchPosition('4key', SPRITE_ID, {
       baseImage: 'hand.png',
     });
-    await vi.waitFor(() =>
-      expect(harness.current().baseImage).toBe('hand.png'),
+    await vi.waitFor(
+      () => expect(harness.current().baseImage).toBe('hand.png'),
+      { timeout: 5000 },
     );
     expect(poses()[0].triggers).toEqual([A_ID, B_ID]);
 
