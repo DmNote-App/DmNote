@@ -17717,6 +17717,51 @@ fn normal_session_moves_unreferenced_asset_to_trash() {
 }
 
 #[test]
+fn orphan_sweep_keeps_assets_the_previous_store_file_still_references() {
+    // 옛 버전으로 돌아가면 열리는 store.json의 자산은 새 저장 파일이 더는 가리키지 않아도 지킨다
+    let dir = test_directory("asset-previous-store-test");
+    let store = AppStore::initialize_in_dir(&dir).unwrap();
+    std::fs::create_dir_all(dir.join("images")).unwrap();
+    let kept = dir.join("images").join("kept.png");
+    let orphan = dir.join("images").join("orphan.png");
+    std::fs::write(&kept, png_header(2, 2)).unwrap();
+    std::fs::write(&orphan, png_header(2, 2)).unwrap();
+
+    let mut previous = store.snapshot();
+    previous.legacy_mut().key_positions.get_mut("4key").unwrap()[0].active_image =
+        Some(kept.to_string_lossy().into_owned());
+    std::fs::write(
+        dir.join(super::PREVIOUS_STORE_FILE_NAME),
+        serde_json::to_vec(&previous).unwrap(),
+    )
+    .unwrap();
+
+    store.cleanup_orphan_assets_now().unwrap();
+
+    assert!(kept.exists());
+    assert!(!orphan.exists());
+    store.flush_and_shutdown().unwrap();
+    drop(store);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn orphan_sweep_is_skipped_when_the_previous_store_file_cannot_be_read() {
+    let dir = test_directory("asset-previous-store-unreadable-test");
+    let store = AppStore::initialize_in_dir(&dir).unwrap();
+    let orphan = dir.join("sounds").join("orphan.wav");
+    std::fs::write(&orphan, b"orphan").unwrap();
+    std::fs::create_dir_all(dir.join(super::PREVIOUS_STORE_FILE_NAME)).unwrap();
+
+    store.cleanup_orphan_assets_now().unwrap();
+
+    assert!(orphan.exists());
+    store.flush_and_shutdown().unwrap();
+    drop(store);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn trash_collision_uses_another_session_and_preserves_file_name() {
     let dir = test_directory("asset-trash-collision-test");
     let sounds_dir = dir.join("sounds");

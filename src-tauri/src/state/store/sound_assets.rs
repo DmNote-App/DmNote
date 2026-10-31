@@ -89,9 +89,29 @@ impl AppStore {
         }
 
         let snapshot = self.state.read().data.clone();
-        let referenced_fonts = collect_local_font_paths(app_data_dir, &snapshot);
-        let referenced_images = collect_local_image_paths(app_data_dir, &snapshot);
+        let mut referenced_fonts = collect_local_font_paths(app_data_dir, &snapshot);
+        let mut referenced_images = collect_local_image_paths(app_data_dir, &snapshot);
         let mut referenced_sounds = collect_local_sound_paths(app_data_dir, &snapshot);
+        // 옛 버전으로 돌아가면 열리는 이전 저장 파일(store.json)이 가리키는 자산도 지킨다 (설계 3.11).
+        // 읽지 못하면 정리를 건너뛴다
+        let previous_path = app_data_dir.join(super::PREVIOUS_STORE_FILE_NAME);
+        if previous_path.exists() {
+            match crate::state::migration::load_store_from_path(&previous_path) {
+                Ok(previous) => {
+                    referenced_fonts.extend(collect_local_font_paths(app_data_dir, &previous.data));
+                    referenced_images
+                        .extend(collect_local_image_paths(app_data_dir, &previous.data));
+                    referenced_sounds
+                        .extend(collect_local_sound_paths(app_data_dir, &previous.data));
+                }
+                Err(error) => {
+                    log::warn!(
+                        "[Assets] Skipping orphan asset sweep because the previous store file could not be read: {error:#}"
+                    );
+                    return Ok(());
+                }
+            }
+        }
         referenced_sounds.keys.extend(recovered_sound_keys);
         referenced_sounds.complete &= sound_recovery_complete;
         let mut trash_session = TrashSession::new(trash_dir, SystemTime::now())?;

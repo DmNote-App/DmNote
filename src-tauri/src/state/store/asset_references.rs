@@ -29,6 +29,13 @@ pub(super) struct AssetReferencePaths {
 }
 
 impl AssetReferencePaths {
+    // 다른 저장 상태의 참조를 더한다 - 하나라도 못 풀었으면 정리하지 않는다
+    pub(super) fn extend(&mut self, other: AssetReferencePaths) {
+        self.keys.extend(other.keys);
+        self.complete &= other.complete;
+        self.unresolved_count += other.unresolved_count;
+    }
+
     fn new() -> Self {
         Self {
             keys: HashSet::new(),
