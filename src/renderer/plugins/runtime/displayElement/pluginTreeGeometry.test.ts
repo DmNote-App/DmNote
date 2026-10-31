@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   edit: vi.fn(),
   restore: vi.fn(async (_pluginId: string, _force?: boolean) => {}),
   hideBySave: vi.fn(async () => true),
+  flushed: [] as Array<[string, string[]]>,
 }));
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   getElementDocumentStore: () => ({
@@ -23,6 +24,24 @@ vi.mock('./instancesUndoSync', () => ({
 vi.mock('./pluginElementActions', () => ({
   setPluginElementsHidden: mocks.hideBySave,
 }));
+vi.mock('./instancesCommitQueue', () => ({
+  flushPluginInstancesEditSession: (pluginId: string) =>
+    mocks.flushed.push([
+      pluginId,
+      usePluginDisplayElementStore
+        .getState()
+        .elements.map((element) => element.fullId),
+    ]),
+}));
+
+// 트리 스토어처럼 - 영구 실패는 편집을 버리며 onDropped를 부른다
+const dropWith =
+  (outcome: () => Promise<unknown>) =>
+  (_ops: unknown, options?: { onDropped?: () => void }) => {
+    options?.onDropped?.();
+    return outcome();
+  };
+
 const {
   applyPluginElementEdit,
   commitPluginFrames,
@@ -95,7 +114,7 @@ describe('편집기의 플러그인 요소 위치 저장', () => {
           frame: { x: 10, width: 80 },
         },
       ],
-      { gestureId: 'g1' },
+      expect.objectContaining({ gestureId: 'g1' }),
     );
     expect(mocks.restore).not.toHaveBeenCalled();
   });
@@ -105,7 +124,9 @@ describe('편집기의 플러그인 요소 위치 저장', () => {
     usePluginDisplayElementStore.setState({
       elements: [element('a::1', { x: 10, y: 0 })],
     });
-    mocks.edit.mockResolvedValueOnce({ status: 'rejected', code: 'VIOLATION' });
+    mocks.edit.mockImplementationOnce(
+      dropWith(async () => ({ status: 'rejected', code: 'VIOLATION' })),
+    );
     await expect(commitPluginFrames('4key', ['a::1'])).rejects.toThrow(
       'VIOLATION',
     );
@@ -122,9 +143,10 @@ describe('편집기의 플러그인 요소 지우기', () => {
   beforeEach(() => {
     mocks.edit.mockReset();
     mocks.restore.mockClear();
+    mocks.flushed.length = 0;
   });
 
-  it('자동 저장 없이 빼고 그 플러그인 id를 돌려준다', async () => {
+  it('자동 저장 없이 빼고 밀린 자동 저장은 지운 뒤 목록으로 보낸 뒤 그 플러그인 id를 돌려준다', async () => {
     usePluginDisplayElementStore.setState({
       elements: [
         element('a::1', { x: 0, y: 0 }),
@@ -139,6 +161,7 @@ describe('편집기의 플러그인 요소 지우기', () => {
     stop();
     expect(pluginIds).toEqual(['a']);
     expect(suppressedAtRemoval).toBe(true);
+    expect(mocks.flushed).toEqual([['a', ['a::2']]]);
     expect(
       usePluginDisplayElementStore
         .getState()
@@ -146,20 +169,34 @@ describe('편집기의 플러그인 요소 지우기', () => {
     ).toEqual(['a::2']);
   });
 
-  it('보류한 지우기는 되돌리지 않고, 거절·실패한 지우기만 저장된 값으로 되돌린다', async () => {
+  it('보류한 지우기는 되돌리지 않고, 트리 스토어가 버린 편집만(보류 뒤 버린 것 포함) 저장된 값으로 되돌린다', async () => {
     const ops = [{ op: 'remove' as const, scene: '4key', ids: ['a::1'] }];
-    mocks.edit.mockRejectedValueOnce(new ElementEditHeldError());
+    let dropHeld: (() => void) | undefined;
+    mocks.edit.mockImplementationOnce(
+      (_ops: unknown, options?: { onDropped?: () => void }) => {
+        dropHeld = options?.onDropped;
+        return Promise.reject(new ElementEditHeldError());
+      },
+    );
     await sendPluginTreeEdit(ops, ['a'], 'g');
     expect(mocks.restore).not.toHaveBeenCalled();
-    mocks.edit.mockResolvedValueOnce({ status: 'rejected', code: 'violation' });
+    // 다시 보낸 편집이 영구 거절되면 그때 되돌린다
+    dropHeld?.();
+    expect(mocks.restore).toHaveBeenCalledWith('a', true);
+    mocks.restore.mockClear();
+    mocks.edit.mockImplementationOnce(
+      dropWith(async () => ({ status: 'rejected', code: 'violation' })),
+    );
     await expect(sendPluginTreeEdit(ops, ['a'], 'g')).rejects.toThrow();
-    mocks.edit.mockRejectedValueOnce(new Error('ipc'));
+    mocks.edit.mockImplementationOnce(
+      dropWith(() => Promise.reject(new Error('ipc'))),
+    );
     await expect(sendPluginTreeEdit(ops, ['a', 'a'])).rejects.toThrow('ipc');
     expect(mocks.restore.mock.calls).toEqual([
       ['a', true],
       ['a', true],
     ]);
-    expect(mocks.edit.mock.calls[0][1]).toEqual({ gestureId: 'g' });
+    expect(mocks.edit.mock.calls[0][1]).toMatchObject({ gestureId: 'g' });
   });
 });
 

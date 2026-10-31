@@ -360,6 +360,30 @@ describe('편집 창 요소 문서 스토어 - 저장 실패', () => {
     expect(onRejected).toHaveBeenCalledWith({ result: rejected });
     expect(store.getHeldCount!()).toBe(0);
   });
+
+  it('편집을 버릴 때만 onDropped를 부른다 - 보류했다 다시 보낸 편집이 영구 거절돼도', async () => {
+    const rejected: ElementDocumentCommitResult = {
+      status: 'rejected',
+      revision: 1,
+      code: 'VIOLATION',
+      violations: [],
+    };
+    let outcome: 'io' | 'rejected' = 'io';
+    const store = transientHarness(async () => {
+      if (outcome === 'io') throw new Error('io');
+      return rejected;
+    });
+    const onDropped = vi.fn();
+    await expect(
+      store.edit!(nudge('k1', 40), { onDropped }),
+    ).rejects.toBeInstanceOf(ElementEditHeldError);
+    expect(onDropped).not.toHaveBeenCalled();
+
+    outcome = 'rejected';
+    await expect(store.retryHeld!()).resolves.toBe(true);
+    expect(onDropped).toHaveBeenCalledOnce();
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(0);
+  });
 });
 
 describe('오버레이 요소 문서 스토어', () => {

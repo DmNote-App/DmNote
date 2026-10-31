@@ -31,9 +31,10 @@ export interface ElementDocumentStore {
   getElement(sceneId: string, id: string): ElementNode | undefined;
   subscribe(listener: ElementDocumentListener): () => void;
   // 편집 창만 - 오버레이·OBS는 undefined
+  // onDropped - 영구 실패로 편집을 버릴 때(보류했다 다시 보낸 뒤 포함) 다른 스토어에 먼저 얹은 값을 되돌린다
   edit?: (
     ops: Op[],
-    options?: { gestureId?: string },
+    options?: { gestureId?: string; onDropped?: () => void },
   ) => Promise<ElementDocumentCommitResult>;
   // 편집 창만 - 일시 실패로 보류한 편집(화면에는 남는다). 다시 보내기는 보류한 차례대로
   getHeldCount?: () => number;
@@ -206,6 +207,7 @@ export const createMirrorDocumentStore = (
 interface PendingEdit {
   ops: Op[];
   gestureId?: string;
+  onDropped?: () => void;
   // 백엔드가 받아들인 리비전 - 그 리비전의 패치가 오면 목록에서 빠진다
   acknowledged: number | null;
 }
@@ -317,6 +319,7 @@ export const createEditorDocumentStore = (
         throw new ElementEditHeldError();
       }
       drop(edit);
+      edit.onDropped?.();
       for (const listener of [...rejectedListeners]) listener(failure);
       if ('error' in failure) throw failure.error;
       return failure.result;
@@ -345,6 +348,7 @@ export const createEditorDocumentStore = (
         ops,
         acknowledged: null,
         gestureId: editOptions?.gestureId,
+        onDropped: editOptions?.onDropped,
       };
       pending = [...pending, edit];
       rebuild();

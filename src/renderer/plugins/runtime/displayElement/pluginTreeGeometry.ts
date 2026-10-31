@@ -10,6 +10,7 @@ import { trackEditorWrite } from '@src/renderer/editor/runtime/lifecycle/editorW
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import type { FramePatch, Op } from '@src/types/generated/elementDocument';
 import { setPluginElementsHidden } from './pluginElementActions';
+import { flushPluginInstancesEditSession } from './instancesCommitQueue';
 import { applyCanonicalPluginInstances } from './instancesUndoSync';
 import { withoutInstanceSave } from './instanceSaveSuppression';
 
@@ -60,15 +61,13 @@ export const commitPluginFrames = (
     }
   }
   if (ops.length === 0) return Promise.resolve();
-  return sendPluginTreeEdit(
-    ops,
-    elements.map((element) => element.pluginId),
-    gestureId,
-  );
+  const pluginIds = [...new Set(elements.map((element) => element.pluginId))];
+  flushPendingSaves(pluginIds);
+  return sendPluginTreeEdit(ops, pluginIds, gestureId);
 };
 
-/** 플러그인 노드를 고치는 트리 편집 보내기 - 거절·실패하면 그 플러그인을 저장된 값으로 되돌린다.
- * 보류한 편집은 화면에 남고 트리 스토어가 다시 보낸다 */
+/** 플러그인 노드를 고치는 트리 편집 보내기 - 트리 스토어가 편집을 버리면(영구 실패 - 보류했다 다시 보낸 뒤 포함)
+ * 그 플러그인을 저장된 값으로 되돌린다. 보류한 편집은 화면에 남고 트리 스토어가 다시 보낸다 */
 export const sendPluginTreeEdit = (
   ops: Op[],
   pluginIds: Iterable<string>,
@@ -76,27 +75,31 @@ export const sendPluginTreeEdit = (
 ): Promise<void> => {
   const store = treeStore();
   if (!store) return Promise.resolve();
-  const restore = () =>
-    Promise.all(
-      [...new Set(pluginIds)].map((pluginId) =>
-        applyCanonicalPluginInstances(pluginId, true).catch(() => undefined),
-      ),
-    );
-  const sent = store.edit!(ops, gestureId ? { gestureId } : undefined).then(
-    async (result) => {
+  const ids = [...new Set(pluginIds)];
+  const restore = () => {
+    for (const pluginId of ids) {
+      void applyCanonicalPluginInstances(pluginId, true).catch(() => undefined);
+    }
+  };
+  const sent = store.edit!(ops, { gestureId, onDropped: restore }).then(
+    (result) => {
       if (result.status === 'committed') return;
-      await restore();
       throw new Error(`[Plugin] tree edit rejected: ${result.code}`);
     },
-    async (error: unknown) => {
+    (error: unknown) => {
       if (error instanceof ElementEditHeldError) return;
-      await restore();
       throw error;
     },
   );
   trackEditorWrite(sent).catch(() => undefined);
   return sent;
 };
+
+// 밀린 자동 저장을 지금 목록(트리 연산으로 바꾼 값 포함)으로 보낸다 - 트리 커밋의 플러그인 알림이 밀린 저장을 취소하므로
+// 그 앞의 변경(막 만든 요소 등)을 잃지 않게. 지운 뒤 목록이라 늦게 닿아도 지운 요소를 되살리지 않고, 먼저 닿아
+// 노드가 사라지면 백엔드가 트리 지우기에서 그 요소만 건너뛴다
+const flushPendingSaves = (pluginIds: readonly string[]) =>
+  pluginIds.forEach(flushPluginInstancesEditSession);
 
 /** 트리에서 지울 플러그인 요소를 런타임 스토어에서 먼저 뺀다(자동 저장 없이) - 그 플러그인 id들을 돌려준다
  * (sendPluginTreeEdit에 넘겨 거절되면 되돌린다) */
@@ -113,13 +116,12 @@ export const removePluginElementsLocally = (
         .map((element) => element.pluginId),
     ),
   ];
-  // 밀린 자동 저장은 그대로 둔다 - 지운 뒤 목록이 먼저 닿아 노드가 사라져도 백엔드가 트리 지우기에서
-  // 그 요소만 건너뛴다 (지우기 전 목록을 먼저 보내면 늦게 닿을 때 지운 요소를 되살린다)
   withoutInstanceSave(() =>
     store.setElements(
       store.elements.filter((element) => !targets.has(element.fullId)),
     ),
   );
+  flushPendingSaves(pluginIds);
   return pluginIds;
 };
 
@@ -140,6 +142,7 @@ export const setPluginElementHiddenInTree = (
   withoutInstanceSave(() =>
     usePluginDisplayElementStore.getState().updateElement(fullId, { hidden }),
   );
+  flushPendingSaves([element.pluginId]);
   return sendPluginTreeEdit(
     [{ op: 'setCommon', scene: sceneId, id: fullId, hidden }],
     [element.pluginId],
