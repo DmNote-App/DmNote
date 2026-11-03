@@ -105,7 +105,7 @@ export const visibleRows = (
 ) =>
   rows.filter(
     (row) =>
-      (!batch || row.batch !== false) &&
+      row.only !== (batch ? 'single' : 'batch') &&
       (!row.visible || items.some((values) => row.visible?.(values))),
   );
 

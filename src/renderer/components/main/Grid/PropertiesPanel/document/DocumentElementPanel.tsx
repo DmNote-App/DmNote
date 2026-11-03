@@ -1,4 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, {
+  createElement,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import { useDocumentElement } from '@src/renderer/editor/document/elementDocumentRuntime';
@@ -191,6 +197,17 @@ const ElementPanelBody = ({
 
   const renderers: PanelSectionRenderers = {
     geometry: () => geometry,
+    custom: (component) => (
+      // 편집 화면 전용 섹션은 지연 로딩일 수 있다
+      <Suspense fallback={null}>
+        {createElement(component, {
+          sceneId,
+          elementIds: [element.id],
+          panelElement,
+          t,
+        })}
+      </Suspense>
+    ),
     customCss: () =>
       useCustomCSS && writer ? (
         <LegacyCustomCssSection

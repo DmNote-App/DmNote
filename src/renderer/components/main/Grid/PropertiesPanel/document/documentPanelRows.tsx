@@ -1,4 +1,10 @@
-import React, { Fragment, Suspense, useState, type ReactNode } from 'react';
+import React, {
+  Fragment,
+  Suspense,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
 
 import Checkbox from '@components/main/common/checkbox/Checkbox';
 import Dropdown from '@components/main/common/dropdown/Dropdown';
@@ -6,6 +12,7 @@ import type {
   BundleName,
   PanelRowDecl,
   PanelSectionDecl,
+  PanelSectionProps,
 } from '@src/renderer/elementKinds/defineElementKind';
 import { BUILTIN_ELEMENT_KINDS } from '@src/renderer/elementKinds/builtinKinds';
 import { preloadPanelControls } from '@src/renderer/elementKinds/runtime/lazyPanelControl';
@@ -258,6 +265,8 @@ export const SurfaceRows = ({
 export interface PanelSectionRenderers {
   geometry: () => ReactNode;
   customCss: () => ReactNode;
+  // 직접 만든 섹션 - 편집 화면 전용이라 지연 로딩일 수 있다
+  custom: (component: ComponentType<PanelSectionProps>) => ReactNode;
   // 이어진 기능 묶음 - 섹션 상자도 그리는 쪽이 정한다 (옛 종류는 옛 패널의 섹션 배치 그대로)
   bundles: (bundles: readonly BundleName[]) => ReactNode;
   row: (row: PanelRowDecl<Values>) => ReactNode;
@@ -293,14 +302,16 @@ interface PanelSectionsProps {
   renderers: PanelSectionRenderers;
 }
 
-/** 정의의 섹션 순서대로 그린다 */
+/** 정의의 섹션 순서대로 그린다 (하나·여럿 중 한쪽에만 쓰는 섹션은 빼고) */
 export const PanelSections = ({
   sections,
   items,
   batch = false,
   renderers,
 }: PanelSectionsProps) =>
-  groupSections(sections).map((group, index) => {
+  groupSections(
+    sections.filter((section) => section.only !== (batch ? 'single' : 'batch')),
+  ).map((group, index) => {
     if (group.kind === 'bundles') {
       return (
         <Fragment key={`bundles-${index}`}>
@@ -310,6 +321,13 @@ export const PanelSections = ({
     }
     const { section } = group;
     if ('bundle' in section) return null;
+    if ('custom' in section) {
+      return (
+        <Fragment key={`custom-${index}`}>
+          {renderers.custom(section.custom)}
+        </Fragment>
+      );
+    }
     if ('common' in section) {
       return (
         <Fragment key={`common-${index}`}>

@@ -1,6 +1,13 @@
 'use no memo';
 // 편집 미리보기(모듈 상태)를 렌더 중에 읽어서 컴파일러 메모 제외
-import React, { Fragment, useRef, useState, useSyncExternalStore } from 'react';
+import React, {
+  createElement,
+  Fragment,
+  Suspense,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
 import {
@@ -312,47 +319,75 @@ const DocumentBatchPanel = ({
       ? aggregateMixedValue(items, (item) => item[dimension] as number, 60)
       : aggregateMixedValue(elements, (node) => node.frame[dimension], 60);
 
+  // 스프라이트만 고른 옛 일괄 패널은 정렬·분배·간격만 (크기·회전 칸이 없었다)
+  const arrangeOnly =
+    writer !== null && elements.every((element) => element.kind === 'sprite');
+
   const renderers: PanelSectionRenderers = {
-    geometry: () => (
-      <PropertySection>
-        <BatchGeometrySection
-          totalCount={totalCount}
-          handleBatchAlign={geometry.handleBatchAlign}
-          handleBatchDistribute={geometry.handleBatchDistribute}
-          handleBatchSpacing={geometry.handleBatchSpacing}
-          handleBatchSpacingCommit={geometry.handleBatchSpacingCommit}
-          batchSpacing={geometry.getBatchSpacingValue()}
-          t={t}
-        />
-        <PropertyRow label={t('propertiesPanel.size') || '크기'}>
-          {(['width', 'height'] as const).map((dimension) => {
-            const state = size(dimension);
-            return (
-              <NumberInput
-                key={dimension}
-                value={state.value}
-                onChange={(value) =>
-                  geometry.handleBatchResize(dimension, value)
-                }
-                onPreview={(value) =>
-                  geometry.handleBatchResizePreview(dimension, value)
-                }
-                onCancel={cancelResizePreview}
-                prefix={dimension === 'width' ? 'W' : 'H'}
-                width={AXIS_FIELD_WIDTH}
-                min={10}
-                max={9999}
-                allowDecimal
-                decimalScale={1}
-                isMixed={state.isMixed}
-              />
-            );
-          })}
-        </PropertyRow>
-        <SelectionRotationInput
-          label={t('propertiesPanel.rotation') || '회전'}
-        />
-      </PropertySection>
+    geometry: () =>
+      arrangeOnly ? (
+        <PropertySection>
+          <BatchGeometrySection
+            totalCount={totalCount}
+            handleBatchAlign={geometry.handleBatchAlign}
+            handleBatchDistribute={geometry.handleBatchDistribute}
+            handleBatchSpacing={geometry.handleBatchSpacing}
+            handleBatchSpacingCommit={geometry.handleBatchSpacingCommit}
+            batchSpacing={geometry.getBatchSpacingValue()}
+            t={t}
+          />
+        </PropertySection>
+      ) : (
+        <PropertySection>
+          <BatchGeometrySection
+            totalCount={totalCount}
+            handleBatchAlign={geometry.handleBatchAlign}
+            handleBatchDistribute={geometry.handleBatchDistribute}
+            handleBatchSpacing={geometry.handleBatchSpacing}
+            handleBatchSpacingCommit={geometry.handleBatchSpacingCommit}
+            batchSpacing={geometry.getBatchSpacingValue()}
+            t={t}
+          />
+          <PropertyRow label={t('propertiesPanel.size') || '크기'}>
+            {(['width', 'height'] as const).map((dimension) => {
+              const state = size(dimension);
+              return (
+                <NumberInput
+                  key={dimension}
+                  value={state.value}
+                  onChange={(value) =>
+                    geometry.handleBatchResize(dimension, value)
+                  }
+                  onPreview={(value) =>
+                    geometry.handleBatchResizePreview(dimension, value)
+                  }
+                  onCancel={cancelResizePreview}
+                  prefix={dimension === 'width' ? 'W' : 'H'}
+                  width={AXIS_FIELD_WIDTH}
+                  min={10}
+                  max={9999}
+                  allowDecimal
+                  decimalScale={1}
+                  isMixed={state.isMixed}
+                />
+              );
+            })}
+          </PropertyRow>
+          <SelectionRotationInput
+            label={t('propertiesPanel.rotation') || '회전'}
+          />
+        </PropertySection>
+      ),
+    custom: (component) => (
+      // 편집 화면 전용 섹션은 지연 로딩일 수 있다
+      <Suspense fallback={null}>
+        {createElement(component, {
+          sceneId,
+          elementIds,
+          panelElement,
+          t,
+        })}
+      </Suspense>
     ),
     customCss: () =>
       useCustomCSS && writer ? (

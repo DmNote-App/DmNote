@@ -204,6 +204,9 @@ export interface PanelFieldControlProps {
   elementIds: readonly string[];
 }
 
+// 하나만 골랐을 때 / 여러 개 골랐을 때만 쓰는 칸·섹션 (없으면 둘 다)
+export type PanelSelectionScope = 'single' | 'batch';
+
 export interface PanelRowDecl<Values> {
   readonly field: string;
   // i18n 키
@@ -211,18 +214,29 @@ export interface PanelRowDecl<Values> {
   readonly control: PanelControlDecl;
   // 여러 개를 고르면 하나라도 보이는 칸을 보인다 (고친 값은 고른 요소 모두에 쓴다)
   readonly visible?: (values: Values) => boolean;
-  // 여러 개를 골랐을 때도 보일지 (기본 보인다 - 노브 축 매핑처럼 하나에만 쓰는 칸은 false)
-  readonly batch?: boolean;
+  // 노브 축 매핑처럼 하나에만 쓰는 칸은 'single'
+  readonly only?: PanelSelectionScope;
 }
 
-export type PanelSectionDecl<Values> =
+// 섹션 하나 단위 탈출구가 받는 것 - 값 읽기·쓰기는 종류 코드가 맡는다
+export interface PanelSectionProps {
+  sceneId: string;
+  elementIds: readonly string[];
+  panelElement: HTMLElement | null;
+  t: (key: string) => string | undefined;
+}
+
+export type PanelSectionDecl<Values> = (
   | { readonly rows: readonly PanelRowDecl<Values>[] }
   // 공통 위치·크기 섹션 자리
   | { readonly common: 'geometry' }
   // 사용자 CSS 섹션 - 설정에서 사용자 CSS를 켰을 때 인라인 스타일 우선·클래스
   | { readonly common: 'customCss' }
   // 기능 묶음 섹션
-  | { readonly bundle: BundleName };
+  | { readonly bundle: BundleName }
+  // 섹션 하나 단위 탈출구 - 선언으로 안 되는 편집 화면(스프라이트 자세 목록 등)은 직접 만든 섹션을 끼운다
+  | { readonly custom: ComponentType<PanelSectionProps> }
+) & { readonly only?: PanelSelectionScope };
 
 export type ElementKindDefinition<D extends ElementKindData = ElementKindData> =
   D & ElementKindCode<KindValues<D>>;
