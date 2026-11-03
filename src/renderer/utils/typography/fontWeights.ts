@@ -18,7 +18,7 @@ const FALLBACK_FONT_WEIGHTS = [FONT_WEIGHT_REGULAR] as const;
 
 // 백엔드 editor_ops와 같은 규칙 - Bold 미확정 요소의 굵기를 바꾸기 전에 암묵 Bold를
 // 고정한다. 고정하지 않으면 (700, 미확정)이 새로 생겨 재시작 마이그레이션이 레거시
-// 700으로 오인하고, 낙관 투영과 저장값이 갈라진다
+// 700으로 오인하고, 낙관 투영과 저장값이 갈라진다 (editor-ops-parity fixture로 고정)
 export const implicitElementFontBold = (fontWeight: unknown): boolean =>
   fontWeight == null || fontWeight === 700;
 export const implicitCounterFontBold = (fontWeight: unknown): boolean =>

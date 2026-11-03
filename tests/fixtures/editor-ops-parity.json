@@ -1,6 +1,6 @@
 {
   "version": 4,
-  "comment": "semantic op 결과 fixture. 소비자: src-tauri/src/state/editor_ops_parity.rs (canonical 적용기 회귀 검사 - 프론트 낙관 적용기는 트리 연산으로 옮겨 걷었다). 각 케이스는 initialDocument에 ops를 적용한 문서가 expectedDocument와 일치함을 고정한다. 플러그인 그룹 멤버 원천은 비어 있는 상태를 전제한다.",
+  "comment": "semantic op 결과 fixture. 소비자: src-tauri/src/state/editor_ops_parity.rs (canonical 적용기 회귀 검사), tests/editor-patch-element-parity.test.ts (속성 patch만 있는 케이스 - 패널 칸 계산 applySemanticElementPatch). 각 케이스는 initialDocument에 ops를 적용한 문서가 expectedDocument와 일치함을 고정한다. 플러그인 그룹 멤버 원천은 비어 있는 상태를 전제한다.",
   "cases": [
     {
       "name": "setbounds-basic",
@@ -3454,6 +3454,179 @@
               "count": 0,
               "noteColor": "#FFFFFF",
               "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {},
+        "knobPositions": {},
+        "layerGroups": {},
+        "spritePositions": {}
+      }
+    },
+    {
+      "name": "patch-font-weight-pins-implicit-bold",
+      "comment": "굵기 patch 전 암묵 Bold 고정. 키 (700, 없음)은 Bold, 카운터 (400, 없음)은 non-Bold, 미설정 스탯은 기본 Bold로 고정한 뒤 굵기만 바꾼다 (패널 칸 계산 fontWeights.implicit*FontBold와 백엔드 editor_ops가 같아야 한다)",
+      "initialDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "counter": {
+                "enabled": true,
+                "placement": "inside",
+                "align": "bottom",
+                "alignMode": "center",
+                "fill": {
+                  "idle": "rgba(237, 238, 242, 0.78)",
+                  "active": "rgba(20, 20, 24, 0.9)"
+                },
+                "stroke": {
+                  "idle": "transparent",
+                  "active": "transparent"
+                },
+                "gap": 4,
+                "fontSize": 11,
+                "fontWeight": 400,
+                "fontFamily": null,
+                "fontItalic": false,
+                "fontUnderline": false,
+                "fontStrikethrough": false,
+                "animation": {
+                  "enabled": false,
+                  "presetId": "builtin-ease-out",
+                  "bezier": [0.25, 0.46, 0.45, 0.94],
+                  "scale": 1.1,
+                  "durationMs": 300
+                }
+              },
+              "fontWeight": 700
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "id": "44444444-4444-4444-8444-444444444444",
+              "statType": "kps",
+              "dx": 120,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {},
+        "knobPositions": {},
+        "layerGroups": {},
+        "spritePositions": {}
+      },
+      "ops": [
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "fontWeight",
+            "value": 500
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "counterFontWeight",
+            "value": 700
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "stat",
+          "id": "44444444-4444-4444-8444-444444444444",
+          "patch": {
+            "property": "fontWeight",
+            "value": 600
+          }
+        }
+      ],
+      "expectedDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "counter": {
+                "enabled": true,
+                "placement": "inside",
+                "align": "bottom",
+                "alignMode": "center",
+                "fill": {
+                  "idle": "rgba(237, 238, 242, 0.78)",
+                  "active": "rgba(20, 20, 24, 0.9)"
+                },
+                "stroke": {
+                  "idle": "transparent",
+                  "active": "transparent"
+                },
+                "gap": 4,
+                "fontSize": 11,
+                "fontWeight": 700,
+                "fontFamily": null,
+                "fontItalic": false,
+                "fontUnderline": false,
+                "fontStrikethrough": false,
+                "animation": {
+                  "enabled": false,
+                  "presetId": "builtin-ease-out",
+                  "bezier": [0.25, 0.46, 0.45, 0.94],
+                  "scale": 1.1,
+                  "durationMs": 300
+                },
+                "fontBold": false
+              },
+              "fontWeight": 500,
+              "fontBold": true
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "id": "44444444-4444-4444-8444-444444444444",
+              "statType": "kps",
+              "dx": 120,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "fontWeight": 600,
+              "fontBold": true
             }
           ]
         },

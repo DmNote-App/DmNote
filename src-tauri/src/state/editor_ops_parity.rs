@@ -7,7 +7,8 @@ use crate::models::{AppStoreData, EditorDocumentV1, EditorOpV1, EDITOR_OPS_VERSI
 use super::editor_ops::prepare_editor_ops_transition;
 
 // "같은 op 시퀀스 -> 같은 문서" 결과를 fixture로 고정한다 - canonical 적용기(prepare_editor_ops_transition)
-// 회귀 검사 (프론트 낙관 적용기는 트리 연산으로 옮겨 걷었다)
+// 회귀 검사. 속성 patch만 있는 케이스는 프론트 패널 칸 계산(applySemanticElementPatch)도 같은 fixture로 확인한다
+// (tests/editor-patch-element-parity.test.ts)
 const OPS_PARITY_FIXTURE: &str = include_str!("../../../tests/fixtures/editor-ops-parity.json");
 
 #[derive(Deserialize)]
