@@ -3286,6 +3286,32 @@ fn 잠긴_종류의_id가_이_앱_모양에_맞지_않아도_다른_편집과_�
     let moved = tree_element(&store, &sprite_id).unwrap();
     assert_eq!(moved.frame.x, 77.0);
     assert_eq!(moved.values, stored.values);
+
+    // 플러그인 옛 패치(v1)가 스프라이트를 그대로 다시 보내도 잠긴 포즈 id를 이어받거나 새로 주지 않는다
+    let legacy = store.snapshot().legacy().clone();
+    let mut stats = legacy.stat_positions.clone();
+    stats.get_mut("4key").unwrap()[0].position.dx += 1.0;
+    store
+        .commit_editor_document(crate::models::EditorCommitRequest {
+            base_revision: store.editor_get().revision,
+            mutation_id: uuid::Uuid::new_v4().to_string(),
+            multi_key: false,
+            gesture_id: None,
+            gesture_ids: Vec::new(),
+            changes: Some(crate::models::EditorPatchV1 {
+                sprite_positions: Some(legacy.sprite_positions.clone()),
+                stat_positions: Some(stats),
+                ..Default::default()
+            }),
+            ops_version: None,
+            ops: None,
+            element_tree: None,
+        })
+        .unwrap();
+    assert_eq!(
+        tree_element(&store, &sprite_id).unwrap().values,
+        stored.values
+    );
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }

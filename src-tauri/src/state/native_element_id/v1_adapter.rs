@@ -788,7 +788,12 @@ fn adapt_v1_patch_ids(
             reserved: &mut reserved,
         },
     );
-    if let Some(collection) = patch.sprite_positions.as_mut() {
+    // 잠긴 스프라이트의 포즈 id는 이어받거나 새로 주지 않는다 - 쓴 그대로 (설계 3.5)
+    if let Some(collection) = patch
+        .sprite_positions
+        .as_mut()
+        .filter(|_| !locked.contains(&EditorElementTypeV1::Sprite))
+    {
         adapt_v1_sprite_pose_ids(
             &store.sprite_positions,
             collection,

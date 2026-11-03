@@ -202,7 +202,12 @@ pub(crate) fn migrate_key_images_to_app_data(app_data_dir: &Path, data: &mut App
         return false;
     }
 
-    for_each_element_mut(data, |_, _, element| {
+    // 새 버전 앱이 쓴 종류(잠금)는 이 앱의 옮기기로 고쳐 쓰지 않는다 (설계 3.5)
+    let locked = crate::models::legacy_layout::locked_legacy_kinds(data.element_document());
+    for_each_element_mut(data, |kind, _, element| {
+        if locked.contains(&kind) {
+            return;
+        }
         element.for_each_image_ref_mut(&mut |image_ref| {
             changed |= migrate_image_reference_to_app_data(&images_dir, image_ref);
         });
