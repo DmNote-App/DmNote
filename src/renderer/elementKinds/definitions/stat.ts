@@ -1,6 +1,5 @@
-import OverlayStatItem from '@components/overlay/counters/OverlayStatItem';
 import { defineElementKind } from '../defineElementKind';
-import StatEditorFace from './stat/StatEditorFace';
+import StatElementFace from './stat/StatElementFace';
 
 // 스탯 - KPS·누적 수치를 글자로 그린다
 export const statKind = defineElementKind(
@@ -30,9 +29,9 @@ export const statKind = defineElementKind(
     fallbackSize: { width: 60, height: 60 },
   },
   {
-    // 편집 화면은 옛 스탯 겉모습, 오버레이·OBS는 트리에서 옛 스탯을 그대로 그린다(바깥 카운터는 아직 옛 배열)
-    render: StatEditorFace as never,
+    // 편집 화면은 편집 미리보기, 오버레이·OBS는 수치 신호로 같은 겉모습 계산을 그린다 (바깥 카운터는 카운터 층)
+    render: StatElementFace as never,
     faceOwnsClassName: true,
-    legacyOverlay: OverlayStatItem as never,
+    placesItself: true,
   },
 );

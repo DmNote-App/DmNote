@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { slotDisplayName } from '@utils/keySlot';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import KeyEditorFace from './KeyEditorFace';
+import KeyElementFace from './KeyElementFace';
 
 vi.mock('@components/main/Grid/document/treeEditedSelection', () => ({
   useInPanelSelection: () => false,
@@ -30,7 +30,7 @@ describe('편집 화면 키 얼굴', () => {
     const root = createRoot(container);
     act(() =>
       root.render(
-        <KeyEditorFace
+        <KeyElementFace
           element={element}
           values={{}}
           bundles={{}}

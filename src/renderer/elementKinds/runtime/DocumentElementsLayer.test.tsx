@@ -74,7 +74,7 @@ vi.mock('@src/renderer/elementKinds/definitions/graph/GraphFace', () => ({
 }));
 
 const statProps = vi.fn();
-vi.mock('@components/overlay/counters/OverlayStatItem', () => ({
+vi.mock('@components/overlay/counters/StatItem', () => ({
   default: (props: { position: Record<string, unknown> }) => {
     statProps(props.position);
     return <div data-stat-element="" />;
