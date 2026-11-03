@@ -1090,16 +1090,45 @@ fn plugin_instances_commit_records_merges_and_skips_noop() {
     assert_eq!(second.history_status.as_ref().unwrap().history_revision, 1);
     drop(second);
 
-    let noop = write_plugin_instances(
-        &store,
-        "demo-plugin",
-        vec![saved_plugin_instance(30.0)],
-        None,
-    )
-    .unwrap();
-    assert!(!noop.changed);
-    assert!(noop.history_status.is_none());
-    drop(noop);
+    // 바뀐 것이 없는 트리 커밋(같은 틀 쓰기, 같은 자리에 빼고 다시 넣기)은 기록·revision을 남기지 않는다
+    let id = format!(
+        "demo-plugin::{}",
+        saved_plugin_instance(30.0).instance_id.unwrap()
+    );
+    let (_, document) = store.element_document_snapshot();
+    let index = document.scenes["4key"]
+        .nodes
+        .iter()
+        .position(|node| node.id() == id)
+        .unwrap();
+    let element = document.scenes["4key"].element(&id).unwrap().clone();
+    let mut node = serde_json::to_value(&element).unwrap();
+    node["type"] = json!("element");
+    for ops in [
+        json!([{ "op": "setFrame", "scene": "4key", "id": id,
+                 "frame": { "x": element.frame.x, "y": element.frame.y } }]),
+        json!([
+            { "op": "remove", "scene": "4key", "ids": [id] },
+            { "op": "insert", "scene": "4key", "parent": null, "index": index, "node": node }
+        ]),
+    ] {
+        use super::element_tree::{ElementDocumentCommitPlan, ElementDocumentCommitResult};
+        let ops: Vec<element_document::Op> = serde_json::from_value(ops).unwrap();
+        // 편집 창 쓰기와 같은 계획 - 플러그인 노드만 바꾸면 트리 커밋
+        let check_legacy = match store.plan_element_document_commit(&ops, None).unwrap() {
+            ElementDocumentCommitPlan::TreeOnly => true,
+            ElementDocumentCommitPlan::TreeOrderOnly => false,
+            ElementDocumentCommitPlan::Rejected(result) => panic!("{result:?}"),
+            ElementDocumentCommitPlan::Legacy { .. } => panic!("옛 편집 커밋으로 계획됨"),
+        };
+        let result = store
+            .commit_element_document_tree(&ops, check_legacy, None)
+            .unwrap();
+        assert!(
+            matches!(result, ElementDocumentCommitResult::Committed { .. }),
+            "{result:?}"
+        );
+    }
 
     assert_eq!(
         plugin_instances_of(&store, "demo-plugin"),
