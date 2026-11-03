@@ -8,10 +8,7 @@ export type SelectionPanelRouteKind =
   | 'batchGraphOnly'
   | 'pluginBatch'
   | 'plugin'
-  | 'singleKnob'
-  | 'singleGraph'
-  | 'singleKeyStat'
-  | 'singleSprite'
+  | 'single'
   | 'none';
 
 export interface SelectionPanelRouteInput {
@@ -20,11 +17,8 @@ export interface SelectionPanelRouteInput {
   knobCount: number;
   spriteCount: number;
   pluginCount: number;
-  hasSingleKeyPosition: boolean;
-  hasSingleStatPosition: boolean;
-  hasSingleGraphPosition: boolean;
-  hasSingleKnobPosition: boolean;
-  hasSingleSpritePosition: boolean;
+  // 하나 고른 native 요소의 위치를 찾았는지
+  hasSinglePosition: boolean;
 }
 
 export interface SelectionPanelRoute {
@@ -40,11 +34,7 @@ export const resolveSelectionPanelRoute = (
     knobCount,
     spriteCount,
     pluginCount,
-    hasSingleKeyPosition,
-    hasSingleStatPosition,
-    hasSingleGraphPosition,
-    hasSingleKnobPosition,
-    hasSingleSpritePosition,
+    hasSinglePosition,
   } = input;
   const nativeCount = keyLikeCount + graphCount + knobCount + spriteCount;
 
@@ -68,36 +58,8 @@ export const resolveSelectionPanelRoute = (
     return { kind: 'pluginBatch' };
   }
 
-  // 단일 스프라이트
-  if (
-    spriteCount === 1 &&
-    hasSingleSpritePosition &&
-    keyLikeCount === 0 &&
-    graphCount === 0 &&
-    knobCount === 0
-  ) {
-    return { kind: 'singleSprite' };
-  }
-
-  // 단일 노브
-  if (
-    knobCount === 1 &&
-    hasSingleKnobPosition &&
-    keyLikeCount === 0 &&
-    graphCount === 0
-  ) {
-    return { kind: 'singleKnob' };
-  }
-
-  // 단일 그래프
-  if (graphCount === 1 && hasSingleGraphPosition && keyLikeCount === 0) {
-    return { kind: 'singleGraph' };
-  }
-
-  // 단일 키/통계
-  if (hasSingleKeyPosition || hasSingleStatPosition) {
-    return { kind: 'singleKeyStat' };
-  }
+  // 하나 - 종류와 상관없이 그 종류 정의의 패널 선언
+  if (hasSinglePosition) return { kind: 'single' };
 
   // 위치 미해결 등 과도 상태 - 빈 패널
   return { kind: 'none' };

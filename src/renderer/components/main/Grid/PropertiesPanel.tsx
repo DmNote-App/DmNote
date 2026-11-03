@@ -450,11 +450,13 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       knobCount: selectedKnobElements.length,
       spriteCount: selectedSpriteElements.length,
       pluginCount: selectedPluginElements.length,
-      hasSingleKeyPosition: !!singleKeyPosition,
-      hasSingleStatPosition: !!singleStatPosition,
-      hasSingleGraphPosition: !!singleGraphPosition,
-      hasSingleKnobPosition: !!singleKnobPosition,
-      hasSingleSpritePosition: !!singleSpritePosition,
+      hasSinglePosition: !!(
+        singleKeyPosition ||
+        singleStatPosition ||
+        singleGraphPosition ||
+        singleKnobPosition ||
+        singleSpritePosition
+      ),
     });
     // 옛 종류 일괄 선택의 개수·그룹·일괄 기하 (플러그인 요소 포함) - 선언 일괄 패널에 넘긴다
     const legacyBatchHost = {
@@ -651,59 +653,13 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    // 단일 스프라이트 요소 선택인 경우 - 스프라이트 정의의 패널 선언(옛 스프라이트 패널 본문 섹션)
-    if (route.kind === 'singleSprite' && selectedSpriteElements[0]) {
-      return (
-        <DocumentElementPanel
-          sceneId={selectedKeyType}
-          elementId={selectedSpriteElements[0].id}
-          panelElement={panelElement}
-          setPanelElement={setPanelElement}
-          scrollRefFor={singleScrollRefFor}
-          t={t}
-        />
-      );
-    }
-
-    // 단일 노브 요소 선택인 경우 - 노브 정의의 패널 선언
-    if (route.kind === 'singleKnob' && selectedKnobElements[0]) {
-      return (
-        <DocumentElementPanel
-          sceneId={selectedKeyType}
-          elementId={selectedKnobElements[0].id}
-          panelElement={panelElement}
-          setPanelElement={setPanelElement}
-          scrollRefFor={singleScrollRefFor}
-          t={t}
-        />
-      );
-    }
-
-    // 단일 그래프 요소 선택인 경우 - 그래프 정의의 패널 선언
-    if (route.kind === 'singleGraph' && selectedGraphElements[0]) {
-      return (
-        <DocumentElementPanel
-          sceneId={selectedKeyType}
-          elementId={selectedGraphElements[0].id}
-          panelElement={panelElement}
-          setPanelElement={setPanelElement}
-          scrollRefFor={singleScrollRefFor}
-          t={t}
-        />
-      );
-    }
-
-    // 단일 키·스탯 요소 선택인 경우 - 키·스탯 정의의 패널 선언 (탭: 스타일·노트·카운터)
-    const singleKeyStatId = singleKeyPosition
-      ? selectedKeyElements[0]?.id
-      : singleStatPosition
-      ? selectedStatElements[0]?.id
-      : undefined;
-    if (route.kind !== 'singleKeyStat' || !singleKeyStatId) return null;
+    // 하나 고른 경우 - 그 종류 정의의 패널 선언 (키·스탯은 탭: 스타일·노트·카운터)
+    const singleElementId = selectedBatchGeometryElements[0]?.id;
+    if (route.kind !== 'single' || !singleElementId) return null;
     return (
       <DocumentElementPanel
         sceneId={selectedKeyType}
-        elementId={singleKeyStatId}
+        elementId={singleElementId}
         panelElement={panelElement}
         setPanelElement={setPanelElement}
         scrollRefFor={singleScrollRefFor}
