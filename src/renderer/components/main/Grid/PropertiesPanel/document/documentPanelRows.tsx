@@ -78,6 +78,8 @@ export const FieldRow = ({
     value: number;
     source: string;
   } | null>(null);
+  // 바탕이 바뀌면 지운다 - 가리기만 하면 되돌리기·요소 왕복으로 바탕이 돌아왔을 때 묵은 값이 다시 비친다
+  if (draft && draft.source !== draftSource) setDraft(null);
   const draftValue = draft && draft.source === draftSource ? draft.value : null;
   const label = t(row.label) || row.label;
   const control = row.control;
