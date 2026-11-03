@@ -11,7 +11,7 @@
 
 - 새 캔버스 요소 종류를 추가하려면 백엔드 36개·프론트 85개 파일을 고쳐야 했다(1단계 착수 전 조사).
 - 1~3단계에서 종류 목록과 연결 지점을 표로 모았다. 그래도 저장 모양, 검증, 패널, 창별 그리기는 종류마다 따로 남아 있다.
-- 같은 내용을 TS와 Rust에 두 번 적는다. `KeyPosition`의 칸 77개가 [Rust 구조체](../src-tauri/src/models/element_positions.rs)와 [TS zod 스키마](../src/types/key/keys.ts)에 각각 있고, 코드 생성 도구는 없다. 두 벌을 맞추는 동기화 데이터가 `tests/fixtures/`에 9개 있었지만(오류 코드, 편집 연산, 종류 목록, 회전·스프라이트 계산 등 - 지금은 트리 패치·편집 창 낙관 적용 fixture까지 11개), `KeyPosition` 칸 일치는 그중 어디에도 고정돼 있지 않다.
+- 같은 내용을 TS와 Rust에 두 번 적는다. `KeyPosition`의 칸 77개가 [Rust 구조체](../src-tauri/src/models/element_positions.rs)와 [TS zod 스키마](../src/types/key/keys.ts)에 각각 있고, 코드 생성 도구는 없다. 두 벌을 맞추는 동기화 데이터가 `tests/fixtures/`에 9개 있었지만(오류 코드, 편집 연산, 종류 목록, 회전·스프라이트 계산 등 - 지금은 트리 패치·편집 창 낙관 적용·플러그인 인스턴스 fixture까지 12개), `KeyPosition` 칸 일치는 그중 어디에도 고정돼 있지 않다.
 - 편집 화면과 오버레이가 같은 요소를 따로 그린다. 그리기 핵심([GraphPanel](../src/renderer/components/shared/graph/GraphPanel.tsx), [KnobFace](../src/renderer/components/shared/KnobFace.tsx))은 공유하지만, 데이터를 모으고 겉모습을 조립하는 바깥 코드는 창마다 있다. 그래프·노브 모두 오버레이 파일(`OverlayGraphItem.tsx`, `OverlayKnobItem.tsx`)을 고친 커밋 20개 중 14개가 짝이 되는 편집 화면 파일도 같이 고쳤다(`git log --follow` 기준). 저장소 전체 리팩터링·포맷·폴더 이동·용어 변경·되돌리기 커밋을 빼면 그래프는 12개 중 6개, 노브는 16개 중 10개다.
 - 같은 값을 여러 곳에서 다룬다. 그래프 속도 범위(500~60000ms)가 단일 선택 패널, 다중 선택 패널 쪽 2개 파일, 오버레이 그리기에 따로 적혀 있고 백엔드는 검사하지 않는다. 다중 선택 패널은 선택 조합마다 손으로 고른다([selectionPanelRoute.ts](../src/renderer/components/main/Grid/PropertiesPanel/selection/selectionPanelRoute.ts)).
 
@@ -77,6 +77,7 @@
 - **[결정 2026-11-03] TS·Rust 두 벌인 편집 계산은 두 벌로 두고 엔진 fixture로 묶는다.** 창에 엔진이 없으므로 WASM 한 벌로 합치는 길은 쓰지 않는다. 화면에 먼저 보이는 계산은 TS, 확정은 Rust 엔진이 맡고, 엔진이 만든 기대 결과(fixture)로 두 벌이 같은지 CI가 확인한다.
   - 편집 창 낙관 적용(`documentLocalOps.ts`)은 백엔드 트리 편집 적용(엔진 적용 + 빈 트리 전용 그룹 정리, `apply_tree_ops`)과 같은 결과를 낸다(`tests/fixtures/element-document-local-ops.json`). 빈 그룹 정리는 편집 묶음 끝에서 한 번 하고, 없던 묶음에 쓰면 묶음 기본값에서 시작한다.
   - 넣기는 종류 기본값을 채운 노드를 보낸다(`elementKindDefaults.ts`, 엔진 넣기 채우기와 같은 fixture). 그래서 화면에 먼저 보이는 값과 저장되는 값이 같다. 트리 전용 종류는 노드가 그대로 저장되고, 옛 종류는 옛 편집 커밋이 노드를 다시 만들어 옛 정보(`legacy`)가 붙고 빈(null) 칸이 빠진다(값은 같다).
+  - 플러그인 런타임의 인스턴스 ↔ 트리 노드 변환은 백엔드 저장 항목 ↔ 노드(`placeable`·`place`·`project_plugin_bucket`)와 같다(`tests/fixtures/plugin-instance-tree.json`).
   - 맞지 않는 편집(거절될 편집)은 화면에 먼저 보였다가 거절되면 빠진다. 플러그인 겹침값 다시 넣기의 자리처럼 백엔드가 정하는 값은 패치로 받는다.
 
 ### 3.5 버전과 옮기기 — **[확정]**
@@ -473,7 +474,7 @@
 | 내용                                              | 위치                                                                                                                                                                                                   |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `KeyPosition` Rust 구조체 / TS 스키마 (칸 77개씩) | `src-tauri/src/models/element_positions.rs`, `src/types/key/keys.ts` (`keyPositionSchema`)                                                                                                             |
-| TS·Rust 동기화 데이터 11개                        | `tests/fixtures/`                                                                                                                                                                                      |
+| TS·Rust 동기화 데이터 12개                        | `tests/fixtures/`                                                                                                                                                                                      |
 | 창별 그리기                                       | `src/renderer/components/main/Grid/layers/`(편집 화면) ↔ `src/renderer/components/overlay/counters/`(오버레이)                                                                                         |
 | 그래프 속도 범위가 적힌 곳                        | `single/SingleGraphPanel.tsx`, `batch/graph/BatchGraphSettingsSection.tsx`, `batch/graph/batchGraphSettingsModel.ts`(이상 `PropertiesPanel/`), `overlay/counters/OverlayGraphItem.tsx`                 |
 | `defineElement`와 설정 스키마                     | `src/renderer/plugins/runtime/api/defineElement.ts`, `src/types/plugin/api.ts` (`PluginSettingSchema`)                                                                                                 |
