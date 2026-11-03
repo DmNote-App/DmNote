@@ -30,16 +30,14 @@ const outermostGroup = (scene: Scene, id: string) =>
 const elementNodes = (node: Node): Extract<Node, { type: 'element' }>[] =>
   node.type === 'group' ? node.children.flatMap(elementNodes) : [node];
 
-/** 누른 요소가 그룹 안이면 가장 바깥 그룹의 요소 전체 - 트리 선택 몫과 옛 선택 몫(플러그인 요소)으로 나눈다 */
-export const groupSelectionOf = (scene: Scene | undefined, id: string) => {
+/** 누른 요소가 그룹 안이면 가장 바깥 그룹의 요소 전체(플러그인 인스턴스 포함, 트리 순서), 아니면 그 요소 */
+export const groupSelectionOf = (
+  scene: Scene | undefined,
+  id: string,
+): string[] => {
   const group = scene ? outermostGroup(scene, id) : null;
-  if (!group) return { treeIds: [id], plugins: [] as string[] };
-  const treeIds: string[] = [];
-  const plugins: string[] = [];
-  for (const element of group.children.flatMap(elementNodes)) {
-    (isPluginKind(element.kind) ? plugins : treeIds).push(element.id);
-  }
-  return { treeIds, plugins };
+  if (!group) return [id];
+  return group.children.flatMap(elementNodes).map((element) => element.id);
 };
 
 /** 묶을 대상 - 요소가 다 골라진 그룹은 그룹째(가장 바깥부터), 나머지는 요소. 겹치는 순서대로 */

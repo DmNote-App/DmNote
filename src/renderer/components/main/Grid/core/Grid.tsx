@@ -101,7 +101,6 @@ import {
 } from '../document/documentGroups';
 import { documentIdsInRect } from '../document/documentSelection';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
-import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { createDocumentDragReceipt } from '../document/documentDragReceipt';
 import {
   groupDocumentElements,
@@ -327,16 +326,17 @@ const Grid = ({
       selectedKeyType,
       pluginElements,
       clientToGridCoords,
-      // 트리 요소(커서 트래커 등)도 같은 마퀴로 함께 고른다
-      selectDocumentInRect: (rect) => {
+      // 트리 요소와 플러그인 요소를 한 번에 - 트리에 노드가 있는 인스턴스는 트리 선택으로
+      selectInRect: (rect, plugins) => {
         useDocumentSelectionStore
           .getState()
-          .setSelection(
+          .replaceSelection(
             selectedKeyType,
             documentIdsInRect(
               getElementDocumentStore()?.getScene(selectedKeyType),
               rect,
             ),
+            plugins,
           );
       },
     });
@@ -588,21 +588,14 @@ const Grid = ({
       return;
     }
     if (!selected) {
-      // 그룹 안이면 그룹째 - 그룹의 플러그인 요소는 옛 선택으로
-      const group = groupSelectionOf(
-        getElementDocumentStore()?.getScene(selectedKeyType),
-        element.id,
+      // 그룹 안이면 그룹째 (플러그인 인스턴스 포함)
+      selection.setSelection(
+        selectedKeyType,
+        groupSelectionOf(
+          getElementDocumentStore()?.getScene(selectedKeyType),
+          element.id,
+        ),
       );
-      selection.setSelection(selectedKeyType, group.treeIds);
-      if (group.plugins.length > 0) {
-        keepOtherSelection(() =>
-          useDocumentSelectionStore
-            .getState()
-            .setSelectedElements(
-              group.plugins.map((id) => ({ type: 'plugin', id })),
-            ),
-        );
-      }
     }
     // 트리로 옮긴 옛 종류는 옛 메뉴 - 옛 그룹 묶기·풀기, 그룹을 넘는 겹침 순서, 복제 배치를 그대로 쓴다
     const kind = getElementDocumentStore()?.getElement(

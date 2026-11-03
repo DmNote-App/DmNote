@@ -2,7 +2,6 @@
  * Grid 마퀴(범위 선택) 관련 로직 훅
  */
 
-import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { useEffect, useRef } from 'react';
 import {
   useGridSelectionStore,
@@ -24,13 +23,16 @@ interface UseGridMarqueeParams {
   ) => { x: number; y: number } | null;
   /** benchmark에서 제거 전 이벤트 처리 경로를 재현 */
   continuousInputStrategy?: 'legacy' | 'frame';
-  /** 같은 사각형 안의 트리 요소를 함께 고른다 (옛 종류 선택을 지킨 채) */
-  selectDocumentInRect?: (rect: {
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-  }) => void;
+  /** 사각형 안의 트리 요소와 플러그인 요소를 한 번에 고른다 (트리에 노드가 있는 인스턴스는 트리 선택) */
+  selectInRect?: (
+    rect: {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    },
+    plugins: SelectedElement[],
+  ) => void;
 }
 
 interface UseGridMarqueeReturn {
@@ -50,7 +52,7 @@ export function useGridMarquee({
   pluginElements,
   clientToGridCoords,
   continuousInputStrategy = 'frame',
-  selectDocumentInRect,
+  selectInRect,
 }: UseGridMarqueeParams): UseGridMarqueeReturn {
   const isMarqueeSelecting = useGridSelectionStore(
     (state) => state.isMarqueeSelecting,
@@ -144,7 +146,7 @@ export function useGridMarquee({
     if (rect && rect.width > 5 && rect.height > 5) {
       const newSelectedElements: SelectedElement[] = [];
 
-      // 옛 종류 요소는 모두 트리 편집기가 고른다(selectDocumentInRect) - 여기는 플러그인 요소만
+      // 옛 종류·트리 요소는 트리 편집기가 고른다(selectInRect) - 여기는 플러그인 요소만
       // 플러그인 요소 체크 (현재 탭에 속하는 것만)
       pluginElements.forEach((el) => {
         if (el.hidden) return;
@@ -165,8 +167,8 @@ export function useGridMarquee({
         }
       });
 
-      setSelectedElements(newSelectedElements);
-      keepOtherSelection(() => selectDocumentInRect?.(rect));
+      if (selectInRect) selectInRect(rect, newSelectedElements);
+      else setSelectedElements(newSelectedElements);
     } else {
       // 마퀴 영역이 작으면 (클릭) 선택 해제
       clearSelection();

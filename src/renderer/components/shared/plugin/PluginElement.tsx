@@ -61,11 +61,10 @@ const selectGroupOf = (fullId: string) => {
       .setSelectedElements([{ type: 'plugin', id: fullId }]);
     return;
   }
-  const { treeIds, plugins } = groupSelectionOf(
-    store.getScene(sceneId),
-    fullId,
+  setStructureSelection(
+    sceneId,
+    groupSelectionOf(store.getScene(sceneId), fullId),
   );
-  setStructureSelection(sceneId, [...treeIds, ...plugins]);
 };
 import {
   buildPluginElementStyle,
@@ -663,11 +662,14 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
       return;
     e.stopPropagation();
 
-    const { selectedElements: currentSelection } =
-      useDocumentSelectionStore.getState();
+    // 트리 선택(저장된 인스턴스 포함)과 런타임 요소 선택을 함께 본다
+    const selection = useDocumentSelectionStore.getState();
+    const currentSelection = [
+      ...(selection.sceneId === selectedKeyType ? selection.selectedIds : []),
+      ...selection.selectedElements.map(({ id }) => id),
+    ];
     const isMultiMember =
-      currentSelection.length > 1 &&
-      currentSelection.some((el) => el.id === element.fullId);
+      currentSelection.length > 1 && currentSelection.includes(element.fullId);
     if (!isMultiMember) {
       // 트리 요소 더블클릭과 같이 그룹 멤버 전체 선택 후 편집 진입
       selectGroupOf(element.fullId);

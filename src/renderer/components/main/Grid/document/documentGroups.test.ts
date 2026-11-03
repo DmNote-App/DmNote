@@ -50,18 +50,9 @@ describe('트리 전용 그룹 계산', () => {
   });
 
   it('그룹 안 요소를 누르면 가장 바깥 그룹(옛 그룹 포함)의 요소 전체를 고른다', () => {
-    expect(groupSelectionOf(scene, 'b')).toEqual({
-      treeIds: ['a', 'b'],
-      plugins: [],
-    });
-    expect(groupSelectionOf(scene, 'c')).toEqual({
-      treeIds: ['c'],
-      plugins: [],
-    });
-    expect(groupSelectionOf(scene, 'd')).toEqual({
-      treeIds: ['d'],
-      plugins: [],
-    });
+    expect(groupSelectionOf(scene, 'b')).toEqual(['a', 'b']);
+    expect(groupSelectionOf(scene, 'c')).toEqual(['c']);
+    expect(groupSelectionOf(scene, 'd')).toEqual(['d']);
   });
 
   it('묶을 대상은 다 고른 그룹은 그룹째, 나머지는 요소로 겹치는 순서대로', () => {
@@ -89,7 +80,7 @@ describe('트리 전용 그룹 계산', () => {
 });
 
 describe('그룹 안 플러그인 요소', () => {
-  it('그룹째 고르면 플러그인 요소는 옛 선택 몫으로 나눈다', () => {
+  it('그룹째 고르면 플러그인 인스턴스도 트리 순서대로 함께 고른다', () => {
     const scene = {
       nodes: [
         {
@@ -109,10 +100,7 @@ describe('그룹 안 플러그인 요소', () => {
         },
       ],
     };
-    expect(groupSelectionOf(scene as never, 't1')).toEqual({
-      treeIds: ['t1'],
-      plugins: ['demo::i1'],
-    });
+    expect(groupSelectionOf(scene as never, 't1')).toEqual(['t1', 'demo::i1']);
   });
 });
 

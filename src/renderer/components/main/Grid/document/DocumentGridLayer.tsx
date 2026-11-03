@@ -106,22 +106,11 @@ const DocumentGridElement = ({
       return;
     }
     gridSelection.setLastSelectedKeyBounds({ x, y, width, height });
-    // 고른 요소를 누르면 선택을 지킨 채 함께 옮긴다. 그룹 안 요소는 가장 바깥 그룹째 고른다 -
-    // 그룹의 플러그인 요소는 옛 선택으로 함께 고른다
-    const group = current.includes(element.id)
-      ? null
+    // 고른 요소를 누르면 선택을 지킨 채 함께 옮긴다. 그룹 안 요소는 가장 바깥 그룹째(플러그인 인스턴스 포함) 고른다
+    const ids = current.includes(element.id)
+      ? current
       : groupSelectionOf(store?.getScene(sceneId), element.id);
-    const ids = group ? group.treeIds : current;
     if (ids !== current) selection.setSelection(sceneId, ids);
-    if (group && group.plugins.length > 0) {
-      keepOtherSelection(() =>
-        useDocumentSelectionStore
-          .getState()
-          .setSelectedElements(
-            group.plugins.map((id) => ({ type: 'plugin', id })),
-          ),
-      );
-    }
     startDocumentSelectionDrag({
       sceneId,
       selfId: element.id,

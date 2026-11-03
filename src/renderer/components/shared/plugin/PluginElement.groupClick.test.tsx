@@ -233,4 +233,20 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
     expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
     expect(usePropertiesPanelStore.getState().isCanvasPanelOpen).toBe(true);
   });
+
+  it('여럿 고른 것 중 하나를 더블클릭하면 선택을 지킨 채 패널을 연다 (트리 선택에 든 인스턴스도)', () => {
+    seedStores({ pluginGroupId: undefined });
+    useDocumentSelectionStore
+      .getState()
+      .setSelection('4key', [KEY_ID, PLUGIN_FULL_ID]);
+    const node = renderElement();
+
+    fireMouse(node, 'dblclick');
+
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([
+      KEY_ID,
+      PLUGIN_FULL_ID,
+    ]);
+    expect(usePropertiesPanelStore.getState().isCanvasPanelOpen).toBe(true);
+  });
 });
