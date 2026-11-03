@@ -1,7 +1,8 @@
 // 플러그인 인스턴스 ↔ 트리 노드 - 저장 원본은 트리 하나다 (요소 id = `{플러그인}::{인스턴스}`, 장면 = 탭).
 // 읽기는 장면의 플러그인 노드를 저장 모양으로, 쓰기는 런타임이 바꾼 칸만 트리 연산으로 옮긴다.
 // 탭·겹침값·그룹을 바꾸면 빼고 다시 넣는다 - 자리는 노드가 든 자기 항목의 값으로 백엔드가 정한다
-// (인스턴스 목록 쓰기와 같은 놓기)
+// (인스턴스 목록 쓰기와 같은 놓기). 인스턴스 ↔ 노드 변환은 백엔드 저장 항목 ↔ 노드와 같다 - fixture로 고정
+// (tests/plugin-instance-tree-parity.test.ts)
 import {
   applyLocalOp,
   applyLocalOps,
@@ -129,8 +130,11 @@ const nodeOf = (
       height: instance.measuredSize?.height ?? PLUGIN_FALLBACK_SIZE.height,
       rotation: 0,
     },
-    hidden: instance.hidden === true,
-    values: (instance.settings ?? {}) as Record<string, JsonValue>,
+    // 숨김 false·빈 설정은 칸을 뺀다 (백엔드 문서 모양과 같게)
+    ...(instance.hidden === true ? { hidden: true } : {}),
+    ...(instance.settings && Object.keys(instance.settings).length > 0
+      ? { values: instance.settings as Record<string, JsonValue> }
+      : {}),
     legacy,
   } as unknown as Node);
 

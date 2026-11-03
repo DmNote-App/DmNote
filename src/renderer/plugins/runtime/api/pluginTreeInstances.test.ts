@@ -182,7 +182,6 @@ describe('런타임 변경 → 트리 연산', () => {
           id: 'demo::n',
           kind: 'plugin:demo',
           frame: { x: 1, y: 2, width: 200, height: 150, rotation: 0 },
-          hidden: false,
           values: { label: 'N' },
           legacy: { pluginEntry: { instanceId: 'n', tabId: '5key' } },
         },
@@ -214,7 +213,6 @@ describe('런타임 변경 → 트리 연산', () => {
           id: 'demo::a',
           kind: 'plugin:demo',
           frame: { x: 1, y: 2, width: 30, height: 40, rotation: 0 },
-          hidden: false,
           values: { label: 'A' },
           // 원래 항목의 다른 칸·목록 순번은 지킨다
           legacy: {
@@ -314,7 +312,6 @@ describe('런타임 변경 → 트리 연산', () => {
           id: 'demo::a',
           kind: 'plugin:demo',
           frame: { x: 1, y: 2, width: 30, height: 40, rotation: 0 },
-          hidden: false,
           values: { label: 'A' },
           legacy: { pluginEntry: { instanceId: 'a', tabId: '4key' }, order: 0 },
         },

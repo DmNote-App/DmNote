@@ -1,0 +1,352 @@
+{
+  "base": {
+    "formatVersion": 1,
+    "kindVersions": {},
+    "scenes": {
+      "4key": {
+        "nodes": [
+          {
+            "children": [],
+            "id": "pg",
+            "legacy": {},
+            "name": "플러그인 그룹",
+            "type": "group"
+          }
+        ]
+      },
+      "5key": {
+        "nodes": []
+      }
+    }
+  },
+  "document": {
+    "formatVersion": 1,
+    "kindVersions": {},
+    "scenes": {
+      "4key": {
+        "nodes": [
+          {
+            "children": [
+              {
+                "frame": {
+                  "height": 150.0,
+                  "rotation": 0.0,
+                  "width": 200.0,
+                  "x": 5.0,
+                  "y": 6.0
+                },
+                "id": "demo::c",
+                "kind": "plugin:demo",
+                "legacy": {
+                  "order": 2,
+                  "pluginEntry": {
+                    "groupId": "pg",
+                    "hidden": false,
+                    "instanceId": "c",
+                    "position": {
+                      "x": 5,
+                      "y": 6
+                    },
+                    "tabId": "4key",
+                    "zIndex": 2
+                  }
+                },
+                "type": "element"
+              }
+            ],
+            "id": "pg",
+            "legacy": {},
+            "name": "플러그인 그룹",
+            "type": "group"
+          },
+          {
+            "frame": {
+              "height": 40.0,
+              "rotation": 0.0,
+              "width": 30.0,
+              "x": 1.0,
+              "y": 2.0
+            },
+            "id": "demo::a",
+            "kind": "plugin:demo",
+            "legacy": {
+              "order": 0,
+              "pluginEntry": {
+                "hidden": false,
+                "instanceId": "a",
+                "measuredSize": {
+                  "height": 40,
+                  "width": 30
+                },
+                "position": {
+                  "x": 1,
+                  "y": 2
+                },
+                "settings": {
+                  "count": 3,
+                  "label": "A"
+                },
+                "tabId": "4key",
+                "zIndex": 5
+              }
+            },
+            "type": "element",
+            "values": {
+              "count": 3,
+              "label": "A"
+            }
+          },
+          {
+            "frame": {
+              "height": 150.0,
+              "rotation": 0.0,
+              "width": 200.0,
+              "x": 7.0,
+              "y": 8.0
+            },
+            "id": "demo::d",
+            "kind": "plugin:demo",
+            "legacy": {
+              "order": 3,
+              "pluginEntry": {
+                "hidden": false,
+                "instanceId": "d",
+                "measuredSize": {
+                  "height": 150,
+                  "width": 200
+                },
+                "position": {
+                  "x": 7,
+                  "y": 8
+                },
+                "tabId": "4key"
+              }
+            },
+            "type": "element"
+          }
+        ]
+      },
+      "5key": {
+        "nodes": [
+          {
+            "frame": {
+              "height": 150.0,
+              "rotation": 0.0,
+              "width": 200.0,
+              "x": 3.0,
+              "y": 4.0
+            },
+            "hidden": true,
+            "id": "demo::b",
+            "kind": "plugin:demo",
+            "legacy": {
+              "order": 1,
+              "pluginEntry": {
+                "hidden": true,
+                "instanceId": "b",
+                "position": {
+                  "x": 3,
+                  "y": 4
+                },
+                "tabId": "5key"
+              }
+            },
+            "type": "element"
+          }
+        ]
+      }
+    }
+  },
+  "entries": [
+    {
+      "hidden": false,
+      "instanceId": "a",
+      "measuredSize": {
+        "height": 40,
+        "width": 30
+      },
+      "position": {
+        "x": 1,
+        "y": 2
+      },
+      "settings": {
+        "count": 3,
+        "label": "A"
+      },
+      "tabId": "4key",
+      "zIndex": 5
+    },
+    {
+      "hidden": true,
+      "instanceId": "b",
+      "position": {
+        "x": 3,
+        "y": 4
+      },
+      "tabId": "5key"
+    },
+    {
+      "groupId": "pg",
+      "hidden": false,
+      "instanceId": "c",
+      "position": {
+        "x": 5,
+        "y": 6
+      },
+      "tabId": "4key",
+      "zIndex": 2
+    },
+    {
+      "hidden": false,
+      "instanceId": "d",
+      "measuredSize": {
+        "height": 150,
+        "width": 200
+      },
+      "position": {
+        "x": 7,
+        "y": 8
+      },
+      "tabId": "4key"
+    }
+  ],
+  "placed": [
+    {
+      "node": {
+        "frame": {
+          "height": 150.0,
+          "rotation": 0.0,
+          "width": 200.0,
+          "x": 5.0,
+          "y": 6.0
+        },
+        "id": "demo::c",
+        "kind": "plugin:demo",
+        "type": "element"
+      },
+      "parent": "pg",
+      "scene": "4key"
+    },
+    {
+      "node": {
+        "frame": {
+          "height": 40.0,
+          "rotation": 0.0,
+          "width": 30.0,
+          "x": 1.0,
+          "y": 2.0
+        },
+        "id": "demo::a",
+        "kind": "plugin:demo",
+        "type": "element",
+        "values": {
+          "count": 3,
+          "label": "A"
+        }
+      },
+      "parent": null,
+      "scene": "4key"
+    },
+    {
+      "node": {
+        "frame": {
+          "height": 150.0,
+          "rotation": 0.0,
+          "width": 200.0,
+          "x": 7.0,
+          "y": 8.0
+        },
+        "id": "demo::d",
+        "kind": "plugin:demo",
+        "type": "element"
+      },
+      "parent": null,
+      "scene": "4key"
+    },
+    {
+      "node": {
+        "frame": {
+          "height": 150.0,
+          "rotation": 0.0,
+          "width": 200.0,
+          "x": 3.0,
+          "y": 4.0
+        },
+        "hidden": true,
+        "id": "demo::b",
+        "kind": "plugin:demo",
+        "type": "element"
+      },
+      "parent": null,
+      "scene": "5key"
+    }
+  ],
+  "pluginId": "demo",
+  "projected": [
+    {
+      "hidden": false,
+      "instanceId": "a",
+      "measuredSize": {
+        "height": 40,
+        "width": 30
+      },
+      "position": {
+        "x": 1,
+        "y": 2
+      },
+      "settings": {
+        "count": 3,
+        "label": "A"
+      },
+      "tabId": "4key",
+      "zIndex": 5
+    },
+    {
+      "hidden": true,
+      "instanceId": "b",
+      "position": {
+        "x": 3,
+        "y": 4
+      },
+      "tabId": "5key"
+    },
+    {
+      "groupId": "pg",
+      "hidden": false,
+      "instanceId": "c",
+      "position": {
+        "x": 5,
+        "y": 6
+      },
+      "tabId": "4key",
+      "zIndex": 2
+    },
+    {
+      "hidden": false,
+      "instanceId": "d",
+      "measuredSize": {
+        "height": 150,
+        "width": 200
+      },
+      "position": {
+        "x": 7,
+        "y": 8
+      },
+      "tabId": "4key"
+    }
+  ],
+  "tabs": [
+    {
+      "scene": "4key",
+      "tabId": null
+    },
+    {
+      "scene": "4key",
+      "tabId": ""
+    },
+    {
+      "scene": "5key",
+      "tabId": "5key"
+    }
+  ]
+}

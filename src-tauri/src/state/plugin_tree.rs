@@ -694,4 +694,6 @@ pub(crate) fn apply_plugin_bucket(document: &mut Document, plugin_id: &str, valu
 }
 
 #[cfg(test)]
+mod instances_fixture;
+#[cfg(test)]
 mod tests;
