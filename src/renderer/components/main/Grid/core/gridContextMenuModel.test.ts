@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import {
   buildMixedSelectionMenuItems,
   gridAddTypeForMenuItem,
@@ -33,11 +32,8 @@ describe('gridContextMenuModel', () => {
     );
   });
 
-  it('혼합 메뉴는 둘 이상의 현재 선택 멤버를 클릭할 때만 열린다', () => {
-    const selected: SelectedElement[] = [
-      { type: 'key', id: 'key:one', index: 0 },
-      { type: 'plugin', id: 'plugin:one' },
-    ];
+  it('혼합 메뉴는 둘 이상의 현재 선택(트리 선택·런타임 요소 선택) 멤버를 클릭할 때만 열린다', () => {
+    const selected = ['key:one', 'plugin:one'];
     expect(shouldOpenMixedSelectionMenu(selected, 'plugin:one')).toBe(true);
     expect(shouldOpenMixedSelectionMenu(selected, 'missing')).toBe(false);
     expect(shouldOpenMixedSelectionMenu(selected.slice(0, 1), 'key:one')).toBe(

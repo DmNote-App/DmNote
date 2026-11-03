@@ -1,8 +1,5 @@
 import type { ListItem } from '@components/main/Modal/listPopup/ListPopup';
-import type {
-  IndexedSelectableElementType,
-  SelectedElement,
-} from '@stores/grid/useGridSelectionStore';
+import type { IndexedSelectableElementType } from '@stores/grid/useGridSelectionStore';
 import { itemTypeForAddId } from './elementKindMenus';
 
 type Translate = (key: string) => string;
@@ -23,12 +20,11 @@ export const buildMixedSelectionMenuItems = (
   { id: 'sendToBack', label: t('contextMenu.sendToBack') },
 ];
 
+/** 고른 것 전체를 다루는 메뉴 - 누른 요소가 여럿 고른 것(트리 선택 + 런타임 요소 선택) 중 하나일 때 */
 export const shouldOpenMixedSelectionMenu = (
-  selectedElements: readonly SelectedElement[],
+  selectedIds: readonly string[],
   clickedId: string,
-): boolean =>
-  selectedElements.length > 1 &&
-  selectedElements.some((element) => element.id === clickedId);
+): boolean => selectedIds.length > 1 && selectedIds.includes(clickedId);
 
 export const gridAddTypeForMenuItem = (
   id: string,

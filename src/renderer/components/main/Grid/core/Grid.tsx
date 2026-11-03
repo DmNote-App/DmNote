@@ -545,11 +545,12 @@ const Grid = ({
       setDuplicateState(null);
       setDuplicateCursor(null);
     }
-    // 트리 요소도 함께 골랐으면 고른 것 전체를 다루는 메뉴
+    // 여럿 골랐으면 고른 것 전체를 다루는 메뉴 (트리 선택·런타임 요소 선택 함께)
     if (
-      shouldOpenMixedSelectionMenu(selectedElements, clickedId) ||
-      (useDocumentSelectionStore.getState().selectedIds.length > 0 &&
-        selectedElements.some((element) => element.id === clickedId))
+      shouldOpenMixedSelectionMenu(
+        structureTargetIds(selectedKeyType),
+        clickedId,
+      )
     ) {
       openMixedSelectionContextMenu(clientX, clientY, ref);
       return;
@@ -782,7 +783,12 @@ const Grid = ({
                 setDuplicateState(null);
                 setDuplicateCursor(null);
               }
-              if (!shouldOpenMixedSelectionMenu(selectedElements, elementId))
+              if (
+                !shouldOpenMixedSelectionMenu(
+                  structureTargetIds(selectedKeyType),
+                  elementId,
+                )
+              )
                 return false;
               openMixedSelectionContextMenu(
                 clientX,
