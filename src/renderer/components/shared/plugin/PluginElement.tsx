@@ -28,11 +28,8 @@ import { useTranslation } from '@contexts/useTranslation';
 import { html, styleMap, css } from '@utils/plugin/components/templateEngine';
 import { translatePluginMessage } from '@utils/plugin/pluginI18n';
 import {
-  applyPluginElementEdit,
-  commitPluginFrames,
-} from '@plugins/runtime/displayElement/pluginTreeGeometry';
-import {
   getElementDocumentStore,
+  useDocumentElement,
   useElementDocumentScene,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
@@ -42,6 +39,12 @@ import {
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { groupSelectionOf } from '../../main/Grid/document/documentGroups';
 import { documentRangeSelection } from '../../main/Grid/document/documentSelection';
+import { moveDocumentElements } from '../../main/Grid/document/documentEditActions';
+import {
+  startDocumentSelectionDrag,
+  type MixedDragLifecycle,
+} from '../../main/Grid/document/documentSelectionDrag';
+import { useDocumentFramePreviewStore } from '../../main/Grid/document/useDocumentFramePreviewStore';
 import {
   setSplitSelection,
   setStructureSelection,
@@ -72,7 +75,6 @@ import {
 import { usePluginElementContextMenu } from './usePluginElementContextMenu';
 import { usePluginElementMeasurementRuntime } from './usePluginElementMeasurementRuntime';
 import { usePluginElementOverlayRuntime } from './usePluginElementOverlayRuntime';
-import { releasePluginElementsEditing } from '@plugins/runtime/displayElement/pluginTreeEditOwnership';
 
 const DEFAULT_POSITION_OFFSET = { x: 0, y: 0 };
 const EMPTY_SELECTED_ELEMENTS: SelectedElement[] = [];
@@ -102,6 +104,8 @@ interface PluginElementProps {
   onMultiDrag?: (deltaX: number, deltaY: number) => void;
   onMultiDragStart?: () => void | (() => void);
   onMultiDragEnd?: () => void;
+  // 트리 선택 끌기에 섞인 런타임 플러그인 요소 - Grid의 선택 끌기 수명 주기
+  mixedDrag?: MixedDragLifecycle;
 }
 
 const PluginElementImpl: React.FC<PluginElementProps> = ({
@@ -121,6 +125,7 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
   onMultiDrag,
   onMultiDragStart,
   onMultiDragEnd,
+  mixedDrag,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [shadowRoot, setShadowRoot] = useState<ShadowRoot | null>(null);
@@ -234,8 +239,31 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
     }
   }, [windowType, element.settings]);
 
+  // 트리에 노드가 있는 인스턴스 - 끌기·크기 조절은 트리 편집기와 같은 틀 미리보기로 (크기는 크기 조절 플러그인만)
+  const treeNode = useDocumentElement(selectedKeyType, element.fullId);
+  const treeBacked = windowType === 'main' && treeNode !== undefined;
+  const framePreview = useDocumentFramePreviewStore((state) =>
+    treeBacked ? state.frames[element.fullId] : undefined,
+  );
+  const shownElement = framePreview
+    ? {
+        ...element,
+        position: { x: framePreview.x, y: framePreview.y },
+        ...(definition?.resizable
+          ? {
+              measuredSize: {
+                width: framePreview.width,
+                height: framePreview.height,
+              },
+            }
+          : {}),
+      }
+    : element;
+  // 트리 선택 끌기에서 움직였는지 - 끝난 뒤 따라오는 클릭을 흡수한다
+  const treePressMovedRef = useRef(false);
+
   const calculatedPosition = resolvePluginElementPosition({
-    element,
+    element: shownElement,
     positions: keyRecords.positions as never,
     keyMappings: keyRecords.keyMappings as never,
     selectedKeyType,
@@ -265,26 +293,35 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
     gridSize: gridSnapSize,
     initialX: calculatedPosition.x,
     initialY: calculatedPosition.y,
-    // 끝낸 위치는 트리 노드 틀로 저장 (트리에 아직 없는 요소는 자동 저장)
+    // 끝낸 위치는 트리 노드 틀로 저장 (트리에 없는 런타임 요소는 런타임 스토어가 끝)
     onDragStart: () => (commit?: boolean) => {
-      if (commit === false) {
-        releasePluginElementsEditing([element.fullId]);
+      if (!treeBacked) return;
+      const preview = useDocumentFramePreviewStore.getState();
+      const last = preview.frames[element.fullId];
+      if (commit === false || !last) {
+        preview.clear(element.fullId);
         return;
       }
-      commitPluginFrames(selectedKeyType, [element.fullId]).catch(
-        (error: unknown) =>
-          console.error('[PluginElement] Failed to save position', error),
+      void moveDocumentElements(selectedKeyType, [
+        { id: element.fullId, x: last.x, y: last.y },
+      ]).finally(() =>
+        useDocumentFramePreviewStore.getState().clear(element.fullId),
       );
     },
     onPositionChange: (newX, newY) => {
       // 선택 모드가 아닐 때만 개별 이동
       if (windowType === 'main' && element.draggable && !isSelectionMode) {
-        applyPluginElementEdit(new Set([element.fullId]), () =>
-          updateElement(element.fullId, {
-            position: { x: newX, y: newY },
-            anchor: undefined, // 드래그하면 앵커 제거
-          }),
-        );
+        // 드래그하면 앵커 제거 (런타임 칸 - 저장하지 않는다)
+        if (element.anchor) {
+          updateElement(element.fullId, { anchor: undefined });
+        }
+        if (treeBacked && treeNode) {
+          useDocumentFramePreviewStore
+            .getState()
+            .set(element.fullId, { ...treeNode.frame, x: newX, y: newY });
+        } else {
+          updateElement(element.fullId, { position: { x: newX, y: newY } });
+        }
 
         // onPositionChange 핸들러 호출 (자동 래핑되어 있음)
         if (
@@ -321,7 +358,8 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
     movedDuringPressRef,
     pressMovedRef,
   } = useSelectionDrag({
-    enabled: windowType === 'main' && isSelectionMode,
+    // 트리에 노드가 있으면 트리 선택 끌기가 맡는다
+    enabled: windowType === 'main' && isSelectionMode && !treeBacked,
     zoom,
     startX: element.position.x,
     startY: element.position.y,
@@ -339,6 +377,32 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
   });
 
   const { ref: draggableRef, dx: renderX, dy: renderY } = draggable;
+
+  // 고른 인스턴스 누르기 - 트리 선택 전체를 트리 편집기와 같은 끌기로 옮긴다 (보조키·Shift·지우개는 클릭이 맡는다)
+  const handleTreeSelectionPointerDown = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    if (event.button !== 0) return;
+    if (isMac() && event.ctrlKey) return;
+    const primaryModifier = isMac() ? event.metaKey : event.ctrlKey;
+    if (primaryModifier || event.shiftKey || activeTool === 'eraser') return;
+    treePressMovedRef.current = false;
+    const selection = useDocumentSelectionStore.getState();
+    startDocumentSelectionDrag({
+      sceneId: selectedKeyType,
+      selfId: element.fullId,
+      ids:
+        selection.sceneId === selectedKeyType
+          ? selection.selectedIds
+          : [element.fullId],
+      event,
+      zoom,
+      mixedDrag,
+      onEnd: (moved) => {
+        treePressMovedRef.current = moved;
+      },
+    });
+  };
 
   // Shadow DOM 설정 (scoped 옵션)
   useEffect(() => {
@@ -422,7 +486,7 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
   });
 
   const elementStyle = buildPluginElementStyle({
-    element,
+    element: shownElement,
     windowType,
     renderX,
     renderY,
@@ -457,7 +521,11 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
     // 수식키 토글·범위 선택·선택+패널 열기로 새지 않게 흡수
     // (네이티브 요소와 동일 계약. 개별 드래그는 wasMoved, 선택 모드
     // 다중 드래그는 pressMovedRef가 판별)
-    if (draggable.wasMoved || pressMovedRef.current) {
+    if (
+      draggable.wasMoved ||
+      pressMovedRef.current ||
+      treePressMovedRef.current
+    ) {
       e.stopPropagation();
       return;
     }
@@ -587,7 +655,11 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
     if (e.shiftKey || e.metaKey || e.ctrlKey) return;
     if (activeTool === 'eraser') return;
     if (isViewportTransforming) return;
-    if (draggable.recentPressMovedRef.current || movedDuringPressRef.current)
+    if (
+      draggable.recentPressMovedRef.current ||
+      movedDuringPressRef.current ||
+      treePressMovedRef.current
+    )
       return;
     e.stopPropagation();
 
@@ -655,12 +727,19 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
         style={elementStyle}
         data-plugin-element={element.fullId}
         data-plugin-id={element.pluginId}
-        data-editing={isDraggingOrResizing ? 'true' : undefined}
+        // 끌기·크기 조절 미리보기 중 - 전환 효과를 끈다 (트리 미리보기 포함)
+        data-editing={isDraggingOrResizing || framePreview ? 'true' : undefined}
+        // 누를 때마다 지난 트리 끌기의 움직임 표시를 지운다 (따라오는 클릭 흡수는 그 누르기에만)
+        onPointerDownCapture={() => {
+          treePressMovedRef.current = false;
+        }}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onPointerDown={
           windowType === 'main' && isSelectionMode
-            ? handleSelectionDragPointerDown
+            ? treeBacked
+              ? handleTreeSelectionPointerDown
+              : handleSelectionDragPointerDown
             : undefined
         }
         onContextMenu={handleContextMenu}

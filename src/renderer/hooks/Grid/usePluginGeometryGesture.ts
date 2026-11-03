@@ -45,12 +45,9 @@ const geometryPatch = (
   }
 };
 
+// 트리 선택(저장된 인스턴스)·옛 선택(런타임 요소) 어느 쪽이든
 const isSelectedPluginElement = (fullId: string): boolean =>
-  useDocumentSelectionStore
-    .getState()
-    .selectedElements.some(
-      (element) => element.type === 'plugin' && element.id === fullId,
-    );
+  useDocumentSelectionStore.getState().isSelected(fullId);
 
 // 속성 패널 숫자 입력(X/Y/W/H)의 플러그인 요소 게스처. 값의 원본이 프론트
 // 스토어라 preview_broker를 타지 않는다 - 미리보기는 스토어만 바꾸고(자동 저장 없이),

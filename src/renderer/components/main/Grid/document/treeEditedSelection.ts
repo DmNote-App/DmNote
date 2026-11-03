@@ -19,7 +19,8 @@ const selectedDocumentIds = (sceneId: string) => {
 const kindOf = (sceneId: string, id: string) =>
   getElementDocumentStore()?.getElement(sceneId, id)?.kind;
 
-// 순번은 트리에 실린 옛 순번 (패널·동작은 id로 트리를 읽는다)
+// 순번은 트리에 실린 옛 순번 (패널·동작은 id로 트리를 읽는다). 플러그인 요소는 플러그인 선택 모양으로
+// (트리 노드 id가 fullId)
 const treeEditedOf = (
   sceneId: string,
   ids: readonly string[],
@@ -27,6 +28,7 @@ const treeEditedOf = (
   ids.flatMap((id) => {
     const element = getElementDocumentStore()?.getElement(sceneId, id);
     const kind = element?.kind;
+    if (kind && isPluginKind(kind)) return [{ type: 'plugin', id }];
     if (!kind || !isEditorElementType(kind) || !TREE_EDITED_KINDS.has(kind)) {
       return [];
     }
@@ -35,7 +37,7 @@ const treeEditedOf = (
     return [{ type: kind, id, index } as SelectedElement];
   });
 
-/** 트리 선택 중 트리로 옮긴 옛 종류를 옛 선택 모양으로 */
+/** 트리 선택 중 트리로 옮긴 옛 종류·플러그인 요소를 옛 선택 모양으로 */
 export const treeEditedSelection = (sceneId: string) =>
   treeEditedOf(sceneId, selectedDocumentIds(sceneId));
 
@@ -74,8 +76,8 @@ export const setSplitSelection = (
     pluginIds.map((id) => ({ type: 'plugin', id })),
   );
 
-/** 옛 속성 패널이 보는 선택 - 트리 선택이 모두 트리로 옮긴 옛 종류이고 플러그인이 섞이지 않으면
- * 그 요소까지 합친다 (플러그인 섞인 일괄 커밋은 트리로 보내지 못한다).
+/** 옛 속성 패널이 보는 선택 - 트리 선택이 모두 트리로 옮긴 옛 종류·플러그인 요소면 그 요소까지 합친다
+ * (트리에만 있는 종류가 섞이면 트리 패널이 맡는다).
  * _scene은 React Compiler가 메모하는 훅에서 장면이 바뀌면 다시 합치도록 넘기는 자리(값은 안에서 읽는다) */
 export const panelSelectionOf = (
   legacy: SelectedElement[],
@@ -85,8 +87,7 @@ export const panelSelectionOf = (
 ): SelectedElement[] => {
   if (documentIds.length === 0) return legacy;
   const treeEdited = treeEditedOf(sceneId, documentIds);
-  return treeEdited.length === documentIds.length &&
-    legacy.every((element) => element.type !== 'plugin')
+  return treeEdited.length === documentIds.length
     ? [...legacy, ...treeEdited]
     : legacy;
 };

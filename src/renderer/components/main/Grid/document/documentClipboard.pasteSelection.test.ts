@@ -30,6 +30,7 @@ vi.mock('./documentEditActions', async (importOriginal) => ({
 
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useLayerCollapseStore } from '@stores/grid/useLayerCollapseStore';
+import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import {
   copyDocumentSelection,
   pasteDocumentClipboard,
@@ -142,5 +143,56 @@ describe('붙여넣기 뒤 선택', () => {
       });
     useDocumentSelectionStore.getState().replaceSelection('4key', ['n1'], []);
     expect((await sentInsert()).parent).toBeNull();
+  });
+
+  it('플러그인 요소 사본은 `{플러그인}::{새 id}`이고, 원본 인스턴스 항목만 들고 목록 순번은 버린다', async () => {
+    const plugin = {
+      type: 'element' as const,
+      id: 'demo::orig',
+      kind: 'plugin:demo',
+      frame: { x: 0, y: 0, width: 50, height: 40, rotation: 0 },
+      values: { label: 'A' },
+      legacy: { pluginEntry: { instanceId: 'orig', keep: 1 }, order: 3 },
+    };
+    useDocumentClipboardStore.getState().set([plugin as never], {
+      mode: '4key',
+      triggerCanonicals: {},
+    });
+    const pasted = pasteDocumentClipboard('4key');
+    mocks.release!({ status: 'committed' });
+    await pasted;
+    const [insert] = mocks.sent[0] as Array<{
+      node: { id: string; legacy: unknown; values: unknown };
+    }>;
+    expect(insert.node.id).toMatch(/^demo::[0-9a-f-]{36}$/);
+    expect(insert.node.legacy).toEqual({
+      pluginEntry: { instanceId: 'orig', keep: 1 },
+    });
+    expect(insert.node.values).toEqual({ label: 'A' });
+  });
+
+  it('플러그인 인스턴스 상한을 넘으면 아무것도 붙이지 않는다 (옛 붙여넣기와 같다)', async () => {
+    const node = (id: string) => ({
+      type: 'element' as const,
+      id,
+      kind: 'plugin:capped',
+      frame: { x: 0, y: 0, width: 50, height: 40, rotation: 0 },
+    });
+    mocks.scene = { nodes: [node('capped::a')] };
+    usePluginDisplayElementStore.setState({
+      definitions: new Map([
+        [
+          'capped',
+          { id: 'capped', pluginId: 'capped', maxInstances: 1 } as never,
+        ],
+      ]),
+    });
+    useDocumentClipboardStore.getState().set([node('capped::a') as never], {
+      mode: '4key',
+      triggerCanonicals: {},
+    });
+    await pasteDocumentClipboard('4key');
+    expect(mocks.sent).toEqual([]);
+    usePluginDisplayElementStore.setState({ definitions: new Map() });
   });
 });

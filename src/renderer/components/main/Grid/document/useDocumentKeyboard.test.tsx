@@ -231,14 +231,14 @@ describe('트리 요소 키보드', () => {
     expect(mocks.remove).not.toHaveBeenCalled();
   });
 
-  it('플러그인 요소를 고르면 트리 요소 선택이 풀린다', () => {
+  it('플러그인 요소를 고르면 그 요소로 바꿔 고른다 (트리에 노드가 있으면 트리 선택)', () => {
     useDocumentSelectionStore.getState().select('4key', 't1');
     act(() => {
       useDocumentSelectionStore
         .getState()
         .setSelectedElements([{ type: 'plugin', id: 'p::1' }]);
     });
-    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([]);
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['p::1']);
     act(() => useDocumentSelectionStore.getState().clearSelection());
   });
 

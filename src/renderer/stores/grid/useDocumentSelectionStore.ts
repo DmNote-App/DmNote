@@ -2,20 +2,21 @@ import { create } from 'zustand';
 
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
+import { isPluginKind, TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import {
   isKeepingOtherSelection,
   keepOtherSelection,
 } from './keepOtherSelection';
 import type { SelectedElement } from './useGridSelectionStore';
 
-// 캔버스 선택 하나 - 트리 요소(selectedIds, 한 장면)와 플러그인 요소(selectedElements)를 함께 든다.
+// 캔버스 선택 하나 - 트리 요소(selectedIds, 한 장면 - 저장된 플러그인 인스턴스 포함)와 트리에 없는
+// 플러그인 요소(selectedElements - 스크립트가 만든 런타임 요소)를 함께 든다.
 // 바꿔 고르면 다른 쪽을 비우고, 넣고 빼기(keepOtherSelection 안)는 다른 쪽을 지킨다
 
 interface DocumentSelectionState {
   sceneId: string | null;
   selectedIds: string[];
-  // 플러그인 요소 선택 (옛 선택 모양)
+  // 트리에 없는 플러그인 요소 선택 (옛 선택 모양)
   selectedElements: SelectedElement[];
 
   // 트리 요소
@@ -30,7 +31,7 @@ interface DocumentSelectionState {
     plugins: SelectedElement[],
   ) => void;
 
-  // 옛 선택 모양 - 트리로 옮긴 종류는 트리 요소 선택으로 보낸다
+  // 옛 선택 모양 - 트리로 옮긴 종류·트리에 노드가 있는 플러그인 요소는 트리 요소 선택으로 보낸다
   selectElement: (element: SelectedElement, addToSelection?: boolean) => void;
   toggleSelection: (element: SelectedElement) => void;
   deselectElement: (id: string) => void;
@@ -41,12 +42,18 @@ interface DocumentSelectionState {
 
 const EMPTY_ELEMENTS: SelectedElement[] = [];
 
+// 옛 선택 모양으로 들어와 트리 선택이 맡는 요소 - 트리로 옮긴 옛 종류, 지금 탭 트리에 노드가 있는 플러그인 요소
 const isTreeEditedSelection = (element: SelectedElement) =>
-  element.type !== 'plugin' && TREE_EDITED_KINDS.has(element.type);
+  element.type === 'plugin'
+    ? !!getElementDocumentStore()?.getElement(
+        useKeyStore.getState().selectedKeyType,
+        element.id,
+      )
+    : TREE_EDITED_KINDS.has(element.type);
 
 const isTreeEditedId = (sceneId: string, id: string) => {
   const kind = getElementDocumentStore()?.getElement(sceneId, id)?.kind;
-  return !!kind && TREE_EDITED_KINDS.has(kind);
+  return !!kind && (TREE_EDITED_KINDS.has(kind) || isPluginKind(kind));
 };
 
 const toggleId = (ids: string[], id: string) =>
@@ -117,12 +124,26 @@ export const useDocumentSelectionStore = create<DocumentSelectionState>(
     },
     clear: () => set(EMPTY_TREE),
     replaceSelection: (sceneId, treeIds, plugins) =>
-      set((state) => ({
-        ...treePartOf(sceneId, treeIds),
-        selectedElements: sameElements(state.selectedElements, plugins)
-          ? state.selectedElements
-          : plugins,
-      })),
+      set((state) => {
+        // 트리에 노드가 있는 플러그인 요소는 트리 몫
+        const store = getElementDocumentStore();
+        const backed = plugins.filter(({ id }) =>
+          store?.getElement(sceneId, id),
+        );
+        const runtime =
+          backed.length > 0
+            ? plugins.filter((element) => !backed.includes(element))
+            : plugins;
+        return {
+          ...treePartOf(sceneId, [
+            ...treeIds,
+            ...backed.map(({ id }) => id).filter((id) => !treeIds.includes(id)),
+          ]),
+          selectedElements: sameElements(state.selectedElements, runtime)
+            ? state.selectedElements
+            : runtime,
+        };
+      }),
 
     selectElement: (element, addToSelection = false) => {
       const keeping = isKeepingOtherSelection();
@@ -220,7 +241,9 @@ export const useDocumentSelectionStore = create<DocumentSelectionState>(
       });
     },
 
-    isSelected: (id) => get().selectedElements.some((el) => el.id === id),
+    isSelected: (id) =>
+      get().selectedIds.includes(id) ||
+      get().selectedElements.some((el) => el.id === id),
   }),
 );
 

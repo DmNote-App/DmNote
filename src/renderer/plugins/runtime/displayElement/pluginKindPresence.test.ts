@@ -6,7 +6,7 @@ import {
   notePluginFetchSettled,
   resetPluginRuntimeReadiness,
 } from '../pluginRuntimeReadiness';
-import { pluginRendersKind } from './pluginKindPresence';
+import { isKindResizable, pluginRendersKind } from './pluginKindPresence';
 
 const ready = () => {
   resetPluginRuntimeReadiness();
@@ -37,5 +37,24 @@ describe('편집 화면의 플러그인 요소 그리기 주체', () => {
     });
     expect(pluginRendersKind('plugin:demo')).toBe(true);
     expect(pluginRendersKind('cursorTracker')).toBe(false);
+  });
+});
+
+describe('편집 화면의 크기 조절 가능', () => {
+  afterEach(() => {
+    usePluginDisplayElementStore.setState({ definitions: new Map() });
+  });
+
+  it('플러그인 종류는 정의가 resizable일 때만, 정의가 없으면(모르는 종류) 된다, 나머지 종류는 된다', () => {
+    usePluginDisplayElementStore.setState({
+      definitions: new Map([
+        ['fixed', { id: 'fixed', pluginId: 'fixed' } as never],
+        ['free', { id: 'free', pluginId: 'free', resizable: true } as never],
+      ]),
+    });
+    expect(isKindResizable('plugin:fixed')).toBe(false);
+    expect(isKindResizable('plugin:free')).toBe(true);
+    expect(isKindResizable('plugin:gone')).toBe(true);
+    expect(isKindResizable('key')).toBe(true);
   });
 });

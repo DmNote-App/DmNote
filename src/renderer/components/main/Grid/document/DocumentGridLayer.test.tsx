@@ -246,10 +246,12 @@ describe('트리 요소 Shift 클릭 범위 선택', () => {
       );
       box.dispatchEvent(pointer('pointerup', 0, 0));
     });
-    expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['t1']);
-    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
-      { type: 'plugin', id: 'p:between' },
+    // 트리에 노드가 있는 플러그인 요소는 트리 선택에 든다
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([
+      't1',
+      'p:between',
     ]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
     unmount();
   });
 

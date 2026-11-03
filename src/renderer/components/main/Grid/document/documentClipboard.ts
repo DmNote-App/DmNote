@@ -31,6 +31,9 @@ import {
   keyIdsByCanonical,
 } from '@utils/sprite/spriteKeyBinding';
 import { toPoseWireShape } from '@utils/sprite/spriteWireShape';
+import { isPluginKind, pluginIdOfKind } from '@src/types/elementKinds';
+import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
+import { reportElementOpSkipped } from '@src/renderer/editor/runtime/intent/elementIntent';
 
 // 복사한 탭과 스프라이트 트리거가 가리키던 키의 canonical (스프라이트 id별) - 다른 탭에 붙일 때 다시 결합
 interface DocumentClipboardSource {
@@ -126,15 +129,27 @@ const legacyFieldsOnly = (legacy: unknown): JsonValue => {
   return fields === undefined ? {} : { fields };
 };
 
+// 플러그인 요소 사본 - 원본 인스턴스 항목(다른 칸 보존)만 남기고 목록 순번은 버린다. 백엔드가 사본의 항목을 새로 둔다
+const pluginEntryOnly = (legacy: unknown): JsonValue => {
+  const entry = (legacy as { pluginEntry?: JsonValue } | null)?.pluginEntry;
+  return entry === undefined ? {} : { pluginEntry: entry };
+};
+
+/** 붙여 넣을 새 id - 플러그인 요소는 `{플러그인}::{새 id}` (런타임 fullId와 같은 모양) */
+export const freshNodeId = (node: Node, nextId: () => string): string =>
+  node.type === 'element' && isPluginKind(node.kind)
+    ? `${pluginIdOfKind(node.kind)}::${nextId()}`
+    : nextId();
+
 const reissue = (
   node: Node,
-  idFor: (id: string) => string,
+  idFor: (node: Node) => string,
   nameGroup: (name: string) => string,
 ): Node =>
   node.type === 'group'
     ? {
         ...node,
-        id: idFor(node.id),
+        id: idFor(node),
         name: nameGroup(node.name),
         children: node.children.map((child) =>
           reissue(child, idFor, nameGroup),
@@ -142,10 +157,14 @@ const reissue = (
       }
     : {
         ...node,
-        id: idFor(node.id),
+        id: idFor(node),
         // 옛 종류 요소(트리로 옮긴 노브 등)는 원본의 배열 자리·z를 버린다 - 붙일 때 새로 받는다
         ...(node.legacy !== undefined
-          ? { legacy: legacyFieldsOnly(node.legacy) }
+          ? {
+              legacy: isPluginKind(node.kind)
+                ? pluginEntryOnly(node.legacy)
+                : legacyFieldsOnly(node.legacy),
+            }
           : {}),
         frame: {
           ...node.frame,
@@ -166,7 +185,7 @@ export const buildDocumentPaste = (
   // 넣을 자리 - 없으면 장면 맨 위. 여럿이면 원래 순서대로 그 자리부터 쌓는다
   at: { parent: string | null; index: number } | null = null,
 ) => {
-  const idFor = (id: string) => idMap.get(id) ?? nextId();
+  const idFor = (node: Node) => idMap.get(node.id) ?? freshNodeId(node, nextId);
   const groups = [...existingGroups];
   const nameGroup = (name: string) => {
     const next = buildNextLayerGroupName(name, groups);
@@ -234,6 +253,37 @@ export const copyDocumentSelection = ({
   return true;
 };
 
+// 플러그인 정의의 탭별 인스턴스 상한 - 붙이면 넘는 플러그인이 있으면 true (옛 플러그인 붙여넣기와 같다)
+const exceedsPluginInstanceLimit = (
+  scene: { nodes: readonly Node[] } | undefined,
+  pasted: readonly Node[],
+): boolean => {
+  const pastedByPlugin = new Map<string, number>();
+  for (const node of elementsOf(pasted)) {
+    if (node.type !== 'element' || !isPluginKind(node.kind)) continue;
+    const pluginId = pluginIdOfKind(node.kind);
+    pastedByPlugin.set(pluginId, (pastedByPlugin.get(pluginId) ?? 0) + 1);
+  }
+  const { definitions } = usePluginDisplayElementStore.getState();
+  for (const [pluginId, count] of pastedByPlugin) {
+    const maxInstances = definitions.get(pluginId)?.maxInstances;
+    if (!maxInstances || maxInstances <= 0) continue;
+    const current = elementsOf(scene?.nodes ?? []).filter(
+      (node) =>
+        node.type === 'element' &&
+        isPluginKind(node.kind) &&
+        pluginIdOfKind(node.kind) === pluginId,
+    ).length;
+    if (current + count > maxInstances) {
+      console.warn(
+        `[Plugin ${pluginId}] Max instances (${maxInstances}) reached`,
+      );
+      return true;
+    }
+  }
+  return false;
+};
+
 /** 지금 탭에 붙여넣고 붙인 요소를 고른다 */
 export const pasteDocumentClipboard = async (
   sceneId: string,
@@ -244,7 +294,10 @@ export const pasteDocumentClipboard = async (
   if (copied.length === 0) return;
   // 새 id를 먼저 정한다 - 함께 붙이는 키(트리·같은 동작의 옛 붙여넣기)의 사본 id로 스프라이트 트리거를 옮긴다
   const idMap = new Map(
-    nodesOf(copied).map((node) => [node.id, crypto.randomUUID()]),
+    nodesOf(copied).map((node) => [
+      node.id,
+      freshNodeId(node, () => crypto.randomUUID()),
+    ]),
   );
   // 함께 붙인 옛 붙여넣기 - 사본 키 id와 같은 동작 id(되돌리기 한 번)
   const legacyPaste = keepOther ? takePastedKeyIds() : null;
@@ -269,6 +322,11 @@ export const pasteDocumentClipboard = async (
   // 넣을 자리 - 이 탭에서 고른 것 중 가장 위 노드 바로 위 (예전 붙여넣기와 같다). 옛 모양은 그룹 안
   // 그룹을 나타내지 못해 옛 그룹이 그룹 안에 들게 되는 자리면 장면 맨 위로
   const targetScene = getElementDocumentStore()?.getScene(sceneId);
+  // 플러그인 인스턴스 상한을 넘으면 아무것도 붙이지 않는다 (부분 붙여넣기 없음)
+  if (exceedsPluginInstanceLimit(targetScene, nodes)) {
+    reportElementOpSkipped('paste max instances');
+    return;
+  }
   const before = useDocumentSelectionStore.getState();
   const anchor = documentPasteAnchor(
     targetScene,

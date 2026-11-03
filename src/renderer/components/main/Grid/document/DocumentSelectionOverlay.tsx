@@ -30,6 +30,11 @@ import {
 } from './documentGroupRotation';
 import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
+import { isPluginKind } from '@src/types/elementKinds';
+import {
+  isKindResizable,
+  useKindResizable,
+} from '@plugins/runtime/displayElement/pluginKindPresence';
 
 interface DocumentSelectionOverlayProps {
   sceneId: string;
@@ -42,6 +47,8 @@ interface SelectionItemProps extends DocumentSelectionOverlayProps {
   id: string;
   // 하나만 골랐을 때만 크기 조절 핸들
   withHandles: boolean;
+  // 여럿을 골랐는지 - 크기 조절이 안 되는 요소는 경고 윤곽 (묶음 크기 조절에서 빠진다)
+  multi: boolean;
 }
 
 const EMPTY_IDS: string[] = [];
@@ -83,11 +90,14 @@ const SelectionItem = ({
   sceneId,
   id,
   withHandles,
+  multi,
   zoom,
   panX,
   panY,
 }: SelectionItemProps) => {
   const element = useDocumentElement(sceneId, id);
+  // 플러그인 요소는 정의가 resizable일 때만 (예전 플러그인 손잡이와 같다)
+  const resizable = useKindResizable(element?.kind);
   const preview = useDocumentFramePreviewStore((state) => state.frames[id]);
   const resizeCancelled = useResizeCancellation(() => {
     useSmartGuidesStore.getState().clearGuides();
@@ -133,13 +143,16 @@ const SelectionItem = ({
           ...(frame.rotation
             ? { transform: `rotate(${frame.rotation}deg)` }
             : {}),
-          border: `${SELECTION_BORDER_WIDTH}px solid var(--ui-selection-border)`,
+          border:
+            multi && !resizable
+              ? `${SELECTION_BORDER_WIDTH}px dashed var(--ui-warning)`
+              : `${SELECTION_BORDER_WIDTH}px solid var(--ui-selection-border)`,
           borderRadius: '4px',
           pointerEvents: 'none',
           zIndex: 'var(--z-canvas-selection-outline)',
         }}
       />
-      {withHandles && (
+      {withHandles && resizable && (
         <ResizeHandles
           bounds={bounds}
           previewBounds={preview ?? null}
@@ -170,7 +183,8 @@ const SelectionItem = ({
                 sizeMatchGuidesEnabled: settings?.sizeMatchGuides !== false,
                 gridSnapSize: settings?.gridSnapSize ?? 5,
               },
-              policy: 'native',
+              // 플러그인 요소는 옛 플러그인 크기 조절의 간격 가이드 규칙
+              policy: isPluginKind(element.kind) ? 'plugin' : 'native',
             });
             const guides = useSmartGuidesStore.getState();
             if (plan.guideUpdate.kind === 'clear') {
@@ -205,19 +219,21 @@ const SelectionItem = ({
           }}
         />
       )}
-      {withHandles && definition?.rotatable !== false && (
-        <CanvasRotateHandle
-          bounds={bounds}
-          rotation={frame.rotation}
-          zoom={zoom}
-          panX={panX}
-          panY={panY}
-          sessionKey={`document:${element.id}`}
-          start={() =>
-            startDocumentRotation(sceneId, element.id, element.frame)
-          }
-        />
-      )}
+      {withHandles &&
+        !isPluginKind(element.kind) &&
+        definition?.rotatable !== false && (
+          <CanvasRotateHandle
+            bounds={bounds}
+            rotation={frame.rotation}
+            zoom={zoom}
+            panX={panX}
+            panY={panY}
+            sessionKey={`document:${element.id}`}
+            start={() =>
+              startDocumentRotation(sceneId, element.id, element.frame)
+            }
+          />
+        )}
     </>
   );
 };
@@ -270,14 +286,17 @@ const DocumentGroupResizeHandles = ({
     for (const id of ids) frames.clear(id);
   });
   const store = getElementDocumentStore();
+  // 크기 조절이 안 되는 요소(정의가 resizable이 아닌 플러그인)는 빼고 그 자리에 둔다 (예전 묶음 크기 조절과 같다)
   const entries = ids.flatMap((id) => {
     const element = store?.getElement(sceneId, id);
-    return element ? [{ id, frame: element.frame }] : [];
+    return element && isKindResizable(element.kind)
+      ? [{ id, frame: element.frame }]
+      : [];
   });
   const selection = documentSelectionFrame(entries);
   if (
     !selection ||
-    entries.length < 2 ||
+    entries.length === 0 ||
     entries.some(({ frame }) => frame.rotation !== 0)
   ) {
     return null;
@@ -406,6 +425,7 @@ const DocumentSelectionOverlay = (props: DocumentSelectionOverlayProps) => {
           {...props}
           id={id}
           withHandles={ids.length === 1 && handlesOpen}
+          multi={ids.length > 1}
         />
       ))}
       {ids.length > 1 && handlesOpen && (

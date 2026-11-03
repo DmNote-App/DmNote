@@ -80,9 +80,16 @@ export const TREE_EDITED_KINDS: ReadonlySet<string> = new Set([
   'key',
 ]);
 
-/** 플러그인 인스턴스 요소(`plugin:{id}`) - 트리 문서에 두지만 목록은 플러그인 버킷이 맡고 옛 플러그인
- * 렌더러가 그린다. 트리 편집기(그리기·선택·레이어·쌓임)는 아직 건너뛴다 */
-export const isPluginKind = (kind: string) => kind.startsWith('plugin:');
+const PLUGIN_KIND_PREFIX = 'plugin:';
+
+/** 플러그인 인스턴스 요소(`plugin:{id}`, 요소 id는 `{id}::{인스턴스}`) - 저장 원본은 트리, 공개 목록은 백엔드가
+ * 투영한다. 그리기는 플러그인 렌더러, 고르기·끌기·크기 조절은 트리 편집기가 맡는다 */
+export const isPluginKind = (kind: string) =>
+  kind.startsWith(PLUGIN_KIND_PREFIX);
+
+/** 플러그인 종류의 플러그인 id */
+export const pluginIdOfKind = (kind: string) =>
+  kind.slice(PLUGIN_KIND_PREFIX.length);
 
 // 오버레이·OBS가 트리에서 그리는 옛 종류 - 옛 오버레이 그리기에서 빠진다 (편집 화면은 TREE_EDITED_KINDS).
 // 노트 트랙과 바깥 카운터는 아직 옛 배열에서 자리를 잡는다

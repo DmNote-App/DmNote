@@ -149,20 +149,20 @@ describe('레이어 탭 - 장면 트리 하나', () => {
     expect(row('k1').textContent).toContain('왼손');
   });
 
-  it('플러그인 행은 옛 선택, 나머지는 트리 선택으로 고른다', () => {
+  it('플러그인 행도 트리 선택으로 고른다 (트리에 노드가 있는 인스턴스)', () => {
     act(() => row('demo::p1').click());
-    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
-      { type: 'plugin', id: 'demo::p1' },
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([
+      'demo::p1',
     ]);
     act(() => row('t1').click());
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['t1']);
-    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
-    // 그룹 행 - 플러그인 멤버는 옛 선택으로 함께
+    // 그룹 행 - 플러그인 멤버도 함께
     act(() => row('G').click());
-    expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['t1']);
-    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
-      { type: 'plugin', id: 'demo::p1' },
+    expect(useDocumentSelectionStore.getState().selectedIds.sort()).toEqual([
+      'demo::p1',
+      't1',
     ]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
   });
 
   it('숨김 - 그룹은 트리 그룹 숨김, 플러그인은 플러그인 스토어, 나머지는 트리 공통 정보', () => {
@@ -226,7 +226,7 @@ describe('레이어 탭 - 장면 트리 하나', () => {
     ]);
   });
 
-  it('Shift 범위는 마지막으로 누른 행을 기준으로 하고, Cmd로 마지막 플러그인을 빼면 선택이 빈다', () => {
+  it('Shift 범위는 마지막으로 누른 행을 기준으로 하고, Cmd로 플러그인 행을 빼면 그 행만 빠진다', () => {
     act(() => row('k1').click());
     act(() =>
       row('t1').dispatchEvent(
@@ -240,16 +240,16 @@ describe('레이어 탭 - 장면 트리 하나', () => {
     );
     // 기준은 처음 누른 k1 그대로
     expect(useDocumentSelectionStore.getState().selectedIds.sort()).toEqual([
+      'demo::p1',
       'k1',
       't1',
     ]);
-    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
-      { type: 'plugin', id: 'demo::p1' },
-    ]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
 
     // 고른 행을 처음 누르면 기준만 옮긴다 (예전과 같다)
     act(() => row('demo::p1').click());
     expect(useDocumentSelectionStore.getState().selectedIds.sort()).toEqual([
+      'demo::p1',
       'k1',
       't1',
     ]);

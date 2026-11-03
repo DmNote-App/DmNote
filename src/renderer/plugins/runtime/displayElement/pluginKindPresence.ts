@@ -2,14 +2,12 @@
 // 모르는 종류(자리 표시 상자)로 트리 편집기가 맡는다 (설계 3.11)
 import { useSyncExternalStore } from 'react';
 
-import { isPluginKind } from '@src/types/elementKinds';
+import { isPluginKind, pluginIdOfKind } from '@src/types/elementKinds';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import {
   isLocalPluginRuntimeReady,
   subscribePluginReadiness,
 } from '../pluginRuntimeReadiness';
-
-const PLUGIN_KIND_PREFIX = 'plugin:';
 
 /** 지금 상태 기준 - 불러오는 중에는 플러그인 렌더러 몫으로 둔다(시작할 때 상자가 깜빡이지 않게) */
 export const pluginRendersKind = (kind: string): boolean => {
@@ -17,7 +15,7 @@ export const pluginRendersKind = (kind: string): boolean => {
   if (!isLocalPluginRuntimeReady()) return true;
   return usePluginDisplayElementStore
     .getState()
-    .definitions.has(kind.slice(PLUGIN_KIND_PREFIX.length));
+    .definitions.has(pluginIdOfKind(kind));
 };
 
 const subscribe = (listener: () => void) => {
@@ -51,9 +49,27 @@ export const useRenderedPluginKinds = (): ((kind: string) => boolean) => {
     const defined = key === null ? null : new Set(key.split('\n'));
     predicate = (kind) =>
       isPluginKind(kind) &&
-      (defined === null || defined.has(kind.slice(PLUGIN_KIND_PREFIX.length)));
+      (defined === null || defined.has(pluginIdOfKind(kind)));
     predicates.clear();
     predicates.set(key, predicate);
   }
   return predicate;
 };
+
+// 크기 조절 - 플러그인 종류는 정의가 resizable일 때만 (정의가 없으면 모르는 종류처럼 된다). 나머지 종류는 된다
+const resizableIn = (
+  definitions: ReadonlyMap<string, { resizable?: boolean }>,
+  kind: string,
+) => {
+  if (!isPluginKind(kind)) return true;
+  const definition = definitions.get(pluginIdOfKind(kind));
+  return !definition || definition.resizable === true;
+};
+
+export const isKindResizable = (kind: string): boolean =>
+  resizableIn(usePluginDisplayElementStore.getState().definitions, kind);
+
+export const useKindResizable = (kind: string | undefined): boolean =>
+  usePluginDisplayElementStore((state) =>
+    kind === undefined ? true : resizableIn(state.definitions, kind),
+  );

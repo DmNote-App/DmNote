@@ -1,11 +1,6 @@
 import React, { useEffect } from 'react';
 
 import { useLegacyPreviewFrame } from '@src/renderer/elementKinds/runtime/useLegacyPreviewFrame';
-import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
-import {
-  isHistoryEditorFlushLocked,
-  subscribeHistoryEditorFlushStart,
-} from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { openPropertiesPanelForSelection } from '@stores/grid/usePanelHostStore';
@@ -19,17 +14,13 @@ import { documentElementSlots } from '@src/renderer/elementKinds/runtime/documen
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import type { SurfaceBundle } from '@src/renderer/elementKinds/runtime/ElementSurface';
 import { useTranslation } from '@contexts/useTranslation';
-import { getOtherElementBounds } from '@hooks/Grid/drag/useSmartGuidesElements';
-import { calculateZoomAdjustedGridSize } from '@hooks/Grid/utils';
-import { useSmartGuidesStore } from '@stores/grid/useSmartGuidesStore';
-import { useSettingsStore } from '@stores/useSettingsStore';
 import { isMac } from '@utils/core/platform';
 import { elementRotationTransform } from '@utils/element/rotation';
+import { removeDocumentElements } from './documentEditActions';
 import {
-  moveDocumentElements,
-  removeDocumentElements,
-} from './documentEditActions';
-import { documentDragSnap } from './documentDragSnap';
+  startDocumentSelectionDrag,
+  type MixedDragLifecycle,
+} from './documentSelectionDrag';
 import { groupSelectionOf } from './documentGroups';
 import { documentRangeSelection, toggleDocumentId } from './documentSelection';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
@@ -39,8 +30,6 @@ import { useRenderedPluginKinds } from '@plugins/runtime/displayElement/pluginKi
 
 const EDITOR_INPUTS = {};
 const EMPTY_IDS: string[] = [];
-// 드래그로 보지 않는 움직임 (화면 px)
-const DRAG_THRESHOLD = 3;
 
 interface DocumentGridElementProps {
   sceneId: string;
@@ -133,126 +122,14 @@ const DocumentGridElement = ({
           ),
       );
     }
-    const origins = ids.flatMap((id) => {
-      const frame = store?.getElement(sceneId, id)?.frame;
-      return frame ? [{ id, frame }] : [];
-    });
-    // 옛 종류 요소도 함께 골랐으면 옛 끌기 수명 주기로 둘 다 옮긴다 (트리 요소는 그 안의 영수증이)
-    const legacySelected = useDocumentSelectionStore
-      .getState()
-      .selectedElements.map(({ id }) => id);
-    const mixed = legacySelected.length > 0 ? mixedDrag : undefined;
-    let endMixed: ((commit?: boolean) => void) | null = null;
-    let lastOffset = { x: 0, y: 0 };
-    const start = { x: event.clientX, y: event.clientY };
-    let moved = false;
-    const target = event.currentTarget;
-    target.setPointerCapture(event.pointerId);
-    const gridSize = calculateZoomAdjustedGridSize(
+    startDocumentSelectionDrag({
+      sceneId,
+      selfId: element.id,
+      ids,
+      event,
       zoom,
-      useSettingsStore.getState().gridSettings?.gridSnapSize ?? 5,
-    );
-    // 옛 종류 다중 끌기와 같은 맞추기 - 다른 요소 가장자리, 안 붙는 축은 격자
-    const others = getOtherElementBounds([
-      ...origins.map(({ id }) => id),
-      ...(mixed ? legacySelected : []),
-    ]);
-    const handleMove = (move: PointerEvent) => {
-      const dx = move.clientX - start.x;
-      const dy = move.clientY - start.y;
-      if (!moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-      if (!moved && mixed) {
-        const end = mixed.begin();
-        endMixed = typeof end === 'function' ? end : null;
-        useGridSelectionStore.getState().setDraggingOrResizing(true);
-      }
-      moved = true;
-      const settings = useSettingsStore.getState().gridSettings;
-      // 플랫폼 보조키로 스마트 맞추기 잠시 끄기 (격자 맞추기는 그대로)
-      const suppress = isMac() ? move.metaKey : move.ctrlKey;
-      const snap = documentDragSnap({
-        origins,
-        selfId: element.id,
-        dx: dx / zoom,
-        dy: dy / zoom,
-        others,
-        gridSize,
-        alignment: settings?.alignmentGuides !== false && !suppress,
-        spacing: settings?.spacingGuides !== false,
-      });
-      const guides = useSmartGuidesStore.getState();
-      if (snap.guides) {
-        guides.setDraggedBounds(snap.guides.dragged);
-        guides.setActiveGuides(snap.guides.active);
-        guides.setSpacingGuides(snap.guides.spacing);
-      } else {
-        guides.clearGuides();
-      }
-      if (mixed) {
-        mixed.move(snap.offsetX - lastOffset.x, snap.offsetY - lastOffset.y);
-        lastOffset = { x: snap.offsetX, y: snap.offsetY };
-        return;
-      }
-      const preview = useDocumentFramePreviewStore.getState();
-      for (const { id, frame } of origins) {
-        preview.set(id, {
-          ...frame,
-          x: frame.x + snap.offsetX,
-          y: frame.y + snap.offsetY,
-        });
-      }
-    };
-    let ended = false;
-    // commit=false - 되돌리기·히스토리 정산이 끼어들면 옮긴 것을 버린다 (옛 종류 끌기와 같다)
-    const finish = (commit: boolean) => {
-      if (ended) return;
-      ended = true;
-      unsubscribeHistory();
-      unsubscribeFlush();
-      useSmartGuidesStore.getState().clearGuides();
-      target.removeEventListener('pointermove', handleMove);
-      target.removeEventListener('pointerup', handleUp);
-      target.removeEventListener('pointercancel', handleUp);
-      commit = commit && !isHistoryEditorFlushLocked();
-      if (mixed) {
-        if (!moved) return;
-        useGridSelectionStore.getState().setDraggingOrResizing(false);
-        try {
-          if (commit) mixed.commit();
-        } finally {
-          endMixed?.(commit);
-        }
-        return;
-      }
-      const frames = useDocumentFramePreviewStore.getState().frames;
-      const moves =
-        moved && commit
-          ? origins.flatMap(({ id }) =>
-              frames[id] ? [{ id, x: frames[id].x, y: frames[id].y }] : [],
-            )
-          : [];
-      const clear = () => {
-        const preview = useDocumentFramePreviewStore.getState();
-        for (const { id } of origins) preview.clear(id);
-      };
-      if (moves.length === 0) {
-        clear();
-        return;
-      }
-      void moveDocumentElements(sceneId, moves).finally(clear);
-    };
-    const handleUp = () => finish(true);
-    const unsubscribeHistory = useCommittedApplyStore.subscribe(
-      (state, previous) => {
-        if (state.historyTick !== previous.historyTick) finish(false);
-      },
-    );
-    const unsubscribeFlush = subscribeHistoryEditorFlushStart(() =>
-      finish(false),
-    );
-    target.addEventListener('pointermove', handleMove);
-    target.addEventListener('pointerup', handleUp);
-    target.addEventListener('pointercancel', handleUp);
+      mixedDrag,
+    });
   };
 
   return (
@@ -315,12 +192,6 @@ interface DocumentGridLayerProps {
   onElementContextMenu: (event: React.MouseEvent, element: ElementNode) => void;
   // 옛 종류 요소와 섞인 선택 끌기 - Grid의 선택 끌기 수명 주기
   mixedDrag?: MixedDragLifecycle;
-}
-
-export interface MixedDragLifecycle {
-  begin: () => void | ((commit?: boolean) => void);
-  move: (deltaX: number, deltaY: number) => void;
-  commit: () => void;
 }
 
 /** 편집 화면 - 트리 문서에만 있는 종류를 미리보기 상태로 그리고 고르고 옮긴다 */

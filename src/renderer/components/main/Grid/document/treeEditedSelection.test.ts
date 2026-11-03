@@ -8,12 +8,16 @@ vi.mock('@src/types/elementKinds', async (importOriginal) => {
   return { ...actual, TREE_EDITED_KINDS: new Set(['knob']) };
 });
 
-// n* = 노브, t* = 트리에만 있는 종류
+// n* = 노브, p::* = 플러그인 요소, t* = 트리에만 있는 종류
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   getElementDocumentStore: () => ({
     getElement: (_scene: string, id: string) => ({
       id,
-      kind: id.startsWith('n') ? 'knob' : 'cursor',
+      kind: id.startsWith('n')
+        ? 'knob'
+        : id.startsWith('p::')
+        ? 'plugin:p'
+        : 'cursor',
       // 옛 순번은 트리에 실린 값
       legacy: { index: Number(id.slice(1)) - 1 },
     }),
@@ -97,16 +101,20 @@ describe('옛 선택으로 들어온 트리로 옮긴 옛 종류', () => {
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['n1']);
   });
 
-  it('패널 선택은 트리 선택이 모두 노브이고 플러그인이 없을 때만 노브를 합친다', () => {
+  it('패널 선택은 트리 선택이 모두 노브·플러그인 요소면 합친다 (섞인 일괄 패널)', () => {
     expect(panelSelectionOf([key], '4key', ['n1'])).toEqual([
       key,
       { type: 'knob', id: 'n1', index: 0 },
     ]);
     // 트리에만 있는 종류가 섞이면 옛 선택만
     expect(panelSelectionOf([key], '4key', ['n1', 't1'])).toEqual([key]);
-    // 플러그인이 섞이면 옛 선택만
-    const plugin = { type: 'plugin' as const, id: 'p:1' };
-    expect(panelSelectionOf([plugin], '4key', ['n1'])).toEqual([plugin]);
+    // 트리의 플러그인 요소는 플러그인 선택 모양으로, 트리에 없는 런타임 요소(옛 선택)와도 합친다
+    const runtime = { type: 'plugin' as const, id: 'p:runtime' };
+    expect(panelSelectionOf([runtime], '4key', ['n1', 'p::1'])).toEqual([
+      runtime,
+      { type: 'knob', id: 'n1', index: 0 },
+      { type: 'plugin', id: 'p::1' },
+    ]);
   });
 });
 

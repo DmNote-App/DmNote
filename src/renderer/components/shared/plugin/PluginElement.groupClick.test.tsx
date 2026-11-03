@@ -41,6 +41,8 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => {
         find((tree.scene as { nodes: never }).nodes, id),
     }),
     useElementDocumentScene: () => tree.scene,
+    useDocumentElement: (_scene: string, id: string) =>
+      find((tree.scene as { nodes: never }).nodes, id),
   };
 });
 
@@ -88,7 +90,11 @@ const seedStores = (options: {
   usePluginDisplayElementStore.setState({
     elements: [makePluginElement(options.pluginGroupId)],
   });
-  useDocumentSelectionStore.setState({ selectedElements: [] });
+  useDocumentSelectionStore.setState({
+    sceneId: null,
+    selectedIds: [],
+    selectedElements: [],
+  });
   useGridSelectionStore.setState({
     lastSelectedKeyBounds: null,
   });
@@ -170,11 +176,12 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
 
     fireMouse(node, 'click');
 
-    // 플러그인 요소는 옛 선택, 키는 트리 선택
-    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
-      { type: 'plugin', id: PLUGIN_FULL_ID },
+    // 트리에 노드가 있는 플러그인 요소도 트리 선택
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([
+      KEY_ID,
+      PLUGIN_FULL_ID,
     ]);
-    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([KEY_ID]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
   });
 
   it('비그룹 플러그인 클릭은 단일 선택을 유지한다', () => {
@@ -183,9 +190,10 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
 
     fireMouse(node, 'click');
 
-    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
-      { type: 'plugin', id: PLUGIN_FULL_ID },
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([
+      PLUGIN_FULL_ID,
     ]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
   });
 
   it('그룹 노드가 없는 dangling groupId는 확장하지 않는다', () => {
@@ -194,9 +202,10 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
 
     fireMouse(node, 'click');
 
-    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
-      { type: 'plugin', id: PLUGIN_FULL_ID },
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([
+      PLUGIN_FULL_ID,
     ]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
   });
 
   it('수식키 클릭은 그룹 확장 없이 단일 토글로 남는다', () => {
@@ -205,9 +214,10 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
 
     fireMouse(node, 'click', { ctrlKey: true });
 
-    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
-      { type: 'plugin', id: PLUGIN_FULL_ID },
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([
+      PLUGIN_FULL_ID,
     ]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
   });
 
   it('더블클릭 편집 진입도 그룹 전체를 선택한다', () => {
@@ -216,10 +226,11 @@ describe('플러그인 요소 그룹 클릭 배선', () => {
 
     fireMouse(node, 'dblclick');
 
-    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([
-      { type: 'plugin', id: PLUGIN_FULL_ID },
+    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([
+      KEY_ID,
+      PLUGIN_FULL_ID,
     ]);
-    expect(useDocumentSelectionStore.getState().selectedIds).toEqual([KEY_ID]);
+    expect(useDocumentSelectionStore.getState().selectedElements).toEqual([]);
     expect(usePropertiesPanelStore.getState().isCanvasPanelOpen).toBe(true);
   });
 });

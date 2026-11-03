@@ -33,9 +33,11 @@ import { obsApi } from '@api/modules/window/obsApi';
 import { noteMainPluginsReady } from '@plugins/runtime/pluginRuntimeReadiness';
 import { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
+import type { MixedDragLifecycle } from '../../main/Grid/document/documentSelectionDrag';
 
 const DEFAULT_POSITION_OFFSET = { x: 0, y: 0 };
 const EMPTY_SELECTED_ELEMENTS: SelectedElement[] = [];
+const EMPTY_IDS: string[] = [];
 
 /**
  * Main에서 온 elements와 Overlay의 기존 elements를 병합
@@ -81,6 +83,8 @@ interface PluginElementsRendererProps {
   onMultiDrag?: (deltaX: number, deltaY: number) => void;
   onMultiDragStart?: () => void | (() => void);
   onMultiDragEnd?: () => void;
+  // 트리 선택 끌기에 섞인 런타임 플러그인 요소 - Grid의 선택 끌기 수명 주기
+  mixedDrag?: MixedDragLifecycle;
 }
 
 export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
@@ -95,6 +99,7 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
   onMultiDrag,
   onMultiDragStart,
   onMultiDragEnd,
+  mixedDrag,
 }) => {
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   // 표시 대상 fullId 목록만 구독 - 요소의 state/html 갱신이
@@ -191,6 +196,29 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
   );
   const selectedElements: SelectedElement[] =
     windowType === 'main' ? selectedElementsRaw : EMPTY_SELECTED_ELEMENTS;
+  // 트리에 노드가 있는 인스턴스는 트리 선택
+  const selectedTreeIdsRaw = useDocumentSelectionStore((state) =>
+    state.sceneId === selectedKeyType ? state.selectedIds : EMPTY_IDS,
+  );
+  const selectedTreeIds =
+    windowType === 'main' ? selectedTreeIdsRaw : EMPTY_IDS;
+  const latestMixedDrag = useRef(mixedDrag);
+  useLayoutEffect(() => {
+    latestMixedDrag.current = mixedDrag;
+  });
+  const stableMixedDrag = useMemo<MixedDragLifecycle | undefined>(
+    () =>
+      mixedDrag
+        ? {
+            begin: () => latestMixedDrag.current?.begin(),
+            move: (deltaX, deltaY) =>
+              latestMixedDrag.current?.move(deltaX, deltaY),
+            commit: () => latestMixedDrag.current?.commit(),
+          }
+        : undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mixedDrag != null],
+  );
 
   // 오버레이에서 메인의 브릿지 메시지 수신
   useEffect(() => {
@@ -298,14 +326,18 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
           isViewportTransforming={isViewportTransforming}
           stackZIndex={stackRanks.get(fullId)}
           fallbackZIndex={stackRanks.size + index}
-          isSelected={selectedElements.some(
-            (sel) => sel.type === 'plugin' && sel.id === fullId,
-          )}
+          isSelected={
+            selectedTreeIds.includes(fullId) ||
+            selectedElements.some(
+              (sel) => sel.type === 'plugin' && sel.id === fullId,
+            )
+          }
           selectedElements={selectedElements}
           onSelectionContextMenu={stableOnSelectionContextMenu}
           onMultiDrag={stableOnMultiDrag}
           onMultiDragStart={stableOnMultiDragStart}
           onMultiDragEnd={stableOnMultiDragEnd}
+          mixedDrag={stableMixedDrag}
         />
       ))}
     </>

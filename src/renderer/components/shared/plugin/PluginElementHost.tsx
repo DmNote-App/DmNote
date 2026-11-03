@@ -2,6 +2,7 @@ import React from 'react';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { PluginElement } from './PluginElement';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
+import type { MixedDragLifecycle } from '../../main/Grid/document/documentSelectionDrag';
 
 interface PluginElementHostProps {
   fullId: string;
@@ -25,6 +26,7 @@ interface PluginElementHostProps {
   onMultiDrag?: (deltaX: number, deltaY: number) => void;
   onMultiDragStart?: () => void | (() => void);
   onMultiDragEnd?: () => void;
+  mixedDrag?: MixedDragLifecycle;
 }
 
 /**

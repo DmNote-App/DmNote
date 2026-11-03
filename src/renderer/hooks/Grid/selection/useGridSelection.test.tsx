@@ -22,8 +22,12 @@ const mocks = vi.hoisted(() => ({
   flushSession: vi.fn(),
 }));
 
+// 옛 선택은 트리에 노드가 없는 런타임 플러그인 요소 - 트리 노드가 있으면 트리 선택이 맡는다
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
-  getElementDocumentStore: () => ({ getScene: () => mocks.scene }),
+  getElementDocumentStore: () => ({
+    getScene: () => mocks.scene,
+    getElement: () => undefined,
+  }),
 }));
 vi.mock('@plugins/runtime/displayElement/instancesCommitQueue', () => ({
   rotatePluginInstancesEditSession: mocks.rotateSession,
