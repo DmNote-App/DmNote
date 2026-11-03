@@ -1,0 +1,984 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`그리기 약속 행렬 > graph > 오버레이 - 대기·입력 > 대기 1`] = `
+[
+  {
+    "children": [
+      {
+        "data": {
+          "data-gradient-border-ring": "true",
+        },
+        "tag": "span",
+        "vars": {
+          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+        },
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "tag": "stop",
+                        "vars": {
+                          "stop-color": "var(--graph-color, #86EFAC)",
+                        },
+                      },
+                      {
+                        "tag": "stop",
+                        "vars": {
+                          "stop-color": "var(--graph-color, #86EFAC)",
+                        },
+                      },
+                    ],
+                    "tag": "lineargradient",
+                  },
+                  {
+                    "children": [
+                      {
+                        "tag": "stop",
+                        "vars": {
+                          "stop-color": "var(--graph-color, #86EFAC)",
+                        },
+                      },
+                      {
+                        "tag": "stop",
+                        "vars": {
+                          "stop-color": "var(--graph-color, #86EFAC)",
+                        },
+                      },
+                    ],
+                    "tag": "lineargradient",
+                  },
+                ],
+                "tag": "defs",
+              },
+              {
+                "tag": "polygon",
+              },
+              {
+                "tag": "line",
+              },
+              {
+                "tag": "polyline",
+              },
+            ],
+            "tag": "svg",
+          },
+        ],
+        "tag": "div",
+      },
+    ],
+    "class": [
+      "absolute",
+      "my-graph",
+      "select-none",
+    ],
+    "data": {
+      "data-graph-element": "true",
+      "data-overlay-hit": "true",
+      "data-state": "inactive",
+    },
+    "tag": "div",
+    "vars": {
+      "--dmn-graph-bg-default": "#112233",
+      "--dmn-graph-border-default": "none",
+      "--dmn-graph-font-family-default": "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', sans-serif",
+      "--dmn-graph-padding-default": "2px",
+      "--dmn-graph-radius-default": "6px",
+      "--dmn-graph-text-color-default": "#FFFFFF",
+      "transform": "translate3d(calc(4px + var(--key-offset-x, 0px)), calc(8px + var(--key-offset-y, 0px)), 0)",
+    },
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > graph > 편집 화면 - 대기·눌림 미리보기 > 대기 1`] = `
+[
+  {
+    "children": [
+      {
+        "data": {
+          "data-gradient-border-ring": "true",
+        },
+        "tag": "span",
+        "vars": {
+          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+        },
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "tag": "stop",
+                        "vars": {
+                          "stop-color": "var(--graph-color, #86EFAC)",
+                        },
+                      },
+                      {
+                        "tag": "stop",
+                        "vars": {
+                          "stop-color": "var(--graph-color, #86EFAC)",
+                        },
+                      },
+                    ],
+                    "tag": "lineargradient",
+                  },
+                  {
+                    "children": [
+                      {
+                        "tag": "stop",
+                        "vars": {
+                          "stop-color": "var(--graph-color, #86EFAC)",
+                        },
+                      },
+                      {
+                        "tag": "stop",
+                        "vars": {
+                          "stop-color": "var(--graph-color, #86EFAC)",
+                        },
+                      },
+                    ],
+                    "tag": "lineargradient",
+                  },
+                ],
+                "tag": "defs",
+              },
+              {
+                "tag": "polygon",
+              },
+              {
+                "tag": "line",
+              },
+              {
+                "tag": "polyline",
+              },
+            ],
+            "tag": "svg",
+          },
+        ],
+        "tag": "div",
+      },
+    ],
+    "class": [
+      "absolute",
+      "dmn-grabbable",
+      "my-graph",
+      "select-none",
+    ],
+    "data": {
+      "data-graph-element": "true",
+      "data-state": "inactive",
+    },
+    "tag": "div",
+    "vars": {
+      "--dmn-graph-bg-default": "#112233",
+      "--dmn-graph-border-default": "none",
+      "--dmn-graph-font-family-default": "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', sans-serif",
+      "--dmn-graph-padding-default": "2px",
+      "--dmn-graph-radius-default": "6px",
+      "--dmn-graph-text-color-default": "#FFFFFF",
+      "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
+    },
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 대기 1`] = `
+[
+  {
+    "children": [
+      {
+        "data": {
+          "data-gradient-border-ring": "true",
+        },
+        "tag": "span",
+        "vars": {
+          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+        },
+      },
+      {
+        "children": [
+          {
+            "class": [
+              "font-bold",
+              "leading-normal",
+              "pointer-events-none",
+              "select-none",
+              "text-[14px]",
+              "text-safe-inline",
+            ],
+            "data": {
+              "data-key-label": "true",
+            },
+            "tag": "span",
+          },
+          {
+            "class": [
+              "counter",
+            ],
+            "data": {
+              "data-counter-state": "inactive",
+              "data-text": "0",
+            },
+            "tag": "span",
+            "vars": {
+              "--counter-color-default": "rgba(237, 238, 242, 0.78)",
+              "--dmn-counter-fill-clip-default": "border-box",
+              "--dmn-counter-fill-image-default": "none",
+              "--dmn-counter-fill-repeat-default": "repeat",
+              "--dmn-counter-font-family-default": "inherit",
+              "--dmn-counter-font-size-default": "11px",
+              "--dmn-counter-font-style-default": "normal",
+              "--dmn-counter-font-weight-default": "500",
+              "--dmn-counter-line-height-default": "normal",
+              "--dmn-counter-text-align-default": "center",
+              "--dmn-counter-text-decoration-default": "none",
+              "--dmn-counter-text-fill-default": "currentcolor",
+            },
+          },
+        ],
+        "class": [
+          "flex",
+          "flex-col",
+          "h-full",
+          "items-center",
+          "pointer-events-none",
+          "select-none",
+          "w-full",
+        ],
+        "tag": "div",
+      },
+    ],
+    "class": [
+      "absolute",
+      "my-key",
+    ],
+    "data": {
+      "data-key-element": "true",
+      "data-overlay-hit": "true",
+      "data-state": "inactive",
+    },
+    "tag": "div",
+    "vars": {
+      "--dmn-key-bg-default": "#112233",
+      "--dmn-key-bg-image-default": "none",
+      "--dmn-key-border-default": "none",
+      "--dmn-key-font-family-default": "inherit",
+      "--dmn-key-font-size-default": "14px",
+      "--dmn-key-font-style-default": "normal",
+      "--dmn-key-font-weight-default": "700",
+      "--dmn-key-label-color-default": "inherit",
+      "--dmn-key-padding-default": "2px",
+      "--dmn-key-radius-default": "6px",
+      "--dmn-key-shadow-default": "1px 2px 3px #000000",
+      "--dmn-key-text-color-default": "#ffffff",
+      "--dmn-key-text-decoration-default": "none",
+      "--dmn-key-text-image-default": "none",
+      "--dmn-key-text-repeat-default": "repeat",
+      "transform": "translate3d(calc(4px + var(--key-offset-x, 0px)), calc(8px + var(--key-offset-y, 0px)), 0)",
+    },
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 입력 1`] = `
+[
+  {
+    "children": [
+      {
+        "data": {
+          "data-gradient-border-ring": "true",
+        },
+        "tag": "span",
+        "vars": {
+          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+        },
+      },
+      {
+        "children": [
+          {
+            "class": [
+              "font-bold",
+              "leading-normal",
+              "pointer-events-none",
+              "select-none",
+              "text-[14px]",
+              "text-safe-inline",
+            ],
+            "data": {
+              "data-key-label": "true",
+            },
+            "tag": "span",
+          },
+          {
+            "class": [
+              "counter",
+            ],
+            "data": {
+              "data-counter-state": "active",
+              "data-text": "0",
+            },
+            "tag": "span",
+            "vars": {
+              "--counter-color-default": "rgba(20, 20, 24, 0.9)",
+              "--dmn-counter-fill-clip-default": "border-box",
+              "--dmn-counter-fill-image-default": "none",
+              "--dmn-counter-fill-repeat-default": "repeat",
+              "--dmn-counter-font-family-default": "inherit",
+              "--dmn-counter-font-size-default": "11px",
+              "--dmn-counter-font-style-default": "normal",
+              "--dmn-counter-font-weight-default": "500",
+              "--dmn-counter-line-height-default": "normal",
+              "--dmn-counter-text-align-default": "center",
+              "--dmn-counter-text-decoration-default": "none",
+              "--dmn-counter-text-fill-default": "currentcolor",
+            },
+          },
+        ],
+        "class": [
+          "flex",
+          "flex-col",
+          "h-full",
+          "items-center",
+          "pointer-events-none",
+          "select-none",
+          "w-full",
+        ],
+        "tag": "div",
+      },
+    ],
+    "class": [
+      "absolute",
+      "my-key",
+    ],
+    "data": {
+      "data-key-element": "true",
+      "data-overlay-hit": "true",
+      "data-state": "active",
+    },
+    "tag": "div",
+    "vars": {
+      "--dmn-key-bg-default": "#445566",
+      "--dmn-key-bg-image-default": "none",
+      "--dmn-key-border-default": "none",
+      "--dmn-key-font-family-default": "inherit",
+      "--dmn-key-font-size-default": "14px",
+      "--dmn-key-font-style-default": "normal",
+      "--dmn-key-font-weight-default": "700",
+      "--dmn-key-label-color-default": "inherit",
+      "--dmn-key-padding-default": "2px",
+      "--dmn-key-radius-default": "6px",
+      "--dmn-key-shadow-default": "0px 3px 8px rgba(0, 0, 0, 0.32)",
+      "--dmn-key-text-color-default": "#ffffff",
+      "--dmn-key-text-decoration-default": "none",
+      "--dmn-key-text-image-default": "none",
+      "--dmn-key-text-repeat-default": "repeat",
+      "transform": "translate3d(calc(4px + var(--key-offset-x, 0px)), calc(8px + var(--key-offset-y, 0px)), 0)",
+    },
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > key > 편집 화면 - 대기·눌림 미리보기 > 눌림 미리보기 1`] = `
+[
+  {
+    "children": [
+      {
+        "data": {
+          "data-gradient-border-ring": "true",
+        },
+        "tag": "span",
+        "vars": {
+          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+        },
+      },
+      {
+        "children": [
+          {
+            "class": [
+              "text-safe-inline",
+            ],
+            "data": {
+              "data-key-label": "true",
+            },
+            "tag": "span",
+          },
+        ],
+        "class": [
+          "flex",
+          "font-bold",
+          "h-full",
+          "items-center",
+          "justify-center",
+        ],
+        "tag": "div",
+      },
+    ],
+    "class": [
+      "absolute",
+      "dmn-grabbable",
+      "my-key",
+    ],
+    "data": {
+      "data-key-element": "true",
+      "data-state": "active",
+    },
+    "tag": "div",
+    "vars": {
+      "--dmn-key-bg-default": "#445566",
+      "--dmn-key-bg-image-default": "none",
+      "--dmn-key-border-default": "none",
+      "--dmn-key-font-family-default": "inherit",
+      "--dmn-key-font-size-default": "14px",
+      "--dmn-key-font-style-default": "normal",
+      "--dmn-key-font-weight-default": "700",
+      "--dmn-key-label-color-default": "inherit",
+      "--dmn-key-padding-default": "2px",
+      "--dmn-key-radius-default": "6px",
+      "--dmn-key-shadow-default": "0px 3px 8px rgba(0, 0, 0, 0.32)",
+      "--dmn-key-text-color-default": "#ffffff",
+      "--dmn-key-text-decoration-default": "none",
+      "--dmn-key-text-image-default": "none",
+      "--dmn-key-text-repeat-default": "repeat",
+      "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
+    },
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > key > 편집 화면 - 대기·눌림 미리보기 > 대기 1`] = `
+[
+  {
+    "children": [
+      {
+        "data": {
+          "data-gradient-border-ring": "true",
+        },
+        "tag": "span",
+        "vars": {
+          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+        },
+      },
+      {
+        "children": [
+          {
+            "class": [
+              "text-safe-inline",
+            ],
+            "data": {
+              "data-key-label": "true",
+            },
+            "tag": "span",
+          },
+        ],
+        "class": [
+          "flex",
+          "font-bold",
+          "h-full",
+          "items-center",
+          "justify-center",
+        ],
+        "tag": "div",
+      },
+    ],
+    "class": [
+      "absolute",
+      "dmn-grabbable",
+      "my-key",
+    ],
+    "data": {
+      "data-key-element": "true",
+      "data-state": "inactive",
+    },
+    "tag": "div",
+    "vars": {
+      "--dmn-key-bg-default": "#112233",
+      "--dmn-key-bg-image-default": "none",
+      "--dmn-key-border-default": "none",
+      "--dmn-key-font-family-default": "inherit",
+      "--dmn-key-font-size-default": "14px",
+      "--dmn-key-font-style-default": "normal",
+      "--dmn-key-font-weight-default": "700",
+      "--dmn-key-label-color-default": "inherit",
+      "--dmn-key-padding-default": "2px",
+      "--dmn-key-radius-default": "6px",
+      "--dmn-key-shadow-default": "1px 2px 3px #000000",
+      "--dmn-key-text-color-default": "#ffffff",
+      "--dmn-key-text-decoration-default": "none",
+      "--dmn-key-text-image-default": "none",
+      "--dmn-key-text-repeat-default": "repeat",
+      "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
+    },
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 대기 1`] = `
+[
+  {
+    "children": [
+      {
+        "children": [
+          {
+            "data": {
+              "data-gradient-border-ring": "true",
+            },
+            "tag": "span",
+            "vars": {
+              "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+            },
+          },
+          {
+            "data": {
+              "data-knob-indicator": "true",
+            },
+            "tag": "div",
+          },
+        ],
+        "data": {
+          "data-knob-element": "true",
+          "data-knob-state": "inactive",
+        },
+        "tag": "div",
+        "vars": {
+          "--dmn-knob-bg-default": "#112233",
+          "--dmn-knob-border-default": "none",
+          "--dmn-knob-indicator-default": "rgba(237, 238, 242, 0.78)",
+          "--dmn-knob-padding-default": "2px",
+          "--dmn-knob-radius-default": "6px",
+          "--dmn-knob-shadow-default": "1px 2px 3px #000000",
+        },
+      },
+    ],
+    "class": [
+      "absolute",
+      "my-knob",
+      "select-none",
+    ],
+    "data": {
+      "data-overlay-hit": "true",
+    },
+    "tag": "div",
+    "vars": {
+      "transform": "translate3d(calc(4px + var(--key-offset-x, 0px)), calc(8px + var(--key-offset-y, 0px)), 0)",
+    },
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 입력 1`] = `
+[
+  {
+    "children": [
+      {
+        "children": [
+          {
+            "data": {
+              "data-gradient-border-ring": "true",
+            },
+            "tag": "span",
+            "vars": {
+              "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+            },
+          },
+          {
+            "data": {
+              "data-knob-indicator": "true",
+            },
+            "tag": "div",
+          },
+        ],
+        "data": {
+          "data-knob-element": "true",
+          "data-knob-state": "active",
+        },
+        "tag": "div",
+        "vars": {
+          "--dmn-knob-bg-default": "#445566",
+          "--dmn-knob-border-default": "none",
+          "--dmn-knob-indicator-default": "rgba(20, 20, 24, 0.9)",
+          "--dmn-knob-padding-default": "2px",
+          "--dmn-knob-radius-default": "6px",
+          "--dmn-knob-shadow-default": "none",
+        },
+      },
+    ],
+    "class": [
+      "absolute",
+      "my-knob",
+      "select-none",
+    ],
+    "data": {
+      "data-overlay-hit": "true",
+    },
+    "tag": "div",
+    "vars": {
+      "transform": "translate3d(calc(4px + var(--key-offset-x, 0px)), calc(8px + var(--key-offset-y, 0px)), 0)",
+    },
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > knob > 편집 화면 - 대기·눌림 미리보기 > 눌림 미리보기 1`] = `
+[
+  {
+    "children": [
+      {
+        "data": {
+          "data-gradient-border-ring": "true",
+        },
+        "tag": "span",
+        "vars": {
+          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+        },
+      },
+      {
+        "data": {
+          "data-knob-indicator": "true",
+        },
+        "tag": "div",
+      },
+    ],
+    "data": {
+      "data-knob-element": "true",
+      "data-knob-state": "active",
+    },
+    "tag": "div",
+    "vars": {
+      "--dmn-knob-bg-default": "#445566",
+      "--dmn-knob-border-default": "none",
+      "--dmn-knob-indicator-default": "rgba(20, 20, 24, 0.9)",
+      "--dmn-knob-padding-default": "2px",
+      "--dmn-knob-radius-default": "6px",
+      "--dmn-knob-shadow-default": "none",
+    },
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > knob > 편집 화면 - 대기·눌림 미리보기 > 대기 1`] = `
+[
+  {
+    "children": [
+      {
+        "data": {
+          "data-gradient-border-ring": "true",
+        },
+        "tag": "span",
+        "vars": {
+          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+        },
+      },
+      {
+        "data": {
+          "data-knob-indicator": "true",
+        },
+        "tag": "div",
+      },
+    ],
+    "data": {
+      "data-knob-element": "true",
+      "data-knob-state": "inactive",
+    },
+    "tag": "div",
+    "vars": {
+      "--dmn-knob-bg-default": "#112233",
+      "--dmn-knob-border-default": "none",
+      "--dmn-knob-indicator-default": "rgba(237, 238, 242, 0.78)",
+      "--dmn-knob-padding-default": "2px",
+      "--dmn-knob-radius-default": "6px",
+      "--dmn-knob-shadow-default": "1px 2px 3px #000000",
+    },
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > sprite > 오버레이 - 대기·입력 > 대기 1`] = `
+[
+  {
+    "children": [
+      {
+        "children": [
+          {
+            "tag": "img",
+            "vars": {
+              "--dmn-sprite-transform-default": "translate(0px, 0px) rotate(0deg) scale(1)",
+              "--dmn-sprite-transition-default": "transform 0ms cubic-bezier(0.4, 0, 0.2, 1)",
+            },
+          },
+        ],
+        "data": {
+          "data-sprite-element": "true",
+          "data-sprite-state": "inactive",
+        },
+        "tag": "div",
+      },
+    ],
+    "class": [
+      "absolute",
+      "my-sprite",
+    ],
+    "data": {
+      "data-overlay-hit": "true",
+    },
+    "tag": "div",
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > sprite > 오버레이 - 대기·입력 > 입력 1`] = `
+[
+  {
+    "children": [
+      {
+        "children": [
+          {
+            "tag": "img",
+            "vars": {
+              "--dmn-sprite-transform-default": "translate(0px, 0px) rotate(15deg) scale(1)",
+              "--dmn-sprite-transition-default": "transform 0ms cubic-bezier(0.4, 0, 0.2, 1)",
+            },
+          },
+        ],
+        "data": {
+          "data-sprite-element": "true",
+          "data-sprite-state": "active",
+        },
+        "tag": "div",
+      },
+    ],
+    "class": [
+      "absolute",
+      "my-sprite",
+    ],
+    "data": {
+      "data-overlay-hit": "true",
+    },
+    "tag": "div",
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > sprite > 편집 화면 - 대기·눌림 미리보기 > 대기 1`] = `
+[
+  {
+    "children": [
+      {
+        "tag": "img",
+        "vars": {
+          "--dmn-sprite-transform-default": "translate(0px, 0px) rotate(0deg) scale(1)",
+        },
+      },
+    ],
+    "data": {
+      "data-sprite-element": "true",
+    },
+    "tag": "div",
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > stat > 오버레이 - 대기·입력 > 대기 1`] = `
+[
+  {
+    "children": [
+      {
+        "data": {
+          "data-gradient-border-ring": "true",
+        },
+        "tag": "span",
+        "vars": {
+          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+        },
+      },
+      {
+        "children": [
+          {
+            "class": [
+              "font-bold",
+              "leading-normal",
+              "pointer-events-none",
+              "select-none",
+              "text-[14px]",
+              "text-safe-inline",
+            ],
+            "data": {
+              "data-key-label": "true",
+            },
+            "tag": "span",
+          },
+          {
+            "class": [
+              "counter",
+            ],
+            "data": {
+              "data-counter-state": "inactive",
+              "data-text": "0",
+            },
+            "tag": "span",
+            "vars": {
+              "--counter-color-default": "rgba(237, 238, 242, 0.78)",
+              "--dmn-counter-fill-clip-default": "border-box",
+              "--dmn-counter-fill-image-default": "none",
+              "--dmn-counter-fill-repeat-default": "repeat",
+              "--dmn-counter-font-family-default": "inherit",
+              "--dmn-counter-font-size-default": "11px",
+              "--dmn-counter-font-style-default": "normal",
+              "--dmn-counter-font-weight-default": "500",
+              "--dmn-counter-line-height-default": "normal",
+              "--dmn-counter-text-align-default": "center",
+              "--dmn-counter-text-decoration-default": "none",
+              "--dmn-counter-text-fill-default": "currentcolor",
+            },
+          },
+        ],
+        "class": [
+          "flex",
+          "flex-col",
+          "h-full",
+          "items-center",
+          "pointer-events-none",
+          "select-none",
+          "w-full",
+        ],
+        "tag": "div",
+      },
+    ],
+    "class": [
+      "absolute",
+      "my-stat",
+    ],
+    "data": {
+      "data-key-element": "true",
+      "data-overlay-hit": "true",
+      "data-state": "inactive",
+    },
+    "tag": "div",
+    "vars": {
+      "--dmn-key-bg-default": "#112233",
+      "--dmn-key-bg-image-default": "none",
+      "--dmn-key-border-default": "none",
+      "--dmn-key-font-family-default": "inherit",
+      "--dmn-key-font-size-default": "12px",
+      "--dmn-key-font-style-default": "normal",
+      "--dmn-key-font-weight-default": "700",
+      "--dmn-key-label-color-default": "inherit",
+      "--dmn-key-padding-default": "2px",
+      "--dmn-key-radius-default": "6px",
+      "--dmn-key-shadow-default": "1px 2px 3px #000000",
+      "--dmn-key-text-color-default": "rgba(237, 238, 242, 0.78)",
+      "--dmn-key-text-decoration-default": "none",
+      "--dmn-key-text-image-default": "none",
+      "--dmn-key-text-repeat-default": "repeat",
+      "transform": "translate3d(calc(4px + var(--key-offset-x, 0px)), calc(8px + var(--key-offset-y, 0px)), 0)",
+    },
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > stat > 편집 화면 - 대기·눌림 미리보기 > 대기 1`] = `
+[
+  {
+    "children": [
+      {
+        "data": {
+          "data-gradient-border-ring": "true",
+        },
+        "tag": "span",
+        "vars": {
+          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+        },
+      },
+      {
+        "children": [
+          {
+            "class": [
+              "font-bold",
+              "leading-normal",
+              "pointer-events-none",
+              "select-none",
+              "text-[14px]",
+              "text-safe-inline",
+            ],
+            "data": {
+              "data-key-label": "true",
+            },
+            "tag": "span",
+          },
+          {
+            "class": [
+              "counter",
+            ],
+            "data": {
+              "data-counter-state": "inactive",
+              "data-text": "0",
+            },
+            "tag": "span",
+            "vars": {
+              "--counter-color-default": "rgba(237, 238, 242, 0.78)",
+              "--dmn-counter-fill-clip-default": "border-box",
+              "--dmn-counter-fill-image-default": "none",
+              "--dmn-counter-fill-repeat-default": "repeat",
+              "--dmn-counter-font-family-default": "inherit",
+              "--dmn-counter-font-size-default": "11px",
+              "--dmn-counter-font-style-default": "normal",
+              "--dmn-counter-font-weight-default": "500",
+              "--dmn-counter-line-height-default": "normal",
+              "--dmn-counter-text-align-default": "center",
+              "--dmn-counter-text-decoration-default": "none",
+              "--dmn-counter-text-fill-default": "currentcolor",
+            },
+          },
+        ],
+        "class": [
+          "flex",
+          "flex-col",
+          "h-full",
+          "items-center",
+          "pointer-events-none",
+          "select-none",
+          "w-full",
+        ],
+        "tag": "div",
+      },
+    ],
+    "class": [
+      "absolute",
+      "dmn-grabbable",
+      "my-stat",
+    ],
+    "data": {
+      "data-key-element": "true",
+      "data-state": "inactive",
+    },
+    "tag": "div",
+    "vars": {
+      "--dmn-key-bg-default": "#112233",
+      "--dmn-key-bg-image-default": "none",
+      "--dmn-key-border-default": "none",
+      "--dmn-key-font-family-default": "inherit",
+      "--dmn-key-font-size-default": "12px",
+      "--dmn-key-font-style-default": "normal",
+      "--dmn-key-font-weight-default": "700",
+      "--dmn-key-label-color-default": "inherit",
+      "--dmn-key-padding-default": "2px",
+      "--dmn-key-radius-default": "6px",
+      "--dmn-key-shadow-default": "1px 2px 3px #000000",
+      "--dmn-key-text-color-default": "rgba(237, 238, 242, 0.78)",
+      "--dmn-key-text-decoration-default": "none",
+      "--dmn-key-text-image-default": "none",
+      "--dmn-key-text-repeat-default": "repeat",
+      "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
+    },
+  },
+]
+`;
