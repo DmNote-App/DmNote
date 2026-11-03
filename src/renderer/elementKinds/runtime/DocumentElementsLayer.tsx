@@ -11,7 +11,6 @@ import { elementKindDefinition } from './elementKindRegistry';
 import { legacyPositionOf } from './legacyPosition';
 import type { ElementRenderInputs, OverlayItemContext } from './renderTypes';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import type { SurfaceBundle } from './ElementSurface';
 
 interface DocumentElementViewProps {
   element: ElementNode;
@@ -51,6 +50,21 @@ const DocumentElementView = React.memo(
     }
     // 모르는 종류는 오버레이에 그리지 않는다 (편집 화면은 자리 표시 상자)
     if (!Render) return null;
+    // 규칙표로 검사한 값 - 종류 정의의 값 타입과 같다
+    const values = (element.values ?? {}) as never;
+    const bundles = element.bundles ?? {};
+    if (live && definition?.placesItself) {
+      return (
+        <Render
+          element={element}
+          values={values}
+          bundles={bundles}
+          live={live}
+          inputs={inputs}
+          placement={{ x: x + offset.x, y: y + offset.y, zIndex }}
+        />
+      );
+    }
     return (
       <div
         className={element.className ?? undefined}
@@ -68,9 +82,8 @@ const DocumentElementView = React.memo(
       >
         <Render
           element={element}
-          // 규칙표로 검사한 값 - 종류 정의의 값 타입과 같다
-          values={(element.values ?? {}) as never}
-          bundles={{ surface: element.bundles?.surface as SurfaceBundle }}
+          values={values}
+          bundles={bundles}
           live={live}
           inputs={inputs}
         />

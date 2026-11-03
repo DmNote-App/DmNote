@@ -23,6 +23,7 @@ const scene: Scene = {
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   loadElementDocumentStore: () => Promise.resolve(),
   useElementDocumentScene: () => scene,
+  subscribeElementDocument: () => () => {},
   getElementDocumentStore: () => ({
     getScene: () => scene,
     getElement: () => scene.nodes[0],

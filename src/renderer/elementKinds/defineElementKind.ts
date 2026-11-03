@@ -130,6 +130,9 @@ export interface ElementKindCode<Values> {
   // 편집 화면 얼굴이 사용자 CSS 클래스를 스스로 붙인다 - 옛 그리기에서 클래스가 상태 속성(data-state)과
   // 같은 노드에 있던 종류. 감싸는 상자는 클래스를 붙이지 않는다 (두 번 붙지 않게)
   readonly faceOwnsClassName?: boolean;
+  // 오버레이·OBS에서 감싸는 상자 없이 얼굴이 받은 자리(placement)에 스스로 놓인다 - 옛 오버레이 DOM을
+  // 그대로 지키는 옛 종류 (사용자 CSS·히트 영역 측정이 그 모양에 기댄다)
+  readonly placesItself?: boolean;
   // 크기 조절 때 비율을 지킬지
   readonly lockAspect?: (values: Values) => boolean;
   // 크기가 바뀔 때 함께 맞출 값 - 바뀐 값만 (예: 스프라이트 자세 이동값을 크기 비율로)

@@ -16,13 +16,27 @@ export interface ElementRenderInputs {
   pointer?: PointerInputSource;
 }
 
+// 기능 묶음 값 - 트리 요소의 묶음 그대로 (편집 화면은 미리보기를 얹은 값)
+export type ElementBundles = { readonly surface?: SurfaceBundle } & Readonly<
+  Record<string, unknown>
+>;
+
+// 스스로 자리를 잡는 얼굴(정의의 placesItself)이 오버레이·OBS에서 받는 장면 좌표와 겹침 순서
+export interface ElementPlacement {
+  x: number;
+  y: number;
+  zIndex: number;
+}
+
 export interface ElementRenderProps<Values> {
   element: ElementNode;
   values: Values;
-  bundles: { surface?: SurfaceBundle };
+  bundles: ElementBundles;
   // 오버레이·OBS에서 동작 코드를 돌린다. 편집 화면은 false - 정의의 미리보기 상태로 그린다
   live: boolean;
   inputs: ElementRenderInputs;
+  // 오버레이·OBS의 자리 - 감싸는 상자 없이 그리는 얼굴만 받는다 (편집 화면은 감싸는 상자가 자리를 잡는다)
+  placement?: ElementPlacement;
   // 편집 화면에서 골랐는지 - 옛 겉모습이 선택 상태를 그릴 때
   selected?: boolean;
 }
