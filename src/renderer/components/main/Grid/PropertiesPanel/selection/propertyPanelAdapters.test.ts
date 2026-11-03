@@ -4,7 +4,6 @@ import {
   geometryAxisPatch,
   getFontFamilyPatch,
   getFontStylePatch,
-  getGraphRuntimePropertyPatch,
   getKnobRuntimePropertyPatch,
   getNotePropertyPatch,
   getStatTypeLabel,
@@ -37,19 +36,7 @@ describe('property panel adapters', () => {
     ).toBe(false);
   });
 
-  it('graph와 knob 런타임 패치를 단일 허용 필드로 제한한다', () => {
-    expect(getGraphRuntimePropertyPatch({ showAvgLine: true })).toEqual({
-      property: 'showAvgLine',
-      value: true,
-    });
-    expect(getGraphRuntimePropertyPatch({ graphSpeed: 120 })).toEqual({
-      property: 'graphSpeed',
-      value: 120,
-    });
-    expect(getGraphRuntimePropertyPatch({ graphSpeed: -1 })).toBeNull();
-    expect(
-      getGraphRuntimePropertyPatch({ showAvgLine: true, graphSpeed: 1 }),
-    ).toBeNull();
+  it('knob 런타임 패치를 단일 허용 필드로 제한한다', () => {
     expect(getKnobRuntimePropertyPatch({ sensitivity: 1.5 })).toEqual({
       property: 'sensitivity',
       value: 1.5,

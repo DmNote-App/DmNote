@@ -307,10 +307,9 @@ vi.mock('@src/renderer/editor/runtime/gesture/editGestureController', () => ({
 
 import { PanelNavProvider } from '@components/main/Grid/PropertiesPanel/navigation/PanelNavContext';
 import { BatchKeyLikePanel as ActualBatchKeyLikePanel } from '@components/main/Grid/PropertiesPanel/batch/BatchSelectionPanel';
-import {
-  BatchGraphOnlyPanel,
-  BatchKnobOnlyPanel,
-} from '@components/main/Grid/PropertiesPanel/batch/BatchSelectionPanel';
+import { BatchKnobOnlyPanel } from '@components/main/Grid/PropertiesPanel/batch/BatchSelectionPanel';
+import DocumentBatchPanel from '@components/main/Grid/PropertiesPanel/document/DocumentBatchPanel';
+import { useSettingsStore } from '@stores/useSettingsStore';
 import { BATCH_STYLE_SOUND_PAGE_KEY } from '@components/main/Grid/PropertiesPanel/batch/style/BatchStyleTabContent';
 import { BATCH_COUNTER_ANIMATION_PAGE_KEY } from '@components/main/Grid/PropertiesPanel/batch/BatchCounterTabContent';
 
@@ -348,6 +347,41 @@ type RemovedLegacyPanelProps = {
 };
 type PanelProps = React.ComponentProps<typeof ActualBatchKeyLikePanel> &
   RemovedLegacyPanelProps;
+
+// 그래프 일괄은 그래프 정의의 패널 선언 - 고른 그래프 id로 그린다
+const GraphBatchPanel = ({
+  useCustomCSS = false,
+}: {
+  useCustomCSS?: boolean;
+}) => {
+  useSettingsStore.setState({ useCustomCSS });
+  const ids = useDocumentSelectionStore
+    .getState()
+    .selectedElements.filter(({ type }) => type === 'graph')
+    .map(({ id }) => id);
+  return (
+    <DocumentBatchPanel
+      sceneId="4key"
+      elementIds={ids}
+      panelElement={null}
+      setPanelElement={vi.fn()}
+      legacyHost={{
+        totalCount: ids.length,
+        groupInfo: null,
+        geometry: {
+          handleBatchAlign: vi.fn(),
+          handleBatchDistribute: vi.fn(),
+          handleBatchSpacing: vi.fn(),
+          handleBatchSpacingCommit: vi.fn(),
+          getBatchSpacingValue: () => ({ isMixed: false, value: 0 }),
+          handleBatchResize: vi.fn(),
+          handleBatchResizePreview: vi.fn(),
+        },
+      }}
+      t={(key) => key}
+    />
+  );
+};
 
 const BatchKeyLikePanel = ({
   handleBatchCounterUpdate: _handleBatchCounterUpdate,
@@ -613,6 +647,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
     pageHost.remove();
     delete window.__dmn_window_type;
     vi.unstubAllGlobals();
+    useSettingsStore.setState({ useCustomCSS: false });
   });
 
   const selectCounterTargets = (keyId: string, statId: string) => {
@@ -1315,11 +1350,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       kind === 'mixed' ? (
         <BatchKeyLikePanel {...(shared as unknown as PanelProps)} />
       ) : kind === 'graph' ? (
-        <BatchGraphOnlyPanel
-          {...(shared as unknown as React.ComponentProps<
-            typeof BatchGraphOnlyPanel
-          >)}
-        />
+        <GraphBatchPanel useCustomCSS />
       ) : (
         <BatchKnobOnlyPanel
           {...(shared as unknown as React.ComponentProps<
@@ -2020,11 +2051,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       kind === 'mixed' ? (
         <BatchKeyLikePanel {...(shared as unknown as PanelProps)} />
       ) : kind === 'graph' ? (
-        <BatchGraphOnlyPanel
-          {...(shared as unknown as React.ComponentProps<
-            typeof BatchGraphOnlyPanel
-          >)}
-        />
+        <GraphBatchPanel />
       ) : (
         <BatchKnobOnlyPanel
           {...(shared as unknown as React.ComponentProps<
@@ -2047,6 +2074,13 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
         </PanelNavProvider>,
       );
     });
+    // 선언 패널은 이미지 피커를 버튼으로 연다 - 이미 연 피커(그때 선택에 묶인)는 다시 열지 않는다
+    if (kind === 'graph' && captured.image === null) {
+      const configure = [...host.querySelectorAll('button')].find(
+        (button) => button.textContent === 'propertiesPanel.configure',
+      );
+      act(() => configure?.click());
+    }
   };
 
   const commitShadow = (

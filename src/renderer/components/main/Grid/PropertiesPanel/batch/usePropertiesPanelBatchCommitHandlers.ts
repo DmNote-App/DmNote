@@ -1,15 +1,10 @@
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
-import type { GraphItemPosition } from '@src/types/key/graphItems';
 import type { KnobItemPosition } from '@src/types/key/knobs';
 import type { EditorElementTypeV1 } from '@src/types/editor';
 import type { BatchElementPropertyUpdate } from '../types';
-import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import {
   patchFontFamilyByTargets,
   patchFontStyleByTargets,
-  patchGraphColorsByIds,
-  patchGraphPropertiesByIds,
-  patchGraphTypesByIds,
   patchKnobPropertiesByIds,
   patchNotePropertiesByIds,
   patchUseInlineStylesByTargets,
@@ -19,7 +14,6 @@ import { reportElementOpSkipped } from '@src/renderer/editor/runtime/intent/elem
 import {
   getFontFamilyPatch,
   getFontStylePatch,
-  getGraphRuntimePropertyPatch,
   getKnobRuntimePropertyPatch,
   getNotePropertyPatch,
   getUseInlineStylesPatch,
@@ -28,14 +22,12 @@ import {
 interface UsePropertiesPanelBatchCommitHandlersOptions {
   selectedBatchStyleElements: SelectedElement[];
   selectedKeyElements: SelectedElement[];
-  selectedGraphElements: SelectedElement[];
   selectedKnobElements: SelectedElement[];
 }
 
 export const usePropertiesPanelBatchCommitHandlers = ({
   selectedBatchStyleElements,
   selectedKeyElements,
-  selectedGraphElements,
   selectedKnobElements,
 }: UsePropertiesPanelBatchCommitHandlersOptions) => {
   const handleBatchElementPropertyCommit = (
@@ -84,60 +76,6 @@ export const usePropertiesPanelBatchCommitHandlers = ({
     });
   };
 
-  const handleGraphBatchSharedSetting = (
-    updates: Partial<GraphItemPosition>,
-  ) => {
-    const updateKeys = Object.keys(updates);
-    const graphType = updates.graphType;
-    const graphColor = updates.graphColor;
-    const runtimePatch = getGraphRuntimePropertyPatch(updates);
-    const stableGraphIds = selectedGraphElements.map((element) => element.id);
-    if (
-      updateKeys.length === 1 &&
-      updateKeys[0] === 'graphType' &&
-      (graphType === 'line' || graphType === 'bar') &&
-      stableGraphIds.length > 0 &&
-      stableGraphIds.every((id) => id.length > 0 && isNativeElementId(id))
-    ) {
-      const commit = patchGraphTypesByIds(stableGraphIds, graphType);
-      void commit.catch((error) => {
-        console.error('Failed to batch update graph type', error);
-      });
-      return;
-    }
-    if (
-      runtimePatch &&
-      stableGraphIds.length > 0 &&
-      stableGraphIds.every((id) => id.length > 0 && isNativeElementId(id))
-    ) {
-      const commit = patchGraphPropertiesByIds(stableGraphIds, runtimePatch);
-      void commit.catch((error) => {
-        console.error('Failed to batch update graph property', error);
-      });
-      return;
-    }
-    if (
-      updateKeys.length === 1 &&
-      updateKeys[0] === 'graphColor' &&
-      typeof graphColor === 'string' &&
-      stableGraphIds.length > 0 &&
-      stableGraphIds.every((id) => id.length > 0 && isNativeElementId(id))
-    ) {
-      const gestureId = editGestureController.activeGestureId() ?? undefined;
-      const commit = patchGraphColorsByIds(stableGraphIds, graphColor, {
-        gestureId,
-      });
-      editGestureController.settleCommit(commit);
-      void commit.catch((error) => {
-        console.error('Failed to batch update graph color', error);
-      });
-      return;
-    }
-    reportElementOpSkipped(
-      'batch graph property (unsupported payload or invalid target)',
-    );
-  };
-
   const handleKnobBatchSharedSetting = (updates: Partial<KnobItemPosition>) => {
     const runtimePatch = getKnobRuntimePropertyPatch(updates);
     const stableKnobIds = selectedKnobElements.map((element) => element.id);
@@ -160,7 +98,6 @@ export const usePropertiesPanelBatchCommitHandlers = ({
   return {
     handleBatchElementPropertyCommit,
     handleBatchNoteElementPropertyCommit,
-    handleGraphBatchSharedSetting,
     handleKnobBatchSharedSetting,
   };
 };

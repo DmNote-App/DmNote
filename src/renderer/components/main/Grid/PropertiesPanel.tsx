@@ -12,19 +12,16 @@ import { updatePluginElement } from '@plugins/runtime/displayElement/pluginEleme
 import type { KeyPosition } from '@src/types/key/keys';
 import { useLenis } from '@hooks/useLenis';
 import { usePluginGeometryGesture } from '@hooks/Grid/usePluginGeometryGesture';
-import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 
 // 분리된 컴포넌트들 및 훅
 import {
   TABS,
   LayerPanel,
   PluginSelectionPanel,
-  SingleGraphPanel,
   SingleKnobPanel,
   SingleSpritePanel,
   SingleKeyStatPanel,
   BatchKeyLikePanel,
-  BatchGraphOnlyPanel,
   BatchKnobOnlyPanel,
   BatchPluginOnlyPanel,
   PluginSettingsPanelView,
@@ -42,7 +39,6 @@ import { EditSessionScope } from '@src/renderer/contexts/EditSessionScope';
 import DocumentElementPanel from './PropertiesPanel/document/DocumentElementPanel';
 import DocumentBatchPanel from './PropertiesPanel/document/DocumentBatchPanel';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
-import { previewSingleGraphColor } from './PropertiesPanel/selection/previewPatchForwarders';
 import PluginSettingsForm from './PropertiesPanel/plugin/PluginSettingsForm';
 import { usePropertiesPanelSelection } from './PropertiesPanel/selection/usePropertiesPanelSelection';
 import { usePanelNavigation } from './PropertiesPanel/navigation/usePanelNavigation';
@@ -122,7 +118,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     singleKeyInfo,
     singleStatIndex,
     singleStatPosition,
-    singleGraphIndex,
     singleGraphPosition,
     singleKnobPosition,
     singleSpritePosition,
@@ -130,14 +125,11 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   } = usePropertiesPanelSelection();
   const {
     getSelectedKeysData,
-    getSelectedGraphsData,
     getSelectedKnobsData,
     getSelectedBatchStyleData,
     getSelectedKeyOnlyPositions,
     getMixedValue,
     getMixedValueCanonical,
-    getMixedValueGraphs,
-    getMixedValueGraphsAsKey,
     getMixedValueKnobs,
     getMixedValueKnobsAsKey,
     getMixedValueBatch,
@@ -193,9 +185,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   // 이미지 픽커 상태
   const [showImagePicker, setShowImagePicker] = useState(false);
   const imageButtonRef = useRef<HTMLButtonElement>(null);
-  const [showGraphImagePicker, setShowGraphImagePicker] = useState(false);
-  const graphImageButtonRef = useRef<HTMLButtonElement>(null);
-  const [graphClassNameDraft, setGraphClassNameDraft] = useState('');
 
   // 다중 선택용 이미지 픽커 상태
   const [showBatchImagePicker, setShowBatchImagePicker] = useState(false);
@@ -337,11 +326,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     }
   }, [singleKeyPosition, singleStatPosition]);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 선택 그래프의 입력 draft 동기화
-    setGraphClassNameDraft(singleGraphPosition?.className || '');
-  }, [selectedKeyType, singleGraphIndex, singleGraphPosition?.className]);
-
   const { selectionFromLayerPanelRef, handleTogglePanel } =
     usePropertiesPanelVisibility({
       frameVariant,
@@ -360,7 +344,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       pluginSettingsPanel,
       closePage,
       setShowImagePicker,
-      setShowGraphImagePicker,
       setShowBatchImagePicker,
       setBatchPickerFor,
     });
@@ -472,12 +455,10 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const {
     handleBatchElementPropertyCommit,
     handleBatchNoteElementPropertyCommit,
-    handleGraphBatchSharedSetting,
     handleKnobBatchSharedSetting,
   } = usePropertiesPanelBatchCommitHandlers({
     selectedBatchStyleElements,
     selectedKeyElements,
-    selectedGraphElements,
     selectedKnobElements,
   });
 
@@ -577,17 +558,13 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           handleBatchResizePreview={handleBatchResizePreview}
           onElementPropertyCommit={handleBatchElementPropertyCommit}
           onNoteElementPropertyCommit={handleBatchNoteElementPropertyCommit}
-          handleGraphBatchSharedSetting={handleGraphBatchSharedSetting}
           getMixedValue={getMixedValue}
           getMixedValueCanonical={getMixedValueCanonical}
           getMixedValueBatch={getMixedValueBatch}
           getMixedValueGeometry={getMixedValueGeometry}
-          getMixedValueGraphs={getMixedValueGraphs}
-          getMixedValueGraphsAsKey={getMixedValueGraphsAsKey}
           getMixedValueKeysOnly={getMixedValueKeysOnly}
           getMixedValueActiveCapable={getMixedValueActiveCapable}
           getSelectedKeysData={getSelectedKeysData}
-          getSelectedGraphsData={getSelectedGraphsData}
           getSelectedBatchStyleData={getSelectedBatchStyleData}
           getSelectedKeyOnlyPositions={getSelectedKeyOnlyPositions}
           batchScrollRefFor={batchScrollRefFor}
@@ -665,43 +642,28 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    // 다중 선택인 경우 (그래프 요소만)
+    // 다중 선택인 경우 (그래프 요소만, 플러그인 요소와 함께) - 그래프 정의의 패널 선언
     if (route.kind === 'batchGraphOnly') {
       return (
-        <BatchGraphOnlyPanel
-          setPanelElement={setPanelElement}
-          totalCount={selectionTotalCount}
-          selectedGraphElements={selectedGraphElements}
-          selectedGroupInfo={selectedGroupInfo}
-          isRenaming={isRenaming}
-          renameInputRef={renameInputRef}
-          renameValue={renameValue}
-          setRenameValue={setRenameValue}
-          renameCancelledRef={renameCancelledRef}
-          handleRenameCommit={handleRenameCommit}
-          handleRenameCancel={handleRenameCancel}
-          handleRenameStart={handleRenameStart}
-          handleBatchAlign={handleBatchAlign}
-          handleBatchDistribute={handleBatchDistribute}
-          handleBatchSpacing={handleBatchSpacing}
-          handleBatchSpacingPreview={handleBatchSpacingPreview}
-          handleBatchSpacingCommit={handleBatchSpacingCommit}
-          getBatchSpacingValue={getBatchSpacingValue}
-          handleBatchResize={handleBatchResize}
-          handleBatchResizePreview={handleBatchResizePreview}
-          onElementPropertyCommit={handleBatchElementPropertyCommit}
-          handleGraphBatchSharedSetting={handleGraphBatchSharedSetting}
-          getMixedValueGeometry={getMixedValueGeometry}
-          getMixedValueGraphs={getMixedValueGraphs}
-          getMixedValueGraphsAsKey={getMixedValueGraphsAsKey}
-          getSelectedGraphsData={getSelectedGraphsData}
-          batchScrollRefFor={batchScrollRefFor}
-          batchImageButtonRef={batchImageButtonRef}
-          showBatchImagePicker={showBatchImagePicker}
-          setShowBatchImagePicker={setShowBatchImagePicker}
+        <DocumentBatchPanel
+          sceneId={selectedKeyType}
+          elementIds={selectedGraphElements.map(({ id }) => id)}
           panelElement={panelElement}
-          useCustomCSS={useCustomCSS}
-          selectedKeyType={selectedKeyType}
+          setPanelElement={setPanelElement}
+          scrollRef={batchScrollRefFor(TABS.STYLE)}
+          legacyHost={{
+            totalCount: selectionTotalCount,
+            groupInfo: selectedGroupInfo,
+            geometry: {
+              handleBatchAlign,
+              handleBatchDistribute,
+              handleBatchSpacing,
+              handleBatchSpacingCommit,
+              getBatchSpacingValue,
+              handleBatchResize,
+              handleBatchResizePreview,
+            },
+          }}
           t={t}
         />
       );
@@ -866,76 +828,15 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    // 단일 그래프 요소 선택인 경우
-    if (route.kind === 'singleGraph' && singleGraphPosition) {
+    // 단일 그래프 요소 선택인 경우 - 그래프 정의의 패널 선언
+    if (route.kind === 'singleGraph' && selectedGraphElements[0]) {
       return (
-        <SingleGraphPanel
-          setPanelElement={setPanelElement}
-          singleGraphPosition={singleGraphPosition}
-          selectedKeyType={selectedKeyType}
-          isRenaming={isRenaming}
-          renameInputRef={renameInputRef}
-          renameValue={renameValue}
-          setRenameValue={setRenameValue}
-          renameCancelledRef={renameCancelledRef}
-          handleRenameCommit={handleRenameCommit}
-          handleRenameCancel={handleRenameCancel}
-          handleRenameStart={handleRenameStart}
-          onElementPropertyCommit={stableElementPropertyCommitHandler(
-            'graph',
-            selectedGraphElements[0]?.id,
-          )}
-          onGraphColorPreview={
-            selectedGraphElements[0]?.id &&
-            isNativeElementId(selectedGraphElements[0].id)
-              ? (color) =>
-                  previewSingleGraphColor(selectedGraphElements[0].id, color)
-              : undefined
-          }
-          onInactiveImageCommit={stableInactiveImageHandler(
-            'graph',
-            selectedGraphElements[0]?.id,
-          )}
-          onIdleTransparentCommit={stableIdleTransparentHandler(
-            'graph',
-            selectedGraphElements[0]?.id,
-          )}
-          onIdleImageFitCommit={stableIdleImageFitHandler(
-            'graph',
-            selectedGraphElements[0]?.id,
-          )}
-          handleGeometryPreview={stableGeometryPreviewHandler(
-            'graph',
-            selectedGraphElements[0]?.id,
-          )}
-          handleGeometryCommit={stableGeometryHandler(
-            'graph',
-            selectedGraphElements[0]?.id,
-          )}
-          onStylePropertyPreview={stableStylePropertyPreviewHandler(
-            'graph',
-            selectedGraphElements[0]?.id,
-          )}
-          onStylePropertyCommit={stableStylePropertyCommitHandler(
-            'graph',
-            selectedGraphElements[0]?.id,
-          )}
-          onPaintCommit={stablePaintCommitHandler(
-            'graph',
-            selectedGraphElements[0]?.id,
-          )}
-          onPaintPreview={stablePaintPreviewHandler(
-            'graph',
-            selectedGraphElements[0]?.id,
-          )}
-          singleScrollRefFor={singleScrollRefFor}
-          showGraphImagePicker={showGraphImagePicker}
-          setShowGraphImagePicker={setShowGraphImagePicker}
-          graphImageButtonRef={graphImageButtonRef}
-          graphClassNameDraft={graphClassNameDraft}
-          setGraphClassNameDraft={setGraphClassNameDraft}
+        <DocumentElementPanel
+          sceneId={selectedKeyType}
+          elementId={selectedGraphElements[0].id}
           panelElement={panelElement}
-          useCustomCSS={useCustomCSS}
+          setPanelElement={setPanelElement}
+          scrollRef={singleScrollRefFor(TABS.STYLE)}
           t={t}
         />
       );
@@ -1193,6 +1094,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             elementIds={documentSelectedIds}
             panelElement={panelElement}
             setPanelElement={setPanelElement}
+            scrollRef={batchScrollRefFor(TABS.STYLE)}
             t={t}
           />
         </EditSessionScope>
@@ -1203,12 +1105,11 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       return (
         <EditSessionScope>
           <DocumentElementPanel
-            // 요소가 바뀌면 입력 중 값·이름 바꾸기 상태를 새로 시작한다
-            key={`${documentSceneId}:${documentElementId}`}
             sceneId={documentSceneId}
             elementId={documentElementId}
             panelElement={panelElement}
             setPanelElement={setPanelElement}
+            scrollRef={singleScrollRefFor(TABS.STYLE)}
             t={t}
           />
         </EditSessionScope>

@@ -1,6 +1,5 @@
 import React from 'react';
 import type { KeyPosition, NoteColor } from '@src/types/key/keys';
-import type { GraphItemPosition } from '@src/types/key/graphItems';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import { useEditStatePreviewPublisher } from '@stores/grid/useEditStatePreviewStore';
 import { PANEL_ROOT_CLASS } from '../navigation/panelChrome';
@@ -31,8 +30,7 @@ import {
 import BatchPanelHeader from './BatchPanelHeader';
 import BatchImagePickerPopup from './style/BatchImagePickerPopup';
 import BatchColorPickerPopup from './style/BatchColorPickerPopup';
-import BatchGraphSettingsSection from './graph/BatchGraphSettingsSection';
-import { createBatchGraphSettingsModel } from './graph/batchGraphSettingsModel';
+import { KindBatchRows } from '../document/DocumentBatchPanel';
 import { useBatchKeyLikeCommitRuntime } from './useBatchKeyLikeCommitRuntime';
 import {
   commitBoundActiveImage,
@@ -93,7 +91,6 @@ interface BatchKeyLikePanelProps {
     options?: { gestureId?: string },
   ) => void;
   onNoteElementPropertyCommit?: (updates: BatchElementPropertyUpdate) => void;
-  handleGraphBatchSharedSetting: (updates: Partial<GraphItemPosition>) => void;
   // mixed value getters
   getMixedValue: MixedValueGetter<KeyPosition>;
   /** 프리뷰가 섞이지 않은 canonical 기준. 게스처 취소 뒤 로컬 복원용 */
@@ -101,12 +98,9 @@ interface BatchKeyLikePanelProps {
   getMixedValueBatch: MixedValueGetter<KeyPosition>;
   /** 크기 표시 전용 - resize 대상 집합(스프라이트 포함)에서 파생된다 */
   getMixedValueGeometry: MixedValueGetter<KeyPosition>;
-  getMixedValueGraphs: MixedValueGetter<GraphItemPosition>;
-  getMixedValueGraphsAsKey: MixedValueGetter<KeyPosition>;
   getMixedValueKeysOnly: MixedValueGetter<KeyPosition>;
   getMixedValueActiveCapable: MixedValueGetter<KeyPosition>;
   getSelectedKeysData: () => KeyData[];
-  getSelectedGraphsData: () => KeyData[];
   getSelectedBatchStyleData: () => KeyData[];
   getSelectedKeyOnlyPositions: () => { index: number; position: KeyPosition }[];
   // refs
@@ -171,16 +165,13 @@ export const BatchKeyLikePanel: React.FC<BatchKeyLikePanelProps> = ({
   handleBatchResizePreview,
   onElementPropertyCommit,
   onNoteElementPropertyCommit,
-  handleGraphBatchSharedSetting,
   getMixedValue,
   getMixedValueCanonical,
   getMixedValueBatch,
   getMixedValueGeometry,
-  getMixedValueGraphs,
   getMixedValueKeysOnly,
   getMixedValueActiveCapable,
   getSelectedKeysData,
-  getSelectedGraphsData,
   getSelectedBatchStyleData,
   getSelectedKeyOnlyPositions,
   batchScrollRefFor,
@@ -379,13 +370,6 @@ export const BatchKeyLikePanel: React.FC<BatchKeyLikePanelProps> = ({
   const noteMixedFn =
     selectedKeyElements.length > 0 ? getMixedValueKeysOnly : getMixedValue;
   const batchSpacing = getBatchSpacingValue();
-  const graphSettings = createBatchGraphSettingsModel(
-    getMixedValueGraphs,
-    getSelectedGraphsData().map(
-      ({ position }) => position as GraphItemPosition,
-    ),
-  );
-
   // 배치 카운터 채움은 세션 훅 없는 ColorPicker 직결 경로 - 상태 프리뷰 직접 발행
   useEditStatePreviewPublisher(
     batchPickerFor === 'fill' && selectedKeyElements.length > 0
@@ -475,14 +459,12 @@ export const BatchKeyLikePanel: React.FC<BatchKeyLikePanelProps> = ({
                 getMixedValueSize={getMixedValueGeometry}
                 getSelectedKeysData={styleSelectedDataGetter}
                 afterSizeContent={
+                  // 그래프 칸은 그래프 정의의 패널 선언 - 고른 그래프만 고친다
                   hasGraphSelection ? (
-                    <BatchGraphSettingsSection
-                      model={graphSettings}
-                      graphIds={selectedGraphElements.map(({ id }) => id)}
-                      selectedKeyType={selectedKeyType}
-                      colorId={`graph-batch-mixed-color-${selectedKeyType}`}
+                    <KindBatchRows
+                      sceneId={selectedKeyType}
+                      elementIds={selectedGraphElements.map(({ id }) => id)}
                       panelElement={panelElement}
-                      onCommit={handleGraphBatchSharedSetting}
                       t={t}
                     />
                   ) : undefined
@@ -666,7 +648,6 @@ export const BatchKeyLikePanel: React.FC<BatchKeyLikePanelProps> = ({
 };
 
 export {
-  BatchGraphOnlyPanel,
   BatchKnobOnlyPanel,
   BatchPluginOnlyPanel,
 } from './BatchSpecializedPanels';

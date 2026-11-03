@@ -308,14 +308,35 @@ vi.mock('@hooks/pickers/useGradientColorState', () => ({
 vi.mock('@utils/input/axisEventBus', () => ({
   axisEventBus: { subscribe: () => vi.fn() },
 }));
+// 그래프 패널은 그래프 정의의 패널 선언 - 트리 요소와 옛 패널 처리기를 대역으로 둔다
+const graphPanel = vi.hoisted(() => ({
+  element: null as unknown,
+  writer: null as unknown,
+}));
+vi.mock(
+  '@src/renderer/editor/document/elementDocumentRuntime',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@src/renderer/editor/document/elementDocumentRuntime')
+    >()),
+    useDocumentElement: () => graphPanel.element,
+  }),
+);
+vi.mock('../document/documentPanelWriter', () => ({
+  singlePanelWriterFor: () => graphPanel.writer,
+  batchPanelWriterFor: () => null,
+}));
 
 import ActualStyleTabContent from './StyleTabContent';
 import ActualNoteTabContent from './NoteTabContent';
 import ActualCounterTabContent from './CounterTabContent';
-import {
-  SingleGraphPanel as ActualSingleGraphPanel,
-  SingleKnobPanel as ActualSingleKnobPanel,
-} from './SingleSelectionPanel';
+import { SingleKnobPanel as ActualSingleKnobPanel } from './SingleSelectionPanel';
+import DocumentElementPanel from '../document/DocumentElementPanel';
+import type {
+  PanelWriter,
+  SingleGeometryWriter,
+} from '../document/documentPanelWriter';
+import { useSettingsStore } from '@stores/useSettingsStore';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { isEditorElementPropertyPatchV1 } from '@src/types/editor';
 import { gradientToCss } from '@src/types/color';
@@ -337,9 +358,57 @@ const NoteTabContent = (props: CompatProps<typeof ActualNoteTabContent>) => (
 const CounterTabContent = (
   props: CompatProps<typeof ActualCounterTabContent>,
 ) => <ActualCounterTabContent {...props} />;
-const SingleGraphPanel = (
-  props: CompatProps<typeof ActualSingleGraphPanel>,
-) => <ActualSingleGraphPanel {...props} />;
+// 옛 위치 모양 값으로 그래프 트리 요소를 만들어 선언 패널을 그린다
+const GRAPH_ID = '11111111-1111-4111-8111-111111111111';
+const renderGraphPanel = (
+  position: Record<string, unknown>,
+  writer: Partial<PanelWriter & SingleGeometryWriter> = {},
+  useCustomCSS = false,
+) => {
+  const {
+    id = GRAPH_ID,
+    dx = 0,
+    dy = 0,
+    width = 200,
+    height = 100,
+    className,
+    ...image
+  } = position;
+  graphPanel.element = {
+    type: 'element',
+    id,
+    kind: 'graph',
+    frame: { x: dx, y: dy, width, height, rotation: 0 },
+    values: { statType: 'kps', graphType: 'line', graphSpeed: 1000 },
+    bundles: { surface: {}, image },
+    ...(className !== undefined ? { className } : {}),
+  };
+  graphPanel.writer = {
+    commitField: vi.fn(),
+    previewField: vi.fn(),
+    cancelPreview: vi.fn(),
+    commitPaint: vi.fn(),
+    previewPaint: vi.fn(),
+    commitStyle: vi.fn(),
+    previewStyle: vi.fn(),
+    commitInactiveImage: vi.fn(),
+    commitIdleTransparent: vi.fn(),
+    commitIdleImageFit: vi.fn(),
+    commitGeometry: vi.fn(),
+    previewGeometry: vi.fn(),
+    ...writer,
+  };
+  useSettingsStore.setState({ useCustomCSS });
+  return (
+    <DocumentElementPanel
+      sceneId="4key"
+      elementId={id as string}
+      panelElement={null}
+      setPanelElement={vi.fn()}
+      t={(key) => key}
+    />
+  );
+};
 const SingleKnobPanel = (props: CompatProps<typeof ActualSingleKnobPanel>) => (
   <ActualSingleKnobPanel {...props} />
 );
@@ -933,43 +1002,9 @@ describe('single geometry input bindings', () => {
 
   it('graph paint는 exact gradient pair를 final callback으로만 전달한다', async () => {
     const paint = vi.fn();
-    const legacy = vi.fn();
     const graphId = '11111111-1111-4111-8111-111111111111';
     act(() => {
-      root.render(
-        <SingleGraphPanel
-          setPanelElement={vi.fn()}
-          singleGraphPosition={{
-            ...createDefaultKeyPosition(),
-            id: graphId,
-            statType: 'kps',
-            graphType: 'line',
-            graphSpeed: 1000,
-            graphColor: '#fff',
-          }}
-          singleGraphIndex={0}
-          selectedKeyType="4key"
-          isRenaming={false}
-          renameInputRef={createRef<HTMLInputElement>()}
-          renameValue=""
-          setRenameValue={vi.fn()}
-          renameCancelledRef={{ current: false }}
-          handleRenameCommit={vi.fn()}
-          handleRenameCancel={vi.fn()}
-          handleRenameStart={vi.fn()}
-          handleGraphUpdate={legacy}
-          onPaintCommit={paint}
-          showGraphImagePicker={false}
-          setShowGraphImagePicker={vi.fn()}
-          graphImageButtonRef={{ current: document.createElement('button') }}
-          graphClassNameDraft=""
-          setGraphClassNameDraft={vi.fn()}
-          singleScrollRefFor={() => vi.fn()}
-          panelElement={null}
-          useCustomCSS={false}
-          t={(key) => key}
-        />,
-      );
+      root.render(renderGraphPanel({ id: graphId }, { commitPaint: paint }));
     });
     const paints = captured.colorInputs.filter(
       (input) => input.onModeCommit !== undefined,
@@ -996,7 +1031,6 @@ describe('single geometry input bindings', () => {
       property: 'backgroundPaint',
       value: { color: '#first', gradient },
     });
-    expect(legacy).not.toHaveBeenCalled();
   });
 
   it.each(['key', 'stat'] as const)(
@@ -1647,12 +1681,10 @@ describe('single geometry input bindings', () => {
           ),
         );
       });
-      if (type === 'knob') {
-        const configure = [...container.querySelectorAll('button')].find(
-          (button) => button.textContent === 'propertiesPanel.configure',
-        );
-        act(() => configure?.click());
-      }
+      const configure = [...container.querySelectorAll('button')].find(
+        (button) => button.textContent === 'propertiesPanel.configure',
+      );
+      act(() => configure?.click());
 
       act(() => {
         captured.image?.onActiveImageChange('  active.png  ');
@@ -1736,28 +1768,13 @@ describe('single geometry input bindings', () => {
       act(() => {
         root.render(
           type === 'graph' ? (
-            <SingleGraphPanel
-              {...common}
-              singleGraphPosition={{
-                ...createDefaultKeyPosition(),
-                id,
-                statType: 'kps',
-                graphType: 'line',
-                graphSpeed: 1000,
-                graphColor: '#fff',
-                activeTransparent: true,
-                imageFit: 'contain',
-                idleImageFit: '' as ImageFit,
-                activeImageFit: '' as ImageFit,
-              }}
-              showGraphImagePicker
-              setShowGraphImagePicker={vi.fn()}
-              graphImageButtonRef={{
-                current: document.createElement('button'),
-              }}
-              graphClassNameDraft=""
-              setGraphClassNameDraft={vi.fn()}
-            />
+            renderGraphPanel({
+              id,
+              activeTransparent: true,
+              imageFit: 'contain',
+              idleImageFit: '',
+              activeImageFit: '',
+            })
           ) : (
             <SingleKnobPanel
               {...common}
@@ -1776,12 +1793,10 @@ describe('single geometry input bindings', () => {
           ),
         );
       });
-      if (type === 'knob') {
-        const configure = [...container.querySelectorAll('button')].find(
-          (button) => button.textContent === 'propertiesPanel.configure',
-        );
-        act(() => configure?.click());
-      }
+      const configure = [...container.querySelectorAll('button')].find(
+        (button) => button.textContent === 'propertiesPanel.configure',
+      );
+      act(() => configure?.click());
 
       expect(captured.image?.showActiveState ?? true).toBe(type === 'knob');
       expect(captured.image?.activeTransparent).toBe(type === 'knob');
@@ -1823,25 +1838,7 @@ describe('single geometry input bindings', () => {
       act(() => {
         root.render(
           type === 'graph' ? (
-            <SingleGraphPanel
-              {...common}
-              singleGraphPosition={{
-                ...createDefaultKeyPosition(),
-                statType: 'kps',
-                graphType: 'line',
-                graphSpeed: 1000,
-                graphColor: '#fff',
-              }}
-              singleGraphIndex={0}
-              handleGraphUpdate={legacy}
-              showGraphImagePicker
-              setShowGraphImagePicker={vi.fn()}
-              graphImageButtonRef={{
-                current: document.createElement('button'),
-              }}
-              graphClassNameDraft=""
-              setGraphClassNameDraft={vi.fn()}
-            />
+            renderGraphPanel({}, { commitInactiveImage: commit })
           ) : (
             <SingleKnobPanel
               {...common}
@@ -1857,12 +1854,10 @@ describe('single geometry input bindings', () => {
           ),
         );
       });
-      if (type === 'knob') {
-        const configure = [...container.querySelectorAll('button')].find(
-          (button) => button.textContent === 'propertiesPanel.configure',
-        );
-        act(() => configure?.click());
-      }
+      const configure = [...container.querySelectorAll('button')].find(
+        (button) => button.textContent === 'propertiesPanel.configure',
+      );
+      act(() => configure?.click());
 
       act(() => {
         captured.image?.onIdleImageChange('picked.png');
@@ -2019,23 +2014,7 @@ describe('single geometry input bindings', () => {
       act(() => {
         root.render(
           type === 'graph' ? (
-            <SingleGraphPanel
-              {...common}
-              singleGraphPosition={{
-                ...createDefaultKeyPosition(),
-                statType: 'kps',
-                graphType: 'line',
-                graphSpeed: 1000,
-                graphColor: '#fff',
-              }}
-              singleGraphIndex={0}
-              handleGraphUpdate={legacy}
-              showGraphImagePicker={false}
-              setShowGraphImagePicker={vi.fn()}
-              graphImageButtonRef={createRef<HTMLButtonElement>()}
-              graphClassNameDraft=""
-              setGraphClassNameDraft={vi.fn()}
-            />
+            renderGraphPanel({}, { commitGeometry: geometry })
           ) : (
             <SingleKnobPanel
               {...common}
@@ -2093,23 +2072,10 @@ describe('single geometry input bindings', () => {
       act(() => {
         root.render(
           type === 'graph' ? (
-            <SingleGraphPanel
-              {...common}
-              singleGraphPosition={{
-                ...createDefaultKeyPosition(),
-                statType: 'kps',
-                graphType: 'line',
-                graphSpeed: 1000,
-                graphColor: '#fff',
-              }}
-              singleGraphIndex={0}
-              handleGraphUpdate={vi.fn()}
-              showGraphImagePicker={false}
-              setShowGraphImagePicker={vi.fn()}
-              graphImageButtonRef={createRef<HTMLButtonElement>()}
-              graphClassNameDraft=""
-              setGraphClassNameDraft={vi.fn()}
-            />
+            renderGraphPanel(
+              {},
+              { commitGeometry: geometry, previewGeometry: preview },
+            )
           ) : (
             <SingleKnobPanel
               {...common}
@@ -2170,23 +2136,7 @@ describe('single geometry input bindings', () => {
       act(() => {
         root.render(
           type === 'graph' ? (
-            <SingleGraphPanel
-              {...common}
-              singleGraphPosition={{
-                ...createDefaultKeyPosition(),
-                width,
-                height,
-                statType: 'kps',
-                graphType: 'line',
-                graphSpeed: 1000,
-                graphColor: '#fff',
-              }}
-              showGraphImagePicker={false}
-              setShowGraphImagePicker={vi.fn()}
-              graphImageButtonRef={createRef<HTMLButtonElement>()}
-              graphClassNameDraft=""
-              setGraphClassNameDraft={vi.fn()}
-            />
+            renderGraphPanel({ width, height })
           ) : (
             <SingleKnobPanel
               {...common}
@@ -2331,7 +2281,6 @@ describe('single geometry input bindings', () => {
     (type) => {
       const commit = vi.fn();
       const legacy = vi.fn();
-      const setGraphDraft = vi.fn();
       const common = {
         setPanelElement: vi.fn(),
         selectedKeyType: '4key',
@@ -2352,24 +2301,11 @@ describe('single geometry input bindings', () => {
       act(() => {
         root.render(
           type === 'graph' ? (
-            <SingleGraphPanel
-              {...common}
-              singleGraphPosition={{
-                ...createDefaultKeyPosition(),
-                className: 'BeforeClass',
-                statType: 'kps',
-                graphType: 'line',
-                graphSpeed: 1000,
-                graphColor: '#fff',
-              }}
-              singleGraphIndex={0}
-              handleGraphUpdate={legacy}
-              showGraphImagePicker={false}
-              setShowGraphImagePicker={vi.fn()}
-              graphImageButtonRef={createRef<HTMLButtonElement>()}
-              graphClassNameDraft="BeforeClass"
-              setGraphClassNameDraft={setGraphDraft}
-            />
+            renderGraphPanel(
+              { className: 'BeforeClass' },
+              { commitStyle: commit },
+              true,
+            )
           ) : (
             <SingleKnobPanel
               {...common}
@@ -2391,9 +2327,6 @@ describe('single geometry input bindings', () => {
       );
       act(() => input?.onChange('DraftClass'));
       expect(commit).not.toHaveBeenCalled();
-      if (type === 'graph') {
-        expect(setGraphDraft).toHaveBeenCalledWith('DraftClass');
-      }
       act(() => input?.onBlur?.('  Final class  '));
 
       expect(commit).toHaveBeenCalledOnce();
@@ -2435,23 +2368,7 @@ describe('single geometry input bindings', () => {
       act(() => {
         root.render(
           type === 'graph' ? (
-            <SingleGraphPanel
-              {...common}
-              singleGraphPosition={{
-                ...createDefaultKeyPosition(),
-                statType: 'kps',
-                graphType: 'line',
-                graphSpeed: 1000,
-                graphColor: '#fff',
-              }}
-              singleGraphIndex={0}
-              handleGraphUpdate={legacy}
-              showGraphImagePicker={false}
-              setShowGraphImagePicker={vi.fn()}
-              graphImageButtonRef={createRef<HTMLButtonElement>()}
-              graphClassNameDraft=""
-              setGraphClassNameDraft={vi.fn()}
-            />
+            renderGraphPanel({}, { commitStyle: commit })
           ) : (
             <SingleKnobPanel
               {...common}

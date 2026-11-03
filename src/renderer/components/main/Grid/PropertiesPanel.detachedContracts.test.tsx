@@ -32,7 +32,6 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const {
   batchKeyLikePropsMock,
-  batchGraphPropsMock,
   batchKnobPropsMock,
   batchPluginPropsMock,
   batchPropsMock,
@@ -113,13 +112,11 @@ const {
   statUpdatePositionsMock,
   settleCommitMock,
   activeGestureIdMock,
-  singleGraphPropsMock,
   singleKeyStatPropsMock,
   singleKnobPropsMock,
   reportElementOpSkippedMock,
 } = vi.hoisted(() => ({
   batchKeyLikePropsMock: vi.fn(),
-  batchGraphPropsMock: vi.fn(),
   batchKnobPropsMock: vi.fn(),
   batchPluginPropsMock: vi.fn(),
   batchPropsMock: vi.fn(),
@@ -204,7 +201,6 @@ const {
   statUpdatePositionsMock: vi.fn(() => Promise.resolve()),
   settleCommitMock: vi.fn(),
   activeGestureIdMock: vi.fn(() => null as string | null),
-  singleGraphPropsMock: vi.fn(),
   singleKeyStatPropsMock: vi.fn(),
   singleKnobPropsMock: vi.fn(),
   reportElementOpSkippedMock: vi.fn(),
@@ -347,10 +343,6 @@ vi.mock('./PropertiesPanel/index', async () => {
       </>
     );
   };
-  const SingleGraphPanel = (props: Record<string, unknown>) => {
-    singleGraphPropsMock(props);
-    return <div />;
-  };
   const SingleKnobPanel = (props: Record<string, unknown>) => {
     singleKnobPropsMock(props);
     return <div />;
@@ -364,15 +356,10 @@ vi.mock('./PropertiesPanel/index', async () => {
     TextInput: Stub,
     LayerPanel: () => <div data-testid="layer-panel" />,
     PluginSelectionPanel: Stub,
-    SingleGraphPanel,
     SingleKnobPanel,
     SingleKeyStatPanel,
     BatchKeyLikePanel: (props: Record<string, unknown>) => {
       batchKeyLikePropsMock(props);
-      return <div />;
-    },
-    BatchGraphOnlyPanel: (props: Record<string, unknown>) => {
-      batchGraphPropsMock(props);
       return <div />;
     },
     BatchKnobOnlyPanel: (props: Record<string, unknown>) => {
@@ -467,8 +454,6 @@ const resetStores = () => {
   activeGestureIdMock.mockReset();
   activeGestureIdMock.mockReturnValue(null);
   singleKeyStatPropsMock.mockClear();
-  singleGraphPropsMock.mockClear();
-  batchGraphPropsMock.mockClear();
   batchKnobPropsMock.mockClear();
   batchPluginPropsMock.mockClear();
   batchPropsMock.mockClear();
@@ -621,7 +606,7 @@ describe('PropertiesPanel canonical native contract', () => {
   let originalWindowType: typeof window.__dmn_window_type;
 
   const installSingle = (
-    type: 'key' | 'stat' | 'graph' | 'knob',
+    type: 'key' | 'stat' | 'knob',
     id: string,
     staleIndex = 0,
   ) => {
@@ -643,29 +628,6 @@ describe('PropertiesPanel canonical native contract', () => {
           '4key': [
             { ...base, id: otherId, statType: 'kps' },
             { ...base, id, statType: 'kps' },
-          ],
-        },
-      });
-    } else if (type === 'graph') {
-      useGraphItemStore.setState({
-        positions: {
-          '4key': [
-            {
-              ...base,
-              id: otherId,
-              statType: 'kps',
-              graphType: 'line',
-              graphSpeed: 1,
-              graphColor: '#ffffff',
-            },
-            {
-              ...base,
-              id,
-              statType: 'kps',
-              graphType: 'line',
-              graphSpeed: 1,
-              graphColor: '#ffffff',
-            },
           ],
         },
       });
@@ -696,11 +658,9 @@ describe('PropertiesPanel canonical native contract', () => {
     });
   };
 
-  const latestSingleProps = (type: 'key' | 'stat' | 'graph' | 'knob') =>
+  const latestSingleProps = (type: 'key' | 'stat' | 'knob') =>
     (type === 'key' || type === 'stat'
       ? singleKeyStatPropsMock
-      : type === 'graph'
-      ? singleGraphPropsMock
       : singleKnobPropsMock
     ).mock.lastCall?.[0] as {
       handleGeometryCommit?: (field: 'dx', value: number) => void;
@@ -784,7 +744,6 @@ describe('PropertiesPanel canonical native contract', () => {
   it.each([
     ['key', '11111111-1111-4111-8111-111111111111'],
     ['stat', '22222222-2222-4222-8222-222222222222'],
-    ['graph', '33333333-3333-4333-8333-333333333333'],
     ['knob', '44444444-4444-4444-8444-444444444444'],
   ] as const)(
     'single stable %s geometry는 stale index가 아니라 선택 ID를 쓴다',
@@ -817,95 +776,7 @@ describe('PropertiesPanel canonical native contract', () => {
     );
   });
 
-  it('single graph color와 paint 확정은 활성 gestureId로 정산한다', () => {
-    const id = '63333333-3333-4333-8333-333333333333';
-    const gestureId = '64444444-4444-4444-8444-444444444444';
-    activeGestureIdMock.mockReturnValue(gestureId);
-    installSingle('graph', id);
-    mounted = mountPanel();
-    const props = latestSingleProps('graph');
-
-    act(() =>
-      props.onElementPropertyCommit?.({
-        property: 'graphColor',
-        value: '#123456',
-      }),
-    );
-
-    expect(patchElementPropertyMock).toHaveBeenCalledWith(
-      'graph',
-      id,
-      { property: 'graphColor', value: '#123456' },
-      { gestureId },
-    );
-    expect(settleCommitMock).toHaveBeenCalledWith(
-      patchElementPropertyMock.mock.results[0]?.value,
-    );
-
-    act(() =>
-      props.onPaintCommit?.({
-        property: 'backgroundPaint',
-        value: { color: '#654321', gradient: null },
-      }),
-    );
-
-    expect(patchPaintMock).toHaveBeenCalledWith(
-      'graph',
-      id,
-      {
-        property: 'backgroundPaint',
-        value: { color: '#654321', gradient: null },
-      },
-      { gestureId },
-    );
-    expect(settleCommitMock).toHaveBeenCalledWith(
-      patchPaintMock.mock.results[0]?.value,
-    );
-  });
-
-  it('batch graph color 확정은 활성 gestureId로 정산한다', () => {
-    const ids = [
-      '65555555-5555-4555-8555-555555555555',
-      '66666666-6666-4666-8666-666666666666',
-    ];
-    const gestureId = '67777777-7777-4777-8777-777777777777';
-    const base = createDefaultKeyPosition();
-    activeGestureIdMock.mockReturnValue(gestureId);
-    useGraphItemStore.setState({
-      positions: {
-        '4key': ids.map((id) => ({
-          ...base,
-          id,
-          statType: 'kps',
-          graphType: 'line',
-          graphSpeed: 1,
-          graphColor: '#ffffff',
-        })),
-      },
-    });
-    useDocumentSelectionStore.setState({
-      selectedElements: ids.map((id, index) => ({
-        type: 'graph',
-        id,
-        index,
-      })),
-    });
-    mounted = mountPanel();
-    const props = batchGraphPropsMock.mock.lastCall?.[0] as {
-      handleGraphBatchSharedSetting?: (updates: { graphColor: string }) => void;
-    };
-
-    act(() => props.handleGraphBatchSharedSetting?.({ graphColor: '#abcdef' }));
-
-    expect(patchGraphColorsMock).toHaveBeenCalledWith(ids, '#abcdef', {
-      gestureId,
-    });
-    expect(settleCommitMock).toHaveBeenCalledWith(
-      patchGraphColorsMock.mock.results[0]?.value,
-    );
-  });
-
-  it.each(['key', 'stat', 'graph', 'knob'] as const)(
+  it.each(['key', 'stat', 'knob'] as const)(
     'invalid %s ID는 semantic과 full-record writer를 모두 막는다',
     (type) => {
       installSingle(type, `${type}-0`, 1);
@@ -923,66 +794,38 @@ describe('PropertiesPanel canonical native contract', () => {
     },
   );
 
-  it.each(['graph', 'knob'] as const)(
-    '미지원 %s batch 속성은 full-record 저장 없이 fail-closed로 기록한다',
-    (type) => {
-      const ids = [
-        `91111111-1111-4111-8111-11111111111${type === 'graph' ? '1' : '3'}`,
-        `92222222-2222-4222-8222-22222222222${type === 'graph' ? '2' : '4'}`,
-      ];
-      const base = createDefaultKeyPosition();
-      if (type === 'graph') {
-        useGraphItemStore.setState({
-          positions: {
-            '4key': ids.map((id) => ({
-              ...base,
-              id,
-              statType: 'kps',
-              graphType: 'line',
-              graphSpeed: 1,
-              graphColor: '#ffffff',
-            })),
-          },
-        });
-      } else {
-        useKnobItemStore.setState({
-          positions: {
-            '4key': ids.map((id, index) => ({
-              ...base,
-              id,
-              axisId: `HIDA:test-${index}`,
-              sensitivity: 1,
-              reverse: false,
-            })),
-          },
-        });
-      }
-      useDocumentSelectionStore.setState({
-        selectedElements: ids.map((id, index) => ({ type, id, index })),
-      });
-      mounted = mountPanel();
-      const props = (
-        type === 'graph' ? batchGraphPropsMock : batchKnobPropsMock
-      ).mock.lastCall?.[0] as {
-        handleGraphBatchSharedSetting?: (updates: { dx: number }) => void;
-        handleKnobBatchSharedSetting?: (updates: { dx: number }) => void;
-      };
+  it('미지원 knob batch 속성은 full-record 저장 없이 fail-closed로 기록한다', () => {
+    const ids = [
+      '91111111-1111-4111-8111-111111111113',
+      '92222222-2222-4222-8222-222222222224',
+    ];
+    const base = createDefaultKeyPosition();
+    useKnobItemStore.setState({
+      positions: {
+        '4key': ids.map((id, index) => ({
+          ...base,
+          id,
+          axisId: `HIDA:test-${index}`,
+          sensitivity: 1,
+          reverse: false,
+        })),
+      },
+    });
+    useDocumentSelectionStore.setState({
+      selectedElements: ids.map((id, index) => ({ type: 'knob', id, index })),
+    });
+    mounted = mountPanel();
+    const props = batchKnobPropsMock.mock.lastCall?.[0] as {
+      handleKnobBatchSharedSetting?: (updates: { dx: number }) => void;
+    };
 
-      act(() => {
-        if (type === 'graph') {
-          props.handleGraphBatchSharedSetting?.({ dx: 17 });
-        } else {
-          props.handleKnobBatchSharedSetting?.({ dx: 17 });
-        }
-      });
+    act(() => props.handleKnobBatchSharedSetting?.({ dx: 17 }));
 
-      expect(reportElementOpSkippedMock).toHaveBeenCalledWith(
-        `batch ${type} property (unsupported payload or invalid target)`,
-      );
-      expect(graphUpdatePositionsMock).not.toHaveBeenCalled();
-      expect(knobUpdatePositionsMock).not.toHaveBeenCalled();
-    },
-  );
+    expect(reportElementOpSkippedMock).toHaveBeenCalledWith(
+      'batch knob property (unsupported payload or invalid target)',
+    );
+    expect(knobUpdatePositionsMock).not.toHaveBeenCalled();
+  });
 
   it('batch geometry는 stable ID target만 한 번 커밋한다', () => {
     const firstId = '71111111-1111-4111-8111-111111111111';

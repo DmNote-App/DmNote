@@ -1,10 +1,8 @@
 import type { NativeLayerBoundsTarget } from '@plugins/runtime/displayElement/pluginElementActions';
-import type { GraphItemPosition } from '@src/types/key/graphItems';
 import type { KnobItemPosition } from '@src/types/key/knobs';
 import type {
   EditorFontFamilyPropertyPatchV1,
   EditorFontStylePropertyPatchV1,
-  EditorGraphRuntimePropertyPatchV1,
   EditorKnobRuntimePropertyPatchV1,
   EditorNotePropertyPatchV1,
 } from '@src/types/editor';
@@ -41,34 +39,6 @@ export const shouldNormalizePropertyTabToStyle = (
     return true;
   }
   return hasGraph && !hasKey && !hasStat;
-};
-
-export const getGraphRuntimePropertyPatch = (
-  updates: Partial<GraphItemPosition>,
-): EditorGraphRuntimePropertyPatchV1 | null => {
-  const keys = Object.keys(updates);
-  if (keys.length !== 1) return null;
-  if (keys[0] === 'showAvgLine' && typeof updates.showAvgLine === 'boolean') {
-    return { property: 'showAvgLine', value: updates.showAvgLine };
-  }
-  if (
-    keys[0] === 'graphAnimationEnabled' &&
-    typeof updates.graphAnimationEnabled === 'boolean'
-  ) {
-    return {
-      property: 'graphAnimationEnabled',
-      value: updates.graphAnimationEnabled,
-    };
-  }
-  if (
-    keys[0] === 'graphSpeed' &&
-    Number.isSafeInteger(updates.graphSpeed) &&
-    (updates.graphSpeed as number) >= 0 &&
-    (updates.graphSpeed as number) <= 4_294_967_295
-  ) {
-    return { property: 'graphSpeed', value: updates.graphSpeed as number };
-  }
-  return null;
 };
 
 export const getKnobRuntimePropertyPatch = (

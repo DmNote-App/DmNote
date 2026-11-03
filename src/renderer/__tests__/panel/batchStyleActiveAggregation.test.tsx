@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { KeyPosition } from '@src/types/key/keys';
 import type { ElementShadowSpec } from '@src/types/key/shadows';
 import ActualBatchStyleTabContent from '@components/main/Grid/PropertiesPanel/batch/style/BatchStyleTabContent';
-import { BatchGraphOnlyPanel as ActualBatchGraphOnlyPanel } from '@components/main/Grid/PropertiesPanel/batch/BatchSelectionPanel';
 import { PanelNavProvider } from '@components/main/Grid/PropertiesPanel/navigation/PanelNavContext';
+import { LegacyBatchSurfaceRows } from '@components/main/Grid/PropertiesPanel/document/legacyBundleRows';
+import type { PanelWriter } from '@components/main/Grid/PropertiesPanel/document/documentPanelWriter';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 
 interface CapturedShadowProps {
@@ -86,12 +88,6 @@ type CompatStyleProps = Omit<
 > &
   Record<string, unknown>;
 
-type CompatGraphProps = Omit<
-  React.ComponentProps<typeof ActualBatchGraphOnlyPanel>,
-  'handleBatchResizePreview'
-> &
-  Record<string, unknown>;
-
 const BatchStyleTabContent = ({
   handleBatchStyleChange: _handleBatchStyleChange,
   handleBatchStyleChangeComplete: _handleBatchStyleChangeComplete,
@@ -100,15 +96,6 @@ const BatchStyleTabContent = ({
   ...props
 }: CompatStyleProps) => (
   <ActualBatchStyleTabContent handleBatchResizePreview={vi.fn()} {...props} />
-);
-
-const BatchGraphOnlyPanel = ({
-  handleBatchStyleChange: _handleBatchStyleChange,
-  handleBatchStyleChangeComplete: _handleBatchStyleChangeComplete,
-  handleBatchGradientCommit: _handleBatchGradientCommit,
-  ...props
-}: CompatGraphProps) => (
-  <ActualBatchGraphOnlyPanel handleBatchResizePreview={vi.fn()} {...props} />
 );
 
 describe('혼합 선택 active 그림자 집계', () => {
@@ -328,66 +315,34 @@ describe('그래프 전용 배치 패널 배선', () => {
   });
 
   it('그래프 패널 색상 피커는 실제 배선으로 입력 탭이 꺼진다', () => {
-    const mixedGraphs = <T,>(
-      _getter: unknown,
-      defaultValue: T,
-    ): { isMixed: boolean; value: T } => ({
-      isMixed: false,
-      value: defaultValue,
-    });
+    const graph = (id: string) =>
+      ({
+        type: 'element',
+        id,
+        kind: 'graph',
+        frame: { x: 0, y: 0, width: 200, height: 100, rotation: 0 },
+        bundles: { surface: {} },
+      } as ElementNode);
+    const writer = {
+      previewStyle: vi.fn(),
+      commitStyle: vi.fn(),
+      previewPaint: vi.fn(),
+      commitPaint: vi.fn(),
+    } as unknown as PanelWriter;
 
     act(() => {
       root.render(
-        <PanelNavProvider
-          value={{
-            activePageKey: null,
-            renderPageKey: null,
-            openPage: vi.fn(),
-            closePage: vi.fn(),
-            pageHost: null,
-          }}
-        >
-          <BatchGraphOnlyPanel
-            setPanelElement={vi.fn()}
-            selectedGraphElements={[{ id: 'graph-0', type: 'graph', index: 0 }]}
-            selectedGroupInfo={null}
-            isRenaming={false}
-            renameInputRef={React.createRef<HTMLInputElement>()}
-            renameValue=""
-            setRenameValue={vi.fn()}
-            renameCancelledRef={{ current: false }}
-            handleRenameCommit={vi.fn()}
-            handleRenameCancel={vi.fn()}
-            handleRenameStart={vi.fn()}
-            handleBatchAlign={vi.fn()}
-            handleBatchDistribute={vi.fn()}
-            handleBatchSpacing={vi.fn()}
-            handleBatchSpacingPreview={vi.fn()}
-            handleBatchSpacingCommit={vi.fn()}
-            getBatchSpacingValue={() => ({ isMixed: false, value: 0 })}
-            handleBatchResize={vi.fn()}
-            handleBatchStyleChange={vi.fn()}
-            handleBatchStyleChangeComplete={vi.fn()}
-            handleGraphBatchSharedSetting={vi.fn()}
-            getMixedValueGraphs={mixedGraphs}
-            getMixedValueGeometry={mixedGraphs}
-            getMixedValueGraphsAsKey={mixedGraphs}
-            getSelectedGraphsData={() => []}
-            batchScrollRefFor={() => () => {}}
-            batchImageButtonRef={React.createRef<HTMLButtonElement>()}
-            showBatchImagePicker={false}
-            setShowBatchImagePicker={vi.fn()}
-            panelElement={null}
-            useCustomCSS={false}
-            selectedKeyType="4key"
-            t={(key) => key}
-          />
-        </PanelNavProvider>,
+        <LegacyBatchSurfaceRows
+          elements={[graph('graph-0'), graph('graph-1')]}
+          writer={writer}
+          selectionKey="4key:graph-0,graph-1"
+          panelElement={null}
+          t={(key) => key}
+        />,
       );
     });
 
-    // 실제 배선 고정 — BatchGraphOnlyPanel의 shadowActiveState={false}를
-    // 지우면 기본값 true로 탭이 켜져 이 테스트가 실패해야 함
+    // 실제 배선 고정 — 그래프는 눌림 그림이 없어 입력 탭을 끈다 (종류 판정을 지우면 실패해야 함)
     expect(captured.colorTabs.length).toBeGreaterThan(0);
     expect(captured.colorTabs.some((tabs) => tabs === false)).toBe(true);
     expect(captured.colorTabs.every((tabs) => tabs !== true)).toBe(true);

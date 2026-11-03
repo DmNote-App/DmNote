@@ -20,7 +20,6 @@ interface UsePropertiesPanelVisibilityOptions {
   pluginSettingsPanel: object | null;
   closePage: () => void;
   setShowImagePicker: (visible: boolean) => void;
-  setShowGraphImagePicker: (visible: boolean) => void;
   setShowBatchImagePicker: (visible: boolean) => void;
   setBatchPickerFor: (target: null) => void;
 }
@@ -42,7 +41,6 @@ export const usePropertiesPanelVisibility = ({
   pluginSettingsPanel,
   closePage,
   setShowImagePicker,
-  setShowGraphImagePicker,
   setShowBatchImagePicker,
   setBatchPickerFor,
 }: UsePropertiesPanelVisibilityOptions) => {
@@ -105,7 +103,6 @@ export const usePropertiesPanelVisibility = ({
     keyTypeChangedRef.current = false;
 
     setShowImagePicker(false);
-    setShowGraphImagePicker(false);
     setShowBatchImagePicker(false);
     // 배치 색상 draft는 피커를 열 때 첫 요소에서 한 번만 떠 온다.
     // 열린 채로 선택이 바뀌면 옛 대상 색이 남아 다음 드래그가 그 값을 새 선택에 쓴다
@@ -122,7 +119,6 @@ export const usePropertiesPanelVisibility = ({
     setPanelMode,
     closePage,
     setShowImagePicker,
-    setShowGraphImagePicker,
     setShowBatchImagePicker,
     setBatchPickerFor,
   ]);
@@ -234,7 +230,6 @@ export const usePropertiesPanelVisibility = ({
       manuallyClosedRef.current = true;
       setIsPanelVisible(false);
       setShowImagePicker(false);
-      setShowGraphImagePicker(false);
       setShowBatchImagePicker(false);
     }
   };

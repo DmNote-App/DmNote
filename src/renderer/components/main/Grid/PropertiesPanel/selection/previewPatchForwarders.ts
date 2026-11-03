@@ -242,24 +242,3 @@ export const previewSinglePaint = (
   if (!scene) return;
   previewBatchPaint([{ elementType: type, id }], scene, patch);
 };
-
-export const previewBatchGraphColor = (
-  ids: readonly string[],
-  selectedKeyType: string,
-  color: string,
-): void => {
-  const entries: Array<{ id: string; patch: Record<string, unknown> }> = [];
-  for (const id of ids) {
-    if (!currentOf(selectedKeyType, id)) return;
-    entries.push({ id, patch: { graphColor: color } });
-  }
-  editGestureController.preview(selectedKeyType, entries, {
-    domain: 'graphPosition',
-  });
-};
-
-export const previewSingleGraphColor = (id: string, color: string): void => {
-  const scene = sceneOf(id);
-  if (!scene) return;
-  previewBatchGraphColor([id], scene, color);
-};
