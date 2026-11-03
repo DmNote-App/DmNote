@@ -683,4 +683,60 @@ describe('이어 붙이는 편집', () => {
       vi.useRealTimers();
     }
   });
+
+  it('번갈아 쓰는 열쇠(플러그인)는 각자 이어 붙인다', async () => {
+    vi.useFakeTimers();
+    try {
+      const commit = vi.fn((_ops: Op[]) => committed(2));
+      const { store } = harness(commit);
+      const options = (key: string) => ({ key, quietMs: 200 });
+      void store.editCoalesced!(nudge('k1', 1), options('p'));
+      void store.editCoalesced!(nudge('k2', 1), options('q'));
+      void store.editCoalesced!(nudge('k1', 2), options('p'));
+      void store.editCoalesced!(nudge('k2', 2), options('q'));
+      await vi.advanceTimersByTimeAsync(200);
+      expect(commit.mock.calls.map(([ops]) => ops)).toEqual([
+        nudge('k1', 2),
+        nudge('k2', 2),
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('한 열쇠 안에서 요소를 번갈아 고쳐도 사이에 그 요소를 건드린 연산이 없으면 합친다', async () => {
+    vi.useFakeTimers();
+    try {
+      const commit = vi.fn((_ops: Op[]) => committed(2));
+      const { store } = harness(commit);
+      const options = { key: 'p', quietMs: 200 };
+      void store.editCoalesced!(nudge('k1', 3), options);
+      void store.editCoalesced!(nudge('k2', 3), options);
+      void store.editCoalesced!(nudge('k1', 4), options);
+      void store.editCoalesced!(nudge('k2', 4), options);
+      expect(store.getElement('4key', 'k1')?.frame.x).toBe(4);
+      expect(store.getElement('4key', 'k2')?.frame.x).toBe(4);
+      await vi.advanceTimersByTimeAsync(200);
+      expect(commit.mock.calls.map(([ops]) => ops)).toEqual([
+        [...nudge('k1', 4), ...nudge('k2', 4)],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('쉬지 않고 이어 써도 오래 붙잡지 않는다 - 정한 시간이 지나면 보내고 새로 이어 붙인다', async () => {
+    vi.useFakeTimers();
+    try {
+      const commit = vi.fn((_ops: Op[]) => committed(2));
+      const { store } = harness(commit);
+      for (let x = 1; x <= 12; x += 1) {
+        void store.editCoalesced!(nudge('k1', x), { key: 'p', quietMs: 200 });
+        await vi.advanceTimersByTimeAsync(100);
+      }
+      expect(commit.mock.calls.length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -234,45 +234,68 @@ interface PendingEdit {
 // 이어 붙이는 중인 편집 - 닫히면(release) 보낸다
 interface OpenCoalesced {
   edit: PendingEdit;
-  key: string;
   sent: Promise<ElementDocumentCommitResult>;
   release: () => void;
   timer: ReturnType<typeof setTimeout>;
+  // 이어 붙이기 시작한 때 - 쉬지 않고 이어 써도 이만큼 지나면 보낸다
+  openedAt: number;
 }
 
-// 같은 요소의 고치기 연산이 이어지면 앞 연산에 합친다 (빠르게 이어지는 쓰기가 연산을 쌓지 않게)
+// 쉬지 않고 이어 쓰는 편집도 이 배수(조용히 기다리는 시간의)가 지나면 보낸다
+const MAX_COALESCE_QUIET_MULTIPLE = 5;
+
+// 연산이 건드리는 요소·그룹 id
+const targetsOf = (op: Op): readonly string[] => {
+  switch (op.op) {
+    case 'insert':
+      return [op.node.id];
+    case 'remove':
+    case 'move':
+      return op.ids;
+    case 'group':
+      return [op.id, ...op.ids];
+    case 'addScene':
+    case 'removeScene':
+      return [];
+    default:
+      return [op.id];
+  }
+};
+
+// 같은 요소 고치기를 합친다 - 사이에 그 요소를 건드린 연산이 없을 때만 (빠르게 이어지는 쓰기가 연산을 쌓지 않게)
+const mergeInto = (earlier: Op, op: Op): Op | null => {
+  if (earlier.op !== op.op || earlier.scene !== op.scene) return null;
+  if (earlier.op === 'setFrame' && op.op === 'setFrame' && earlier.id === op.id)
+    return { ...earlier, frame: { ...earlier.frame, ...op.frame } };
+  if (
+    earlier.op === 'setValues' &&
+    op.op === 'setValues' &&
+    earlier.id === op.id
+  )
+    return { ...earlier, values: { ...earlier.values, ...op.values } };
+  if (
+    earlier.op === 'setCommon' &&
+    op.op === 'setCommon' &&
+    earlier.id === op.id
+  )
+    return { ...earlier, ...op };
+  return null;
+};
+
 const appendOps = (ops: readonly Op[], next: readonly Op[]): Op[] => {
   const merged = [...ops];
   for (const op of next) {
-    const last = merged[merged.length - 1];
-    if (
-      last &&
-      last.op === op.op &&
-      'id' in last &&
-      'id' in op &&
-      last.scene === op.scene &&
-      last.id === op.id
-    ) {
-      if (last.op === 'setFrame' && op.op === 'setFrame') {
-        merged[merged.length - 1] = {
-          ...last,
-          frame: { ...last.frame, ...op.frame },
-        };
-        continue;
-      }
-      if (last.op === 'setValues' && op.op === 'setValues') {
-        merged[merged.length - 1] = {
-          ...last,
-          values: { ...last.values, ...op.values },
-        };
-        continue;
-      }
-      if (last.op === 'setCommon' && op.op === 'setCommon') {
-        merged[merged.length - 1] = { ...last, ...op };
-        continue;
-      }
+    const targets = targetsOf(op);
+    let at = -1;
+    for (let index = merged.length - 1; index >= 0; index -= 1) {
+      const earlier = merged[index];
+      if (!targetsOf(earlier).some((id) => targets.includes(id))) continue;
+      at = index;
+      break;
     }
-    merged.push(op);
+    const combined = at >= 0 ? mergeInto(merged[at], op) : null;
+    if (combined) merged[at] = combined;
+    else merged.push(op);
   }
   return merged;
 };
@@ -331,14 +354,18 @@ export const createEditorDocumentStore = (
   const heldListeners = new Set<() => void>();
   const rejectedListeners = new Set<(failure: CommitFailure) => void>();
   let heldFailure: CommitFailure | null = null;
-  let open: OpenCoalesced | null = null;
-  // 이어 붙이기를 닫는다 - 더 붙이지 않고 지금 보낸다
+  // 열쇠(플러그인)마다 이어 붙이는 편집 - 열쇠가 다르면 서로 다른 요소라 순서를 바꿔 붙여도 같다
+  const open = new Map<string, OpenCoalesced>();
+  const closeOne = (key: string) => {
+    const current = open.get(key);
+    if (!current) return;
+    open.delete(key);
+    clearTimeout(current.timer);
+    current.release();
+  };
+  // 이어 붙이기를 모두 닫는다 - 더 붙이지 않고 지금 보낸다
   const closeCoalesced = () => {
-    if (!open) return;
-    const { release, timer } = open;
-    open = null;
-    clearTimeout(timer);
-    release();
+    for (const key of [...open.keys()]) closeOne(key);
   };
   const setHeld = (next: PendingEdit[], failure?: CommitFailure) => {
     held = next;
@@ -447,16 +474,20 @@ export const createEditorDocumentStore = (
       return sent;
     },
     editCoalesced: (ops, { key, quietMs, gestureId }) => {
-      if (open && open.key === key && open.edit.gestureId === gestureId) {
-        const current = open;
+      const current = open.get(key);
+      if (
+        current &&
+        current.edit.gestureId === gestureId &&
+        Date.now() - current.openedAt < quietMs * MAX_COALESCE_QUIET_MULTIPLE
+      ) {
         current.edit.ops = appendOps(current.edit.ops, ops);
         rebuild();
         listeners.emit(localChanges([{ ...current.edit, ops }]));
         clearTimeout(current.timer);
-        current.timer = setTimeout(closeCoalesced, quietMs);
+        current.timer = setTimeout(() => closeOne(key), quietMs);
         return current.sent;
       }
-      closeCoalesced();
+      closeOne(key);
       const edit: PendingEdit = { ops, acknowledged: null, gestureId };
       pending = [...pending, edit];
       rebuild();
@@ -473,13 +504,13 @@ export const createEditorDocumentStore = (
           return send(edit);
         });
       queue = sent.catch(() => undefined);
-      open = {
+      open.set(key, {
         edit,
-        key,
         sent,
         release,
-        timer: setTimeout(closeCoalesced, quietMs),
-      };
+        timer: setTimeout(() => closeOne(key), quietMs),
+        openedAt: Date.now(),
+      });
       return sent;
     },
     flushCoalesced: closeCoalesced,

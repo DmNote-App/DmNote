@@ -27,6 +27,8 @@ interface PluginNode {
   sceneId: string;
   node: ElementNode;
   parentId: string | null;
+  // 형제 사이 자리
+  index: number;
 }
 
 const legacyOf = (node: ElementNode): PluginLegacy | undefined => {
@@ -46,16 +48,16 @@ const pluginNodes = (view: TreeView, pluginId: string) => {
   const found = new Map<string, PluginNode>();
   for (const sceneId of view.getSceneIds()) {
     const visit = (nodes: readonly Node[], parentId: string | null) => {
-      for (const node of nodes) {
+      nodes.forEach((node, index) => {
         if (node.type === 'group') visit(node.children, node.id);
         else if (
           node.kind === kind &&
           node.id.startsWith(prefix) &&
           node.id.length > prefix.length
         ) {
-          found.set(node.id, { sceneId, node, parentId });
+          found.set(node.id, { sceneId, node, parentId, index });
         }
-      }
+      });
     };
     visit(view.getScene(sceneId)?.nodes ?? [], null);
   }
@@ -147,6 +149,21 @@ const placedEntry = (
   };
 };
 
+// 장면에 그 그룹이 있으면 그 그룹 - 다시 넣기는 화면에 바로 그 그룹 안으로 (자리는 백엔드가 항목 값으로 정한다)
+const parentIn = (
+  view: TreeView,
+  sceneId: string,
+  groupId: string | undefined,
+): string | null => {
+  if (!groupId) return null;
+  const has = (nodes: readonly Node[]): boolean =>
+    nodes.some(
+      (node) =>
+        node.type === 'group' && (node.id === groupId || has(node.children)),
+    );
+  return has(view.getScene(sceneId)?.nodes ?? []) ? groupId : null;
+};
+
 /** 런타임이 바꾼 인스턴스(이전 → 다음, fullId 열쇠) → 트리 연산. 이번에 바뀐 칸 중 트리와 다른 것만 쓴다 */
 export const pluginInstanceOps = (
   view: TreeView,
@@ -165,7 +182,7 @@ export const pluginInstanceOps = (
       ops.push({
         op: 'insert',
         scene: sceneId,
-        parent: null,
+        parent: parentIn(view, sceneId, instance.groupId),
         index: null,
         node: nodeOf(pluginId, fullId, instance, {
           pluginEntry: placedEntry({}, instance, sceneId),
@@ -188,7 +205,7 @@ export const pluginInstanceOps = (
         {
           op: 'insert',
           scene: sceneId,
-          parent: null,
+          parent: parentIn(view, sceneId, instance.groupId),
           index: null,
           node: nodeOf(pluginId, fullId, instance, {
             ...legacy,
@@ -198,6 +215,24 @@ export const pluginInstanceOps = (
               sceneId,
             ),
           }),
+        },
+      );
+      continue;
+    }
+    // 설정 칸을 뺐으면 값을 통째로 바꾼다 - 값 쓰기는 합치기라, 같은 자리에 빼고 다시 넣는다 (예전 목록 쓰기와 같다)
+    const current = node.values ?? {};
+    const removedKey =
+      changed('settings') &&
+      Object.keys(current).some((key) => !(key in (instance.settings ?? {})));
+    if (removedKey) {
+      ops.push(
+        { op: 'remove', scene: sceneId, ids: [fullId] },
+        {
+          op: 'insert',
+          scene: sceneId,
+          parent: found.parentId,
+          index: found.index,
+          node: nodeOf(pluginId, fullId, instance, legacyOf(node) ?? {}),
         },
       );
       continue;
@@ -223,7 +258,6 @@ export const pluginInstanceOps = (
       ops.push({ op: 'setCommon', scene: sceneId, id: fullId, hidden });
     }
     if (changed('settings')) {
-      const current = node.values ?? {};
       const values = Object.fromEntries(
         Object.entries(instance.settings ?? {}).filter(
           ([key, value]) => !sameJson(current[key], value),

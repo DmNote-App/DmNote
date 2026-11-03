@@ -229,4 +229,95 @@ describe('런타임 변경 → 트리 연산', () => {
       },
     ]);
   });
+
+  it('그룹을 바꾸면 화면에 바로 그 그룹 안으로 넣는다 (장면에 없는 그룹은 맨 위 단계)', () => {
+    const grouped = view({
+      '4key': [
+        { type: 'group', id: 'g1', name: 'G', children: [] } as Node,
+        plugin(
+          'a',
+          { x: 1, y: 2, width: 30, height: 40 },
+          {
+            values: { label: 'A' },
+            legacy: {
+              pluginEntry: { instanceId: 'a', tabId: '4key' },
+              order: 0,
+            },
+          },
+        ),
+      ],
+    });
+    const regroup = (groupId: string) =>
+      pluginInstanceOps(
+        grouped,
+        'demo',
+        before,
+        new Map([
+          saved('a', {
+            measuredSize: { width: 30, height: 40 },
+            settings: { label: 'A' },
+            hidden: false,
+            groupId,
+          }),
+        ]),
+      )[1] as { parent: string | null };
+    expect(regroup('g1').parent).toBe('g1');
+    expect(regroup('missing').parent).toBeNull();
+  });
+
+  it('설정 칸을 빼면 같은 자리에 빼고 다시 넣어 값을 통째로 바꾼다 (값 쓰기는 합치기라)', () => {
+    const withTwo = view({
+      '4key': [
+        plugin('z', box),
+        plugin(
+          'a',
+          { x: 1, y: 2, width: 30, height: 40 },
+          {
+            values: { label: 'A', size: 3 },
+            legacy: {
+              pluginEntry: { instanceId: 'a', tabId: '4key' },
+              order: 0,
+            },
+          },
+        ),
+      ],
+    });
+    const two = new Map([
+      saved('a', {
+        measuredSize: { width: 30, height: 40 },
+        settings: { label: 'A', size: 3 },
+        hidden: false,
+      }),
+    ]);
+    const ops = pluginInstanceOps(
+      withTwo,
+      'demo',
+      two,
+      new Map([
+        saved('a', {
+          measuredSize: { width: 30, height: 40 },
+          settings: { label: 'A' },
+          hidden: false,
+        }),
+      ]),
+    );
+    expect(ops).toEqual([
+      { op: 'remove', scene: '4key', ids: ['demo::a'] },
+      {
+        op: 'insert',
+        scene: '4key',
+        parent: null,
+        index: 1,
+        node: {
+          type: 'element',
+          id: 'demo::a',
+          kind: 'plugin:demo',
+          frame: { x: 1, y: 2, width: 30, height: 40, rotation: 0 },
+          hidden: false,
+          values: { label: 'A' },
+          legacy: { pluginEntry: { instanceId: 'a', tabId: '4key' }, order: 0 },
+        },
+      },
+    ]);
+  });
 });
