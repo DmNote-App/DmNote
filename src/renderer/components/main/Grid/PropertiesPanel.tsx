@@ -516,6 +516,23 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       hasSingleKnobPosition: !!singleKnobPosition,
       hasSingleSpritePosition: !!singleSpritePosition,
     });
+    // 옛 종류 일괄 선택의 개수·그룹·일괄 기하 (플러그인 요소 포함) - 선언 일괄 패널에 넘긴다
+    const legacyBatchHost = {
+      totalCount: selectionTotalCount,
+      groupInfo: selectedGroupInfo,
+      geometry: {
+        handleBatchAlign,
+        handleBatchDistribute,
+        handleBatchSpacing,
+        handleBatchSpacingCommit,
+        getBatchSpacingValue,
+        // 크기 조절이 고치는 대상 전부(스프라이트 포함)로 모은다 - 고른 종류만 모으면 섞인 크기가 가려진다
+        getBatchSizeValue: (dimension: 'width' | 'height') =>
+          getMixedValueGeometry((position) => position[dimension], 60),
+        handleBatchResize,
+        handleBatchResizePreview,
+      },
+    };
 
     // 다중 선택인 경우 (키/통계 포함, 또는 그래프+노브 혼합)
     if (route.kind === 'batchKeyLike') {
@@ -601,19 +618,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           panelElement={panelElement}
           setPanelElement={setPanelElement}
           scrollRef={batchScrollRefFor(TABS.STYLE)}
-          legacyHost={{
-            totalCount: selectionTotalCount,
-            groupInfo: selectedGroupInfo,
-            geometry: {
-              handleBatchAlign,
-              handleBatchDistribute,
-              handleBatchSpacing,
-              handleBatchSpacingCommit,
-              getBatchSpacingValue,
-              handleBatchResize,
-              handleBatchResizePreview,
-            },
-          }}
+          legacyHost={legacyBatchHost}
           t={t}
         />
       );
@@ -628,19 +633,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           panelElement={panelElement}
           setPanelElement={setPanelElement}
           scrollRef={batchScrollRefFor(TABS.STYLE)}
-          legacyHost={{
-            totalCount: selectionTotalCount,
-            groupInfo: selectedGroupInfo,
-            geometry: {
-              handleBatchAlign,
-              handleBatchDistribute,
-              handleBatchSpacing,
-              handleBatchSpacingCommit,
-              getBatchSpacingValue,
-              handleBatchResize,
-              handleBatchResizePreview,
-            },
-          }}
+          legacyHost={legacyBatchHost}
           t={t}
         />
       );
@@ -657,19 +650,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             panelElement={panelElement}
             setPanelElement={setPanelElement}
             scrollRef={batchScrollRefFor(TABS.STYLE)}
-            legacyHost={{
-              totalCount: selectionTotalCount,
-              groupInfo: selectedGroupInfo,
-              geometry: {
-                handleBatchAlign,
-                handleBatchDistribute,
-                handleBatchSpacing,
-                handleBatchSpacingCommit,
-                getBatchSpacingValue,
-                handleBatchResize,
-                handleBatchResizePreview,
-              },
-            }}
+            legacyHost={legacyBatchHost}
             t={t}
           />
         );

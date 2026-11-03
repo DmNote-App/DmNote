@@ -87,6 +87,11 @@ export interface LegacyBatchGeometry {
     options?: { gestureId?: string },
   ) => void;
   getBatchSpacingValue: () => { isMixed: boolean; value: number };
+  // 크기 표시 - 크기 조절이 고치는 대상 전부(스프라이트·플러그인 요소 포함)의 값
+  getBatchSizeValue: (dimension: 'width' | 'height') => {
+    isMixed: boolean;
+    value: number;
+  };
   handleBatchResize: (dimension: 'width' | 'height', value: number) => void;
   handleBatchResizePreview: (
     dimension: 'width' | 'height',
@@ -303,6 +308,11 @@ const DocumentBatchPanel = ({
     handleBatchSpacingCommit: (spacing) =>
       treeGeometry.commit({ kind: 'spacing', spacing }),
     getBatchSpacingValue: treeGeometry.spacingValue,
+    // 옛 종류는 옛 패널이 보던 값(편집 미리보기 포함)
+    getBatchSizeValue: (dimension) =>
+      writer
+        ? aggregateMixedValue(items, (item) => item[dimension] as number, 60)
+        : aggregateMixedValue(elements, (node) => node.frame[dimension], 60),
     handleBatchResize: (dimension, value) => {
       treeGeometry.clearPreview();
       treeGeometry.commit({ kind: 'resize', dimension, value });
@@ -313,11 +323,7 @@ const DocumentBatchPanel = ({
   const cancelResizePreview = legacyHost
     ? () => editGestureController.cancel()
     : treeGeometry.clearPreview;
-  // 크기 표시 - 옛 종류는 옛 패널이 보던 값(편집 미리보기 포함)
-  const size = (dimension: 'width' | 'height') =>
-    writer
-      ? aggregateMixedValue(items, (item) => item[dimension] as number, 60)
-      : aggregateMixedValue(elements, (node) => node.frame[dimension], 60);
+  const size = geometry.getBatchSizeValue;
 
   // 스프라이트만 고른 옛 일괄 패널은 정렬·분배·간격만 (크기·회전 칸이 없었다)
   const arrangeOnly =

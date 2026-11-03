@@ -375,6 +375,7 @@ const KindBatchPanel = ({
           handleBatchSpacing: vi.fn(),
           handleBatchSpacingCommit: vi.fn(),
           getBatchSpacingValue: () => ({ isMixed: false, value: 0 }),
+          getBatchSizeValue: () => ({ isMixed: false, value: 60 }),
           handleBatchResize: vi.fn(),
           handleBatchResizePreview: vi.fn(),
         },
