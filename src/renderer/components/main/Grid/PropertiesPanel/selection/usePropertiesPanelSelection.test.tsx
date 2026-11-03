@@ -106,4 +106,34 @@ describe('속성 패널 단일 요소 값', () => {
     expect(new Set(seen).size).toBe(1);
     act(() => root.unmount());
   });
+
+  it('트리를 고쳐 장면이 바뀌어도 같은 선택이면 같은 참조다 - 고친 뒤 열린 피커·하위 페이지가 닫히지 않게', () => {
+    useKeyStore.setState({ selectedKeyType: '4key' });
+    useDocumentSelectionStore.setState({
+      sceneId: '4key',
+      selectedIds: [KNOB],
+      selectedElements: [],
+    });
+    const onRender = vi.fn<(selected: unknown) => void>();
+    const Probe = ({ tick }: { tick: number }) => {
+      onRender(usePropertiesPanelSelection().selectedElements);
+      return <span data-tick={tick} />;
+    };
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(<Probe tick={0} />));
+    // 고른 노브의 값을 고친 뒤 - 장면은 새 객체
+    scene.value = {
+      nodes: [{ ...tree.element, values: { sensitivity: 4, reverse: false } }],
+    };
+    act(() => root.render(<Probe tick={1} />));
+    const seen = onRender.mock.calls.map(([selected]) => selected);
+    expect(seen.at(-1)).toEqual([{ type: 'knob', id: KNOB, index: 0 }]);
+    expect(new Set(seen).size).toBe(1);
+
+    // 선택이 바뀌면 새 참조
+    act(() => useDocumentSelectionStore.setState({ selectedIds: [] }));
+    expect(onRender.mock.calls.at(-1)?.[0]).toEqual([]);
+    expect(onRender.mock.calls.at(-1)?.[0]).not.toBe(seen.at(-1));
+    act(() => root.unmount());
+  });
 });
