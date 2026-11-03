@@ -3134,3 +3134,45 @@ fn 불러온_뒤_정리가_잠긴_종류의_칸을_바꿔도_시작을_막지_�
         .dx += 5.0;
     assert!(sync_element_document(&before, &mut committed).is_err());
 }
+
+#[test]
+fn 다시_매긴_그룹_id를_옛_플러그인_버킷도_따라가_인스턴스가_그룹_밖으로_빠지지_않는다() {
+    let mut state = default_state();
+    // 두 탭의 옛 그룹이 같은 id - 트리를 읽을 때 뒤 탭의 그룹 id를 다시 매긴다
+    for mode in ["4key", "5key"] {
+        state.legacy_mut().layer_groups.insert(
+            mode.into(),
+            vec![crate::models::LayerGroupDef {
+                id: "g1".into(),
+                name: "묶음".into(),
+            }],
+        );
+        state.legacy_mut().key_positions.get_mut(mode).unwrap()[0].group_id = Some("g1".into());
+    }
+    let instance = "00000000-0000-4000-8000-0000000000ad";
+    state.plugin_data.insert(
+        crate::state::plugin::plugin_instances_storage_key("demo"),
+        serde_json::json!([
+            { "instanceId": instance, "position": { "x": 1, "y": 2 }, "tabId": "5key", "groupId": "g1" }
+        ]),
+    );
+    let dir = std::env::temp_dir().join(format!("dmn-group-reissue-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(crate::state::store::STORE_FILE_NAME);
+    let mut value = serde_json::to_value(&state).unwrap();
+    value
+        .as_object_mut()
+        .unwrap()
+        .remove(ELEMENT_DOCUMENT_FIELD);
+    std::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+
+    let loaded = crate::state::migration::load_store_from_path(&path).unwrap();
+    let scene = &loaded.data.element_document().scenes["5key"];
+    let path = scene
+        .find_path(&format!("demo::{instance}"))
+        .expect("인스턴스 노드");
+    assert_eq!(path.len(), 2, "그룹 안에 있어야 한다");
+    let key_id = &loaded.data.legacy().key_positions["5key"][0].id;
+    assert_eq!(scene.find_path(key_id).unwrap()[0], path[0]);
+    let _ = std::fs::remove_dir_all(&dir);
+}

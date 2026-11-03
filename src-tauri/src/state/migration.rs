@@ -312,7 +312,8 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     )?;
     needs_persist |= attached.changed;
     // 플러그인 인스턴스는 트리에 둔다 - 처음 한 번 옮긴다 (트리를 붙인 뒤)
-    needs_persist |= super::plugin::migrate_plugin_buckets_into_tree(&mut state);
+    needs_persist |=
+        super::plugin::migrate_plugin_buckets_into_tree(&mut state, &attached.reissued_groups);
     // 플러그인 인스턴스 ID backfill도 recovery 합류 이후에 수행
     let plugin_id_backfill = super::plugin::backfill_plugin_instance_ids(&mut state);
     needs_persist |= plugin_id_backfill.changed;

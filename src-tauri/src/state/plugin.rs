@@ -421,7 +421,11 @@ pub(crate) fn write_plugin_instance_bucket(
 
 // 처음 한 번 - plugin_data의 인스턴스 키를 트리로 옮긴다. 표식이 있으면 다시 옮기지 않는다
 // (남은 키는 쓰지 않고 그대로 둔다). 같은 영속 한 번에 담겨 중간 크래시면 옛 파일로 다시 돈다
-pub(crate) fn migrate_plugin_buckets_into_tree(data: &mut AppStoreData) -> bool {
+/// `reissued_groups` - 트리를 읽을 때 다시 매긴 그룹 id (장면, 옛 id, 새 id). 버킷 항목의 그룹값도 따라 옮긴다
+pub(crate) fn migrate_plugin_buckets_into_tree(
+    data: &mut AppStoreData,
+    reissued_groups: &[(String, String, String)],
+) -> bool {
     const IMPORTED: &str = "pluginInstancesImported";
     let keys = data
         .plugin_data
@@ -445,7 +449,8 @@ pub(crate) fn migrate_plugin_buckets_into_tree(data: &mut AppStoreData) -> bool 
         let Some(plugin_id) = plugin_id_from_instances_storage_key(&key).map(str::to_string) else {
             continue;
         };
-        if let Some(value) = data.plugin_data.remove(&key) {
+        if let Some(mut value) = data.plugin_data.remove(&key) {
+            remap_entry_groups(&mut value, reissued_groups);
             write_plugin_instance_bucket(data, &plugin_id, Some(value));
         }
     }
@@ -453,6 +458,26 @@ pub(crate) fn migrate_plugin_buckets_into_tree(data: &mut AppStoreData) -> bool 
         .extra
         .insert(IMPORTED.into(), Value::from(1));
     true
+}
+
+// 버킷 항목의 그룹값 - 그 탭에서 다시 매긴 그룹이면 새 id로
+fn remap_entry_groups(bucket: &mut Value, reissued_groups: &[(String, String, String)]) {
+    if reissued_groups.is_empty() {
+        return;
+    }
+    for entry in bucket.as_array_mut().into_iter().flatten() {
+        let tab = normalize_plugin_instance_tab_id(entry.get("tabId").and_then(Value::as_str))
+            .to_string();
+        let Some(group) = entry.get("groupId").and_then(Value::as_str) else {
+            continue;
+        };
+        if let Some((_, _, fresh)) = reissued_groups
+            .iter()
+            .find(|(scene, old, _)| *scene == tab && old == group)
+        {
+            entry["groupId"] = Value::String(fresh.clone());
+        }
+    }
 }
 
 pub(crate) fn plugin_instances_storage_key(plugin_id: &str) -> String {

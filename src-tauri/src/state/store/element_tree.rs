@@ -227,12 +227,14 @@ impl IdSource for UuidSource {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct AttachOutcome {
     // 저장할 것이 생김
     pub(crate) changed: bool,
     // 저장된 트리 문서를 읽지 못해 옛 모양에서 다시 만듦 - 손상 복구처럼 백업한다
     pub(crate) unreadable: bool,
+    // 읽을 때 다시 매긴 그룹 id - (장면, 옛 id, 새 id). 아직 트리에 없는 참조(옛 플러그인 버킷)가 따라간다
+    pub(crate) reissued_groups: Vec<(String, String, String)>,
 }
 
 /// 불러온 store에 트리 문서를 붙인다
@@ -284,6 +286,18 @@ pub(crate) fn attach_parsed_document(
             report.locked_kinds
         );
     }
+    let reissued_groups = report
+        .reissued
+        .into_iter()
+        .filter(|(scene, _, fresh)| {
+            document.scenes.get(scene).is_some_and(|scene| {
+                scene
+                    .find_path(fresh)
+                    .and_then(|path| scene.node_at(&path))
+                    .is_some_and(|node| matches!(node, Node::Group(_)))
+            })
+        })
+        .collect();
     // 트리 문서가 없던 파일(옛 store.json)은 부르는 쪽이 새 파일로 저장한다
     // 저장은 압축 모양이므로 같은 모양끼리 비교한다 (시작마다 저장하지 않게)
     let changed = unreadable
@@ -295,6 +309,7 @@ pub(crate) fn attach_parsed_document(
     Ok(AttachOutcome {
         changed,
         unreadable,
+        reissued_groups,
     })
 }
 
