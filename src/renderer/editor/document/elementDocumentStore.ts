@@ -41,8 +41,9 @@ export interface ElementDocumentStore {
       // 백엔드가 받아들였을 때(보류했다 다시 보낸 뒤 포함)
       onCommitted?: () => void;
       after?: Promise<unknown>;
-      // false - 화면에 먼저 얹지 않고 패치로 받는다 (자리를 백엔드 규칙이 정하는 연산 - 규칙을 TS에 두지 않는다)
-      local?: false;
+      // 화면에는 이 연산을 얹고 보내기는 ops로 - 자리를 백엔드 규칙이 정하는 연산(규칙을 TS에 두지 않는다)은
+      // 화면에서 제자리에 두고 패치로 자리를 받는다
+      localOps?: Op[];
     },
   ) => Promise<ElementDocumentCommitResult>;
   // 편집 창만 - 이어 붙이는 편집. 마지막 편집이 같은 열쇠·동작 id로 아직 나가지 않았으면 거기에 연산을 붙인다.
@@ -231,8 +232,8 @@ interface PendingEdit {
   onCommitted?: () => void;
   // 백엔드가 받아들인 리비전 - 그 리비전의 패치가 오면 목록에서 빠진다
   acknowledged: number | null;
-  // false - 화면에 얹지 않는 편집 (패치로 받는다)
-  local?: false;
+  // 화면에 얹는 연산이 보내는 연산과 다를 때 (자리를 백엔드가 정하는 연산)
+  localOps?: Op[];
 }
 
 // 이어 붙이는 중인 편집 - 닫히면(release) 보낸다
@@ -308,7 +309,8 @@ const appendOps = (ops: readonly Op[], next: readonly Op[]): Op[] => {
 const localChanges = (edits: readonly PendingEdit[]): ChangeSet => {
   const changes: ChangeSet = { scenes: {} };
   for (const edit of edits) {
-    for (const [sceneId, touched] of Object.entries(touchedByOps(edit.ops))) {
+    const ops = edit.localOps ? [...edit.ops, ...edit.localOps] : edit.ops;
+    for (const [sceneId, touched] of Object.entries(touchedByOps(ops))) {
       const change = (changes.scenes[sceneId] ??= {
         changed: [],
         removed: [],
@@ -380,8 +382,7 @@ export const createEditorDocumentStore = (
 
   const rebuild = () => {
     view = pending.reduce(
-      (document, edit) =>
-        edit.local === false ? document : applyLocalOps(document, edit.ops),
+      (document, edit) => applyLocalOps(document, edit.localOps ?? edit.ops),
       confirmed,
     );
   };
@@ -396,7 +397,7 @@ export const createEditorDocumentStore = (
   const drop = (edit: PendingEdit) => {
     pending = pending.filter((other) => other !== edit);
     rebuild();
-    if (edit.local !== false) listeners.emit(localChanges([edit]));
+    listeners.emit(localChanges([edit]));
   };
   // 보내기 - 일시 실패는 쉬었다 다시, 다 써도 안 되면 보류(화면에 남김), 영구 실패는 되돌린다
   const send = async (
@@ -411,7 +412,7 @@ export const createEditorDocumentStore = (
           // 패치가 응답보다 먼저 왔으면 여기서 뺀다
           if (settle()) {
             rebuild();
-            if (edit.local !== false) listeners.emit(localChanges([edit]));
+            listeners.emit(localChanges([edit]));
           }
           edit.onCommitted?.();
           return result;
@@ -462,13 +463,11 @@ export const createEditorDocumentStore = (
         gestureId: editOptions?.gestureId,
         onDropped: editOptions?.onDropped,
         onCommitted: editOptions?.onCommitted,
-        local: editOptions?.local,
+        localOps: editOptions?.localOps,
       };
       pending = [...pending, edit];
-      if (edit.local !== false) {
-        rebuild();
-        listeners.emit(localChanges([edit]));
-      }
+      rebuild();
+      listeners.emit(localChanges([edit]));
       const after = editOptions?.after?.catch(() => undefined);
       const start = after ? queue.then(() => after) : queue;
       const sent = start.then(() => {

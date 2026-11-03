@@ -450,6 +450,83 @@ describe('플러그인 인스턴스 저장 - 원본은 트리', () => {
     expect(findElement(fullIdA)!.position).toEqual({ x: 8, y: 2 });
   });
 
+  it('스크립트가 겹침값을 바꾸면 화면은 제자리에 두고 자리는 백엔드가 정하며, 이어진 쓰기는 그 노드를 고친다', async () => {
+    const pluginId = 'plugin-diff-z';
+    defineFor(pluginId, [saved(ID_A), saved(ID_B)]);
+    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(2));
+    const fullIdA = `${pluginId}::${ID_A}`;
+    const ids = () =>
+      getElementDocumentStore()!
+        .getScene('4key')!
+        .nodes.map((node) => node.id);
+    const before = ids();
+
+    displayElementApi.update(fullIdA, { zIndex: 7 });
+    // 맨 위로 튀지 않는다
+    expect(ids()).toEqual(before);
+    displayElementApi.update(fullIdA, { position: { x: 9, y: 0 } });
+    await vi.waitFor(() =>
+      expect(backend().commit.mock.calls.length).toBeGreaterThanOrEqual(2),
+    );
+    const sent = backend().commit.mock.calls.flatMap(([ops]) => ops);
+    // 다시 넣기는 자리 없이(백엔드 놓기), 이어진 위치 쓰기는 같은 노드의 틀 - 다시 넣기를 또 보내지 않는다
+    expect(sent.filter((op) => op.op === 'insert')).toHaveLength(1);
+    expect(sent.find((op) => op.op === 'insert')).toMatchObject({
+      index: null,
+    });
+    expect(sent).toContainEqual(
+      expect.objectContaining({ op: 'setFrame', id: fullIdA }),
+    );
+    expect(findElement(fullIdA)!.zIndex).toBe(7);
+  });
+
+  it('겹침값을 준 새 인스턴스도 화면에 바로 들어가, 이어진 쓰기는 다시 넣기가 아니라 그 노드를 고친다', async () => {
+    const pluginId = 'plugin-diff-z-create';
+    defineFor(pluginId, [saved(ID_A)]);
+    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(1));
+    await drainEditorWrites();
+    backend().commit.mockClear();
+
+    const added = addDisplayElementInternal({
+      html: '<!-- plugin-element -->',
+      position: { x: 5, y: 5 },
+      draggable: true,
+      definitionId: pluginId,
+      zIndex: 4,
+    } as never);
+    expect(
+      getElementDocumentStore()!.getElement('4key', added.id),
+    ).toBeDefined();
+    displayElementApi.update(added.id, { position: { x: 6, y: 5 } });
+    await vi.waitFor(() =>
+      expect(backend().commit.mock.calls.length).toBeGreaterThanOrEqual(2),
+    );
+    const sent = backend().commit.mock.calls.flatMap(([ops]) => ops);
+    expect(sent.filter((op) => op.op === 'insert')).toHaveLength(1);
+    expect(sent).toContainEqual(
+      expect.objectContaining({ op: 'setFrame', id: added.id }),
+    );
+  });
+
+  it('겹침값 다시 넣기가 거절되면 런타임 겹침값도 트리 값으로 돌아간다', async () => {
+    const pluginId = 'plugin-diff-z-rejected';
+    defineFor(pluginId, [saved(ID_A, { zIndex: 1 }), saved(ID_B)]);
+    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(2));
+    const fullIdA = `${pluginId}::${ID_A}`;
+    backend().commit.mockImplementationOnce(async () => ({
+      status: 'rejected',
+      revision: 1,
+      code: 'VIOLATION',
+      violations: [],
+    }));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    displayElementApi.update(fullIdA, { zIndex: 7 });
+    expect(findElement(fullIdA)!.zIndex).toBe(7);
+    await vi.waitFor(() => expect(findElement(fullIdA)!.zIndex).toBe(1));
+    warn.mockRestore();
+  });
+
   it('거절된 쓰기는 트리 보기에서 빠지고 런타임도 트리 값으로 돌아간다', async () => {
     const pluginId = 'plugin-diff-rejected';
     defineFor(pluginId, [saved(ID_A, { position: { x: 1, y: 1 } })]);

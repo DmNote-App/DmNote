@@ -337,22 +337,30 @@ describe('백엔드가 자리를 정하는 다시 넣기', () => {
   });
   const before = new Map([saved('a'), saved('b'), saved('c')]);
 
-  it('겹침값을 실은 다시 넣기와 그 빼기만 나누고, 나머지(탭 옮기기·새로 넣기·지우기·틀)는 화면에 먼저 얹는다', () => {
+  it('겹침값을 실은 다시 넣기와 그 빼기만 나누고, 화면에는 같은 부모의 지금 자리에 둔다', () => {
     const next = new Map([
       saved('a', { zIndex: 5 }),
       saved('b', { tabId: '5key', position: { x: 9, y: 2 } }),
-      saved('d'),
+      saved('d', { zIndex: 3 }),
     ]);
     const ops = pluginInstanceOps(scenes, 'demo', before, next);
-    const { placed, local } = splitBackendPlacedOps(ops);
-    expect(placed.map((op) => op.op)).toEqual(['remove', 'insert']);
+    const { placed, placedLocal, local } = splitBackendPlacedOps(
+      scenes,
+      'demo',
+      ops,
+    );
     expect(
       placed.flatMap((op) =>
         op.op === 'remove' ? op.ids : op.op === 'insert' ? [op.node.id] : [],
       ),
-    ).toEqual(['demo::a', 'demo::a']);
+    ).toEqual(['demo::a', 'demo::a', 'demo::d']);
+    // 보내기는 백엔드가 자리를 정하게 index 없이, 화면은 a를 지금 자리(0)에 - 새 d는 자리를 몰라 맨 위
+    const indexOf = (list: typeof placed) =>
+      list.flatMap((op) => (op.op === 'insert' ? [op.index] : []));
+    expect(indexOf(placed)).toEqual([null, null]);
+    expect(indexOf(placedLocal)).toEqual([0, null]);
     // 겹침값 없는 탭 옮기기는 맨 위에 놓여 백엔드 놓기와 같다
-    expect(local.map((op) => op.op)).toEqual(['remove', 'insert', 'insert']);
+    expect(local.map((op) => op.op)).toEqual(['remove', 'insert']);
     expect(placed.length + local.length).toBe(ops.length);
   });
 
@@ -363,6 +371,10 @@ describe('백엔드가 자리를 정하는 다시 넣기', () => {
       before,
       new Map([saved('a', { position: { x: 3, y: 4 } }), saved('b')]),
     );
-    expect(splitBackendPlacedOps(ops)).toEqual({ placed: [], local: ops });
+    expect(splitBackendPlacedOps(scenes, 'demo', ops)).toEqual({
+      placed: [],
+      placedLocal: [],
+      local: ops,
+    });
   });
 });

@@ -279,11 +279,14 @@ export const pluginInstanceOps = (
 };
 
 /** 백엔드가 자리를 정하는 다시 넣기 - 겹침값을 실은 플러그인 노드를 index 없이 넣는 연산과 그 노드의 빼기.
- * 화면에 먼저 얹으면 장면·그룹 맨 위에 놓였다가 패치로 제자리에 가므로 이 몫은 패치로 받는다
- * (놓기 규칙을 TS에 두지 않는다 - 겹침값 없는 넣기는 맨 위라 백엔드 놓기와 같다) */
+ * 그대로 화면에 얹으면 장면·그룹 맨 위에 놓였다가 패치로 제자리에 가 튀므로, 화면에는 같은 부모면 지금 자리에
+ * 다시 넣는 연산(`placedLocal` - 바뀐 값은 바로 보인다)을 얹고 자리는 패치로 받는다 (놓기 규칙을 TS에 두지 않는다).
+ * 겹침값 없는 넣기는 맨 위라 백엔드 놓기와 같아 그대로 얹는다 */
 export const splitBackendPlacedOps = (
+  view: TreeView,
+  pluginId: string,
   ops: Op[],
-): { placed: Op[]; local: Op[] } => {
+): { placed: Op[]; placedLocal: Op[]; local: Op[] } => {
   const placedIds = new Set(
     ops.flatMap((op) =>
       op.op === 'insert' &&
@@ -293,12 +296,20 @@ export const splitBackendPlacedOps = (
         : [],
     ),
   );
-  if (placedIds.size === 0) return { placed: [], local: ops };
+  if (placedIds.size === 0) return { placed: [], placedLocal: [], local: ops };
   const isPlaced = (op: Op) =>
     (op.op === 'insert' && placedIds.has(op.node.id)) ||
     (op.op === 'remove' && op.ids.some((id) => placedIds.has(id)));
-  return {
-    placed: ops.filter(isPlaced),
-    local: ops.filter((op) => !isPlaced(op)),
-  };
+  const placed = ops.filter(isPlaced);
+  const nodes = pluginNodes(view, pluginId);
+  const placedLocal = placed.map((op) => {
+    if (op.op !== 'insert') return op;
+    const found = nodes.get(op.node.id);
+    return found &&
+      found.sceneId === op.scene &&
+      (found.parentId ?? null) === op.parent
+      ? { ...op, index: found.index }
+      : op;
+  });
+  return { placed, placedLocal, local: ops.filter((op) => !isPlaced(op)) };
 };

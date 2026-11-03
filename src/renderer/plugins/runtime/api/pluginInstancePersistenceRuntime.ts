@@ -90,8 +90,12 @@ export const createPluginInstancePersistenceRuntime = ({
   const send = (ops: Op[]) => {
     if (ops.length === 0 || !store?.editCoalesced) return;
     const gestureId = touchPluginInstancesEditSession(pluginId);
-    // 겹침값을 바꾼 다시 넣기는 패치로 받는다(백엔드 놓기) - 나머지는 화면에 먼저 얹고 이어 붙인다
-    const { placed, local } = splitBackendPlacedOps(ops);
+    // 겹침값을 바꾼 다시 넣기는 자리를 패치로 받는다(백엔드 놓기, 화면은 제자리) - 나머지는 이어 붙인다
+    const { placed, placedLocal, local } = splitBackendPlacedOps(
+      store,
+      pluginId,
+      ops,
+    );
     if (local.length > 0) {
       report(
         store.editCoalesced(local, {
@@ -102,7 +106,7 @@ export const createPluginInstancePersistenceRuntime = ({
       );
     }
     if (placed.length > 0 && store.edit) {
-      report(store.edit(placed, { gestureId, local: false }));
+      report(store.edit(placed, { gestureId, localOps: placedLocal }));
     }
   };
 
