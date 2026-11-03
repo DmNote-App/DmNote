@@ -115,6 +115,8 @@ export interface ElementKindCode<Values> {
   >;
   // 레이어·메뉴에 보이는 이름 (i18n 키)
   readonly label?: string;
+  // 패널 제목 - 요소 이름이 없을 때 (없으면 종류 이름)
+  readonly title?: (values: Values) => string;
   // 그리기 코드 하나 - 편집 화면(미리보기)과 오버레이·OBS(실제 신호)가 같이 쓴다
   readonly render?: ComponentType<ElementRenderProps<Values>>;
   // 편집 화면 얼굴이 사용자 CSS 클래스를 스스로 붙인다 - 옛 그리기에서 클래스가 상태 속성(data-state)과
@@ -164,13 +166,29 @@ export type PanelControlDecl =
       readonly max?: number;
       readonly suffix?: string;
       readonly decimalScale?: number;
+      // 입력 칸 너비 (없으면 패널 숫자 칸 너비)
+      readonly width?: string;
+      // 범위로 자른 뒤 이 단위로 맞춘다 (예: 그래프 속도 100ms) - 방향키 눈금은 그대로 1
+      readonly snap?: number;
+      // 값이 없거나 0일 때 보일 값
+      readonly fallback?: number;
     }
   | {
       readonly type: 'select';
       readonly options: readonly { value: string; label: string }[];
     }
-  | { readonly type: 'toggle' }
-  | { readonly type: 'color' }
+  | {
+      readonly type: 'toggle';
+      // 값이 비었을 때(null) 보일 상태
+      readonly nullValue?: boolean;
+    }
+  | {
+      readonly type: 'color';
+      // 값이 비었을 때 보일 색
+      readonly fallback?: string;
+      // 고르는 동안 화면에 먼저 보인다 (확정은 놓을 때, Esc는 되돌린다)
+      readonly preview?: boolean;
+    }
   // 칸 하나 단위 탈출구 - 선언으로 안 되는 입력은 직접 만든 컴포넌트를 끼운다
   | {
       readonly type: 'custom';
@@ -187,6 +205,7 @@ export interface PanelRowDecl<Values> {
   // i18n 키
   readonly label: string;
   readonly control: PanelControlDecl;
+  // 여러 개를 고르면 하나라도 보이는 칸을 보인다 (고친 값은 고른 요소 모두에 쓴다)
   readonly visible?: (values: Values) => boolean;
 }
 
@@ -194,6 +213,8 @@ export type PanelSectionDecl<Values> =
   | { readonly rows: readonly PanelRowDecl<Values>[] }
   // 공통 위치·크기 섹션 자리
   | { readonly common: 'geometry' }
+  // 사용자 CSS 섹션 - 설정에서 사용자 CSS를 켰을 때 인라인 스타일 우선·클래스
+  | { readonly common: 'customCss' }
   // 기능 묶음 섹션
   | { readonly bundle: BundleName };
 
