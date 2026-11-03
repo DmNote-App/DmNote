@@ -1,6 +1,5 @@
-import OverlayGraphItem from '@components/overlay/counters/OverlayGraphItem';
 import { defineElementKind } from '../defineElementKind';
-import GraphEditorFace from './graph/GraphEditorFace';
+import GraphFace from './graph/GraphFace';
 
 // 그래프 - 스탯 수치의 시간 흐름을 선·막대로 그린다
 export const graphKind = defineElementKind(
@@ -38,9 +37,9 @@ export const graphKind = defineElementKind(
     fallbackSize: { width: 200, height: 100 },
   },
   {
-    // 편집 화면은 옛 그래프 겉모습, 오버레이·OBS는 트리에서 옛 그래프를 그대로 그린다
-    render: GraphEditorFace as never,
+    // 편집 화면은 고정 미리보기 기록, 오버레이·OBS는 스탯 신호로 쌓은 기록을 같은 그리기로 그린다
+    render: GraphFace as never,
     faceOwnsClassName: true,
-    legacyOverlay: OverlayGraphItem as never,
+    placesItself: true,
   },
 );

@@ -7,7 +7,8 @@ import React, { Profiler, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import CountDisplay from '@components/overlay/counters/CountDisplay';
-import OverlayGraphItem from '@components/overlay/counters/OverlayGraphItem';
+import GraphFace from '@src/renderer/elementKinds/definitions/graph/GraphFace';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 
 // 그래프 렌더 자체가 아니라 커밋 횟수만 측정 — 무거운 자식은 스텁
 vi.mock('@components/shared/graph/GraphPanel', () => ({
@@ -222,12 +223,32 @@ describe('CountDisplay WAAPI 경로', () => {
   });
 });
 
-describe('OverlayGraphItem 유휴 커밋 예산', () => {
+describe('오버레이 그래프 유휴 커밋 예산', () => {
+  const element = {
+    type: 'element',
+    id: 'graph-1',
+    kind: 'graph',
+    frame: { x: 0, y: 0, width: 200, height: 100, rotation: 0 },
+  } as ElementNode;
   const renderGraph = (): void => {
     act(() => {
       root.render(
         <Profiler id="graph" onRender={onRender}>
-          <OverlayGraphItem position={{ statType: 'kps', graphSpeed: 1000 }} />
+          <GraphFace
+            element={element}
+            values={{
+              statType: 'kps',
+              graphType: 'line',
+              graphSpeed: 1000,
+              graphColor: '#86EFAC',
+              showAvgLine: true,
+              graphAnimationEnabled: null,
+            }}
+            bundles={{}}
+            live
+            inputs={{}}
+            placement={{ x: 0, y: 0, zIndex: 0 }}
+          />
         </Profiler>,
       );
     });

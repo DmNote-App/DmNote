@@ -66,9 +66,9 @@ vi.mock('@components/overlay/counters/OverlayKnobItem', () => ({
 }));
 
 const graphProps = vi.fn();
-vi.mock('@components/overlay/counters/OverlayGraphItem', () => ({
-  default: (props: { position: Record<string, unknown> }) => {
-    graphProps(props.position);
+vi.mock('@src/renderer/elementKinds/definitions/graph/GraphFace', () => ({
+  default: (props: Record<string, unknown>) => {
+    graphProps(props);
     return <div data-graph-element="" />;
   },
 }));
@@ -105,7 +105,7 @@ const { default: DocumentElementsLayer } = await import(
 );
 
 describe('오버레이가 트리에서 그리는 옛 종류', () => {
-  it('키·노브·그래프·스탯·스프라이트는 옛 위치 객체로 한 번 그리고 창 오프셋을 더한다', () => {
+  it('트리에서 그리는 옛 종류를 한 번씩 그리고 창 오프셋을 더한다 (아직 옮기지 않은 종류는 옛 위치 객체로)', () => {
     const overlayContext = {
       spriteKeyCanonicalMap: new Map([['k1', 'KeyA']]),
       mode: '4key',
@@ -167,16 +167,14 @@ describe('오버레이가 트리에서 그리는 옛 종류', () => {
         zIndex: 1,
       }),
     );
+    // 그리기를 한 벌로 옮긴 종류 - 트리 값 그대로, 감싸는 상자 없이 받은 자리에 스스로 놓인다
     expect(container.querySelectorAll('[data-graph-element]')).toHaveLength(1);
     expect(graphProps).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        id: 'g1',
-        dx: 5,
-        dy: 107,
-        statType: 'kpsAvg',
-        graphType: 'bar',
-        graphSpeed: 2000,
-        zIndex: 2,
+        element: expect.objectContaining({ id: 'g1' }),
+        values: { statType: 'kpsAvg', graphType: 'bar', graphSpeed: 2000 },
+        live: true,
+        placement: { x: 5, y: 107, zIndex: 2 },
       }),
     );
     expect(container.querySelectorAll('[data-stat-element]')).toHaveLength(1);
