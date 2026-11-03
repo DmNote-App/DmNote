@@ -9,10 +9,9 @@ import { TREE_EDITED_KINDS, TREE_OVERLAY_KINDS } from '@src/types/elementKinds';
 import { documentElementSlots } from './documentElementOrder';
 import { elementKindDefinition } from './elementKindRegistry';
 import { legacyPositionOf } from './legacyPosition';
-import type { ElementRenderInputs } from './renderTypes';
+import type { ElementRenderInputs, OverlayItemContext } from './renderTypes';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import type { SurfaceBundle } from './ElementSurface';
-import type { OverlayItemContext } from '@components/overlay/counters/overlayItemRenderers';
 
 interface DocumentElementViewProps {
   element: ElementNode;

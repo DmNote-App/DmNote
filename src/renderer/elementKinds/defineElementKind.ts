@@ -3,11 +3,13 @@
 // 빌드할 때 scripts/extract-element-kinds.mjs가 이 부분만 뽑아 Rust가 읽는다.
 // 함수가 섞이면 추출에서 막는다. 그리기·동작·패널 같은 코드는 같은 정의에 함께 둔다.
 
-import type { OverlayItemContext } from '@components/overlay/counters/overlayItemRenderers';
 import type { ComponentType } from 'react';
 
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import type { ElementRenderProps } from './runtime/renderTypes';
+import type {
+  ElementRenderProps,
+  OverlayItemContext,
+} from './runtime/renderTypes';
 import type {
   AssetKind,
   Condition,

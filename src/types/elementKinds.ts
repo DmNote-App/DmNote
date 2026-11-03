@@ -92,7 +92,7 @@ export const isPluginKind = (kind: string) =>
 export const pluginIdOfKind = (kind: string) =>
   kind.slice(PLUGIN_KIND_PREFIX.length);
 
-// 오버레이·OBS가 트리에서 그리는 옛 종류 - 옛 오버레이 그리기에서 빠진다 (편집 화면은 TREE_EDITED_KINDS).
+// 오버레이·OBS가 트리에서 그리는 옛 종류 (편집 화면은 TREE_EDITED_KINDS).
 // 노트 트랙과 바깥 카운터는 아직 옛 배열에서 자리를 잡는다
 export const TREE_OVERLAY_KINDS: ReadonlySet<string> = new Set([
   'stat',
@@ -101,7 +101,3 @@ export const TREE_OVERLAY_KINDS: ReadonlySet<string> = new Set([
   'sprite',
   'key',
 ]);
-
-/** 오버레이에서 옛 경로가 아직 그리는 옛 종류 */
-export const isLegacyOverlayType = (type: EditorElementTypeV1) =>
-  !TREE_OVERLAY_KINDS.has(type);

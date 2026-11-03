@@ -1,23 +1,16 @@
-import React, { Fragment, Suspense, lazy } from 'react';
-import { isLegacyOverlayType } from '@src/types/elementKinds';
-import { Key } from '@components/shared/key/LiveKey';
+import React, { Suspense, lazy } from 'react';
 import { isMac } from '@utils/core/platform';
 import KeyCounterLayer from '@components/overlay/counters/KeyCounterLayer';
 import StatCounterLayer from '@components/overlay/counters/StatCounterLayer';
-import { renderOverlayItem } from '@components/overlay/counters/overlayItemRenderers';
 import { PluginElementsRenderer } from '@components/shared/plugin/PluginElementsRenderer';
 import DocumentElementsLayer from '@src/renderer/elementKinds/runtime/DocumentElementsLayer';
 import { pointerInputSource } from '@src/renderer/elementKinds/runtime/pointerInput';
-import { getKeyInfoByGlobalKey } from '@utils/input/KeyMaps';
-import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
-  ITEM_ELEMENT_TYPES,
-  type CanonicalEditorDocumentV1,
-  type ItemElementModeArrays,
+import type {
+  CanonicalEditorDocumentV1,
+  ItemElementModeArrays,
 } from '@src/types/editor';
 import type { NoteSettings } from '@src/types/settings/noteSettings';
 import type { NoteBuffer } from '@stores/signals/noteBuffer';
-import { resolveZIndexFallback } from '@utils/element/zIndexFallback';
 
 // Tracks 레이지 로딩
 const Tracks = lazy(async () => {
@@ -38,13 +31,11 @@ const EMPTY_SPRITE_KEY_MAP: ReadonlyMap<string, string> = new Map();
 const OVERLAY_INPUTS = { pointer: pointerInputSource };
 
 interface OverlaySceneProps {
-  // 키/위치 데이터 (currentKeys = canonical 문자열)
+  // 키/위치 데이터 (currentKeys = canonical 문자열) - 바깥 카운터 층이 쓴다
   currentKeys: string[];
-  // 인덱스 정렬된 표시 라벨 (멀티 슬롯 합성 라벨용)
-  currentKeyLabels: string[];
   displayPositions: CanonicalEditorDocumentV1['keyPositions'][string];
   currentPositions: CanonicalEditorDocumentV1['keyPositions'][string];
-  // 키 외 종류의 표시 위치 (오프셋 적용)
+  // 키 외 종류의 표시 위치 (오프셋 적용) - 스탯 바깥 카운터 층이 쓴다
   displayItemArrays: ItemElementModeArrays;
   // 스프라이트 트리거(키 요소 id) -> canonical 키 문자열
   spriteKeyCanonicalMap?: ReadonlyMap<string, string>;
@@ -80,7 +71,6 @@ interface OverlaySceneProps {
 
 const OverlayScene = ({
   currentKeys,
-  currentKeyLabels,
   displayPositions,
   currentPositions,
   displayItemArrays,
@@ -161,39 +151,6 @@ const OverlayScene = ({
         </Suspense>
       )}
 
-      {/* 트리에서 그리면(TREE_OVERLAY_KINDS) 트리 층이 그린다 */}
-      {(isLegacyOverlayType('key') ? currentKeys : []).map((key, index) => {
-        // 멀티 슬롯은 합성 라벨, 라벨 배열이 짧으면 단일 키 displayName 폴백
-        const displayName =
-          currentKeyLabels[index] ?? getKeyInfoByGlobalKey(key).displayName;
-        const basePosition = displayPositions[index] ?? currentPositions[index];
-        if (!basePosition) return null;
-
-        const position = resolveZIndexFallback(basePosition, index);
-
-        return (
-          <Key
-            key={position.id}
-            keyName={displayName}
-            globalKey={key}
-            position={position}
-            mode={selectedKeyType}
-            counterEnabled={keyCounterEnabled}
-          />
-        );
-      })}
-      {ITEM_ELEMENT_TYPES.filter(isLegacyOverlayType).map((type) => (
-        <Fragment key={type}>
-          {displayItemArrays[EDITOR_ELEMENT_POSITION_FIELDS[type]].map(
-            (pos, index) =>
-              !pos || pos.hidden
-                ? null
-                : renderOverlayItem(type, pos as never, index, {
-                    spriteKeyCanonicalMap,
-                  }),
-          )}
-        </Fragment>
-      ))}
       <DocumentElementsLayer
         sceneId={selectedKeyType}
         placement="stacked"

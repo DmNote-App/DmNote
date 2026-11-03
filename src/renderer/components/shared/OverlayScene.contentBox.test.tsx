@@ -10,7 +10,6 @@ vi.mock('@api/modules/window/overlayApi', () => ({
 
 const baseProps = {
   currentKeys: [] as string[],
-  currentKeyLabels: [] as string[],
   displayPositions: [],
   currentPositions: [],
   displayItemArrays: {

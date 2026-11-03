@@ -159,7 +159,7 @@ export default function App() {
     () => ({ [selectedKeyType]: treeArrays.keyPositions }),
     [selectedKeyType, treeArrays.keyPositions],
   );
-  const { currentKeys, currentKeyLabels } = useOverlayKeyStateRuntime({
+  const { currentKeys } = useOverlayKeyStateRuntime({
     noteEffect,
     keyDisplayDelayMs,
     keyMappings: modeKeyMappings,
@@ -349,7 +349,6 @@ export default function App() {
   return (
     <OverlayScene
       currentKeys={currentKeys}
-      currentKeyLabels={currentKeyLabels}
       displayPositions={displayPositions}
       currentPositions={currentPositions}
       displayItemArrays={displayItemArrays}

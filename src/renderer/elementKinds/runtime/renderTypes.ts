@@ -2,6 +2,15 @@ import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import type { PointerInputSource } from './pointerInput';
 import type { SurfaceBundle } from './ElementSurface';
 
+// 오버레이가 트리에서 그리는 옛 종류에 넘기는 맥락
+export interface OverlayItemContext {
+  // 스프라이트 트리거(키 요소 id) -> canonical 키 문자열
+  spriteKeyCanonicalMap: ReadonlyMap<string, string>;
+  // 트리에서 그리는 키 - 지금 탭과 키 카운터 표시
+  mode?: string;
+  keyCounterEnabled?: boolean;
+}
+
 // 앱이 창에 맞게 넣어 주는 입력 - 오버레이·OBS만 실제 신호, 편집 화면은 비어 있다
 export interface ElementRenderInputs {
   pointer?: PointerInputSource;

@@ -12,7 +12,6 @@ import {
   buildCanonicalIndexMap,
   isSlotAssigned,
   slotCanonical,
-  slotDisplayName,
 } from '@utils/keySlot';
 
 type KeyDelayTimerHandle = ReturnType<typeof setTimeout>;
@@ -36,7 +35,6 @@ interface UseOverlayKeyStateRuntimeOptions {
 
 interface OverlayKeyStateRuntime {
   currentKeys: string[];
-  currentKeyLabels: string[];
 }
 
 const cancelKeyDelayTimers = (
@@ -406,11 +404,10 @@ export const useOverlayKeyStateRuntime = ({
     // 콜백이 읽는 값은 keyEventContextRef로 공급 - 구독은 창 수명과 동일
   }, []);
 
-  // 시그널·트랙 키는 canonical, 표시는 합성 라벨 (계약 §3, §11)
-  const { currentKeys, currentKeyLabels, currentValidKeySignature } = useMemo(
+  // 시그널·트랙 키는 canonical (계약 §3, §11)
+  const { currentKeys, currentValidKeySignature } = useMemo(
     () => ({
       currentKeys: currentSlots.map((slot) => slotCanonical(slot)),
-      currentKeyLabels: currentSlots.map((slot) => slotDisplayName(slot)),
       currentValidKeySignature: validKeySignature(currentSlots),
     }),
     [currentSlots],
@@ -458,5 +455,5 @@ export const useOverlayKeyStateRuntime = ({
     };
   }, [selectedKeyType, currentValidKeySignature]);
 
-  return { currentKeys, currentKeyLabels };
+  return { currentKeys };
 };
