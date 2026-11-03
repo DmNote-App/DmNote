@@ -84,8 +84,13 @@ const { usePropertiesPanelStore } = await import(
   '@stores/grid/usePropertiesPanelStore'
 );
 const { useSettingsStore } = await import('@stores/useSettingsStore');
+const { getDefaultCounterSettings } = await import('@src/renderer/defaults');
+const { BUILTIN_BUNDLE_DEFAULTS } = await import(
+  '@src/types/generated/elementDocument'
+);
 
-const ID = (n: number) => `60000000-0000-4000-8000-00000000000${n}`;
+const ID = (n: number) =>
+  `60000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 const element = (
   id: string,
@@ -189,10 +194,63 @@ const positionTracker = element(ID(5), 'cursorTracker', 4, {
   bundles: { surface: { backgroundColor: '#101010', borderWidth: 2 } },
 } as Partial<ElementNode>);
 
+const customKey = element(ID(10), 'key', 9, {
+  frame: { x: 1200, y: 20, width: 80, height: 70, rotation: 15 },
+  name: 'My Key',
+  className: 'my-key',
+  useInlineStyles: true,
+  input: { type: 'key', slot: 'KeyB' },
+  values: { displayText: 'B!', count: 3 },
+  bundles: {
+    surface: {
+      backgroundColor: '#223344',
+      activeBackgroundColor: '#445566',
+      borderColor: '#AABBCC',
+      borderWidth: 3,
+      borderRadius: 12,
+      shadow: {
+        enabled: true,
+        color: '#000000',
+        offsetX: 1,
+        offsetY: 2,
+        blur: 3,
+      },
+    },
+    font: { fontSize: 18, fontColor: '#FF0000', fontWeight: 700 },
+    image: { idleTransparent: true },
+    note: {
+      ...BUILTIN_BUNDLE_DEFAULTS.note,
+      noteColor: '#00FF00',
+      noteEffectEnabled: false,
+      noteGlowEnabled: true,
+    },
+    counter: {
+      counter: {
+        ...getDefaultCounterSettings(),
+        placement: 'outside',
+        align: 'top',
+        gap: 8,
+      },
+    },
+    sound: { soundEnabled: true, soundPath: null, soundVolume: 40 },
+  },
+} as Partial<ElementNode>);
+const stat = element(ID(11), 'stat', 10, {
+  frame: { x: 1300, y: 20, width: 60, height: 60, rotation: 0 },
+});
+const totalStat = element(ID(12), 'stat', 11, {
+  frame: { x: 1380, y: 20, width: 90, height: 50, rotation: 0 },
+  name: 'Total',
+  values: { statType: 'total', displayText: null, count: 0 },
+  bundles: { font: { fontSize: 20 } },
+} as Partial<ElementNode>);
+
 interface Case {
   nodes: Node[];
   selected: string[];
   useCustomCSS?: boolean;
+  // 속성 패널 탭 - 기본은 스타일
+  tab?: 'style' | 'note' | 'counter';
 }
 
 const CASES: Record<string, Case> = {
@@ -246,6 +304,65 @@ const CASES: Record<string, Case> = {
   '스프라이트와 그래프': {
     nodes: [lineGraph, sprite],
     selected: [ID(1), ID(8)],
+  },
+  '키 하나 - 기본값': { nodes: [key], selected: [ID(3)] },
+  '키 하나 - 노트 탭': { nodes: [key], selected: [ID(3)], tab: 'note' },
+  '키 하나 - 카운터 탭': { nodes: [key], selected: [ID(3)], tab: 'counter' },
+  '키 하나 - 이름·고른 값·사용자 CSS': {
+    nodes: [customKey],
+    selected: [ID(10)],
+    useCustomCSS: true,
+  },
+  '키 여럿 - 섞인 값': {
+    nodes: [key, customKey],
+    selected: [ID(3), ID(10)],
+    useCustomCSS: true,
+  },
+  '키 여럿 - 노트 탭': {
+    nodes: [key, customKey],
+    selected: [ID(3), ID(10)],
+    tab: 'note',
+  },
+  '키 여럿 - 카운터 탭': {
+    nodes: [key, customKey],
+    selected: [ID(3), ID(10)],
+    tab: 'counter',
+  },
+  '키 여럿 - 그룹 하나': {
+    nodes: [
+      {
+        type: 'group',
+        id: 'group-2',
+        name: 'Keys',
+        children: [key, customKey],
+      } as Node,
+    ],
+    selected: [ID(3), ID(10)],
+  },
+  '스탯 하나 - 기본값': { nodes: [stat], selected: [ID(11)] },
+  '스탯 하나 - 이름·누적·카운터 탭': {
+    nodes: [totalStat],
+    selected: [ID(12)],
+    tab: 'counter',
+  },
+  '스탯 여럿': { nodes: [stat, totalStat], selected: [ID(11), ID(12)] },
+  '키와 스탯': { nodes: [key, stat], selected: [ID(3), ID(11)] },
+  '키와 스탯 - 노트 탭': {
+    nodes: [key, stat],
+    selected: [ID(3), ID(11)],
+    tab: 'note',
+  },
+  '키와 노브': { nodes: [key, knob], selected: [ID(3), ID(6)] },
+  '키와 스프라이트': { nodes: [key, sprite], selected: [ID(3), ID(8)] },
+  '키와 그래프 - 카운터 탭': {
+    nodes: [lineGraph, key],
+    selected: [ID(1), ID(3)],
+    tab: 'counter',
+  },
+  '노브와 그래프 - 카운터 탭': {
+    nodes: [lineGraph, knob],
+    selected: [ID(1), ID(6)],
+    tab: 'counter',
   },
   // 트리에만 있는 종류
   '커서 트래커 하나': { nodes: [tracker], selected: [ID(4)] },
@@ -333,12 +450,19 @@ describe('속성 패널 DOM 약속', () => {
     host.remove();
     useDocumentSelectionStore.getState().clear();
     useSettingsStore.setState({ useCustomCSS: false });
+    usePropertiesPanelStore.setState({ propertyPanelActiveTab: 'style' });
   });
 
   it.each(Object.keys(CASES))('%s', async (name) => {
-    const { nodes, selected, useCustomCSS = false } = CASES[name];
+    const {
+      nodes,
+      selected,
+      useCustomCSS = false,
+      tab = 'style',
+    } = CASES[name];
     act(() => ipc.backend!.replace(() => documentOf(nodes)));
     useSettingsStore.setState({ useCustomCSS });
+    usePropertiesPanelStore.setState({ propertyPanelActiveTab: tab });
     act(() => {
       useDocumentSelectionStore.getState().setSelection('4key', selected);
     });
