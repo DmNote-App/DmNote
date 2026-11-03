@@ -1,6 +1,6 @@
 {
   "version": 4,
-  "comment": "semantic op 결과 동등성 파리티 fixture. 소비자: src-tauri/src/state/editor_ops_parity.rs (canonical 적용기), tests/editor-ops-parity.test.ts (프론트 낙관 적용기). 각 케이스는 같은 initialDocument에 같은 ops를 적용했을 때 양측이 만드는 문서가 expectedDocument와 일치함을 고정한다. 플러그인 그룹 멤버 원천(양측 근사 지점)은 양쪽 모두 비어 있는 상태를 전제한다.",
+  "comment": "semantic op 결과 fixture. 소비자: src-tauri/src/state/editor_ops_parity.rs (canonical 적용기 회귀 검사 - 프론트 낙관 적용기는 트리 연산으로 옮겨 걷었다). 각 케이스는 initialDocument에 ops를 적용한 문서가 expectedDocument와 일치함을 고정한다. 플러그인 그룹 멤버 원천은 비어 있는 상태를 전제한다.",
   "cases": [
     {
       "name": "setbounds-basic",

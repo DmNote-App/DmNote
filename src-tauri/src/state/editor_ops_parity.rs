@@ -6,9 +6,8 @@ use crate::models::{AppStoreData, EditorDocumentV1, EditorOpV1, EDITOR_OPS_VERSI
 
 use super::editor_ops::prepare_editor_ops_transition;
 
-// TS 테스트(tests/editor-ops-parity.test.ts)와 같은 fixture를 공유해
-// "같은 op 시퀀스 -> 같은 문서" 결과 동등성을 양 구현에 고정한다.
-// 여기서는 canonical 적용기(prepare_editor_ops_transition)가 소비한다
+// "같은 op 시퀀스 -> 같은 문서" 결과를 fixture로 고정한다 - canonical 적용기(prepare_editor_ops_transition)
+// 회귀 검사 (프론트 낙관 적용기는 트리 연산으로 옮겨 걷었다)
 const OPS_PARITY_FIXTURE: &str = include_str!("../../../tests/fixtures/editor-ops-parity.json");
 
 #[derive(Deserialize)]
