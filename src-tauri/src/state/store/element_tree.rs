@@ -406,18 +406,9 @@ fn sync_with_locked(
     // 새 버전 앱이 쓴 종류는 이 앱의 모양으로 고쳐 쓰지 않는다 (3.5 보존·잠금)
     let locked = locked_legacy_kinds(after.element_document());
     if !locked.is_empty() && locked_write == LockedWrite::Reject {
-        // 편집 커밋은 문서 전체를 정리한다(그라데이션 짝·이미지 모드·스프라이트 트리거) - 정리만 거친 차이는 쓰기가 아니다
-        let mut canonical = before.clone();
-        crate::state::migration::canonicalize_gradient_pairs(&mut canonical);
-        crate::state::migration::canonicalize_image_modes(&mut canonical);
-        crate::state::migration::normalize_sprite_triggers(&mut canonical);
-        let ids = locked_legacy_violations(
-            LegacyRef::from(previous),
-            LegacyRef::from(canonical.legacy()),
-            LegacyRef::from(&edit),
-            &locked,
-        )
-        .context("잠긴 요소 쓰기 확인 실패")?;
+        let ids =
+            locked_legacy_violations(LegacyRef::from(previous), LegacyRef::from(&edit), &locked)
+                .context("잠긴 요소 쓰기 확인 실패")?;
         if !ids.is_empty() {
             return Err(KindVersionLocked { ids }.into());
         }

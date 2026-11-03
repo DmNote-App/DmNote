@@ -102,11 +102,9 @@ pub(crate) fn locked_legacy_kinds(document: &Document) -> Vec<EditorElementTypeV
 
 /// 잠긴 종류의 요소를 엔진이 막는 방식으로 바꾸는 옛 모양 쓰기 - 그 요소 id. 값·묶음·입력(옛 모양에만 있는 칸
 /// 포함)을 바꾸거나, 새로 넣거나 지우면 위반이다(옛 종류는 되돌리기 기록이 옛 모양이라 지운 요소를 저장된 그대로
-/// 되살릴 수 없다). 틀·공통 정보·겹침 자리는 받는다. `canonical`은 편집 커밋이 문서 전체에 도는 정리를 거친
-/// 이전 옛 모양 - 정리만 거친 차이는 쓰기가 아니다
+/// 되살릴 수 없다). 틀·공통 정보·겹침 자리는 받는다. 편집 커밋의 문서 전체 정리는 잠긴 종류를 건드리지 않는다
 pub(crate) fn locked_legacy_violations(
     previous: LegacyRef<'_>,
-    canonical: LegacyRef<'_>,
     edit: LegacyRef<'_>,
     locked: &[EditorElementTypeV1],
 ) -> Result<Vec<String>> {
@@ -120,21 +118,18 @@ pub(crate) fn locked_legacy_violations(
                 .collect())
         };
         let before = locked_elements(previous)?;
-        let canonical = locked_elements(canonical)?;
         let after = locked_elements(edit)?;
         violations.extend(before.keys().filter(|id| !after.contains_key(*id)).cloned());
         for (id, element) in &after {
-            let kept = [before.get(id), canonical.get(id)]
-                .into_iter()
-                .flatten()
-                .any(|old| locked_part(old) == locked_part(element));
+            let kept = before
+                .get(id)
+                .is_some_and(|old| locked_part(old) == locked_part(element));
             if !kept {
                 violations.push(id.clone());
             }
         }
     }
     violations.sort();
-    violations.dedup();
     Ok(violations)
 }
 
@@ -156,7 +151,7 @@ fn locked_part(element: &Element) -> LockedPart<'_> {
 }
 
 /// 커밋 - 잠긴 종류의 요소는 저장된 것을 두고 틀·공통 정보·겹침 자리만 다시 만든 요소에서 받는다
-/// (값·묶음·입력은 이 앱의 모양으로 고쳐 쓰지 않는다 - 정리만 거친 차이도 저장된 것)
+/// (값·묶음·입력은 이 앱의 모양으로 고쳐 쓰지 않는다)
 pub(crate) fn settle_locked_elements(
     previous: &Document,
     next: &mut Document,

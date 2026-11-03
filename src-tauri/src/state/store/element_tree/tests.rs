@@ -3177,7 +3177,7 @@ fn 새_버전_앱이_쓴_종류도_옮기기·다른_종류_쓰기는_받고_값
 }
 
 #[test]
-fn 편집_커밋의_문서_전체_정리가_잠긴_요소를_바꿔도_다른_요소_편집을_막지_않는다() {
+fn 편집_커밋의_문서_전체_정리는_잠긴_요소를_건드리지_않고_다른_요소_편집을_막지_않는다() {
     let (dir, store) = open_store();
     // 새 버전 앱이 쓴 키 - 이 앱의 정리(이미지 모드 replace → 없음)에 걸리는 값
     legacy_write(&store, |data| {
@@ -3194,12 +3194,20 @@ fn 편집_커밋의_문서_전체_정리가_잠긴_요소를_바꿔도_다른_�
         .position
         .clone();
 
-    // 스탯 옮기기 - 편집 커밋이 문서 전체를 정리해도 잠긴 키는 저장된 그대로
-    commit_planned(
-        &store,
-        serde_json::json!([{
-            "op": "setFrame", "scene": "4key", "id": stat.id, "frame": { "x": stat.dx + 3.0 }
-        }]),
+    // 스탯 옮기기 - 편집 커밋의 정리는 잠긴 키를 건드리지 않는다 (바뀐 칸·기록에 키가 끼지 않는다)
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([{
+        "op": "setFrame", "scene": "4key", "id": stat.id, "frame": { "x": stat.dx + 3.0 }
+    }]))
+    .unwrap();
+    let ElementDocumentCommitPlan::Legacy { request, .. } =
+        store.plan_element_document_commit(&ops, None).unwrap()
+    else {
+        panic!("옛 편집 커밋이어야 한다");
+    };
+    let change = store.commit_editor_document(*request).unwrap();
+    assert_eq!(
+        change.result.changed_fields,
+        vec![EditorField::StatPositions]
     );
     assert_eq!(
         store.snapshot().legacy().stat_positions["4key"][0]

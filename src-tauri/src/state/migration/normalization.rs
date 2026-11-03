@@ -305,6 +305,9 @@ pub(crate) fn normalize_state(mut data: AppStoreData) -> AppStoreData {
 }
 
 pub(crate) fn normalize_sprite_triggers(data: &mut AppStoreData) -> bool {
+    if locked_kinds_of(data).contains(&crate::models::EditorElementTypeV1::Sprite) {
+        return false;
+    }
     let mut changed = false;
     for sprite in data.legacy_mut().sprite_positions.values_mut().flatten() {
         if !is_renderable_image_ref(sprite.base_image.as_deref()) {
@@ -540,11 +543,19 @@ pub(super) fn normalize_blank_font_colors(data: &mut AppStoreData) -> bool {
     changed
 }
 
+// 새 버전 앱이 쓴 종류(잠금) - 이 앱의 정리로 고치지 않는다 (설계 3.5)
+fn locked_kinds_of(data: &AppStoreData) -> Vec<crate::models::EditorElementTypeV1> {
+    crate::models::legacy_layout::locked_legacy_kinds(data.element_document())
+}
+
 // image_mode replace 표현을 None으로 접는다 (KeyPosition::canonicalize_image_mode 참조)
 pub(crate) fn canonicalize_image_modes(data: &mut AppStoreData) -> bool {
+    let locked = locked_kinds_of(data);
     let mut changed = false;
-    for_each_key_position_mut(data, |_, position| {
-        changed |= position.canonicalize_image_mode();
+    for_each_key_position_mut(data, |kind, position| {
+        if !locked.contains(&kind) {
+            changed |= position.canonicalize_image_mode();
+        }
     });
     changed
 }
@@ -556,10 +567,14 @@ pub(super) fn remove_legacy_panel_detach_setting(data: &mut AppStoreData) -> boo
 }
 
 pub(crate) fn canonicalize_gradient_pairs(data: &mut AppStoreData) -> (bool, bool) {
+    let locked = locked_kinds_of(data);
     let mut changed = false;
     let mut pair_repaired = false;
 
-    for_each_key_position_mut(data, |_, position| {
+    for_each_key_position_mut(data, |kind, position| {
+        if locked.contains(&kind) {
+            return;
+        }
         let (position_changed, position_pair_repaired) = position.canonicalize_gradient_pairs();
         changed |= position_changed;
         pair_repaired |= position_pair_repaired;
