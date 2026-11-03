@@ -3,13 +3,18 @@
 exports[`그리기 약속 행렬 > graph > 오버레이 - 대기·입력 > 대기 1`] = `
 [
   {
+    "attrs": {
+      "data-graph-element": "true",
+      "data-overlay-hit": "true",
+      "data-state": "inactive",
+    },
     "children": [
       {
-        "data": {
+        "attrs": {
+          "aria-hidden": "true",
           "data-gradient-border-ring": "true",
         },
-        "tag": "span",
-        "vars": {
+        "style": {
           "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
           "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
           "-webkit-mask-composite": "xor",
@@ -26,47 +31,80 @@ exports[`그리기 약속 행렬 > graph > 오버레이 - 대기·입력 > 대�
           "position": "absolute",
           "z-index": "1",
         },
+        "tag": "span",
       },
       {
         "children": [
           {
+            "attrs": {
+              "height": "100%",
+              "preserveAspectRatio": "none",
+              "viewBox": "0 0 100 100",
+              "width": "100%",
+            },
             "children": [
               {
                 "children": [
                   {
+                    "attrs": {
+                      "id": "lineGradient-graph-overlay-UID",
+                      "x1": "0%",
+                      "x2": "100%",
+                      "y1": "0%",
+                      "y2": "0%",
+                    },
                     "children": [
                       {
-                        "tag": "stop",
-                        "vars": {
+                        "attrs": {
+                          "offset": "0%",
+                        },
+                        "style": {
                           "stop-color": "var(--graph-color, #86EFAC)",
                           "stop-opacity": "0.3",
                         },
+                        "tag": "stop",
                       },
                       {
-                        "tag": "stop",
-                        "vars": {
+                        "attrs": {
+                          "offset": "100%",
+                        },
+                        "style": {
                           "stop-color": "var(--graph-color, #86EFAC)",
                           "stop-opacity": "1",
                         },
+                        "tag": "stop",
                       },
                     ],
                     "tag": "lineargradient",
                   },
                   {
+                    "attrs": {
+                      "id": "fillGradient-graph-overlay-UID",
+                      "x1": "0%",
+                      "x2": "100%",
+                      "y1": "0%",
+                      "y2": "0%",
+                    },
                     "children": [
                       {
-                        "tag": "stop",
-                        "vars": {
+                        "attrs": {
+                          "offset": "0%",
+                        },
+                        "style": {
                           "stop-color": "var(--graph-color, #86EFAC)",
                           "stop-opacity": "0.05",
                         },
+                        "tag": "stop",
                       },
                       {
-                        "tag": "stop",
-                        "vars": {
+                        "attrs": {
+                          "offset": "100%",
+                        },
+                        "style": {
                           "stop-color": "var(--graph-color, #86EFAC)",
                           "stop-opacity": "0.15",
                         },
+                        "tag": "stop",
                       },
                     ],
                     "tag": "lineargradient",
@@ -75,17 +113,40 @@ exports[`그리기 약속 행렬 > graph > 오버레이 - 대기·입력 > 대�
                 "tag": "defs",
               },
               {
+                "attrs": {
+                  "fill": "url(#fillGradient-graph-overlay-UID)",
+                  "points": "0,101 0,101 11.11111111111111,101 22.22222222222222,101 33.33333333333333,101 44.44444444444444,101 55.55555555555556,101 66.66666666666666,101 77.77777777777779,101 88.88888888888889,101 100,101 100,101",
+                },
                 "tag": "polygon",
               },
               {
+                "attrs": {
+                  "opacity": "0.5",
+                  "stroke": "var(--graph-color, #86EFAC)",
+                  "stroke-dasharray": "2,2",
+                  "stroke-width": "1",
+                  "vector-effect": "non-scaling-stroke",
+                  "x1": "0",
+                  "x2": "100",
+                  "y1": "100",
+                  "y2": "100",
+                },
                 "tag": "line",
               },
               {
+                "attrs": {
+                  "fill": "none",
+                  "points": "0,101 11.11111111111111,101 22.22222222222222,101 33.33333333333333,101 44.44444444444444,101 55.55555555555556,101 66.66666666666666,101 77.77777777777779,101 88.88888888888889,101 100,101",
+                  "stroke": "url(#lineGradient-graph-overlay-UID)",
+                  "stroke-linecap": "round",
+                  "stroke-linejoin": "round",
+                  "stroke-width": "2",
+                  "vector-effect": "non-scaling-stroke",
+                },
                 "tag": "polyline",
               },
             ],
-            "tag": "svg",
-            "vars": {
+            "style": {
               "bottom": "0px",
               "height": "100%",
               "left": "0px",
@@ -94,10 +155,10 @@ exports[`그리기 약속 행렬 > graph > 오버레이 - 대기·입력 > 대�
               "top": "0px",
               "width": "100%",
             },
+            "tag": "svg",
           },
         ],
-        "tag": "div",
-        "vars": {
+        "style": {
           "align-items": "flex-end",
           "background": "transparent",
           "background-attachment": "scroll",
@@ -119,6 +180,7 @@ exports[`그리기 약속 행렬 > graph > 오버레이 - 대기·입력 > 대�
           "position": "relative",
           "z-index": "1",
         },
+        "tag": "div",
       },
     ],
     "class": [
@@ -126,13 +188,7 @@ exports[`그리기 약속 행렬 > graph > 오버레이 - 대기·입력 > 대�
       "my-graph",
       "select-none",
     ],
-    "data": {
-      "data-graph-element": "true",
-      "data-overlay-hit": "true",
-      "data-state": "inactive",
-    },
-    "tag": "div",
-    "vars": {
+    "style": {
       "--dmn-graph-bg-default": "#112233",
       "--dmn-graph-border-default": "none",
       "--dmn-graph-font-family-default": "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', sans-serif",
@@ -155,164 +211,473 @@ exports[`그리기 약속 행렬 > graph > 오버레이 - 대기·입력 > 대�
       "will-change": "transform",
       "z-index": "0",
     },
+    "tag": "div",
   },
 ]
 `;
 
-exports[`그리기 약속 행렬 > graph > 편집 화면 - 대기·눌림 미리보기 > 대기 1`] = `
+exports[`그리기 약속 행렬 > graph > 편집 화면 - 대기·눌림·편집 미리보기 > 대기 1`] = `
 [
   {
+    "attrs": {
+      "data-element-id": "graph-1",
+      "data-element-kind": "graph",
+    },
     "children": [
       {
-        "data": {
-          "data-gradient-border-ring": "true",
+        "attrs": {
+          "data-graph-element": "true",
+          "data-state": "inactive",
         },
-        "tag": "span",
-        "vars": {
-          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
-          "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-          "-webkit-mask-composite": "xor",
-          "border-radius": "inherit",
-          "inset": "0px",
-          "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-          "mask-composite": "exclude",
-          "padding": "2px",
-          "padding-bottom": "2px",
-          "padding-left": "2px",
-          "padding-right": "2px",
-          "padding-top": "2px",
-          "pointer-events": "none",
-          "position": "absolute",
-          "z-index": "1",
-        },
-      },
-      {
         "children": [
+          {
+            "attrs": {
+              "aria-hidden": "true",
+              "data-gradient-border-ring": "true",
+            },
+            "style": {
+              "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+              "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "-webkit-mask-composite": "xor",
+              "border-radius": "inherit",
+              "inset": "0px",
+              "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "mask-composite": "exclude",
+              "padding": "2px",
+              "padding-bottom": "2px",
+              "padding-left": "2px",
+              "padding-right": "2px",
+              "padding-top": "2px",
+              "pointer-events": "none",
+              "position": "absolute",
+              "z-index": "1",
+            },
+            "tag": "span",
+          },
           {
             "children": [
               {
+                "attrs": {
+                  "height": "100%",
+                  "preserveAspectRatio": "none",
+                  "viewBox": "0 0 100 100",
+                  "width": "100%",
+                },
                 "children": [
                   {
                     "children": [
                       {
-                        "tag": "stop",
-                        "vars": {
-                          "stop-color": "var(--graph-color, #86EFAC)",
-                          "stop-opacity": "0.3",
+                        "attrs": {
+                          "id": "lineGradient-graph-preview-UID",
+                          "x1": "0%",
+                          "x2": "100%",
+                          "y1": "0%",
+                          "y2": "0%",
                         },
+                        "children": [
+                          {
+                            "attrs": {
+                              "offset": "0%",
+                            },
+                            "style": {
+                              "stop-color": "var(--graph-color, #86EFAC)",
+                              "stop-opacity": "0.3",
+                            },
+                            "tag": "stop",
+                          },
+                          {
+                            "attrs": {
+                              "offset": "100%",
+                            },
+                            "style": {
+                              "stop-color": "var(--graph-color, #86EFAC)",
+                              "stop-opacity": "1",
+                            },
+                            "tag": "stop",
+                          },
+                        ],
+                        "tag": "lineargradient",
                       },
                       {
-                        "tag": "stop",
-                        "vars": {
-                          "stop-color": "var(--graph-color, #86EFAC)",
-                          "stop-opacity": "1",
+                        "attrs": {
+                          "id": "fillGradient-graph-preview-UID",
+                          "x1": "0%",
+                          "x2": "100%",
+                          "y1": "0%",
+                          "y2": "0%",
                         },
+                        "children": [
+                          {
+                            "attrs": {
+                              "offset": "0%",
+                            },
+                            "style": {
+                              "stop-color": "var(--graph-color, #86EFAC)",
+                              "stop-opacity": "0.05",
+                            },
+                            "tag": "stop",
+                          },
+                          {
+                            "attrs": {
+                              "offset": "100%",
+                            },
+                            "style": {
+                              "stop-color": "var(--graph-color, #86EFAC)",
+                              "stop-opacity": "0.15",
+                            },
+                            "tag": "stop",
+                          },
+                        ],
+                        "tag": "lineargradient",
                       },
                     ],
-                    "tag": "lineargradient",
+                    "tag": "defs",
                   },
+                  {
+                    "attrs": {
+                      "fill": "url(#fillGradient-graph-preview-UID)",
+                      "points": "0,101 0,55.55555555555556 7.142857142857142,44.44444444444444 14.285714285714285,38.888888888888886 21.428571428571427,27.777777777777786 28.57142857142857,33.33333333333334 35.714285714285715,22.222222222222214 42.857142857142854,16.666666666666657 50,11.111111111111114 57.14285714285714,22.222222222222214 64.28571428571429,27.777777777777786 71.42857142857143,33.33333333333334 78.57142857142857,22.222222222222214 85.71428571428571,16.666666666666657 92.85714285714286,22.222222222222214 100,22.222222222222214 100,101",
+                    },
+                    "tag": "polygon",
+                  },
+                  {
+                    "attrs": {
+                      "opacity": "0.5",
+                      "stroke": "var(--graph-color, #86EFAC)",
+                      "stroke-dasharray": "2,2",
+                      "stroke-width": "1",
+                      "vector-effect": "non-scaling-stroke",
+                      "x1": "0",
+                      "x2": "100",
+                      "y1": "33.33333333333334",
+                      "y2": "33.33333333333334",
+                    },
+                    "tag": "line",
+                  },
+                  {
+                    "attrs": {
+                      "fill": "none",
+                      "points": "0,55.55555555555556 7.142857142857142,44.44444444444444 14.285714285714285,38.888888888888886 21.428571428571427,27.777777777777786 28.57142857142857,33.33333333333334 35.714285714285715,22.222222222222214 42.857142857142854,16.666666666666657 50,11.111111111111114 57.14285714285714,22.222222222222214 64.28571428571429,27.777777777777786 71.42857142857143,33.33333333333334 78.57142857142857,22.222222222222214 85.71428571428571,16.666666666666657 92.85714285714286,22.222222222222214 100,22.222222222222214",
+                      "stroke": "url(#lineGradient-graph-preview-UID)",
+                      "stroke-linecap": "round",
+                      "stroke-linejoin": "round",
+                      "stroke-width": "2",
+                      "vector-effect": "non-scaling-stroke",
+                    },
+                    "tag": "polyline",
+                  },
+                ],
+                "style": {
+                  "bottom": "0px",
+                  "height": "100%",
+                  "left": "0px",
+                  "position": "absolute",
+                  "right": "0px",
+                  "top": "0px",
+                  "width": "100%",
+                },
+                "tag": "svg",
+              },
+            ],
+            "style": {
+              "align-items": "flex-end",
+              "background": "transparent",
+              "background-attachment": "scroll",
+              "background-clip": "border-box",
+              "background-color": "transparent",
+              "background-image": "none",
+              "background-origin": "padding-box",
+              "background-position": "0% 0%",
+              "background-repeat": "repeat",
+              "background-size": "auto",
+              "display": "flex",
+              "flex": "1 1 0%",
+              "flex-basis": "0%",
+              "flex-grow": "1",
+              "flex-shrink": "1",
+              "gap": "1px",
+              "justify-content": "space-between",
+              "min-height": "0px",
+              "position": "relative",
+              "z-index": "1",
+            },
+            "tag": "div",
+          },
+        ],
+        "class": [
+          "absolute",
+          "dmn-grabbable",
+          "my-graph",
+          "select-none",
+        ],
+        "style": {
+          "--dmn-graph-bg-default": "#112233",
+          "--dmn-graph-border-default": "none",
+          "--dmn-graph-font-family-default": "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', sans-serif",
+          "--dmn-graph-padding-default": "2px",
+          "--dmn-graph-radius-default": "6px",
+          "--dmn-graph-text-color-default": "#FFFFFF",
+          "backface-visibility": "visible",
+          "box-sizing": "border-box",
+          "contain": "layout style",
+          "display": "flex",
+          "flex-direction": "column",
+          "height": "100px",
+          "image-rendering": "auto",
+          "isolation": "isolate",
+          "overflow": "hidden",
+          "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
+          "transform-style": "flat",
+          "width": "200px",
+          "will-change": "auto",
+          "z-index": "0",
+        },
+        "tag": "div",
+      },
+    ],
+    "style": {
+      "cursor": "move",
+      "height": "100px",
+      "left": "4px",
+      "position": "absolute",
+      "top": "8px",
+      "width": "200px",
+      "z-index": "0",
+    },
+    "tag": "div",
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > graph > 편집 화면 - 대기·눌림·편집 미리보기 > 편집 미리보기 1`] = `
+[
+  {
+    "attrs": {
+      "data-element-id": "graph-1",
+      "data-element-kind": "graph",
+    },
+    "children": [
+      {
+        "attrs": {
+          "data-graph-element": "true",
+          "data-state": "inactive",
+        },
+        "children": [
+          {
+            "attrs": {
+              "aria-hidden": "true",
+              "data-gradient-border-ring": "true",
+            },
+            "style": {
+              "--dmn-border-gradient-image-default": "linear-gradient(90deg, #FF0000 NaN%, #0000FF NaN%)",
+              "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "-webkit-mask-composite": "xor",
+              "border-radius": "inherit",
+              "inset": "0px",
+              "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "mask-composite": "exclude",
+              "padding": "2px",
+              "padding-bottom": "2px",
+              "padding-left": "2px",
+              "padding-right": "2px",
+              "padding-top": "2px",
+              "pointer-events": "none",
+              "position": "absolute",
+              "z-index": "1",
+            },
+            "tag": "span",
+          },
+          {
+            "children": [
+              {
+                "attrs": {
+                  "height": "100%",
+                  "preserveAspectRatio": "none",
+                  "viewBox": "0 0 100 100",
+                  "width": "100%",
+                },
+                "children": [
                   {
                     "children": [
                       {
-                        "tag": "stop",
-                        "vars": {
-                          "stop-color": "var(--graph-color, #86EFAC)",
-                          "stop-opacity": "0.05",
+                        "attrs": {
+                          "id": "lineGradient-graph-preview-UID",
+                          "x1": "0%",
+                          "x2": "100%",
+                          "y1": "0%",
+                          "y2": "0%",
                         },
+                        "children": [
+                          {
+                            "attrs": {
+                              "offset": "0%",
+                            },
+                            "style": {
+                              "stop-color": "var(--graph-color, #86EFAC)",
+                              "stop-opacity": "0.3",
+                            },
+                            "tag": "stop",
+                          },
+                          {
+                            "attrs": {
+                              "offset": "100%",
+                            },
+                            "style": {
+                              "stop-color": "var(--graph-color, #86EFAC)",
+                              "stop-opacity": "1",
+                            },
+                            "tag": "stop",
+                          },
+                        ],
+                        "tag": "lineargradient",
                       },
                       {
-                        "tag": "stop",
-                        "vars": {
-                          "stop-color": "var(--graph-color, #86EFAC)",
-                          "stop-opacity": "0.15",
+                        "attrs": {
+                          "id": "fillGradient-graph-preview-UID",
+                          "x1": "0%",
+                          "x2": "100%",
+                          "y1": "0%",
+                          "y2": "0%",
                         },
+                        "children": [
+                          {
+                            "attrs": {
+                              "offset": "0%",
+                            },
+                            "style": {
+                              "stop-color": "var(--graph-color, #86EFAC)",
+                              "stop-opacity": "0.05",
+                            },
+                            "tag": "stop",
+                          },
+                          {
+                            "attrs": {
+                              "offset": "100%",
+                            },
+                            "style": {
+                              "stop-color": "var(--graph-color, #86EFAC)",
+                              "stop-opacity": "0.15",
+                            },
+                            "tag": "stop",
+                          },
+                        ],
+                        "tag": "lineargradient",
                       },
                     ],
-                    "tag": "lineargradient",
+                    "tag": "defs",
+                  },
+                  {
+                    "attrs": {
+                      "fill": "url(#fillGradient-graph-preview-UID)",
+                      "points": "0,101 0,55.55555555555556 7.142857142857142,44.44444444444444 14.285714285714285,38.888888888888886 21.428571428571427,27.777777777777786 28.57142857142857,33.33333333333334 35.714285714285715,22.222222222222214 42.857142857142854,16.666666666666657 50,11.111111111111114 57.14285714285714,22.222222222222214 64.28571428571429,27.777777777777786 71.42857142857143,33.33333333333334 78.57142857142857,22.222222222222214 85.71428571428571,16.666666666666657 92.85714285714286,22.222222222222214 100,22.222222222222214 100,101",
+                    },
+                    "tag": "polygon",
+                  },
+                  {
+                    "attrs": {
+                      "opacity": "0.5",
+                      "stroke": "var(--graph-color, #86EFAC)",
+                      "stroke-dasharray": "2,2",
+                      "stroke-width": "1",
+                      "vector-effect": "non-scaling-stroke",
+                      "x1": "0",
+                      "x2": "100",
+                      "y1": "33.33333333333334",
+                      "y2": "33.33333333333334",
+                    },
+                    "tag": "line",
+                  },
+                  {
+                    "attrs": {
+                      "fill": "none",
+                      "points": "0,55.55555555555556 7.142857142857142,44.44444444444444 14.285714285714285,38.888888888888886 21.428571428571427,27.777777777777786 28.57142857142857,33.33333333333334 35.714285714285715,22.222222222222214 42.857142857142854,16.666666666666657 50,11.111111111111114 57.14285714285714,22.222222222222214 64.28571428571429,27.777777777777786 71.42857142857143,33.33333333333334 78.57142857142857,22.222222222222214 85.71428571428571,16.666666666666657 92.85714285714286,22.222222222222214 100,22.222222222222214",
+                      "stroke": "url(#lineGradient-graph-preview-UID)",
+                      "stroke-linecap": "round",
+                      "stroke-linejoin": "round",
+                      "stroke-width": "2",
+                      "vector-effect": "non-scaling-stroke",
+                    },
+                    "tag": "polyline",
                   },
                 ],
-                "tag": "defs",
-              },
-              {
-                "tag": "polygon",
-              },
-              {
-                "tag": "line",
-              },
-              {
-                "tag": "polyline",
+                "style": {
+                  "bottom": "0px",
+                  "height": "100%",
+                  "left": "0px",
+                  "position": "absolute",
+                  "right": "0px",
+                  "top": "0px",
+                  "width": "100%",
+                },
+                "tag": "svg",
               },
             ],
-            "tag": "svg",
-            "vars": {
-              "bottom": "0px",
-              "height": "100%",
-              "left": "0px",
-              "position": "absolute",
-              "right": "0px",
-              "top": "0px",
-              "width": "100%",
+            "style": {
+              "align-items": "flex-end",
+              "background": "transparent",
+              "background-attachment": "scroll",
+              "background-clip": "border-box",
+              "background-color": "transparent",
+              "background-image": "none",
+              "background-origin": "padding-box",
+              "background-position": "0% 0%",
+              "background-repeat": "repeat",
+              "background-size": "auto",
+              "display": "flex",
+              "flex": "1 1 0%",
+              "flex-basis": "0%",
+              "flex-grow": "1",
+              "flex-shrink": "1",
+              "gap": "1px",
+              "justify-content": "space-between",
+              "min-height": "0px",
+              "position": "relative",
+              "z-index": "1",
             },
+            "tag": "div",
           },
         ],
-        "tag": "div",
-        "vars": {
-          "align-items": "flex-end",
-          "background": "transparent",
-          "background-attachment": "scroll",
-          "background-clip": "border-box",
-          "background-color": "transparent",
-          "background-image": "none",
-          "background-origin": "padding-box",
-          "background-position": "0% 0%",
-          "background-repeat": "repeat",
-          "background-size": "auto",
+        "class": [
+          "absolute",
+          "dmn-grabbable",
+          "my-graph",
+          "select-none",
+        ],
+        "style": {
+          "--dmn-graph-bg-default": "#ABCDEF",
+          "--dmn-graph-border-default": "none",
+          "--dmn-graph-font-family-default": "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', sans-serif",
+          "--dmn-graph-padding-default": "2px",
+          "--dmn-graph-radius-default": "6px",
+          "--dmn-graph-text-color-default": "#FFFFFF",
+          "backface-visibility": "visible",
+          "box-sizing": "border-box",
+          "contain": "layout style",
           "display": "flex",
-          "flex": "1 1 0%",
-          "flex-basis": "0%",
-          "flex-grow": "1",
-          "flex-shrink": "1",
-          "gap": "1px",
-          "justify-content": "space-between",
-          "min-height": "0px",
-          "position": "relative",
-          "z-index": "1",
+          "flex-direction": "column",
+          "height": "100px",
+          "image-rendering": "auto",
+          "isolation": "isolate",
+          "overflow": "hidden",
+          "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
+          "transform-style": "flat",
+          "width": "200px",
+          "will-change": "auto",
+          "z-index": "0",
         },
+        "tag": "div",
       },
     ],
-    "class": [
-      "absolute",
-      "dmn-grabbable",
-      "my-graph",
-      "select-none",
-    ],
-    "data": {
-      "data-graph-element": "true",
-      "data-state": "inactive",
-    },
-    "tag": "div",
-    "vars": {
-      "--dmn-graph-bg-default": "#112233",
-      "--dmn-graph-border-default": "none",
-      "--dmn-graph-font-family-default": "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', sans-serif",
-      "--dmn-graph-padding-default": "2px",
-      "--dmn-graph-radius-default": "6px",
-      "--dmn-graph-text-color-default": "#FFFFFF",
-      "backface-visibility": "visible",
-      "box-sizing": "border-box",
-      "contain": "layout style",
-      "display": "flex",
-      "flex-direction": "column",
+    "style": {
+      "cursor": "move",
       "height": "100px",
-      "image-rendering": "auto",
-      "isolation": "isolate",
-      "overflow": "hidden",
-      "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
-      "transform-style": "flat",
+      "left": "4px",
+      "position": "absolute",
+      "top": "8px",
       "width": "200px",
-      "will-change": "auto",
       "z-index": "0",
     },
+    "tag": "div",
   },
 ]
 `;
@@ -320,13 +685,18 @@ exports[`그리기 약속 행렬 > graph > 편집 화면 - 대기·눌림 미리
 exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 대기 1`] = `
 [
   {
+    "attrs": {
+      "data-key-element": "true",
+      "data-overlay-hit": "true",
+      "data-state": "inactive",
+    },
     "children": [
       {
-        "data": {
+        "attrs": {
+          "aria-hidden": "true",
           "data-gradient-border-ring": "true",
         },
-        "tag": "span",
-        "vars": {
+        "style": {
           "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
           "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
           "-webkit-mask-composite": "xor",
@@ -343,10 +713,14 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 대기 
           "position": "absolute",
           "z-index": "1",
         },
+        "tag": "span",
       },
       {
         "children": [
           {
+            "attrs": {
+              "data-key-label": "true",
+            },
             "class": [
               "font-bold",
               "leading-normal",
@@ -355,11 +729,7 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 대기 
               "text-[14px]",
               "text-safe-inline",
             ],
-            "data": {
-              "data-key-label": "true",
-            },
-            "tag": "span",
-            "vars": {
+            "style": {
               "font-family": "inherit",
               "font-size": "inherit",
               "font-style": "inherit",
@@ -367,17 +737,18 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 대기 
               "text-decoration": "inherit",
               "will-change": "auto",
             },
+            "tag": "span",
+            "text": "KeyA",
           },
           {
-            "class": [
-              "counter",
-            ],
-            "data": {
+            "attrs": {
               "data-counter-state": "inactive",
               "data-text": "0",
             },
-            "tag": "span",
-            "vars": {
+            "class": [
+              "counter",
+            ],
+            "style": {
               "--counter-color-default": "rgba(237, 238, 242, 0.78)",
               "--dmn-counter-fill-clip-default": "border-box",
               "--dmn-counter-fill-image-default": "none",
@@ -395,6 +766,8 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 대기 
               "transform-origin": "center bottom",
               "user-select": "none",
             },
+            "tag": "span",
+            "text": "0",
           },
         ],
         "class": [
@@ -406,8 +779,7 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 대기 
           "select-none",
           "w-full",
         ],
-        "tag": "div",
-        "vars": {
+        "style": {
           "gap": "4px",
           "justify-content": "center",
           "padding": "0px",
@@ -416,19 +788,14 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 대기 
           "padding-right": "0px",
           "padding-top": "0px",
         },
+        "tag": "div",
       },
     ],
     "class": [
       "absolute",
       "my-key",
     ],
-    "data": {
-      "data-key-element": "true",
-      "data-overlay-hit": "true",
-      "data-state": "inactive",
-    },
-    "tag": "div",
-    "vars": {
+    "style": {
       "--dmn-key-bg-default": "#112233",
       "--dmn-key-bg-image-default": "none",
       "--dmn-key-border-default": "none",
@@ -457,6 +824,7 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 대기 
       "will-change": "transform",
       "z-index": "0",
     },
+    "tag": "div",
   },
 ]
 `;
@@ -464,13 +832,18 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 대기 
 exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 입력 1`] = `
 [
   {
+    "attrs": {
+      "data-key-element": "true",
+      "data-overlay-hit": "true",
+      "data-state": "active",
+    },
     "children": [
       {
-        "data": {
+        "attrs": {
+          "aria-hidden": "true",
           "data-gradient-border-ring": "true",
         },
-        "tag": "span",
-        "vars": {
+        "style": {
           "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
           "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
           "-webkit-mask-composite": "xor",
@@ -487,10 +860,14 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 입력 
           "position": "absolute",
           "z-index": "1",
         },
+        "tag": "span",
       },
       {
         "children": [
           {
+            "attrs": {
+              "data-key-label": "true",
+            },
             "class": [
               "font-bold",
               "leading-normal",
@@ -499,11 +876,7 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 입력 
               "text-[14px]",
               "text-safe-inline",
             ],
-            "data": {
-              "data-key-label": "true",
-            },
-            "tag": "span",
-            "vars": {
+            "style": {
               "font-family": "inherit",
               "font-size": "inherit",
               "font-style": "inherit",
@@ -511,17 +884,18 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 입력 
               "text-decoration": "inherit",
               "will-change": "auto",
             },
+            "tag": "span",
+            "text": "KeyA",
           },
           {
-            "class": [
-              "counter",
-            ],
-            "data": {
+            "attrs": {
               "data-counter-state": "active",
               "data-text": "0",
             },
-            "tag": "span",
-            "vars": {
+            "class": [
+              "counter",
+            ],
+            "style": {
               "--counter-color-default": "rgba(20, 20, 24, 0.9)",
               "--dmn-counter-fill-clip-default": "border-box",
               "--dmn-counter-fill-image-default": "none",
@@ -539,6 +913,8 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 입력 
               "transform-origin": "center bottom",
               "user-select": "none",
             },
+            "tag": "span",
+            "text": "0",
           },
         ],
         "class": [
@@ -550,8 +926,7 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 입력 
           "select-none",
           "w-full",
         ],
-        "tag": "div",
-        "vars": {
+        "style": {
           "gap": "4px",
           "justify-content": "center",
           "padding": "0px",
@@ -560,19 +935,14 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 입력 
           "padding-right": "0px",
           "padding-top": "0px",
         },
+        "tag": "div",
       },
     ],
     "class": [
       "absolute",
       "my-key",
     ],
-    "data": {
-      "data-key-element": "true",
-      "data-overlay-hit": "true",
-      "data-state": "active",
-    },
-    "tag": "div",
-    "vars": {
+    "style": {
       "--dmn-key-bg-default": "#445566",
       "--dmn-key-bg-image-default": "none",
       "--dmn-key-border-default": "none",
@@ -601,204 +971,364 @@ exports[`그리기 약속 행렬 > key > 오버레이 - 대기·입력 > 입력 
       "will-change": "transform",
       "z-index": "0",
     },
+    "tag": "div",
   },
 ]
 `;
 
-exports[`그리기 약속 행렬 > key > 편집 화면 - 대기·눌림 미리보기 > 눌림 미리보기 1`] = `
+exports[`그리기 약속 행렬 > key > 편집 화면 - 대기·눌림·편집 미리보기 > 눌림 미리보기 1`] = `
 [
   {
+    "attrs": {
+      "data-element-id": "key-1",
+      "data-element-kind": "key",
+    },
     "children": [
       {
-        "data": {
-          "data-gradient-border-ring": "true",
+        "attrs": {
+          "data-key-element": "true",
+          "data-state": "active",
         },
-        "tag": "span",
-        "vars": {
-          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
-          "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-          "-webkit-mask-composite": "xor",
-          "border-radius": "inherit",
-          "inset": "0px",
-          "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-          "mask-composite": "exclude",
-          "padding": "2px",
-          "padding-bottom": "2px",
-          "padding-left": "2px",
-          "padding-right": "2px",
-          "padding-top": "2px",
-          "pointer-events": "none",
-          "position": "absolute",
-          "z-index": "1",
-        },
-      },
-      {
         "children": [
           {
-            "class": [
-              "text-safe-inline",
-            ],
-            "data": {
-              "data-key-label": "true",
+            "attrs": {
+              "aria-hidden": "true",
+              "data-gradient-border-ring": "true",
+            },
+            "style": {
+              "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+              "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "-webkit-mask-composite": "xor",
+              "border-radius": "inherit",
+              "inset": "0px",
+              "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "mask-composite": "exclude",
+              "padding": "2px",
+              "padding-bottom": "2px",
+              "padding-left": "2px",
+              "padding-right": "2px",
+              "padding-top": "2px",
+              "pointer-events": "none",
+              "position": "absolute",
+              "z-index": "1",
             },
             "tag": "span",
           },
+          {
+            "children": [
+              {
+                "attrs": {
+                  "data-key-label": "true",
+                },
+                "class": [
+                  "text-safe-inline",
+                ],
+                "tag": "span",
+                "text": "KeyA",
+              },
+            ],
+            "class": [
+              "flex",
+              "font-bold",
+              "h-full",
+              "items-center",
+              "justify-center",
+            ],
+            "style": {
+              "font-family": "inherit",
+              "font-size": "inherit",
+              "font-style": "inherit",
+              "font-weight": "inherit",
+              "text-decoration": "inherit",
+              "will-change": "auto",
+            },
+            "tag": "div",
+          },
         ],
         "class": [
-          "flex",
-          "font-bold",
-          "h-full",
-          "items-center",
-          "justify-center",
+          "absolute",
+          "dmn-grabbable",
+          "my-key",
         ],
-        "tag": "div",
-        "vars": {
-          "font-family": "inherit",
-          "font-size": "inherit",
-          "font-style": "inherit",
-          "font-weight": "inherit",
-          "text-decoration": "inherit",
+        "style": {
+          "--dmn-key-bg-default": "#445566",
+          "--dmn-key-bg-image-default": "none",
+          "--dmn-key-border-default": "none",
+          "--dmn-key-font-family-default": "inherit",
+          "--dmn-key-font-size-default": "14px",
+          "--dmn-key-font-style-default": "normal",
+          "--dmn-key-font-weight-default": "700",
+          "--dmn-key-label-color-default": "inherit",
+          "--dmn-key-padding-default": "2px",
+          "--dmn-key-radius-default": "6px",
+          "--dmn-key-shadow-default": "0px 3px 8px rgba(0, 0, 0, 0.32)",
+          "--dmn-key-text-color-default": "#ffffff",
+          "--dmn-key-text-decoration-default": "none",
+          "--dmn-key-text-image-default": "none",
+          "--dmn-key-text-repeat-default": "repeat",
+          "backface-visibility": "visible",
+          "box-sizing": "border-box",
+          "contain": "layout style",
+          "height": "60px",
+          "image-rendering": "auto",
+          "isolation": "isolate",
+          "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
+          "transform-style": "flat",
+          "width": "60px",
           "will-change": "auto",
+          "z-index": "0",
         },
+        "tag": "div",
       },
     ],
-    "class": [
-      "absolute",
-      "dmn-grabbable",
-      "my-key",
-    ],
-    "data": {
-      "data-key-element": "true",
-      "data-state": "active",
-    },
-    "tag": "div",
-    "vars": {
-      "--dmn-key-bg-default": "#445566",
-      "--dmn-key-bg-image-default": "none",
-      "--dmn-key-border-default": "none",
-      "--dmn-key-font-family-default": "inherit",
-      "--dmn-key-font-size-default": "14px",
-      "--dmn-key-font-style-default": "normal",
-      "--dmn-key-font-weight-default": "700",
-      "--dmn-key-label-color-default": "inherit",
-      "--dmn-key-padding-default": "2px",
-      "--dmn-key-radius-default": "6px",
-      "--dmn-key-shadow-default": "0px 3px 8px rgba(0, 0, 0, 0.32)",
-      "--dmn-key-text-color-default": "#ffffff",
-      "--dmn-key-text-decoration-default": "none",
-      "--dmn-key-text-image-default": "none",
-      "--dmn-key-text-repeat-default": "repeat",
-      "backface-visibility": "visible",
-      "box-sizing": "border-box",
-      "contain": "layout style",
+    "style": {
+      "cursor": "move",
       "height": "60px",
-      "image-rendering": "auto",
-      "isolation": "isolate",
-      "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
-      "transform-style": "flat",
+      "left": "4px",
+      "position": "absolute",
+      "top": "8px",
       "width": "60px",
-      "will-change": "auto",
       "z-index": "0",
     },
+    "tag": "div",
   },
 ]
 `;
 
-exports[`그리기 약속 행렬 > key > 편집 화면 - 대기·눌림 미리보기 > 대기 1`] = `
+exports[`그리기 약속 행렬 > key > 편집 화면 - 대기·눌림·편집 미리보기 > 대기 1`] = `
 [
   {
+    "attrs": {
+      "data-element-id": "key-1",
+      "data-element-kind": "key",
+    },
     "children": [
       {
-        "data": {
-          "data-gradient-border-ring": "true",
+        "attrs": {
+          "data-key-element": "true",
+          "data-state": "inactive",
         },
-        "tag": "span",
-        "vars": {
-          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
-          "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-          "-webkit-mask-composite": "xor",
-          "border-radius": "inherit",
-          "inset": "0px",
-          "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-          "mask-composite": "exclude",
-          "padding": "2px",
-          "padding-bottom": "2px",
-          "padding-left": "2px",
-          "padding-right": "2px",
-          "padding-top": "2px",
-          "pointer-events": "none",
-          "position": "absolute",
-          "z-index": "1",
-        },
-      },
-      {
         "children": [
           {
-            "class": [
-              "text-safe-inline",
-            ],
-            "data": {
-              "data-key-label": "true",
+            "attrs": {
+              "aria-hidden": "true",
+              "data-gradient-border-ring": "true",
+            },
+            "style": {
+              "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+              "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "-webkit-mask-composite": "xor",
+              "border-radius": "inherit",
+              "inset": "0px",
+              "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "mask-composite": "exclude",
+              "padding": "2px",
+              "padding-bottom": "2px",
+              "padding-left": "2px",
+              "padding-right": "2px",
+              "padding-top": "2px",
+              "pointer-events": "none",
+              "position": "absolute",
+              "z-index": "1",
             },
             "tag": "span",
           },
+          {
+            "children": [
+              {
+                "attrs": {
+                  "data-key-label": "true",
+                },
+                "class": [
+                  "text-safe-inline",
+                ],
+                "tag": "span",
+                "text": "KeyA",
+              },
+            ],
+            "class": [
+              "flex",
+              "font-bold",
+              "h-full",
+              "items-center",
+              "justify-center",
+            ],
+            "style": {
+              "font-family": "inherit",
+              "font-size": "inherit",
+              "font-style": "inherit",
+              "font-weight": "inherit",
+              "text-decoration": "inherit",
+              "will-change": "auto",
+            },
+            "tag": "div",
+          },
         ],
         "class": [
-          "flex",
-          "font-bold",
-          "h-full",
-          "items-center",
-          "justify-center",
+          "absolute",
+          "dmn-grabbable",
+          "my-key",
         ],
-        "tag": "div",
-        "vars": {
-          "font-family": "inherit",
-          "font-size": "inherit",
-          "font-style": "inherit",
-          "font-weight": "inherit",
-          "text-decoration": "inherit",
+        "style": {
+          "--dmn-key-bg-default": "#112233",
+          "--dmn-key-bg-image-default": "none",
+          "--dmn-key-border-default": "none",
+          "--dmn-key-font-family-default": "inherit",
+          "--dmn-key-font-size-default": "14px",
+          "--dmn-key-font-style-default": "normal",
+          "--dmn-key-font-weight-default": "700",
+          "--dmn-key-label-color-default": "inherit",
+          "--dmn-key-padding-default": "2px",
+          "--dmn-key-radius-default": "6px",
+          "--dmn-key-shadow-default": "1px 2px 3px #000000",
+          "--dmn-key-text-color-default": "#ffffff",
+          "--dmn-key-text-decoration-default": "none",
+          "--dmn-key-text-image-default": "none",
+          "--dmn-key-text-repeat-default": "repeat",
+          "backface-visibility": "visible",
+          "box-sizing": "border-box",
+          "contain": "layout style",
+          "height": "60px",
+          "image-rendering": "auto",
+          "isolation": "isolate",
+          "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
+          "transform-style": "flat",
+          "width": "60px",
           "will-change": "auto",
+          "z-index": "0",
         },
+        "tag": "div",
       },
     ],
-    "class": [
-      "absolute",
-      "dmn-grabbable",
-      "my-key",
-    ],
-    "data": {
-      "data-key-element": "true",
-      "data-state": "inactive",
-    },
-    "tag": "div",
-    "vars": {
-      "--dmn-key-bg-default": "#112233",
-      "--dmn-key-bg-image-default": "none",
-      "--dmn-key-border-default": "none",
-      "--dmn-key-font-family-default": "inherit",
-      "--dmn-key-font-size-default": "14px",
-      "--dmn-key-font-style-default": "normal",
-      "--dmn-key-font-weight-default": "700",
-      "--dmn-key-label-color-default": "inherit",
-      "--dmn-key-padding-default": "2px",
-      "--dmn-key-radius-default": "6px",
-      "--dmn-key-shadow-default": "1px 2px 3px #000000",
-      "--dmn-key-text-color-default": "#ffffff",
-      "--dmn-key-text-decoration-default": "none",
-      "--dmn-key-text-image-default": "none",
-      "--dmn-key-text-repeat-default": "repeat",
-      "backface-visibility": "visible",
-      "box-sizing": "border-box",
-      "contain": "layout style",
+    "style": {
+      "cursor": "move",
       "height": "60px",
-      "image-rendering": "auto",
-      "isolation": "isolate",
-      "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
-      "transform-style": "flat",
+      "left": "4px",
+      "position": "absolute",
+      "top": "8px",
       "width": "60px",
-      "will-change": "auto",
       "z-index": "0",
     },
+    "tag": "div",
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > key > 편집 화면 - 대기·눌림·편집 미리보기 > 편집 미리보기 1`] = `
+[
+  {
+    "attrs": {
+      "data-element-id": "key-1",
+      "data-element-kind": "key",
+    },
+    "children": [
+      {
+        "attrs": {
+          "data-key-element": "true",
+          "data-state": "inactive",
+        },
+        "children": [
+          {
+            "attrs": {
+              "aria-hidden": "true",
+              "data-gradient-border-ring": "true",
+            },
+            "style": {
+              "--dmn-border-gradient-image-default": "linear-gradient(90deg, #FF0000 NaN%, #0000FF NaN%)",
+              "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "-webkit-mask-composite": "xor",
+              "border-radius": "inherit",
+              "inset": "0px",
+              "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "mask-composite": "exclude",
+              "padding": "2px",
+              "padding-bottom": "2px",
+              "padding-left": "2px",
+              "padding-right": "2px",
+              "padding-top": "2px",
+              "pointer-events": "none",
+              "position": "absolute",
+              "z-index": "1",
+            },
+            "tag": "span",
+          },
+          {
+            "children": [
+              {
+                "attrs": {
+                  "data-key-label": "true",
+                },
+                "class": [
+                  "text-safe-inline",
+                ],
+                "tag": "span",
+                "text": "KeyA",
+              },
+            ],
+            "class": [
+              "flex",
+              "font-bold",
+              "h-full",
+              "items-center",
+              "justify-center",
+            ],
+            "style": {
+              "font-family": "inherit",
+              "font-size": "inherit",
+              "font-style": "inherit",
+              "font-weight": "inherit",
+              "text-decoration": "inherit",
+              "will-change": "auto",
+            },
+            "tag": "div",
+          },
+        ],
+        "class": [
+          "absolute",
+          "dmn-grabbable",
+          "my-key",
+        ],
+        "style": {
+          "--dmn-key-bg-default": "#ABCDEF",
+          "--dmn-key-bg-image-default": "none",
+          "--dmn-key-border-default": "none",
+          "--dmn-key-font-family-default": "inherit",
+          "--dmn-key-font-size-default": "14px",
+          "--dmn-key-font-style-default": "normal",
+          "--dmn-key-font-weight-default": "700",
+          "--dmn-key-label-color-default": "inherit",
+          "--dmn-key-padding-default": "2px",
+          "--dmn-key-radius-default": "6px",
+          "--dmn-key-shadow-default": "1px 2px 3px #000000",
+          "--dmn-key-text-color-default": "#ffffff",
+          "--dmn-key-text-decoration-default": "none",
+          "--dmn-key-text-image-default": "none",
+          "--dmn-key-text-repeat-default": "repeat",
+          "backface-visibility": "visible",
+          "box-sizing": "border-box",
+          "contain": "layout style",
+          "height": "60px",
+          "image-rendering": "auto",
+          "isolation": "isolate",
+          "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
+          "transform-style": "flat",
+          "width": "60px",
+          "will-change": "auto",
+          "z-index": "0",
+        },
+        "tag": "div",
+      },
+    ],
+    "style": {
+      "cursor": "move",
+      "height": "60px",
+      "left": "4px",
+      "position": "absolute",
+      "top": "8px",
+      "width": "60px",
+      "z-index": "0",
+    },
+    "tag": "div",
   },
 ]
 `;
@@ -806,15 +1336,22 @@ exports[`그리기 약속 행렬 > key > 편집 화면 - 대기·눌림 미리�
 exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 대기 1`] = `
 [
   {
+    "attrs": {
+      "data-overlay-hit": "true",
+    },
     "children": [
       {
+        "attrs": {
+          "data-knob-element": "true",
+          "data-knob-state": "inactive",
+        },
         "children": [
           {
-            "data": {
+            "attrs": {
+              "aria-hidden": "true",
               "data-gradient-border-ring": "true",
             },
-            "tag": "span",
-            "vars": {
+            "style": {
               "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
               "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
               "-webkit-mask-composite": "xor",
@@ -830,13 +1367,13 @@ exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 대기
               "pointer-events": "none",
               "position": "absolute",
             },
+            "tag": "span",
           },
           {
-            "data": {
+            "attrs": {
               "data-knob-indicator": "true",
             },
-            "tag": "div",
-            "vars": {
+            "style": {
               "border-radius": "4px",
               "height": "76%",
               "left": "50%",
@@ -845,14 +1382,10 @@ exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 대기
               "transform": "translateX(-50%)",
               "width": "8%",
             },
+            "tag": "div",
           },
         ],
-        "data": {
-          "data-knob-element": "true",
-          "data-knob-state": "inactive",
-        },
-        "tag": "div",
-        "vars": {
+        "style": {
           "--dmn-knob-bg-default": "#112233",
           "--dmn-knob-border-default": "none",
           "--dmn-knob-indicator-default": "rgba(237, 238, 242, 0.78)",
@@ -869,6 +1402,7 @@ exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 대기
           "width": "100%",
           "will-change": "transform",
         },
+        "tag": "div",
       },
     ],
     "class": [
@@ -876,17 +1410,14 @@ exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 대기
       "my-knob",
       "select-none",
     ],
-    "data": {
-      "data-overlay-hit": "true",
-    },
-    "tag": "div",
-    "vars": {
+    "style": {
       "contain": "layout style",
       "height": "60px",
       "transform": "translate3d(calc(4px + var(--key-offset-x, 0px)), calc(8px + var(--key-offset-y, 0px)), 0)",
       "width": "60px",
       "z-index": "0",
     },
+    "tag": "div",
   },
 ]
 `;
@@ -894,15 +1425,22 @@ exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 대기
 exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 입력 1`] = `
 [
   {
+    "attrs": {
+      "data-overlay-hit": "true",
+    },
     "children": [
       {
+        "attrs": {
+          "data-knob-element": "true",
+          "data-knob-state": "active",
+        },
         "children": [
           {
-            "data": {
+            "attrs": {
+              "aria-hidden": "true",
               "data-gradient-border-ring": "true",
             },
-            "tag": "span",
-            "vars": {
+            "style": {
               "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
               "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
               "-webkit-mask-composite": "xor",
@@ -918,13 +1456,13 @@ exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 입력
               "pointer-events": "none",
               "position": "absolute",
             },
+            "tag": "span",
           },
           {
-            "data": {
+            "attrs": {
               "data-knob-indicator": "true",
             },
-            "tag": "div",
-            "vars": {
+            "style": {
               "border-radius": "4px",
               "height": "76%",
               "left": "50%",
@@ -933,14 +1471,10 @@ exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 입력
               "transform": "translateX(-50%)",
               "width": "8%",
             },
+            "tag": "div",
           },
         ],
-        "data": {
-          "data-knob-element": "true",
-          "data-knob-state": "active",
-        },
-        "tag": "div",
-        "vars": {
+        "style": {
           "--dmn-knob-bg-default": "#445566",
           "--dmn-knob-border-default": "none",
           "--dmn-knob-indicator-default": "rgba(20, 20, 24, 0.9)",
@@ -957,6 +1491,7 @@ exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 입력
           "width": "100%",
           "will-change": "transform",
         },
+        "tag": "div",
       },
     ],
     "class": [
@@ -964,145 +1499,272 @@ exports[`그리기 약속 행렬 > knob > 오버레이 - 대기·입력 > 입력
       "my-knob",
       "select-none",
     ],
-    "data": {
-      "data-overlay-hit": "true",
-    },
-    "tag": "div",
-    "vars": {
+    "style": {
       "contain": "layout style",
       "height": "60px",
       "transform": "translate3d(calc(4px + var(--key-offset-x, 0px)), calc(8px + var(--key-offset-y, 0px)), 0)",
       "width": "60px",
       "z-index": "0",
     },
+    "tag": "div",
   },
 ]
 `;
 
-exports[`그리기 약속 행렬 > knob > 편집 화면 - 대기·눌림 미리보기 > 눌림 미리보기 1`] = `
+exports[`그리기 약속 행렬 > knob > 편집 화면 - 대기·눌림·편집 미리보기 > 눌림 미리보기 1`] = `
 [
   {
+    "attrs": {
+      "data-element-id": "knob-1",
+      "data-element-kind": "knob",
+    },
     "children": [
       {
-        "data": {
-          "data-gradient-border-ring": "true",
+        "attrs": {
+          "data-knob-element": "true",
+          "data-knob-state": "active",
         },
-        "tag": "span",
-        "vars": {
-          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
-          "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-          "-webkit-mask-composite": "xor",
-          "border-radius": "inherit",
-          "inset": "0px",
-          "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-          "mask-composite": "exclude",
-          "padding": "2px",
-          "padding-bottom": "2px",
-          "padding-left": "2px",
-          "padding-right": "2px",
-          "padding-top": "2px",
-          "pointer-events": "none",
-          "position": "absolute",
-        },
-      },
-      {
-        "data": {
-          "data-knob-indicator": "true",
+        "children": [
+          {
+            "attrs": {
+              "aria-hidden": "true",
+              "data-gradient-border-ring": "true",
+            },
+            "style": {
+              "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+              "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "-webkit-mask-composite": "xor",
+              "border-radius": "inherit",
+              "inset": "0px",
+              "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "mask-composite": "exclude",
+              "padding": "2px",
+              "padding-bottom": "2px",
+              "padding-left": "2px",
+              "padding-right": "2px",
+              "padding-top": "2px",
+              "pointer-events": "none",
+              "position": "absolute",
+            },
+            "tag": "span",
+          },
+          {
+            "attrs": {
+              "data-knob-indicator": "true",
+            },
+            "style": {
+              "border-radius": "4px",
+              "height": "76%",
+              "left": "50%",
+              "position": "absolute",
+              "top": "12%",
+              "transform": "translateX(-50%)",
+              "width": "8%",
+            },
+            "tag": "div",
+          },
+        ],
+        "style": {
+          "--dmn-knob-bg-default": "#445566",
+          "--dmn-knob-border-default": "none",
+          "--dmn-knob-indicator-default": "rgba(20, 20, 24, 0.9)",
+          "--dmn-knob-padding-default": "2px",
+          "--dmn-knob-radius-default": "6px",
+          "--dmn-knob-shadow-default": "none",
+          "box-sizing": "border-box",
+          "height": "100%",
+          "overflow": "hidden",
+          "position": "relative",
+          "width": "100%",
         },
         "tag": "div",
-        "vars": {
-          "border-radius": "4px",
-          "height": "76%",
-          "left": "50%",
-          "position": "absolute",
-          "top": "12%",
-          "transform": "translateX(-50%)",
-          "width": "8%",
-        },
       },
     ],
-    "data": {
-      "data-knob-element": "true",
-      "data-knob-state": "active",
+    "class": [
+      "my-knob",
+    ],
+    "style": {
+      "cursor": "move",
+      "height": "60px",
+      "left": "4px",
+      "position": "absolute",
+      "top": "8px",
+      "width": "60px",
+      "z-index": "0",
     },
     "tag": "div",
-    "vars": {
-      "--dmn-knob-bg-default": "#445566",
-      "--dmn-knob-border-default": "none",
-      "--dmn-knob-indicator-default": "rgba(20, 20, 24, 0.9)",
-      "--dmn-knob-padding-default": "2px",
-      "--dmn-knob-radius-default": "6px",
-      "--dmn-knob-shadow-default": "none",
-      "box-sizing": "border-box",
-      "height": "100%",
-      "overflow": "hidden",
-      "position": "relative",
-      "width": "100%",
-    },
   },
 ]
 `;
 
-exports[`그리기 약속 행렬 > knob > 편집 화면 - 대기·눌림 미리보기 > 대기 1`] = `
+exports[`그리기 약속 행렬 > knob > 편집 화면 - 대기·눌림·편집 미리보기 > 대기 1`] = `
 [
   {
+    "attrs": {
+      "data-element-id": "knob-1",
+      "data-element-kind": "knob",
+    },
     "children": [
       {
-        "data": {
-          "data-gradient-border-ring": "true",
+        "attrs": {
+          "data-knob-element": "true",
+          "data-knob-state": "inactive",
         },
-        "tag": "span",
-        "vars": {
-          "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
-          "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-          "-webkit-mask-composite": "xor",
-          "border-radius": "inherit",
-          "inset": "0px",
-          "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-          "mask-composite": "exclude",
-          "padding": "2px",
-          "padding-bottom": "2px",
-          "padding-left": "2px",
-          "padding-right": "2px",
-          "padding-top": "2px",
-          "pointer-events": "none",
-          "position": "absolute",
-        },
-      },
-      {
-        "data": {
-          "data-knob-indicator": "true",
+        "children": [
+          {
+            "attrs": {
+              "aria-hidden": "true",
+              "data-gradient-border-ring": "true",
+            },
+            "style": {
+              "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+              "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "-webkit-mask-composite": "xor",
+              "border-radius": "inherit",
+              "inset": "0px",
+              "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "mask-composite": "exclude",
+              "padding": "2px",
+              "padding-bottom": "2px",
+              "padding-left": "2px",
+              "padding-right": "2px",
+              "padding-top": "2px",
+              "pointer-events": "none",
+              "position": "absolute",
+            },
+            "tag": "span",
+          },
+          {
+            "attrs": {
+              "data-knob-indicator": "true",
+            },
+            "style": {
+              "border-radius": "4px",
+              "height": "76%",
+              "left": "50%",
+              "position": "absolute",
+              "top": "12%",
+              "transform": "translateX(-50%)",
+              "width": "8%",
+            },
+            "tag": "div",
+          },
+        ],
+        "style": {
+          "--dmn-knob-bg-default": "#112233",
+          "--dmn-knob-border-default": "none",
+          "--dmn-knob-indicator-default": "rgba(237, 238, 242, 0.78)",
+          "--dmn-knob-padding-default": "2px",
+          "--dmn-knob-radius-default": "6px",
+          "--dmn-knob-shadow-default": "1px 2px 3px #000000",
+          "box-sizing": "border-box",
+          "height": "100%",
+          "overflow": "hidden",
+          "position": "relative",
+          "width": "100%",
         },
         "tag": "div",
-        "vars": {
-          "border-radius": "4px",
-          "height": "76%",
-          "left": "50%",
-          "position": "absolute",
-          "top": "12%",
-          "transform": "translateX(-50%)",
-          "width": "8%",
-        },
       },
     ],
-    "data": {
-      "data-knob-element": "true",
-      "data-knob-state": "inactive",
+    "class": [
+      "my-knob",
+    ],
+    "style": {
+      "cursor": "move",
+      "height": "60px",
+      "left": "4px",
+      "position": "absolute",
+      "top": "8px",
+      "width": "60px",
+      "z-index": "0",
     },
     "tag": "div",
-    "vars": {
-      "--dmn-knob-bg-default": "#112233",
-      "--dmn-knob-border-default": "none",
-      "--dmn-knob-indicator-default": "rgba(237, 238, 242, 0.78)",
-      "--dmn-knob-padding-default": "2px",
-      "--dmn-knob-radius-default": "6px",
-      "--dmn-knob-shadow-default": "1px 2px 3px #000000",
-      "box-sizing": "border-box",
-      "height": "100%",
-      "overflow": "hidden",
-      "position": "relative",
-      "width": "100%",
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > knob > 편집 화면 - 대기·눌림·편집 미리보기 > 편집 미리보기 1`] = `
+[
+  {
+    "attrs": {
+      "data-element-id": "knob-1",
+      "data-element-kind": "knob",
     },
+    "children": [
+      {
+        "attrs": {
+          "data-knob-element": "true",
+          "data-knob-state": "inactive",
+        },
+        "children": [
+          {
+            "attrs": {
+              "aria-hidden": "true",
+              "data-gradient-border-ring": "true",
+            },
+            "style": {
+              "--dmn-border-gradient-image-default": "linear-gradient(90deg, #FF0000 NaN%, #0000FF NaN%)",
+              "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "-webkit-mask-composite": "xor",
+              "border-radius": "inherit",
+              "inset": "0px",
+              "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "mask-composite": "exclude",
+              "padding": "2px",
+              "padding-bottom": "2px",
+              "padding-left": "2px",
+              "padding-right": "2px",
+              "padding-top": "2px",
+              "pointer-events": "none",
+              "position": "absolute",
+            },
+            "tag": "span",
+          },
+          {
+            "attrs": {
+              "data-knob-indicator": "true",
+            },
+            "style": {
+              "border-radius": "4px",
+              "height": "76%",
+              "left": "50%",
+              "position": "absolute",
+              "top": "12%",
+              "transform": "translateX(-50%)",
+              "width": "8%",
+            },
+            "tag": "div",
+          },
+        ],
+        "style": {
+          "--dmn-knob-bg-default": "#ABCDEF",
+          "--dmn-knob-border-default": "none",
+          "--dmn-knob-indicator-default": "rgba(237, 238, 242, 0.78)",
+          "--dmn-knob-padding-default": "2px",
+          "--dmn-knob-radius-default": "6px",
+          "--dmn-knob-shadow-default": "1px 2px 3px #000000",
+          "box-sizing": "border-box",
+          "height": "100%",
+          "overflow": "hidden",
+          "position": "relative",
+          "width": "100%",
+        },
+        "tag": "div",
+      },
+    ],
+    "class": [
+      "my-knob",
+    ],
+    "style": {
+      "cursor": "move",
+      "height": "60px",
+      "left": "4px",
+      "position": "absolute",
+      "top": "8px",
+      "width": "60px",
+      "z-index": "0",
+    },
+    "tag": "div",
   },
 ]
 `;
@@ -1110,12 +1772,23 @@ exports[`그리기 약속 행렬 > knob > 편집 화면 - 대기·눌림 미리�
 exports[`그리기 약속 행렬 > sprite > 오버레이 - 대기·입력 > 대기 1`] = `
 [
   {
+    "attrs": {
+      "data-overlay-hit": "true",
+    },
     "children": [
       {
+        "attrs": {
+          "data-sprite-element": "true",
+          "data-sprite-state": "inactive",
+        },
         "children": [
           {
-            "tag": "img",
-            "vars": {
+            "attrs": {
+              "alt": "",
+              "draggable": "false",
+              "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+            },
+            "style": {
               "--dmn-sprite-transform-default": "translate(0px, 0px) rotate(0deg) scale(1)",
               "--dmn-sprite-transition-default": "transform 0ms cubic-bezier(0.4, 0, 0.2, 1)",
               "height": "80px",
@@ -1126,29 +1799,22 @@ exports[`그리기 약속 행렬 > sprite > 오버레이 - 대기·입력 > 대�
               "width": "80px",
               "will-change": "transform",
             },
+            "tag": "img",
           },
         ],
-        "data": {
-          "data-sprite-element": "true",
-          "data-sprite-state": "inactive",
-        },
-        "tag": "div",
-        "vars": {
+        "style": {
           "height": "100%",
           "position": "relative",
           "width": "100%",
         },
+        "tag": "div",
       },
     ],
     "class": [
       "absolute",
       "my-sprite",
     ],
-    "data": {
-      "data-overlay-hit": "true",
-    },
-    "tag": "div",
-    "vars": {
+    "style": {
       "height": "80px",
       "left": "0px",
       "pointer-events": "none",
@@ -1158,6 +1824,7 @@ exports[`그리기 약속 행렬 > sprite > 오버레이 - 대기·입력 > 대�
       "width": "80px",
       "z-index": "0",
     },
+    "tag": "div",
   },
 ]
 `;
@@ -1165,12 +1832,23 @@ exports[`그리기 약속 행렬 > sprite > 오버레이 - 대기·입력 > 대�
 exports[`그리기 약속 행렬 > sprite > 오버레이 - 대기·입력 > 입력 1`] = `
 [
   {
+    "attrs": {
+      "data-overlay-hit": "true",
+    },
     "children": [
       {
+        "attrs": {
+          "data-sprite-element": "true",
+          "data-sprite-state": "active",
+        },
         "children": [
           {
-            "tag": "img",
-            "vars": {
+            "attrs": {
+              "alt": "",
+              "draggable": "false",
+              "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+            },
+            "style": {
               "--dmn-sprite-transform-default": "translate(0px, 0px) rotate(15deg) scale(1)",
               "--dmn-sprite-transition-default": "transform 0ms cubic-bezier(0.4, 0, 0.2, 1)",
               "height": "80px",
@@ -1181,29 +1859,22 @@ exports[`그리기 약속 행렬 > sprite > 오버레이 - 대기·입력 > 입�
               "width": "80px",
               "will-change": "transform",
             },
+            "tag": "img",
           },
         ],
-        "data": {
-          "data-sprite-element": "true",
-          "data-sprite-state": "active",
-        },
-        "tag": "div",
-        "vars": {
+        "style": {
           "height": "100%",
           "position": "relative",
           "width": "100%",
         },
+        "tag": "div",
       },
     ],
     "class": [
       "absolute",
       "my-sprite",
     ],
-    "data": {
-      "data-overlay-hit": "true",
-    },
-    "tag": "div",
-    "vars": {
+    "style": {
       "height": "80px",
       "left": "0px",
       "pointer-events": "none",
@@ -1213,38 +1884,65 @@ exports[`그리기 약속 행렬 > sprite > 오버레이 - 대기·입력 > 입�
       "width": "80px",
       "z-index": "0",
     },
+    "tag": "div",
   },
 ]
 `;
 
-exports[`그리기 약속 행렬 > sprite > 편집 화면 - 대기·눌림 미리보기 > 대기 1`] = `
+exports[`그리기 약속 행렬 > sprite > 편집 화면 - 대기·눌림·편집 미리보기 > 대기 1`] = `
 [
   {
+    "attrs": {
+      "data-element-id": "sprite-1",
+      "data-element-kind": "sprite",
+    },
     "children": [
       {
-        "tag": "img",
-        "vars": {
-          "--dmn-sprite-transform-default": "translate(0px, 0px) rotate(0deg) scale(1)",
-          "height": "80px",
-          "left": "0px",
-          "pointer-events": "auto",
-          "position": "absolute",
-          "top": "0px",
-          "transform-origin": "50% 50%",
-          "user-select": "none",
-          "width": "80px",
+        "attrs": {
+          "data-sprite-element": "true",
         },
+        "children": [
+          {
+            "attrs": {
+              "alt": "",
+              "draggable": "false",
+              "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+            },
+            "style": {
+              "--dmn-sprite-transform-default": "translate(0px, 0px) rotate(0deg) scale(1)",
+              "height": "80px",
+              "left": "0px",
+              "pointer-events": "auto",
+              "position": "absolute",
+              "top": "0px",
+              "transform-origin": "50% 50%",
+              "user-select": "none",
+              "width": "80px",
+            },
+            "tag": "img",
+          },
+        ],
+        "style": {
+          "height": "100%",
+          "position": "relative",
+          "width": "100%",
+        },
+        "tag": "div",
       },
     ],
-    "data": {
-      "data-sprite-element": "true",
+    "class": [
+      "my-sprite",
+    ],
+    "style": {
+      "cursor": "move",
+      "height": "80px",
+      "left": "4px",
+      "position": "absolute",
+      "top": "8px",
+      "width": "80px",
+      "z-index": "0",
     },
     "tag": "div",
-    "vars": {
-      "height": "100%",
-      "position": "relative",
-      "width": "100%",
-    },
   },
 ]
 `;
@@ -1252,13 +1950,18 @@ exports[`그리기 약속 행렬 > sprite > 편집 화면 - 대기·눌림 미�
 exports[`그리기 약속 행렬 > stat > 오버레이 - 대기·입력 > 대기 1`] = `
 [
   {
+    "attrs": {
+      "data-key-element": "true",
+      "data-overlay-hit": "true",
+      "data-state": "inactive",
+    },
     "children": [
       {
-        "data": {
+        "attrs": {
+          "aria-hidden": "true",
           "data-gradient-border-ring": "true",
         },
-        "tag": "span",
-        "vars": {
+        "style": {
           "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
           "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
           "-webkit-mask-composite": "xor",
@@ -1275,10 +1978,14 @@ exports[`그리기 약속 행렬 > stat > 오버레이 - 대기·입력 > 대기
           "position": "absolute",
           "z-index": "1",
         },
+        "tag": "span",
       },
       {
         "children": [
           {
+            "attrs": {
+              "data-key-label": "true",
+            },
             "class": [
               "font-bold",
               "leading-normal",
@@ -1287,11 +1994,7 @@ exports[`그리기 약속 행렬 > stat > 오버레이 - 대기·입력 > 대기
               "text-[14px]",
               "text-safe-inline",
             ],
-            "data": {
-              "data-key-label": "true",
-            },
-            "tag": "span",
-            "vars": {
+            "style": {
               "font-family": "inherit",
               "font-size": "inherit",
               "font-style": "inherit",
@@ -1299,17 +2002,18 @@ exports[`그리기 약속 행렬 > stat > 오버레이 - 대기·입력 > 대기
               "text-decoration": "inherit",
               "will-change": "auto",
             },
+            "tag": "span",
+            "text": "KPS",
           },
           {
-            "class": [
-              "counter",
-            ],
-            "data": {
+            "attrs": {
               "data-counter-state": "inactive",
               "data-text": "0",
             },
-            "tag": "span",
-            "vars": {
+            "class": [
+              "counter",
+            ],
+            "style": {
               "--counter-color-default": "rgba(237, 238, 242, 0.78)",
               "--dmn-counter-fill-clip-default": "border-box",
               "--dmn-counter-fill-image-default": "none",
@@ -1327,6 +2031,8 @@ exports[`그리기 약속 행렬 > stat > 오버레이 - 대기·입력 > 대기
               "transform-origin": "center bottom",
               "user-select": "none",
             },
+            "tag": "span",
+            "text": "0",
           },
         ],
         "class": [
@@ -1338,8 +2044,7 @@ exports[`그리기 약속 행렬 > stat > 오버레이 - 대기·입력 > 대기
           "select-none",
           "w-full",
         ],
-        "tag": "div",
-        "vars": {
+        "style": {
           "gap": "4px",
           "justify-content": "center",
           "padding": "0px",
@@ -1348,19 +2053,14 @@ exports[`그리기 약속 행렬 > stat > 오버레이 - 대기·입력 > 대기
           "padding-right": "0px",
           "padding-top": "0px",
         },
+        "tag": "div",
       },
     ],
     "class": [
       "absolute",
       "my-stat",
     ],
-    "data": {
-      "data-key-element": "true",
-      "data-overlay-hit": "true",
-      "data-state": "inactive",
-    },
-    "tag": "div",
-    "vars": {
+    "style": {
       "--dmn-key-bg-default": "#112233",
       "--dmn-key-bg-image-default": "none",
       "--dmn-key-border-default": "none",
@@ -1389,20 +2089,354 @@ exports[`그리기 약속 행렬 > stat > 오버레이 - 대기·입력 > 대기
       "will-change": "transform",
       "z-index": "0",
     },
+    "tag": "div",
   },
 ]
 `;
 
-exports[`그리기 약속 행렬 > stat > 편집 화면 - 대기·눌림 미리보기 > 대기 1`] = `
+exports[`그리기 약속 행렬 > stat > 편집 화면 - 대기·눌림·편집 미리보기 > 대기 1`] = `
 [
   {
+    "attrs": {
+      "data-element-id": "stat-1",
+      "data-element-kind": "stat",
+    },
     "children": [
       {
-        "data": {
+        "attrs": {
+          "data-key-element": "true",
+          "data-state": "inactive",
+        },
+        "children": [
+          {
+            "attrs": {
+              "aria-hidden": "true",
+              "data-gradient-border-ring": "true",
+            },
+            "style": {
+              "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+              "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "-webkit-mask-composite": "xor",
+              "border-radius": "inherit",
+              "inset": "0px",
+              "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "mask-composite": "exclude",
+              "padding": "2px",
+              "padding-bottom": "2px",
+              "padding-left": "2px",
+              "padding-right": "2px",
+              "padding-top": "2px",
+              "pointer-events": "none",
+              "position": "absolute",
+              "z-index": "1",
+            },
+            "tag": "span",
+          },
+          {
+            "children": [
+              {
+                "attrs": {
+                  "data-key-label": "true",
+                },
+                "class": [
+                  "font-bold",
+                  "leading-normal",
+                  "pointer-events-none",
+                  "select-none",
+                  "text-[14px]",
+                  "text-safe-inline",
+                ],
+                "style": {
+                  "font-family": "inherit",
+                  "font-size": "inherit",
+                  "font-style": "inherit",
+                  "font-weight": "inherit",
+                  "text-decoration": "inherit",
+                  "will-change": "auto",
+                },
+                "tag": "span",
+                "text": "KPS",
+              },
+              {
+                "attrs": {
+                  "data-counter-state": "inactive",
+                  "data-text": "0",
+                },
+                "class": [
+                  "counter",
+                ],
+                "style": {
+                  "--counter-color-default": "rgba(237, 238, 242, 0.78)",
+                  "--dmn-counter-fill-clip-default": "border-box",
+                  "--dmn-counter-fill-image-default": "none",
+                  "--dmn-counter-fill-repeat-default": "repeat",
+                  "--dmn-counter-font-family-default": "inherit",
+                  "--dmn-counter-font-size-default": "11px",
+                  "--dmn-counter-font-style-default": "normal",
+                  "--dmn-counter-font-weight-default": "500",
+                  "--dmn-counter-line-height-default": "normal",
+                  "--dmn-counter-text-align-default": "center",
+                  "--dmn-counter-text-decoration-default": "none",
+                  "--dmn-counter-text-fill-default": "currentcolor",
+                  "pointer-events": "none",
+                  "transform": "scale(1)",
+                  "transform-origin": "center bottom",
+                  "user-select": "none",
+                },
+                "tag": "span",
+                "text": "0",
+              },
+            ],
+            "class": [
+              "flex",
+              "flex-col",
+              "h-full",
+              "items-center",
+              "pointer-events-none",
+              "select-none",
+              "w-full",
+            ],
+            "style": {
+              "gap": "4px",
+              "justify-content": "center",
+              "padding": "0px",
+              "padding-bottom": "0px",
+              "padding-left": "0px",
+              "padding-right": "0px",
+              "padding-top": "0px",
+            },
+            "tag": "div",
+          },
+        ],
+        "class": [
+          "absolute",
+          "dmn-grabbable",
+          "my-stat",
+        ],
+        "style": {
+          "--dmn-key-bg-default": "#112233",
+          "--dmn-key-bg-image-default": "none",
+          "--dmn-key-border-default": "none",
+          "--dmn-key-font-family-default": "inherit",
+          "--dmn-key-font-size-default": "12px",
+          "--dmn-key-font-style-default": "normal",
+          "--dmn-key-font-weight-default": "700",
+          "--dmn-key-label-color-default": "inherit",
+          "--dmn-key-padding-default": "2px",
+          "--dmn-key-radius-default": "6px",
+          "--dmn-key-shadow-default": "1px 2px 3px #000000",
+          "--dmn-key-text-color-default": "rgba(237, 238, 242, 0.78)",
+          "--dmn-key-text-decoration-default": "none",
+          "--dmn-key-text-image-default": "none",
+          "--dmn-key-text-repeat-default": "repeat",
+          "backface-visibility": "visible",
+          "box-sizing": "border-box",
+          "contain": "layout style",
+          "height": "60px",
+          "image-rendering": "auto",
+          "isolation": "isolate",
+          "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
+          "transform-style": "flat",
+          "width": "60px",
+          "will-change": "auto",
+          "z-index": "0",
+        },
+        "tag": "div",
+      },
+    ],
+    "style": {
+      "cursor": "move",
+      "height": "60px",
+      "left": "4px",
+      "position": "absolute",
+      "top": "8px",
+      "width": "60px",
+      "z-index": "0",
+    },
+    "tag": "div",
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > stat > 편집 화면 - 대기·눌림·편집 미리보기 > 편집 미리보기 1`] = `
+[
+  {
+    "attrs": {
+      "data-element-id": "stat-1",
+      "data-element-kind": "stat",
+    },
+    "children": [
+      {
+        "attrs": {
+          "data-key-element": "true",
+          "data-state": "inactive",
+        },
+        "children": [
+          {
+            "attrs": {
+              "aria-hidden": "true",
+              "data-gradient-border-ring": "true",
+            },
+            "style": {
+              "--dmn-border-gradient-image-default": "linear-gradient(90deg, #FF0000 NaN%, #0000FF NaN%)",
+              "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "-webkit-mask-composite": "xor",
+              "border-radius": "inherit",
+              "inset": "0px",
+              "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "mask-composite": "exclude",
+              "padding": "2px",
+              "padding-bottom": "2px",
+              "padding-left": "2px",
+              "padding-right": "2px",
+              "padding-top": "2px",
+              "pointer-events": "none",
+              "position": "absolute",
+              "z-index": "1",
+            },
+            "tag": "span",
+          },
+          {
+            "children": [
+              {
+                "attrs": {
+                  "data-key-label": "true",
+                },
+                "class": [
+                  "font-bold",
+                  "leading-normal",
+                  "pointer-events-none",
+                  "select-none",
+                  "text-[14px]",
+                  "text-safe-inline",
+                ],
+                "style": {
+                  "font-family": "inherit",
+                  "font-size": "inherit",
+                  "font-style": "inherit",
+                  "font-weight": "inherit",
+                  "text-decoration": "inherit",
+                  "will-change": "auto",
+                },
+                "tag": "span",
+                "text": "KPS",
+              },
+              {
+                "attrs": {
+                  "data-counter-state": "inactive",
+                  "data-text": "0",
+                },
+                "class": [
+                  "counter",
+                ],
+                "style": {
+                  "--counter-color-default": "rgba(237, 238, 242, 0.78)",
+                  "--dmn-counter-fill-clip-default": "border-box",
+                  "--dmn-counter-fill-image-default": "none",
+                  "--dmn-counter-fill-repeat-default": "repeat",
+                  "--dmn-counter-font-family-default": "inherit",
+                  "--dmn-counter-font-size-default": "11px",
+                  "--dmn-counter-font-style-default": "normal",
+                  "--dmn-counter-font-weight-default": "500",
+                  "--dmn-counter-line-height-default": "normal",
+                  "--dmn-counter-text-align-default": "center",
+                  "--dmn-counter-text-decoration-default": "none",
+                  "--dmn-counter-text-fill-default": "currentcolor",
+                  "pointer-events": "none",
+                  "transform": "scale(1)",
+                  "transform-origin": "center bottom",
+                  "user-select": "none",
+                },
+                "tag": "span",
+                "text": "0",
+              },
+            ],
+            "class": [
+              "flex",
+              "flex-col",
+              "h-full",
+              "items-center",
+              "pointer-events-none",
+              "select-none",
+              "w-full",
+            ],
+            "style": {
+              "gap": "4px",
+              "justify-content": "center",
+              "padding": "0px",
+              "padding-bottom": "0px",
+              "padding-left": "0px",
+              "padding-right": "0px",
+              "padding-top": "0px",
+            },
+            "tag": "div",
+          },
+        ],
+        "class": [
+          "absolute",
+          "dmn-grabbable",
+          "my-stat",
+        ],
+        "style": {
+          "--dmn-key-bg-default": "#ABCDEF",
+          "--dmn-key-bg-image-default": "none",
+          "--dmn-key-border-default": "none",
+          "--dmn-key-font-family-default": "inherit",
+          "--dmn-key-font-size-default": "12px",
+          "--dmn-key-font-style-default": "normal",
+          "--dmn-key-font-weight-default": "700",
+          "--dmn-key-label-color-default": "inherit",
+          "--dmn-key-padding-default": "2px",
+          "--dmn-key-radius-default": "6px",
+          "--dmn-key-shadow-default": "1px 2px 3px #000000",
+          "--dmn-key-text-color-default": "rgba(237, 238, 242, 0.78)",
+          "--dmn-key-text-decoration-default": "none",
+          "--dmn-key-text-image-default": "none",
+          "--dmn-key-text-repeat-default": "repeat",
+          "backface-visibility": "visible",
+          "box-sizing": "border-box",
+          "contain": "layout style",
+          "height": "60px",
+          "image-rendering": "auto",
+          "isolation": "isolate",
+          "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
+          "transform-style": "flat",
+          "width": "60px",
+          "will-change": "auto",
+          "z-index": "0",
+        },
+        "tag": "div",
+      },
+    ],
+    "style": {
+      "cursor": "move",
+      "height": "60px",
+      "left": "4px",
+      "position": "absolute",
+      "top": "8px",
+      "width": "60px",
+      "z-index": "0",
+    },
+    "tag": "div",
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > statLabel > 오버레이 - 대기·입력 > 대기 1`] = `
+[
+  {
+    "attrs": {
+      "data-key-element": "true",
+      "data-overlay-hit": "true",
+      "data-state": "inactive",
+    },
+    "children": [
+      {
+        "attrs": {
+          "aria-hidden": "true",
           "data-gradient-border-ring": "true",
         },
-        "tag": "span",
-        "vars": {
+        "style": {
           "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
           "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
           "-webkit-mask-composite": "xor",
@@ -1419,10 +2453,14 @@ exports[`그리기 약속 행렬 > stat > 편집 화면 - 대기·눌림 미리�
           "position": "absolute",
           "z-index": "1",
         },
+        "tag": "span",
       },
       {
         "children": [
           {
+            "attrs": {
+              "data-key-label": "true",
+            },
             "class": [
               "font-bold",
               "leading-normal",
@@ -1431,11 +2469,7 @@ exports[`그리기 약속 행렬 > stat > 편집 화면 - 대기·눌림 미리�
               "text-[14px]",
               "text-safe-inline",
             ],
-            "data": {
-              "data-key-label": "true",
-            },
-            "tag": "span",
-            "vars": {
+            "style": {
               "font-family": "inherit",
               "font-size": "inherit",
               "font-style": "inherit",
@@ -1443,17 +2477,18 @@ exports[`그리기 약속 행렬 > stat > 편집 화면 - 대기·눌림 미리�
               "text-decoration": "inherit",
               "will-change": "auto",
             },
+            "tag": "span",
+            "text": "Total",
           },
           {
-            "class": [
-              "counter",
-            ],
-            "data": {
+            "attrs": {
               "data-counter-state": "inactive",
               "data-text": "0",
             },
-            "tag": "span",
-            "vars": {
+            "class": [
+              "counter",
+            ],
+            "style": {
               "--counter-color-default": "rgba(237, 238, 242, 0.78)",
               "--dmn-counter-fill-clip-default": "border-box",
               "--dmn-counter-fill-image-default": "none",
@@ -1471,6 +2506,8 @@ exports[`그리기 약속 행렬 > stat > 편집 화면 - 대기·눌림 미리�
               "transform-origin": "center bottom",
               "user-select": "none",
             },
+            "tag": "span",
+            "text": "0",
           },
         ],
         "class": [
@@ -1482,8 +2519,7 @@ exports[`그리기 약속 행렬 > stat > 편집 화면 - 대기·눌림 미리�
           "select-none",
           "w-full",
         ],
-        "tag": "div",
-        "vars": {
+        "style": {
           "gap": "4px",
           "justify-content": "center",
           "padding": "0px",
@@ -1492,24 +2528,19 @@ exports[`그리기 약속 행렬 > stat > 편집 화면 - 대기·눌림 미리�
           "padding-right": "0px",
           "padding-top": "0px",
         },
+        "tag": "div",
       },
     ],
     "class": [
       "absolute",
-      "dmn-grabbable",
       "my-stat",
     ],
-    "data": {
-      "data-key-element": "true",
-      "data-state": "inactive",
-    },
-    "tag": "div",
-    "vars": {
+    "style": {
       "--dmn-key-bg-default": "#112233",
       "--dmn-key-bg-image-default": "none",
       "--dmn-key-border-default": "none",
       "--dmn-key-font-family-default": "inherit",
-      "--dmn-key-font-size-default": "12px",
+      "--dmn-key-font-size-default": "inherit",
       "--dmn-key-font-style-default": "normal",
       "--dmn-key-font-weight-default": "700",
       "--dmn-key-label-color-default": "inherit",
@@ -1520,18 +2551,184 @@ exports[`그리기 약속 행렬 > stat > 편집 화면 - 대기·눌림 미리�
       "--dmn-key-text-decoration-default": "none",
       "--dmn-key-text-image-default": "none",
       "--dmn-key-text-repeat-default": "repeat",
-      "backface-visibility": "visible",
+      "backface-visibility": "hidden",
       "box-sizing": "border-box",
-      "contain": "layout style",
+      "contain": "layout style paint",
+      "cursor": "default",
       "height": "60px",
       "image-rendering": "auto",
       "isolation": "isolate",
-      "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
-      "transform-style": "flat",
+      "transform": "translate3d(calc(4px + var(--key-offset-x, 0px)), calc(8px + var(--key-offset-y, 0px)), 0)",
+      "transform-style": "preserve-3d",
       "width": "60px",
-      "will-change": "auto",
+      "will-change": "transform",
       "z-index": "0",
     },
+    "tag": "div",
+  },
+]
+`;
+
+exports[`그리기 약속 행렬 > statLabel > 편집 화면 - 대기·눌림·편집 미리보기 > 대기 1`] = `
+[
+  {
+    "attrs": {
+      "data-element-id": "stat-2",
+      "data-element-kind": "stat",
+    },
+    "children": [
+      {
+        "attrs": {
+          "data-key-element": "true",
+          "data-state": "inactive",
+        },
+        "children": [
+          {
+            "attrs": {
+              "aria-hidden": "true",
+              "data-gradient-border-ring": "true",
+            },
+            "style": {
+              "--dmn-border-gradient-image-default": "linear-gradient(170deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 80%)",
+              "-webkit-mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "-webkit-mask-composite": "xor",
+              "border-radius": "inherit",
+              "inset": "0px",
+              "mask": "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              "mask-composite": "exclude",
+              "padding": "2px",
+              "padding-bottom": "2px",
+              "padding-left": "2px",
+              "padding-right": "2px",
+              "padding-top": "2px",
+              "pointer-events": "none",
+              "position": "absolute",
+              "z-index": "1",
+            },
+            "tag": "span",
+          },
+          {
+            "children": [
+              {
+                "attrs": {
+                  "data-key-label": "true",
+                },
+                "class": [
+                  "font-bold",
+                  "leading-normal",
+                  "pointer-events-none",
+                  "select-none",
+                  "text-[14px]",
+                  "text-safe-inline",
+                ],
+                "style": {
+                  "font-family": "inherit",
+                  "font-size": "inherit",
+                  "font-style": "inherit",
+                  "font-weight": "inherit",
+                  "text-decoration": "inherit",
+                  "will-change": "auto",
+                },
+                "tag": "span",
+                "text": "Total",
+              },
+              {
+                "attrs": {
+                  "data-counter-state": "inactive",
+                  "data-text": "0",
+                },
+                "class": [
+                  "counter",
+                ],
+                "style": {
+                  "--counter-color-default": "rgba(237, 238, 242, 0.78)",
+                  "--dmn-counter-fill-clip-default": "border-box",
+                  "--dmn-counter-fill-image-default": "none",
+                  "--dmn-counter-fill-repeat-default": "repeat",
+                  "--dmn-counter-font-family-default": "inherit",
+                  "--dmn-counter-font-size-default": "11px",
+                  "--dmn-counter-font-style-default": "normal",
+                  "--dmn-counter-font-weight-default": "500",
+                  "--dmn-counter-line-height-default": "normal",
+                  "--dmn-counter-text-align-default": "center",
+                  "--dmn-counter-text-decoration-default": "none",
+                  "--dmn-counter-text-fill-default": "currentcolor",
+                  "pointer-events": "none",
+                  "transform": "scale(1)",
+                  "transform-origin": "center bottom",
+                  "user-select": "none",
+                },
+                "tag": "span",
+                "text": "0",
+              },
+            ],
+            "class": [
+              "flex",
+              "flex-col",
+              "h-full",
+              "items-center",
+              "pointer-events-none",
+              "select-none",
+              "w-full",
+            ],
+            "style": {
+              "gap": "4px",
+              "justify-content": "center",
+              "padding": "0px",
+              "padding-bottom": "0px",
+              "padding-left": "0px",
+              "padding-right": "0px",
+              "padding-top": "0px",
+            },
+            "tag": "div",
+          },
+        ],
+        "class": [
+          "absolute",
+          "dmn-grabbable",
+          "my-stat",
+        ],
+        "style": {
+          "--dmn-key-bg-default": "#112233",
+          "--dmn-key-bg-image-default": "none",
+          "--dmn-key-border-default": "none",
+          "--dmn-key-font-family-default": "inherit",
+          "--dmn-key-font-size-default": "inherit",
+          "--dmn-key-font-style-default": "normal",
+          "--dmn-key-font-weight-default": "700",
+          "--dmn-key-label-color-default": "inherit",
+          "--dmn-key-padding-default": "2px",
+          "--dmn-key-radius-default": "6px",
+          "--dmn-key-shadow-default": "1px 2px 3px #000000",
+          "--dmn-key-text-color-default": "rgba(237, 238, 242, 0.78)",
+          "--dmn-key-text-decoration-default": "none",
+          "--dmn-key-text-image-default": "none",
+          "--dmn-key-text-repeat-default": "repeat",
+          "backface-visibility": "visible",
+          "box-sizing": "border-box",
+          "contain": "layout style",
+          "height": "60px",
+          "image-rendering": "auto",
+          "isolation": "isolate",
+          "transform": "translate(calc(0px + var(--key-offset-x, 0px)), calc(0px + var(--key-offset-y, 0px)))",
+          "transform-style": "flat",
+          "width": "60px",
+          "will-change": "auto",
+          "z-index": "0",
+        },
+        "tag": "div",
+      },
+    ],
+    "style": {
+      "cursor": "move",
+      "height": "60px",
+      "left": "4px",
+      "position": "absolute",
+      "top": "8px",
+      "width": "60px",
+      "z-index": "0",
+    },
+    "tag": "div",
   },
 ]
 `;
