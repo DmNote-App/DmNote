@@ -3058,3 +3058,79 @@ fn 옛_모양이_받던_값은_읽을_때_트리_규칙으로_고치지_않고_�
     engine.apply(&mut document, &ops).unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 새_버전_앱이_쓴_종류의_요소는_옛_모양_쓰기로_고치지_않고_다른_종류_쓰기에도_그대로_둔다() {
+    let (dir, store) = open_store();
+    // 새 버전 앱이 key 종류를 올려 저장한 문서 - 이 앱에서는 잠금
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        let mut document = (**scratch.element_document()).clone();
+        document.kind_versions.insert("key".into(), 99);
+        scratch.set_element_document(std::sync::Arc::new(document));
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let keys_before: Vec<element_document::Element> = store.element_document_snapshot().1.scenes
+        ["4key"]
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            Node::Element(element) if element.kind == "key" => Some(element.clone()),
+            _ => None,
+        })
+        .collect();
+    assert!(!keys_before.is_empty());
+
+    // 잠긴 종류를 고치는 옛 모양 쓰기는 거절
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        scratch.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx += 5.0;
+        assert!(store.commit_locked(&mut guard, scratch, ()).is_err());
+    }
+    // 다른 종류만 고치는 쓰기는 받고, 잠긴 요소는 그대로
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        scratch.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
+            .position
+            .dx += 5.0;
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let document = store.element_document_snapshot().1;
+    for key in &keys_before {
+        assert_eq!(document.scenes["4key"].element(&key.id), Some(key));
+    }
+    assert_eq!(document.kind_versions["key"], 99);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 불러온_뒤_정리가_잠긴_종류의_칸을_바꿔도_시작을_막지_않고_저장된_요소를_지킨다() {
+    let mut state = default_state();
+    attach_loaded_document(&mut state, None).unwrap();
+    let mut document = (**state.element_document()).clone();
+    document.kind_versions.insert("key".into(), 99);
+    state.set_element_document(std::sync::Arc::new(document));
+    let before = state.clone();
+
+    let mut loaded = state.clone();
+    loaded.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx += 5.0;
+    sync_loaded_element_document(&before, &mut loaded).unwrap();
+    assert_eq!(
+        loaded.element_document().scenes["4key"],
+        before.element_document().scenes["4key"]
+    );
+
+    // 커밋 경로는 같은 쓰기를 거부한다
+    let mut committed = state.clone();
+    committed
+        .legacy_mut()
+        .key_positions
+        .get_mut("4key")
+        .unwrap()[0]
+        .dx += 5.0;
+    assert!(sync_element_document(&before, &mut committed).is_err());
+}

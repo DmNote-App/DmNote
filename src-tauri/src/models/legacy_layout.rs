@@ -83,6 +83,49 @@ pub(crate) fn is_legacy_kind(name: &str) -> bool {
     kind_of(name).is_some()
 }
 
+/// 새 버전 앱이 쓴 옛 종류 - 저장된 종류 버전이 이 앱보다 높다 (3.5 보존·잠금, 이 앱은 고치지 않는다)
+pub(crate) fn locked_legacy_kinds(document: &Document) -> Vec<EditorElementTypeV1> {
+    let registry = builtin_kind_registry();
+    EditorElementTypeV1::ALL
+        .into_iter()
+        .filter(|kind| {
+            let name = kind_name(*kind);
+            registry.get(name).is_some_and(|schema| {
+                document
+                    .kind_versions
+                    .get(name)
+                    .is_some_and(|stored| *stored > schema.version)
+            })
+        })
+        .collect()
+}
+
+/// 잠긴 종류의 요소를 이전 문서의 것으로 둔다 - 옛 모양 다시 만들기가 이 앱의 모양으로 고쳐 쓴 것을 되돌린다
+/// (트리 자리는 다시 만든 그대로)
+pub(crate) fn restore_locked_elements(
+    previous: &Document,
+    next: &mut Document,
+    locked: &[EditorElementTypeV1],
+) {
+    let names: Vec<&str> = locked.iter().map(|kind| kind_name(*kind)).collect();
+    for (scene_id, scene) in next.scenes.iter_mut() {
+        let Some(old) = previous.scenes.get(scene_id) else {
+            continue;
+        };
+        element_document::document::walk_mut(&mut scene.nodes, &mut |node| {
+            let Node::Element(element) = node else {
+                return;
+            };
+            if !names.contains(&element.kind.as_str()) {
+                return;
+            }
+            if let Some(stored) = old.element(&element.id) {
+                *element = stored.clone();
+            }
+        });
+    }
+}
+
 /// 옛 모양 읽기 - store나 편집 문서를 복사하지 않고 빌려 읽는다
 #[derive(Clone, Copy)]
 pub(crate) struct LegacyRef<'a> {

@@ -342,7 +342,7 @@ impl AppStore {
         if state.element_document().scenes.is_empty() {
             attach_loaded_document(&mut state, None)?;
         } else {
-            element_tree::sync_element_document(&loaded_state, &mut state)?;
+            element_tree::sync_loaded_element_document(&loaded_state, &mut state)?;
         }
         needs_persist |= document_missing;
 

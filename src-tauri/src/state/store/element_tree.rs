@@ -18,12 +18,13 @@ use serde_json::Value;
 use super::{next_plugin_model_revision, plugin_elements_snapshot, AppStore};
 use crate::models::legacy_layout::{
     graft_preset_scene, graft_tree_only, import_document, is_legacy_kind, is_plugin_kind,
-    is_tree_only_group, lift_legacy_kind_fields, moved_z_fixes, project_document,
-    reconcile_document, set_tree_z, strip_tree_only, LegacyRef,
+    is_tree_only_group, lift_legacy_kind_fields, locked_legacy_kinds, moved_z_fixes,
+    project_document, reconcile_document, restore_locked_elements, set_tree_z, strip_tree_only,
+    LegacyRef,
 };
 use crate::models::{
     builtin_kind_registry, AppStoreData, EditorCommitRequest, EditorDocumentV1,
-    PluginInstancesChangedPayload,
+    EditorElementTypeV1, EditorField, PluginInstancesChangedPayload,
 };
 use crate::state::history::ElementTreeHistorySnapshot;
 use crate::state::plugin_tree::{
@@ -301,6 +302,30 @@ pub(crate) fn attach_parsed_document(
 /// 기준은 지금 트리의 투영이 아니라 확정된 옛 모양이다 - 같은 갱신에서 트리를 먼저 바꾼 경로(트리 쓰기 커밋·
 /// 플러그인 스냅샷)의 변화를 옛 모양 변경으로 되돌리지 않고, 트리로 넣은 옛 요소도 맞추기에서 배열 자리를 받는다
 pub(crate) fn sync_element_document(before: &AppStoreData, after: &mut AppStoreData) -> Result<()> {
+    sync_with_locked(before, after, LockedWrite::Reject)
+}
+
+/// 불러온 뒤 정리(자산 경로·이미지 크기 등)를 트리에 반영 - 새 버전 앱이 쓴 종류는 거부하지 않고 저장된 요소를 그대로
+/// 둔다 (정리가 그 칸을 바꿨어도 - 시작을 막지 않게)
+pub(crate) fn sync_loaded_element_document(
+    before: &AppStoreData,
+    after: &mut AppStoreData,
+) -> Result<()> {
+    sync_with_locked(before, after, LockedWrite::Keep)
+}
+
+// 새 버전 앱이 쓴 종류의 칸을 바꾸는 옛 모양 쓰기 - 커밋은 거부, 불러온 뒤 정리는 저장된 요소를 지킨다
+#[derive(Clone, Copy, PartialEq)]
+enum LockedWrite {
+    Reject,
+    Keep,
+}
+
+fn sync_with_locked(
+    before: &AppStoreData,
+    after: &mut AppStoreData,
+    locked_write: LockedWrite,
+) -> Result<()> {
     let Some(edit) = after.take_legacy_edit() else {
         return Ok(());
     };
@@ -308,12 +333,29 @@ pub(crate) fn sync_element_document(before: &AppStoreData, after: &mut AppStoreD
     if edit == *previous {
         return Ok(());
     }
+    // 새 버전 앱이 쓴 종류는 고치지 않는다 (3.5 보존·잠금) - 그 칸을 바꾸는 옛 모양 쓰기는 거부하고,
+    // 다른 칸 쓰기에는 그 요소를 그대로 둔다 (다시 만들기가 이 앱의 모양으로 고쳐 쓰지 않게)
+    let locked = locked_legacy_kinds(after.element_document());
+    if !locked.is_empty() && locked_write == LockedWrite::Reject {
+        let changed = previous.changed_fields(&edit);
+        if locked.iter().any(|kind| {
+            changed.contains(&kind.editor_field())
+                || (*kind == EditorElementTypeV1::Key && changed.contains(&EditorField::Keys))
+        }) {
+            anyhow::bail!(
+                "KIND_VERSION_LOCKED: 새 버전 앱이 쓴 요소 종류는 고칠 수 없습니다 ({locked:?})"
+            );
+        }
+    }
     let mut next = reconcile_document(
         after.element_document(),
         Some(LegacyRef::from(previous)),
         LegacyRef::from(&edit),
     )
     .context("요소 트리 맞추기 실패")?;
+    if !locked.is_empty() {
+        restore_locked_elements(after.element_document(), &mut next, &locked);
+    }
     // 옛 모양에서 빠진 탭의 장면은 버려진다 - 그 탭의 플러그인 인스턴스는 장면 밖에 보존한다
     carry_plugin_buckets(after.element_document(), &mut next);
     after.set_element_document(std::sync::Arc::new(next));
