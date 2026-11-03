@@ -39,6 +39,8 @@ export interface ElementRenderProps<Values> {
   inputs: ElementRenderInputs;
   // 오버레이·OBS의 자리 - 감싸는 상자 없이 그리는 얼굴만 받는다 (편집 화면은 감싸는 상자가 자리를 잡는다)
   placement?: ElementPlacement;
+  // 오버레이·OBS 맥락 - 스스로 자리를 잡는 얼굴이 받는다 (스프라이트 트리거 키, 키의 탭·카운터 표시)
+  context?: OverlayItemContext;
   // 편집 화면에서 골랐는지 - 옛 겉모습이 선택 상태를 그릴 때
   selected?: boolean;
 }

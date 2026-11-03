@@ -126,7 +126,7 @@ const loadHarness = async () => {
     import('@stores/grid/useDocumentSelectionStore'),
     import('@src/renderer/elementKinds/runtime/treeElementPosition'),
     import('@hooks/Grid/drag/dragSession'),
-    import('../layers/SpriteFaceView'),
+    import('@src/renderer/elementKinds/definitions/sprite/SpritePreview'),
     import('@stores/grid/useSpriteEditPreviewStore'),
   ]);
   return {

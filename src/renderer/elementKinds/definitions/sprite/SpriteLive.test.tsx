@@ -15,7 +15,7 @@ import {
   setKeyActive,
 } from '@stores/signals/keySignals';
 
-import OverlaySpriteItem from './OverlaySpriteItem';
+import SpriteLive from './SpriteLive';
 import {
   makeCanonicalSpritePosition,
   makeSpritePose,
@@ -61,7 +61,7 @@ const keyCanonicalMap: ReadonlyMap<string, string> = new Map([
   ['el-a', 'KeyA'],
 ]);
 
-describe('OverlaySpriteItem', () => {
+describe('SpriteLive', () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -70,9 +70,7 @@ describe('OverlaySpriteItem', () => {
     map: ReadonlyMap<string, string> = keyCanonicalMap,
   ) => {
     act(() => {
-      root.render(
-        <OverlaySpriteItem position={position} keyCanonicalMap={map} />,
-      );
+      root.render(<SpriteLive position={position} keyCanonicalMap={map} />);
     });
   };
 
@@ -322,7 +320,7 @@ describe('OverlaySpriteItem', () => {
 });
 
 // onPress 단발 재생 - edge 채널·WAAPI 소유권·이미지 수명주기
-describe('OverlaySpriteItem onPress', () => {
+describe('SpriteLive onPress', () => {
   interface MockAnimation {
     keyframes: Array<Record<string, string>>;
     options: KeyframeAnimationOptions;
@@ -353,9 +351,7 @@ describe('OverlaySpriteItem onPress', () => {
     map: ReadonlyMap<string, string> = keyCanonicalMap,
   ) => {
     act(() => {
-      root.render(
-        <OverlaySpriteItem position={position} keyCanonicalMap={map} />,
-      );
+      root.render(<SpriteLive position={position} keyCanonicalMap={map} />);
     });
   };
 

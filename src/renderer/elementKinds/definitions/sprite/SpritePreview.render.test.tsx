@@ -1,12 +1,12 @@
 /**
- * 스프라이트 얼굴(SpriteFaceView) 렌더 계약 테스트 - 편집 화면 트리 레이어가 감싸는 상자 안에 그린다
+ * 스프라이트 편집 화면 그리기(SpritePreview) 렌더 계약 테스트 - 편집 화면 트리 레이어가 감싸는 상자 안에 그린다
  * 활동 영역 테두리는 선택 시 선택 색으로 바뀐다
  */
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import SpriteFaceView from '@components/main/Grid/layers/SpriteFaceView';
+import SpritePreview from './SpritePreview';
 import { useSpriteEditPreviewStore } from '@stores/grid/useSpriteEditPreviewStore';
 import type { CanonicalReactiveSpritePosition } from '@src/types/editor';
 import type { SpritePose } from '@src/types/key/sprites';
@@ -41,7 +41,7 @@ const renderSprite = (
 ) => {
   act(() => {
     root.render(
-      <SpriteFaceView
+      <SpritePreview
         elementId={SPRITE_ID}
         position={position}
         isSelected={options.isSelected === true}

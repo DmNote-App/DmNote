@@ -19,7 +19,7 @@ import {
 } from '@utils/sprite/spritePlacement';
 import type { CanonicalReactiveSpritePosition } from '@src/types/editor';
 
-interface SpriteFaceViewProps {
+interface SpritePreviewProps {
   position: CanonicalReactiveSpritePosition;
   elementId: string;
   isSelected: boolean;
@@ -28,12 +28,12 @@ interface SpriteFaceViewProps {
 // 자세 편집 중 기본 자세를 뒤에 남기는 고스트의 투명도
 const IDLE_GHOST_OPACITY = 0.3;
 
-/** 편집 화면 스프라이트 겉모습(상자를 채운다) - 옛 스프라이트 요소와 트리 요소가 같이 쓴다 (자세 미리보기 포함) */
-const SpriteFaceView = ({
+/** 편집 화면 스프라이트 겉모습(상자를 채운다) - 자세 편집 미리보기 포함. 받는 위치는 트리 값과 상자로 만든 배치 모양 */
+const SpritePreview = ({
   position,
   elementId,
   isSelected,
-}: SpriteFaceViewProps) => {
+}: SpritePreviewProps) => {
   const posePreview = useSpriteEditPreview(elementId);
   const previewPose = posePreview
     ? posePreview.preferFallback
@@ -143,4 +143,4 @@ const SpriteFaceView = ({
   );
 };
 
-export default SpriteFaceView;
+export default SpritePreview;

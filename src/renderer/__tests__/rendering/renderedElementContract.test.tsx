@@ -10,7 +10,7 @@ import { Key } from '@components/shared/key/LiveKey';
 import StatItem from '@components/overlay/counters/StatItem';
 import KnobElementFace from '@src/renderer/elementKinds/definitions/knob/KnobElementFace';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import OverlaySpriteItem from '@components/overlay/counters/OverlaySpriteItem';
+import SpriteLive from '@src/renderer/elementKinds/definitions/sprite/SpriteLive';
 import OutsideCounter from '@components/overlay/counters/OutsideCounter';
 import GraphPanel from '@components/shared/graph/GraphPanel';
 import { resetAllKeySignals, setKeyActive } from '@stores/signals/keySignals';
@@ -416,11 +416,11 @@ describe('렌더 DOM 계약', () => {
     });
   });
 
-  describe('오버레이 SpriteItem', () => {
+  describe('오버레이 스프라이트', () => {
     it('래퍼가 히트 마커를, 안쪽 표면이 data 속성을 싣는다', () => {
       act(() => {
         root.render(
-          <OverlaySpriteItem
+          <SpriteLive
             position={{
               activation: 'whileHeld',
               pressDurationMs: 300,

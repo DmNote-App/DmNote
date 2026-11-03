@@ -36,7 +36,7 @@ import {
 } from '@utils/sprite/spriteReach';
 import type { CanonicalReactiveSpritePosition } from '@src/types/editor';
 
-interface OverlaySpriteItemProps {
+interface SpriteLiveProps {
   position: CanonicalReactiveSpritePosition;
   keyCanonicalMap: ReadonlyMap<string, string>;
 }
@@ -67,15 +67,16 @@ interface OneShotPlayback {
   timer: number | null;
 }
 
-// 키 입력에 따라 자세가 바뀌는 반응형 스프라이트 잎 컴포넌트.
+// 오버레이·OBS 스프라이트 - 키 입력에 따라 자세가 바뀌는 반응형 스프라이트 잎 컴포넌트.
+// 받는 위치는 트리 값과 상자로 만든 배치 모양(spriteViewOf)이다.
 // whileHeld: 담당 키 시그널을 여기서만 읽어 눌림 변화가 이 잎의 리렌더로만 남고,
 // 변환은 CSS transition이 컴포지터에서 보간한다 (계약 §9).
 // onPress: 렌더는 항상 idle로 고정하고, 실입력 DOWN edge에서 WAAPI가
 // 자세→idle 한 방향 재생을 수행한다 (React state 미경유, 탭당 리렌더 0)
-const OverlaySpriteItem = React.memo(function OverlaySpriteItem({
+const SpriteLive = React.memo(function SpriteLive({
   position,
   keyCanonicalMap,
-}: OverlaySpriteItemProps) {
+}: SpriteLiveProps) {
   useSignals();
 
   const isOneShot = position.activation === 'onPress';
@@ -524,4 +525,4 @@ const OverlaySpriteItem = React.memo(function OverlaySpriteItem({
   );
 });
 
-export default OverlaySpriteItem;
+export default SpriteLive;

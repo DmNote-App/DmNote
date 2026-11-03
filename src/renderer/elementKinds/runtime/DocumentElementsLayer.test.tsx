@@ -82,7 +82,7 @@ vi.mock('@components/overlay/counters/OverlayStatItem', () => ({
 }));
 
 const spriteProps = vi.fn();
-vi.mock('@components/overlay/counters/OverlaySpriteItem', () => ({
+vi.mock('@src/renderer/elementKinds/definitions/sprite/SpriteLive', () => ({
   default: (props: {
     position: Record<string, unknown>;
     keyCanonicalMap: ReadonlyMap<string, string>;

@@ -62,6 +62,7 @@ const DocumentElementView = React.memo(
           live={live}
           inputs={inputs}
           placement={{ x: x + offset.x, y: y + offset.y, zIndex }}
+          context={overlayContext}
         />
       );
     }

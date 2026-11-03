@@ -1,7 +1,5 @@
-import { createElement } from 'react';
-import OverlaySpriteItem from '@components/overlay/counters/OverlaySpriteItem';
 import { defineElementKind, type FieldDecl } from '../defineElementKind';
-import SpriteEditorFace from './sprite/SpriteEditorFace';
+import SpriteElementFace from './sprite/SpriteElementFace';
 import { spriteOccupiedResizeHandle } from './sprite/spriteOccupiedResizeHandle';
 import { spriteResizeValues } from './sprite/spriteResizeValues';
 
@@ -162,17 +160,13 @@ export const spriteKind = defineElementKind(
     fallbackSize: { width: 200, height: 200 },
   },
   {
-    // 편집 화면은 옛 스프라이트 겉모습, 오버레이·OBS는 트리에서 옛 스프라이트를 그대로 그린다(트리거 키는 오버레이 맥락)
-    render: SpriteEditorFace as never,
+    // 편집 화면은 자세 편집 미리보기, 오버레이·OBS는 키 입력에 따른 자세 전환 (트리거 키는 오버레이 맥락)
+    render: SpriteElementFace as never,
+    placesItself: true,
     // 그림 레이어 - 늘리지 않는다
     lockAspect: () => true,
     // 기준점 표식이 앉은 크기 조절 자리는 비우고, 크기를 바꾸면 이동값을 비례로
     occupiedResizeHandle: spriteOccupiedResizeHandle,
     resizeValues: spriteResizeValues,
-    legacyOverlay: ({ position, context }) =>
-      createElement(OverlaySpriteItem, {
-        position: position as never,
-        keyCanonicalMap: context.spriteKeyCanonicalMap,
-      }),
   },
 );
