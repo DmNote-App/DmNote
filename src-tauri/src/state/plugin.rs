@@ -155,7 +155,8 @@ pub(crate) fn plugin_group_refs_from_store(data: &AppStoreData) -> PluginGroupRe
 }
 
 // 플러그인 인스턴스 버킷 - 인스턴스 목록(저장 모양 배열)을 읽고 쓰는 단일 입구.
-// 저장 위치는 트리 장면(플러그인 종류 요소, state::plugin_tree) - 플러그인 런타임은 같은 목록을 주고받는다
+// 저장 위치는 트리 장면(플러그인 종류 요소, state::plugin_tree). 저장소 공개 API·옮기기·초기화가 같은 목록 모양으로 본다
+// (플러그인 런타임은 트리를 읽고 트리 연산으로 쓴다)
 pub(crate) fn plugin_instance_bucket_ids(data: &AppStoreData) -> Vec<String> {
     crate::state::plugin_tree::plugin_bucket_ids(data.element_document())
 }

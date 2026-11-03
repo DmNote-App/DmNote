@@ -45,7 +45,7 @@ pub(crate) fn plugin_element_id(plugin_id: &str, instance_id: &str) -> String {
     format!("{plugin_id}::{instance_id}")
 }
 
-/// 이미 사라진 플러그인 요소의 지우기는 뺀다 - 플러그인 노드는 인스턴스 목록 쓰기(플러그인 스크립트·자동 저장)로도
+/// 이미 사라진 플러그인 요소의 지우기는 뺀다 - 플러그인 노드는 다른 쓰기(다른 창·저장소 지우기·탭 초기화)로도
 /// 사라지므로, 편집기가 먼저 보낸(또는 보류했다 다시 보낸) 지우기가 함께 지우는 다른 요소까지 거절당하지 않게
 pub(crate) fn skip_removed_plugin_nodes(document: &Document, ops: &[Op]) -> Option<Vec<Op>> {
     let gone = |scene: &str, id: &str| {
