@@ -109,6 +109,33 @@ const key = element(ID(3), 'key', 2, {
   input: { type: 'key', slot: 'KeyA' },
 } as Partial<ElementNode>);
 
+const knob = element(ID(6), 'knob', 5, {
+  frame: { x: 700, y: 20, width: 60, height: 60, rotation: 0 },
+});
+const boundKnob = element(ID(7), 'knob', 6, {
+  frame: { x: 780, y: 20, width: 80, height: 40, rotation: 0 },
+  name: 'My Knob',
+  className: 'my-knob',
+  useInlineStyles: true,
+  input: { type: 'axis', axisId: 'HIDA:1234' },
+  values: { sensitivity: 2.5, reverse: true },
+  bundles: {
+    surface: {
+      backgroundColor: '#223344',
+      activeBackgroundColor: '#445566',
+      borderWidth: 3,
+      borderRadius: 12,
+      shadow: {
+        enabled: true,
+        color: '#000000',
+        offsetX: 1,
+        offsetY: 2,
+        blur: 3,
+      },
+    },
+    image: { idleTransparent: true },
+  },
+} as Partial<ElementNode>);
 const tracker = element(ID(4), 'cursorTracker', 3, {
   frame: { x: 400, y: 20, width: 120, height: 120, rotation: 0 },
 });
@@ -148,6 +175,21 @@ const CASES: Record<string, Case> = {
     selected: [ID(1), ID(2)],
   },
   '키와 그래프': { nodes: [lineGraph, key], selected: [ID(1), ID(3)] },
+  '노브 하나 - 기본값': { nodes: [knob], selected: [ID(6)] },
+  '노브 하나 - 축·고른 값·사용자 CSS': {
+    nodes: [boundKnob],
+    selected: [ID(7)],
+    useCustomCSS: true,
+  },
+  '노브 여럿 - 섞인 값': {
+    nodes: [knob, boundKnob],
+    selected: [ID(6), ID(7)],
+    useCustomCSS: true,
+  },
+  '노브와 그래프': {
+    nodes: [lineGraph, knob],
+    selected: [ID(1), ID(6)],
+  },
   // 트리에만 있는 종류
   '커서 트래커 하나': { nodes: [tracker], selected: [ID(4)] },
   '커서 트래커 여럿 - 섞인 모드': {
