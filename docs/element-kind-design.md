@@ -11,7 +11,7 @@
 
 - 새 캔버스 요소 종류를 추가하려면 백엔드 36개·프론트 85개 파일을 고쳐야 했다(1단계 착수 전 조사).
 - 1~3단계에서 종류 목록과 연결 지점을 표로 모았다. 그래도 저장 모양, 검증, 패널, 창별 그리기는 종류마다 따로 남아 있다.
-- 같은 내용을 TS와 Rust에 두 번 적는다. `KeyPosition`의 칸 77개가 [Rust 구조체](../src-tauri/src/models/element_positions.rs)와 [TS zod 스키마](../src/types/key/keys.ts)에 각각 있고, 코드 생성 도구는 없다. 두 벌을 맞추는 동기화 데이터가 `tests/fixtures/`에 9개 있었지만(오류 코드, 편집 연산, 종류 목록, 회전·스프라이트 계산 등 - 지금은 트리 패치·편집 창 낙관 적용·플러그인 인스턴스 fixture까지 12개), `KeyPosition` 칸 일치는 그중 어디에도 고정돼 있지 않다.
+- 같은 내용을 TS와 Rust에 두 번 적는다. `KeyPosition`의 칸 77개가 [Rust 구조체](../src-tauri/src/models/element_positions.rs)와 [TS zod 스키마](../src/types/key/keys.ts)에 각각 있고, 코드 생성 도구는 없다. 두 벌을 맞추는 동기화 데이터가 `tests/fixtures/`에 9개 있었지만(오류 코드, 편집 연산, 종류 목록, 회전·스프라이트 계산 등 - 지금은 트리 패치·편집 창 낙관 적용·플러그인 인스턴스 fixture를 더하고 오류 코드 두 개는 생성으로 바꿔 10개), `KeyPosition` 칸 일치는 그중 어디에도 고정돼 있지 않다.
 - 편집 화면과 오버레이가 같은 요소를 따로 그린다. 그리기 핵심([GraphPanel](../src/renderer/components/shared/graph/GraphPanel.tsx), [KnobFace](../src/renderer/components/shared/KnobFace.tsx))은 공유하지만, 데이터를 모으고 겉모습을 조립하는 바깥 코드는 창마다 있다. 그래프·노브 모두 오버레이 파일(`OverlayGraphItem.tsx`, `OverlayKnobItem.tsx`)을 고친 커밋 20개 중 14개가 짝이 되는 편집 화면 파일도 같이 고쳤다(`git log --follow` 기준). 저장소 전체 리팩터링·포맷·폴더 이동·용어 변경·되돌리기 커밋을 빼면 그래프는 12개 중 6개, 노브는 16개 중 10개다.
 - 같은 값을 여러 곳에서 다룬다. 그래프 속도 범위(500~60000ms)가 단일 선택 패널, 다중 선택 패널 쪽 2개 파일, 오버레이 그리기에 따로 적혀 있고 백엔드는 검사하지 않는다. 다중 선택 패널은 선택 조합마다 손으로 고른다([selectionPanelRoute.ts](../src/renderer/components/main/Grid/PropertiesPanel/selection/selectionPanelRoute.ts)).
 
@@ -126,6 +126,7 @@
 ### 3.8 정의의 원본 — **[확정]**
 
 - **앱 구조**(공통 정보, 기능 묶음, 입력, 오류 코드 등)는 Rust가 원본이다. TS 타입은 Rust에서 만든다. 지금 손으로 맞추는 TS 사본(`keyPositionSchema`, `EDITOR_ERROR_CODES` 등)은 없어진다.
+  - [구현] 편집 커밋 오류 코드·코드별 retryable·저장 한도 코드 목록은 Rust(`errors.rs`)에서 만든다(`src/types/generated/editorErrors.ts`). 재시도 정책 표(rebase·transient·permanent)는 프론트 동작이라 TS에 남고, 새 코드가 생기면 타입 검사가 정책을 요구한다. 기능 묶음 칸 이름·기본값도 Rust에서 만든다. `keyPositionSchema`(옛 키 위치 모양)는 남음.
 - **종류 정의**는 TS 파일 하나에 선언과 코드를 함께 쓴다.
   - 백엔드가 읽는 부분(규칙표, 옮기는 방법)은 순수 데이터여야 한다. 빌드할 때 이 부분만 뽑아서 Rust가 읽는다. 함수가 섞이면 빌드에서 막는다.
   - 그리기 코드에서 쓰는 값 이름과 타입은 선언에서 바로 따라온다.
@@ -194,7 +195,7 @@
 | 사용자 컬렉션 필드는 `recover_collection_field`에 항목 단위 복구 등록 | 규칙표로 요소·칸 단위 검사가 가능해지므로 복구 단위가 바뀐다(세부 설계)                   |
 | `keys[mode][i]` ↔ `keyPositions[mode][i]` 인덱스 결합, 요소 제거 금지 | 트리에서는 결합이 없어진다. 옛 데이터 API 변환만 이 결합을 지킨다                         |
 | 편집 결합 컬렉션은 `EditorDocumentV1`·`editor_commit`에 함께 추가     | 엔진 연산으로 바뀐다. 옛 `dmn.editor.commit`은 변환으로 유지한다                          |
-| `editor_commit` 오류 코드는 프론트 `EDITOR_ERROR_CODES`와 함께 추가   | 오류 코드도 Rust 원본에서 TS를 만든다                                                     |
+| `editor_commit` 오류 코드는 프론트 `EDITOR_ERROR_CODES`와 함께 추가   | 오류 코드도 Rust 원본에서 TS를 만든다 (구현됨 - 재시도 정책만 TS에서 정한다)              |
 | OBS 이벤트 포워딩·발행 경로·커맨드 allowlist                          | 그대로 따른다                                                                             |
 | 플러그인 API·Tauri 커맨드가 바뀌면 `docs/content/` ko·en 문서 갱신    | 그대로 따른다. 옛 API 문서는 유지한다                                                     |
 
@@ -474,7 +475,7 @@
 | 내용                                              | 위치                                                                                                                                                                                                   |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `KeyPosition` Rust 구조체 / TS 스키마 (칸 77개씩) | `src-tauri/src/models/element_positions.rs`, `src/types/key/keys.ts` (`keyPositionSchema`)                                                                                                             |
-| TS·Rust 동기화 데이터 12개                        | `tests/fixtures/`                                                                                                                                                                                      |
+| TS·Rust 동기화 데이터 10개                        | `tests/fixtures/`                                                                                                                                                                                      |
 | 창별 그리기                                       | `src/renderer/components/main/Grid/layers/`(편집 화면) ↔ `src/renderer/components/overlay/counters/`(오버레이)                                                                                         |
 | 그래프 속도 범위가 적힌 곳                        | `single/SingleGraphPanel.tsx`, `batch/graph/BatchGraphSettingsSection.tsx`, `batch/graph/batchGraphSettingsModel.ts`(이상 `PropertiesPanel/`), `overlay/counters/OverlayGraphItem.tsx`                 |
 | `defineElement`와 설정 스키마                     | `src/renderer/plugins/runtime/api/defineElement.ts`, `src/types/plugin/api.ts` (`PluginSettingSchema`)                                                                                                 |
