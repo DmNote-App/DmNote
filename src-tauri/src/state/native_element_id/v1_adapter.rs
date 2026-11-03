@@ -19,9 +19,21 @@ pub(super) fn collect_collection_ids_outside_target<T: NativeElement>(
     }
 }
 
+// 잠긴 종류(새 버전 앱이 쓴 종류)의 id - 이 앱의 id 규칙으로 거절하지 않고, 유효한 id만 겹침 확인용으로 둔다 (설계 3.5)
+fn reserve_locked_id(id: &str, seen: &mut HashSet<String>) -> Result<(), EditorCommitError> {
+    if is_valid_element_id(id) && !seen.insert(id.to_string()) {
+        return Err(EditorCommitError::validation(
+            DUPLICATE_ELEMENT_ID,
+            format!("native element ID {id} appears more than once in the commit"),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_supplied_collection_ids<T: NativeElement>(
     collection: &HashMap<String, Vec<T>>,
     require_id: bool,
+    locked: bool,
     seen: &mut HashSet<String>,
 ) -> Result<(), EditorCommitError> {
     for mode in sorted_modes(collection) {
@@ -30,6 +42,10 @@ fn validate_supplied_collection_ids<T: NativeElement>(
         };
         for (index, element) in elements.iter().enumerate() {
             let id = element.id();
+            if locked {
+                reserve_locked_id(id, seen)?;
+                continue;
+            }
             if id.is_empty() {
                 if require_id {
                     return Err(EditorCommitError::validation(
@@ -59,6 +75,7 @@ fn validate_supplied_collection_ids<T: NativeElement>(
 fn validate_sprite_pose_ids(
     collection: &HashMap<String, Vec<ReactiveSpritePosition>>,
     require_id: bool,
+    locked: bool,
     seen: &mut HashSet<String>,
 ) -> Result<(), EditorCommitError> {
     for mode in sorted_modes(collection) {
@@ -67,6 +84,10 @@ fn validate_sprite_pose_ids(
         };
         for (sprite_index, sprite) in sprites.iter().enumerate() {
             for (pose_index, pose) in sprite.poses.iter().enumerate() {
+                if locked {
+                    reserve_locked_id(&pose.pose_id, seen)?;
+                    continue;
+                }
                 if pose.pose_id.is_empty() {
                     if require_id {
                         return Err(EditorCommitError::validation(
@@ -104,10 +125,12 @@ fn validate_sprite_pose_ids(
 fn validate_supplied_patch_ids(
     patch: &EditorPatchV1,
     require_id: bool,
+    locked: &[EditorElementTypeV1],
 ) -> Result<HashSet<String>, EditorCommitError> {
     struct ValidateSupplied<'a> {
         patch: &'a EditorPatchV1,
         require_id: bool,
+        locked: &'a [EditorElementTypeV1],
         seen: HashSet<String>,
     }
 
@@ -116,7 +139,12 @@ fn validate_supplied_patch_ids(
 
         fn visit<C: ElementCollection>(&mut self) -> Result<(), EditorCommitError> {
             if let Some(collection) = C::optional(self.patch).as_ref() {
-                validate_supplied_collection_ids(collection, self.require_id, &mut self.seen)?;
+                validate_supplied_collection_ids(
+                    collection,
+                    self.require_id,
+                    self.locked.contains(&C::KIND),
+                    &mut self.seen,
+                )?;
             }
             Ok(())
         }
@@ -125,12 +153,18 @@ fn validate_supplied_patch_ids(
     let mut validate = ValidateSupplied {
         patch,
         require_id,
+        locked,
         seen: HashSet::new(),
     };
     visit_collections(&mut validate)?;
     let mut seen = validate.seen;
     if let Some(collection) = patch.sprite_positions.as_ref() {
-        validate_sprite_pose_ids(collection, require_id, &mut seen)?;
+        validate_sprite_pose_ids(
+            collection,
+            require_id,
+            locked.contains(&EditorElementTypeV1::Sprite),
+            &mut seen,
+        )?;
     }
     Ok(seen)
 }
@@ -141,6 +175,7 @@ fn validate_supplied_patch_ids(
 fn sanitize_v1_supplied_collection_ids<T: NativeElement>(
     candidate: &mut HashMap<String, Vec<T>>,
     current: &HashMap<String, Vec<T>>,
+    locked: bool,
 ) -> Result<(), EditorCommitError> {
     let mut owned = HashMap::new();
     for mode in sorted_modes(current) {
@@ -166,6 +201,10 @@ fn sanitize_v1_supplied_collection_ids<T: NativeElement>(
                 continue;
             }
             if !is_valid_element_id(id) {
+                // 잠긴 종류는 이 앱의 id 규칙으로 거절하지 않는다 - 그대로 둔다
+                if locked {
+                    continue;
+                }
                 return Err(EditorCommitError::validation(
                     INVALID_ELEMENT_ID,
                     format!("native element {mode}[{index}] has an invalid ID"),
@@ -212,10 +251,12 @@ fn sanitize_v1_supplied_collection_ids<T: NativeElement>(
 fn sanitize_v1_supplied_patch_ids(
     store: &EditorDocumentV1,
     patch: &mut EditorPatchV1,
+    locked: &[EditorElementTypeV1],
 ) -> Result<(), EditorCommitError> {
     struct SanitizeSupplied<'a> {
         store: &'a EditorDocumentV1,
         patch: &'a mut EditorPatchV1,
+        locked: &'a [EditorElementTypeV1],
     }
 
     impl CollectionVisitor for SanitizeSupplied<'_> {
@@ -223,13 +264,22 @@ fn sanitize_v1_supplied_patch_ids(
 
         fn visit<C: ElementCollection>(&mut self) -> Result<(), EditorCommitError> {
             if let Some(collection) = C::optional_mut(self.patch).as_mut() {
-                sanitize_v1_supplied_collection_ids(collection, C::positions(self.store))?;
+                sanitize_v1_supplied_collection_ids(
+                    collection,
+                    C::positions(self.store),
+                    self.locked.contains(&C::KIND),
+                )?;
             }
             Ok(())
         }
     }
 
-    visit_collections(&mut SanitizeSupplied { store, patch })?;
+    visit_collections(&mut SanitizeSupplied {
+        store,
+        patch,
+        locked,
+    })?;
+    let sprites_locked = locked.contains(&EditorElementTypeV1::Sprite);
     if let Some(collection) = patch.sprite_positions.as_mut() {
         let owned = store
             .sprite_positions
@@ -248,6 +298,9 @@ fn sanitize_v1_supplied_patch_ids(
                         continue;
                     }
                     if !is_valid_element_id(&pose.pose_id) {
+                        if sprites_locked {
+                            continue;
+                        }
                         return Err(EditorCommitError::validation(
                             INVALID_ELEMENT_ID,
                             format!(
@@ -698,11 +751,12 @@ impl CollectionVisitor for AdaptCollections<'_> {
 fn adapt_v1_patch_ids(
     store: &EditorDocumentV1,
     patch: &mut EditorPatchV1,
+    locked: &[EditorElementTypeV1],
 ) -> Result<(), EditorCommitError> {
-    sanitize_v1_supplied_patch_ids(store, patch)?;
+    sanitize_v1_supplied_patch_ids(store, patch, locked)?;
     // 정화 후에는 남은 id가 모두 자기 컬렉션 소유이자 유일 - 이 호출은 수집과
     // 불변식 확인을 겸한다
-    let supplied_ids = validate_supplied_patch_ids(patch, false)?;
+    let supplied_ids = validate_supplied_patch_ids(patch, false, locked)?;
     let canonical_ids = collect_store_ids(store);
     let mut consumed_current_ids = supplied_ids
         .iter()
@@ -747,6 +801,7 @@ fn adapt_v1_patch_ids(
 
 fn validate_document_collection_ids<T: NativeElement>(
     collection: &HashMap<String, Vec<T>>,
+    locked: bool,
     seen: &mut HashSet<String>,
 ) -> Result<(), EditorCommitError> {
     for mode in sorted_modes(collection) {
@@ -755,6 +810,10 @@ fn validate_document_collection_ids<T: NativeElement>(
         };
         for (index, element) in elements.iter().enumerate() {
             let id = element.id();
+            if locked {
+                reserve_locked_id(id, seen)?;
+                continue;
+            }
             if id.is_empty() {
                 return Err(EditorCommitError::validation(
                     MISSING_ELEMENT_ID,
@@ -778,11 +837,14 @@ fn validate_document_collection_ids<T: NativeElement>(
     Ok(())
 }
 
+/// `locked` - 새 버전 앱이 쓴 종류(잠금). 그 요소의 id는 이 앱의 규칙으로 거절하지 않는다 (설계 3.5)
 pub(crate) fn validate_document_element_ids(
     document: &EditorDocumentV1,
+    locked: &[EditorElementTypeV1],
 ) -> Result<(), EditorCommitError> {
     struct ValidateDocument<'a> {
         document: &'a EditorDocumentV1,
+        locked: &'a [EditorElementTypeV1],
         seen: HashSet<String>,
     }
 
@@ -790,16 +852,26 @@ pub(crate) fn validate_document_element_ids(
         type Error = EditorCommitError;
 
         fn visit<C: ElementCollection>(&mut self) -> Result<(), EditorCommitError> {
-            validate_document_collection_ids(C::positions(self.document), &mut self.seen)
+            validate_document_collection_ids(
+                C::positions(self.document),
+                self.locked.contains(&C::KIND),
+                &mut self.seen,
+            )
         }
     }
 
     let mut validate = ValidateDocument {
         document,
+        locked,
         seen: HashSet::new(),
     };
     visit_collections(&mut validate)?;
-    validate_sprite_pose_ids(&document.sprite_positions, true, &mut validate.seen)
+    validate_sprite_pose_ids(
+        &document.sprite_positions,
+        true,
+        locked.contains(&EditorElementTypeV1::Sprite),
+        &mut validate.seen,
+    )
 }
 
 fn patch_includes_native_elements(patch: &EditorPatchV1) -> bool {
@@ -811,15 +883,16 @@ fn patch_includes_native_elements(patch: &EditorPatchV1) -> bool {
 pub(crate) fn prepare_commit_patch_element_ids(
     store: &EditorDocumentV1,
     patch: &mut EditorPatchV1,
+    locked: &[EditorElementTypeV1],
 ) -> Result<(), EditorCommitError> {
     if !patch_includes_native_elements(patch) {
         return Ok(());
     }
 
     match patch.schema_version {
-        EDITOR_SCHEMA_VERSION => adapt_v1_patch_ids(store, patch)?,
+        EDITOR_SCHEMA_VERSION => adapt_v1_patch_ids(store, patch, locked)?,
         EDITOR_COMMIT_SCHEMA_VERSION_V2 => {
-            validate_supplied_patch_ids(patch, true)?;
+            validate_supplied_patch_ids(patch, true, locked)?;
         }
         _ => {
             return Err(EditorCommitError::validation(
@@ -831,5 +904,5 @@ pub(crate) fn prepare_commit_patch_element_ids(
 
     let mut candidate = store.clone();
     candidate.apply_patch(patch);
-    validate_document_element_ids(&candidate)
+    validate_document_element_ids(&candidate, locked)
 }

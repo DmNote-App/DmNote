@@ -506,7 +506,10 @@ impl AppStore {
                 format!("editor field {field:?} changed outside the declared transaction scope"),
             ));
         }
-        crate::state::native_element_id::validate_document_element_ids(&candidate)?;
+        crate::state::native_element_id::validate_document_element_ids(
+            &candidate,
+            &crate::models::legacy_layout::locked_legacy_kinds(current_store.element_document()),
+        )?;
         if changed_fields.contains(&EditorField::Keys) {
             repair_selected_mode(&mut scratch);
         }

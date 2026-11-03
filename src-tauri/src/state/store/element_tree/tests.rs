@@ -3213,6 +3213,76 @@ fn 편집_커밋의_문서_전체_정리가_잠긴_요소를_바꿔도_다른_�
 }
 
 #[test]
+fn 잠긴_종류의_id가_이_앱_모양에_맞지_않아도_다른_편집과_옮기기를_막지_않는다() {
+    // 스프라이트 하나를 둔 store
+    let dir = std::env::temp_dir().join(format!("dmn-element-commit-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut state = default_state();
+    let sprite_id = uuid::Uuid::new_v4().to_string();
+    let mut sprite = crate::models::ReactiveSpritePosition {
+        id: sprite_id.clone(),
+        ..Default::default()
+    };
+    sprite.poses.push(crate::models::SpritePose {
+        pose_id: uuid::Uuid::new_v4().to_string(),
+        name: None,
+        triggers: vec![uuid::Uuid::new_v4().to_string()],
+        transform: sprite.idle_transform,
+        pivot: None,
+        image_override: None,
+        image_override_metrics: None,
+    });
+    state
+        .legacy_mut()
+        .sprite_positions
+        .insert("4key".into(), vec![sprite]);
+    std::fs::write(
+        dir.join(crate::state::store::STORE_FILE_NAME),
+        serde_json::to_vec_pretty(&state).unwrap(),
+    )
+    .unwrap();
+    let store = crate::state::AppStore::initialize_for_test(&dir).unwrap();
+    // 새 버전 앱이 스프라이트 종류를 올려 저장 - 이 앱 모양으로는 포즈 id가 비어 보인다
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        let mut document = (**scratch.element_document()).clone();
+        document.kind_versions.insert("sprite".into(), 99);
+        let element = document
+            .scenes
+            .get_mut("4key")
+            .unwrap()
+            .element_mut(&sprite_id)
+            .unwrap();
+        element.values.get_mut("poses").unwrap()[0]["poseId"] = serde_json::json!("");
+        scratch.set_element_document(std::sync::Arc::new(document));
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let stored = tree_element(&store, &sprite_id).unwrap();
+
+    // 다른 종류 편집 - 이 앱의 포즈 id 채우기·검사가 잠긴 스프라이트를 건드리지 않는다
+    let key = store.snapshot().legacy().key_positions["4key"][1].clone();
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "setFrame", "scene": "4key", "id": key.id, "frame": { "x": key.dx + 4.0 } }]),
+    );
+    assert_eq!(
+        store.snapshot().legacy().key_positions["4key"][1].dx,
+        key.dx + 4.0
+    );
+    // 잠긴 스프라이트 옮기기 - 틀만 받는다
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "setFrame", "scene": "4key", "id": sprite_id, "frame": { "x": 77 } }]),
+    );
+    let moved = tree_element(&store, &sprite_id).unwrap();
+    assert_eq!(moved.frame.x, 77.0);
+    assert_eq!(moved.values, stored.values);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn 숨긴_그룹에서_다른_멤버만_보이게_해도_잠긴_멤버는_숨김을_지킨다() {
     let (dir, store) = open_store();
     // 스탯도 g1에 넣고 g1을 숨긴다 (잠그기 전)

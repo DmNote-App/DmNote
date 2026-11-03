@@ -1716,6 +1716,7 @@ fn old_tab_preset_rekeys_only_written_collections_on_every_application() {
     );
     crate::state::native_element_id::validate_document_element_ids(
         &crate::models::EditorDocumentV1::from_store(&store),
+        &[],
     )
     .unwrap();
 }
@@ -1749,6 +1750,7 @@ fn tab_preset_without_key_positions_keeps_existing_key_ids() {
     assert_eq!(target_preset_ids(&store)[1..], original_ids[1..]);
     crate::state::native_element_id::validate_document_element_ids(
         &crate::models::EditorDocumentV1::from_store(&store),
+        &[],
     )
     .unwrap();
 }

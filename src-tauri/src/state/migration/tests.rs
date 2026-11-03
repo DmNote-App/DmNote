@@ -768,7 +768,7 @@ fn legacy_store_backfills_all_native_ids_and_reload_preserves_them() {
 
     let loaded = load_store_from_path(&path).unwrap();
     let document = crate::models::EditorDocumentV1::from_store(&loaded.data);
-    crate::state::native_element_id::validate_document_element_ids(&document).unwrap();
+    crate::state::native_element_id::validate_document_element_ids(&document, &[]).unwrap();
     let first_ids = [
         loaded.data.legacy().key_positions["4key"][0].id.clone(),
         loaded.data.legacy().stat_positions["4key"][0]
@@ -1017,6 +1017,7 @@ fn recovery_and_pair_padding_preserve_surviving_ids_before_backfill() {
     ));
     crate::state::native_element_id::validate_document_element_ids(
         &crate::models::EditorDocumentV1::from_store(&loaded.data),
+        &[],
     )
     .unwrap();
     let _ = std::fs::remove_file(path);

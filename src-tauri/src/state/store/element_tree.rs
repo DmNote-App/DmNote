@@ -569,8 +569,12 @@ fn has_nested_legacy_group(document: &Document) -> bool {
         .any(|scene| visit(&scene.nodes, false))
 }
 
-// 스프라이트 포즈의 빈 id에 새 id - 옛 편집 패치(v2)는 포즈 id를 꼭 받는다
+// 스프라이트 포즈의 빈 id에 새 id - 옛 편집 패치(v2)는 포즈 id를 꼭 받는다.
+// 새 버전 앱이 쓴 스프라이트(잠금)는 이 앱의 규칙으로 채우지 않는다 (설계 3.5)
 fn fill_empty_pose_ids(document: &mut Document) {
+    if locked_legacy_kinds(document).contains(&crate::models::EditorElementTypeV1::Sprite) {
+        return;
+    }
     for scene in document.scenes.values_mut() {
         element_document::document::walk_mut(&mut scene.nodes, &mut |node| {
             let Node::Element(element) = node else {

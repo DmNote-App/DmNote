@@ -656,7 +656,10 @@ pub(crate) fn prepare_editor_ops_transition(
     }
     delete_elements(&mut candidate, &delete_ids);
     remove_empty_layer_groups(&mut candidate, &delete_modes, plugin_group_refs);
-    validate_document_element_ids(&candidate)?;
+    validate_document_element_ids(
+        &candidate,
+        &crate::models::legacy_layout::locked_legacy_kinds(current_store.element_document()),
+    )?;
 
     let mut scratch = current_store.clone();
     candidate.apply_to_store(&mut scratch);

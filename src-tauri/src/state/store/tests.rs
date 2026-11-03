@@ -2923,7 +2923,7 @@ fn fresh_install_has_globally_unique_native_element_ids() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let document = store.editor_get().document;
 
-    crate::state::native_element_id::validate_document_element_ids(&document).unwrap();
+    crate::state::native_element_id::validate_document_element_ids(&document, &[]).unwrap();
     assert!(document
         .key_positions
         .values()
@@ -3139,8 +3139,11 @@ fn legacy_position_replacements_reject_noncanonical_ids_atomically() {
         valid_knob_id
     );
 
-    crate::state::native_element_id::validate_document_element_ids(&store.editor_get().document)
-        .unwrap();
+    crate::state::native_element_id::validate_document_element_ids(
+        &store.editor_get().document,
+        &[],
+    )
+    .unwrap();
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -3182,7 +3185,7 @@ fn alternate_uuid_spellings_remain_raw_distinct_through_load_bootstrap_and_event
         .map(|position| position.id.clone())
         .collect::<Vec<_>>();
     assert_eq!(loaded_ids, ids);
-    crate::state::native_element_id::validate_document_element_ids(&loaded.document).unwrap();
+    crate::state::native_element_id::validate_document_element_ids(&loaded.document, &[]).unwrap();
 
     let state = AppState::initialize(store).unwrap();
     let bootstrap = state.bootstrap_payload();
