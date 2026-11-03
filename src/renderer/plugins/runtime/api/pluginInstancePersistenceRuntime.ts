@@ -4,6 +4,7 @@
 // (조용해진 뒤 커밋 하나 - 예전 자동 저장의 묶어 보내기). 트리 → 런타임 반영이 만든 변경은 다시 쓰지 않고,
 // 보내지 못한 편집은 트리 보기에서 빠져 런타임도 따라 돌아간다
 import { trackPluginWork } from '@plugins/runtime/pluginRuntimeReadiness';
+import { isPluginTearingDown } from '@plugins/runtime/pluginTeardown';
 import { pruneStalePluginSelection } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import {
@@ -32,7 +33,6 @@ interface CreatePluginInstancePersistenceRuntimeOptions {
   pluginId: string;
   definitionId: string;
   registerCleanup: (cleanup: () => void) => void;
-  isReloading: () => boolean;
   buildSavedPluginInstances: (
     elements: readonly PluginDisplayElementInternal[],
     definitionId: string,
@@ -50,7 +50,6 @@ export const createPluginInstancePersistenceRuntime = ({
   pluginId,
   definitionId: defId,
   registerCleanup,
-  isReloading,
   buildSavedPluginInstances,
   kindRegistered,
 }: CreatePluginInstancePersistenceRuntimeOptions) => {
@@ -164,12 +163,12 @@ export const createPluginInstancePersistenceRuntime = ({
       console.error(`[Plugin ${pluginId}] Failed to restore instances:`, error);
     });
 
-    // 런타임 → 트리. 바뀐 칸만 (트리 → 런타임 반영·다시 불러오기 중 변경은 빼고)
+    // 런타임 → 트리. 바뀐 칸만 (트리 → 런타임 반영·플러그인을 내리는 중 변경은 빼고)
     const unsubscribeStore = usePluginDisplayElementStore.subscribe(
       (state, previous) => {
         if (state.elements === previous.elements || applying) return;
         if (!instanceSaveBarrier.shouldSave()) return;
-        if (isReloading() || !store) return;
+        if (isPluginTearingDown(pluginId) || !store) return;
         send(
           pluginInstanceOps(
             store,

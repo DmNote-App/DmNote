@@ -30,6 +30,7 @@ import {
 import { handlerRegistry } from './handlers';
 import { displayElementInstanceRegistry } from './displayElement';
 import { createPluginApiProxy } from './api';
+import { runPluginTeardown } from './pluginTeardown';
 import type { DMNoteAPI } from '@src/types/plugin/api';
 import type { JsPlugin } from '@src/types/plugin/js';
 import type {
@@ -91,14 +92,6 @@ export function createCustomJsRuntime(): CustomJsRuntime {
     );
   };
 
-  // 전역 플래그: removeAll/injectAll 실행 중에는 저장 비활성화
-  let isReloading = false;
-
-  const getIsReloading = () => isReloading;
-  const setReloading = (next: boolean) => {
-    isReloading = next;
-  };
-
   // 주입 결과는 main 창의 관리 목록과 알림이 쓴다
   const publishHealth = (
     outcome: PluginInjectionOutcome,
@@ -152,8 +145,11 @@ export function createCustomJsRuntime(): CustomJsRuntime {
 
   const runPluginCleanups = (pluginId: string) => {
     const cleanups = cleanupRegistry.get(pluginId) || [];
-    cleanups.forEach((cleanup, index) => {
-      safeRun(cleanup, `${pluginId}[${index}]`);
+    // 정리가 요소를 비워도 저장된 인스턴스는 지우지 않는다 (먼저 등록된 정리가 저장 구독보다 앞서 돌 수 있다)
+    runPluginTeardown(pluginId, () => {
+      cleanups.forEach((cleanup, index) => {
+        safeRun(cleanup, `${pluginId}[${index}]`);
+      });
     });
     cleanupRegistry.delete(pluginId);
 
@@ -226,7 +222,6 @@ export function createCustomJsRuntime(): CustomJsRuntime {
         pluginId,
         sourceApi: internalApi,
         registerCleanup: (cleanup) => registerCleanup(pluginId, cleanup),
-        isReloading: getIsReloading,
         isRevoked: () => revoked,
       });
 
@@ -437,7 +432,6 @@ ${plugin.content}
     // removeAll보다 먼저 - teardown이 내보내는 빈 요소 sync가 준비 완료로
     // 표시되면 그 순간 붙은 오버레이가 요소 0개 상태로 공개된다
     const endInjectionWork = beginPluginWork();
-    setReloading(true);
     removeAll();
     injectGeneration += 1;
     const generation = injectGeneration;
@@ -453,13 +447,11 @@ ${plugin.content}
           console.error('Skipping plugin injection: authority reset failed');
           // 주입이 아예 일어나지 않았다. 빈 결과를 성공으로 읽히게 두면 안 된다
           publishHealth('aborted');
-          setReloading(false);
           endInjectionWork();
           return;
         }
         if (!enabled) {
           publishHealth('skipped');
-          setReloading(false);
           endInjectionWork();
           return;
         }
@@ -475,18 +467,15 @@ ${plugin.content}
         // 내용이 다시 오면 재시도가 가능해야 한다
         appliedSignature = pluginsSignature(currentPlugins);
 
-        // 모든 플러그인의 복원이 완료될 때까지 딜레이 후 리로드 플래그 해제
+        // 모든 플러그인의 복원이 시작될 때까지 딜레이 후 주입 작업 끝
         setTimeout(() => {
           endInjectionWork();
-          if (generation !== injectGeneration) return;
-          setReloading(false);
         }, 100);
       })
       .catch((error) => {
         // 주입 콜백 예외에도 리빌 게이트 카운터가 잔류하지 않게
         console.error('Plugin injection cycle failed', error);
         endInjectionWork();
-        if (generation === injectGeneration) setReloading(false);
       });
   };
 
@@ -601,7 +590,6 @@ ${plugin.content}
     );
     cleanupSubscriptions();
     removeAll();
-    setReloading(false);
     resetPluginRuntimeReadiness();
   };
 

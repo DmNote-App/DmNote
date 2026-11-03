@@ -95,7 +95,6 @@ describe('defineElement modal handler lifecycle', () => {
       },
       registerCleanup: (cleanup: () => void) => cleanups.push(cleanup),
       wrapFunctionWithContext: (fn) => fn,
-      isReloading: () => false,
     } as never)({
       name: 'Example',
       settingsUI: 'modal',
@@ -174,7 +173,6 @@ describe('defineElement modal handler lifecycle', () => {
       },
       registerCleanup: (cleanup: () => void) => cleanups.push(cleanup),
       wrapFunctionWithContext: (fn) => fn,
-      isReloading: () => false,
     } as never)({
       name: 'Example',
       settingsUI: 'modal',
@@ -279,7 +277,6 @@ describe('defineElement modal handler lifecycle', () => {
       },
       registerCleanup: (cleanup: () => void) => cleanups.push(cleanup),
       wrapFunctionWithContext: (fn) => fn,
-      isReloading: () => false,
     } as never)({
       name: 'Example',
       settingsUI: 'modal',

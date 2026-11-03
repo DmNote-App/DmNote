@@ -22,7 +22,6 @@ interface CreatePluginApiProxyOptions {
   pluginId: string;
   sourceApi: DMNoteAPI;
   registerCleanup: (cleanup: () => void) => void;
-  isReloading: () => boolean;
   /** 이 주입 세대가 회수됐는지 - 실패·제거된 플러그인의 잔존 핸들이 문서를 쓰지 못하게 */
   isRevoked?: () => boolean;
 }
@@ -37,7 +36,6 @@ export const createPluginApiProxy = (
     pluginId,
     sourceApi,
     registerCleanup,
-    isReloading,
     isRevoked = () => false,
   } = options;
 
@@ -75,7 +73,6 @@ export const createPluginApiProxy = (
     api: sourceApi,
     registerCleanup,
     wrapFunctionWithContext: wrapWithContext,
-    isReloading,
   });
 
   const defineSettings = createDefineSettings({

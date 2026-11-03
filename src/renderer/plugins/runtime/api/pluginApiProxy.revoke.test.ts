@@ -29,7 +29,6 @@ const createProxy = (isRevoked: () => boolean) =>
     pluginId: 'test-plugin',
     sourceApi: rawApi,
     registerCleanup: () => {},
-    isReloading: () => false,
     isRevoked,
   });
 

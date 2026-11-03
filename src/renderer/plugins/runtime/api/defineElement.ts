@@ -54,20 +54,13 @@ interface DefineElementDependencies {
   wrapFunctionWithContext: (
     fn: (...args: unknown[]) => unknown,
   ) => (...args: unknown[]) => unknown;
-  isReloading: () => boolean;
 }
 
 /**
  * defineElement 함수를 생성합니다.
  */
 export const createDefineElement = (deps: DefineElementDependencies) => {
-  const {
-    pluginId,
-    api,
-    registerCleanup,
-    wrapFunctionWithContext,
-    isReloading,
-  } = deps;
+  const { pluginId, api, registerCleanup, wrapFunctionWithContext } = deps;
   const createOpenInstanceSettings = createInstanceSettingsDialogFactory({
     pluginId,
     api,
@@ -105,7 +98,6 @@ export const createDefineElement = (deps: DefineElementDependencies) => {
       pluginId,
       definitionId: defId,
       registerCleanup,
-      isReloading,
       buildSavedPluginInstances,
       kindRegistered,
     });

@@ -50,6 +50,7 @@ import {
   createDefineElement,
   type SavedInstance,
 } from './defineElement';
+import { runPluginTeardown } from '../pluginTeardown';
 
 const ID_A = '50000000-0000-4000-8000-000000000001';
 const ID_B = '50000000-0000-4000-8000-000000000002';
@@ -138,7 +139,6 @@ describe('플러그인 인스턴스 저장 - 원본은 트리', () => {
       },
       registerCleanup: (cleanup: () => void) => cleanups.push(cleanup),
       wrapFunctionWithContext: (fn: (...args: unknown[]) => unknown) => fn,
-      isReloading: () => false,
     } as never)({
       name: 'Example',
       template: () => '',
@@ -469,5 +469,22 @@ describe('플러그인 인스턴스 저장 - 원본은 트리', () => {
       expect(findElement(fullIdA)!.position).toEqual({ x: 1, y: 1 }),
     );
     warn.mockRestore();
+  });
+
+  it('플러그인을 내리는 중 정리가 요소를 비워도(먼저 등록된 clearMyElements) 저장된 인스턴스를 지우지 않는다', async () => {
+    const pluginId = 'plugin-teardown';
+    defineFor(pluginId, [saved(ID_A), saved(ID_B)]);
+    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(2));
+
+    runPluginTeardown(pluginId, () => {
+      window.__dmn_current_plugin_id = pluginId;
+      displayElementApi.clearMyElements();
+    });
+    expect(defElements(pluginId)).toHaveLength(0);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(backend().commit).not.toHaveBeenCalled();
+    expect(
+      getElementDocumentStore()!.getElement('4key', `${pluginId}::${ID_A}`),
+    ).toBeDefined();
   });
 });

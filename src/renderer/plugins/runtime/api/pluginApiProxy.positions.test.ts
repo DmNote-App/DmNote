@@ -28,7 +28,6 @@ const createProxy = () =>
     pluginId: 'test-plugin',
     sourceApi: rawApi,
     registerCleanup: () => {},
-    isReloading: () => false,
   });
 
 describe('플러그인 프록시 위치 API 재라우팅', () => {
