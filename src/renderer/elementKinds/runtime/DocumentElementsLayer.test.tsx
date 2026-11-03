@@ -105,7 +105,7 @@ const { default: DocumentElementsLayer } = await import(
 );
 
 describe('오버레이가 트리에서 그리는 옛 종류', () => {
-  it('트리에서 그리는 옛 종류를 한 번씩 그리고 창 오프셋을 더한다 (아직 옮기지 않은 종류는 옛 위치 객체로)', () => {
+  it('트리에서 그리는 옛 종류를 트리 값으로 한 번씩 그리고 창 오프셋을 더한다', () => {
     const overlayContext = {
       spriteKeyCanonicalMap: new Map([['k1', 'KeyA']]),
       mode: '4key',

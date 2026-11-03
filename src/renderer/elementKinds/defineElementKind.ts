@@ -6,10 +6,7 @@
 import type { ComponentType } from 'react';
 
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import type {
-  ElementRenderProps,
-  OverlayItemContext,
-} from './runtime/renderTypes';
+import type { ElementRenderProps } from './runtime/renderTypes';
 import type {
   AssetKind,
   Condition,
@@ -120,13 +117,6 @@ export interface ElementKindCode<Values> {
   readonly label?: string;
   // 그리기 코드 하나 - 편집 화면(미리보기)과 오버레이·OBS(실제 신호)가 같이 쓴다
   readonly render?: ComponentType<ElementRenderProps<Values>>;
-  // 트리로 옮긴 옛 종류 - 오버레이·OBS에서 스스로 자리를 잡는 옛 그리기(옛 위치 객체를 받는다).
-  // 있으면 감싸는 상자 없이 이것을 그린다 (사용자 CSS 클래스가 두 번 붙지 않게)
-  readonly legacyOverlay?: ComponentType<{
-    position: Record<string, unknown>;
-    context: OverlayItemContext;
-    element: ElementNode;
-  }>;
   // 편집 화면 얼굴이 사용자 CSS 클래스를 스스로 붙인다 - 옛 그리기에서 클래스가 상태 속성(data-state)과
   // 같은 노드에 있던 종류. 감싸는 상자는 클래스를 붙이지 않는다 (두 번 붙지 않게)
   readonly faceOwnsClassName?: boolean;

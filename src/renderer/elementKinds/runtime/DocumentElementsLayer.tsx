@@ -8,7 +8,6 @@ import { elementRotationTransform } from '@utils/element/rotation';
 import { TREE_EDITED_KINDS, TREE_OVERLAY_KINDS } from '@src/types/elementKinds';
 import { documentElementSlots } from './documentElementOrder';
 import { elementKindDefinition } from './elementKindRegistry';
-import { legacyPositionOf } from './legacyPosition';
 import type { ElementRenderInputs, OverlayItemContext } from './renderTypes';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 
@@ -33,21 +32,6 @@ const DocumentElementView = React.memo(
     const definition = elementKindDefinition(element.kind);
     const Render = definition?.render;
     const { x, y, width, height, rotation } = element.frame;
-    const LegacyOverlay = definition?.legacyOverlay;
-    if (live && LegacyOverlay) {
-      return (
-        <LegacyOverlay
-          position={{
-            ...legacyPositionOf(element),
-            dx: x + offset.x,
-            dy: y + offset.y,
-            zIndex,
-          }}
-          context={overlayContext}
-          element={element}
-        />
-      );
-    }
     // 모르는 종류는 오버레이에 그리지 않는다 (편집 화면은 자리 표시 상자)
     if (!Render) return null;
     // 규칙표로 검사한 값 - 종류 정의의 값 타입과 같다

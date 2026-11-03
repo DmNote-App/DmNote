@@ -16,7 +16,6 @@ import {
   useEditorPreviewElement,
   withGradientSession,
 } from '@src/renderer/elementKinds/runtime/editorPreviewElement';
-import type { SurfaceBundle } from '@src/renderer/elementKinds/runtime/ElementSurface';
 import { useGradientPreviewSession } from '@stores/grid/useGradientEditStore';
 import { useEditStatePreviewActive } from '@stores/grid/useEditStatePreviewStore';
 import type { SurfaceStyledElementType } from '@src/types/elementKinds';
@@ -72,10 +71,8 @@ const DocumentGridElement = ({
   const definition = elementKindDefinition(element.kind);
   const Render = definition?.render;
   const frame = preview ?? legacyPreview ?? element.frame;
-  // 그리기를 한 벌로 옮긴 종류(오버레이 옛 그리기가 없는 종류) - 편집 미리보기를 얹은 트리 값으로 그린다.
-  // 일괄 미리보기(그라데이션)는 패널이 편집하는 선택에 든 요소만
-  const treeFace = !!Render && !definition?.legacyOverlay;
-  const previewElement = useEditorPreviewElement(element, sceneId);
+  // 편집 미리보기를 얹은 트리 값으로 그린다. 일괄 미리보기(그라데이션·눌림)는 패널이 편집하는 선택에 든 요소만
+  const drawn = useEditorPreviewElement(element, sceneId);
   const inPanelSelection = useInPanelSelection(sceneId, element.id);
   const gradientSession = useGradientPreviewSession(
     element.kind as SurfaceStyledElementType,
@@ -87,10 +84,7 @@ const DocumentGridElement = ({
     element.id,
     inPanelSelection,
   );
-  const drawn = treeFace ? previewElement : element;
-  const bundles = treeFace
-    ? withGradientSession(drawn.bundles ?? {}, gradientSession)
-    : { surface: element.bundles?.surface as SurfaceBundle };
+  const bundles = withGradientSession(drawn.bundles ?? {}, gradientSession);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -187,9 +181,7 @@ const DocumentGridElement = ({
           values={(drawn.values ?? {}) as never}
           bundles={bundles}
           live={false}
-          inputs={
-            treeFace && previewPressed ? EDITOR_PRESSED_INPUTS : EDITOR_INPUTS
-          }
+          inputs={previewPressed ? EDITOR_PRESSED_INPUTS : EDITOR_INPUTS}
           selected={selected}
         />
       ) : (
