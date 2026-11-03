@@ -461,3 +461,68 @@ fn 공통_정보의_null은_지우기로_읽는다() {
     assert_eq!(class_name, Some(None));
     assert_eq!(use_inline_styles, None, "적지 않은 칸은 그대로 둔다");
 }
+
+#[test]
+fn 외부_종류의_값_칸은_열려_있어_정의에_없는_칸도_받고_정의된_칸은_검사한다() {
+    let mut kinds = registry();
+    kinds
+        .register(
+            serde_json::from_value(json!({
+                "kind": "plugin:demo",
+                "version": 1,
+                "fields": [{ "name": "label", "value": { "type": "string" }, "default": "" }],
+                "defaultSize": { "width": 10, "height": 10 },
+                "fallbackSize": { "width": 10, "height": 10 }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+    let mut doc = document(vec![]);
+    // 옛 버전 설정 칸(oldKey)을 든 노드 넣기 - 빼고 다시 넣기·붙여넣기
+    engine(&kinds)
+        .apply(
+            &mut doc,
+            &[Op::Insert {
+                scene: "tab".into(),
+                parent: None,
+                index: None,
+                node: Node::Element(element(
+                    "demo::a",
+                    "plugin:demo",
+                    json!({ "label": "A", "oldKey": 3 }),
+                )),
+            }],
+        )
+        .unwrap();
+    engine(&kinds)
+        .apply(
+            &mut doc,
+            &scene_ops(json!([
+                { "op": "setValues", "scene": "tab", "id": "demo::a", "values": { "another": true } }
+            ])),
+        )
+        .unwrap();
+    // 정의된 칸은 그대로 검사한다
+    let violations = engine(&kinds)
+        .apply(
+            &mut doc,
+            &scene_ops(json!([
+                { "op": "setValues", "scene": "tab", "id": "demo::a", "values": { "label": 5 } }
+            ])),
+        )
+        .unwrap_err();
+    assert_eq!(violations[0].code, ViolationCode::ValueTypeMismatch);
+    // 내장 종류는 그대로 모르는 칸을 막는다
+    let violations = engine(&kinds)
+        .apply(
+            &mut doc,
+            &[Op::Insert {
+                scene: "tab".into(),
+                parent: None,
+                index: None,
+                node: Node::Element(element("d", "dial", json!({ "oldKey": 1 }))),
+            }],
+        )
+        .unwrap_err();
+    assert_eq!(violations[0].code, ViolationCode::UnknownField);
+}

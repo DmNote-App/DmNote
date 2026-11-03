@@ -1,6 +1,7 @@
 //! 일반 편집 연산 - 넣기, 빼기, 옮기기, 칸 값 바꾸기, 그룹 묶기·풀기.
 //! 연산 묶음은 전부 성공하거나 문서를 그대로 둔다.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use serde::{Deserialize, Serialize};
@@ -8,7 +9,7 @@ use serde_json::{Map, Value};
 
 use crate::bundles::BundleCatalog;
 use crate::document::{walk, Document, Element, Frame, Group, InputBinding, Node, Scene};
-use crate::schema::{KindRegistry, KindSchema};
+use crate::schema::{KindRegistry, KindSchema, EXTERNAL_KIND_PREFIX};
 use crate::value::{rewrite_values, validate_fields, ValueKind, Violation, ViolationCode};
 
 // 칸이 있으면 Some - null은 Some(None)(지우기), 칸이 없으면 default로 None(그대로)
@@ -620,7 +621,7 @@ impl Engine<'_> {
                 let mut violations = Vec::new();
                 validate_fields(
                     &schema.fields,
-                    &next,
+                    &checked_values(schema, &next),
                     Some(&element.values),
                     "values",
                     &crate::value::NoReferences,
@@ -875,7 +876,7 @@ impl Engine<'_> {
         let mut violations = Vec::new();
         validate_fields(
             &schema.fields,
-            &element.values,
+            &checked_values(schema, &element.values),
             None,
             "node.values",
             &crate::value::NoReferences,
@@ -962,6 +963,24 @@ pub fn remap_references(
             true
         });
     });
+}
+
+// 외부 종류(플러그인)의 값 칸은 열려 있다 - 정의에 없는 칸(옛 플러그인 버전의 설정 등)은 검사 없이 받고
+// 정의된 칸만 검사한다 (값 모양은 플러그인이 정한다 - 저장된 값을 다시 쓸 때 거부하지 않게)
+fn checked_values<'a>(
+    schema: &KindSchema,
+    values: &'a Map<String, Value>,
+) -> Cow<'a, Map<String, Value>> {
+    if !schema.kind.starts_with(EXTERNAL_KIND_PREFIX) {
+        return Cow::Borrowed(values);
+    }
+    Cow::Owned(
+        values
+            .iter()
+            .filter(|(name, _)| schema.fields.iter().any(|rule| &rule.name == *name))
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect(),
+    )
 }
 
 #[cfg(test)]

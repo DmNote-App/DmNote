@@ -2942,3 +2942,46 @@ fn 플러그인_노드를_빼고_겹침값을_든_자기_항목으로_다시_넣
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 혼자_든_그룹의_플러그인을_빼고_그룹값을_든_자기_항목으로_다시_넣으면_그룹을_지키고_그_안에_둔다()
+{
+    let (dir, store) = open_store();
+    store.register_external_kind(plugin_kind_schema()).unwrap();
+    write_demo_bucket(
+        &store,
+        serde_json::json!([
+            { "instanceId": PLUGIN_INSTANCE, "position": { "x": 0, "y": 0 }, "tabId": "4key" }
+        ]),
+    );
+    let id = format!("demo::{PLUGIN_INSTANCE}");
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "group", "scene": "4key", "id": "solo", "name": "혼자", "ids": [id] }]),
+    );
+    let document = store.element_document_snapshot().1;
+    let scene = &document.scenes["4key"];
+    let mut node = serde_json::to_value(scene.element(&id).unwrap()).unwrap();
+    node["type"] = serde_json::json!("element");
+    node["legacy"]["pluginEntry"]["zIndex"] = serde_json::json!(3);
+    commit_planned(
+        &store,
+        serde_json::json!([
+            { "op": "remove", "scene": "4key", "ids": [id] },
+            { "op": "insert", "scene": "4key", "parent": null, "index": null, "node": node }
+        ]),
+    );
+    let document = store.element_document_snapshot().1;
+    let scene = &document.scenes["4key"];
+    let path = scene.find_path(&id).unwrap();
+    assert_eq!(path.len(), 2, "그룹 안에 있어야 한다");
+    let Some(element_document::Node::Group(group)) = scene.node_at(&path[..1]) else {
+        panic!("그룹");
+    };
+    assert_eq!(group.id, "solo");
+    assert!(store.snapshot().legacy().layer_groups["4key"]
+        .iter()
+        .any(|group| group.id == "solo"));
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

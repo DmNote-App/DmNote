@@ -518,3 +518,26 @@ fn 순번_없이_자기_항목을_들고_넣은_노드는_목록_끝_순번을_�
     let projected = project_plugin_bucket(&doc, "demo").unwrap();
     assert_eq!(projected[1]["instanceId"], json!("n"));
 }
+
+#[test]
+fn 빈_목록으로_보존된_플러그인도_트리_연산으로_넣은_노드는_목록에_든다() {
+    let mut doc = document(&["4key"]);
+    apply_plugin_bucket(&mut doc, "demo", Some(&json!([])));
+    assert_eq!(project_plugin_bucket(&doc, "demo"), Some(json!([])));
+    doc.scenes.get_mut("4key").unwrap().nodes.push(plugin_node(
+        "demo::n",
+        (1.0, 2.0, 200.0, 150.0),
+        None,
+    ));
+    assert_eq!(
+        sync_plugin_entries_from_tree(&mut doc, &["4key".to_string()]),
+        vec!["demo".to_string()]
+    );
+    let projected = project_plugin_bucket(&doc, "demo").unwrap();
+    assert_eq!(projected.as_array().map(Vec::len), Some(1));
+    assert_eq!(projected[0]["instanceId"], json!("n"));
+    // 다시 쓰기(옛 모양 커밋의 옮겨 싣기)도 그 노드를 지키는 왕복
+    let mut again = document(&["4key"]);
+    apply_plugin_bucket(&mut again, "demo", Some(&projected));
+    assert_eq!(project_plugin_bucket(&again, "demo"), Some(projected));
+}

@@ -506,6 +506,8 @@ pub(crate) fn sync_plugin_entries_from_tree(
     scenes: &[String],
 ) -> Vec<String> {
     let mut changed = BTreeSet::new();
+    // 자기 항목을 새로 받은 플러그인 - 원본 그대로 보존한 버킷(빈 목록·배열 아닌 값)은 목록이 된다
+    let mut owned = BTreeSet::new();
     let mut orders: Option<HashMap<String, u64>> = None;
     for scene_id in scenes {
         let Some(scene) = document.scenes.get(scene_id) else {
@@ -534,13 +536,34 @@ pub(crate) fn sync_plugin_entries_from_tree(
                     return;
                 };
                 if own_entry(element, &plugin_id, scene_id, orders) {
+                    owned.insert(plugin_id.clone());
                     changed.insert(plugin_id);
                 }
             });
         }
         sync_siblings(&mut scene.nodes, None, &mut changed);
     }
+    // 예전 목록 쓰기(비지 않은 목록)가 원본 보존분을 바꿔 쓰던 것과 같다 - 남기면 투영이 노드를 보지 않는다
+    for plugin_id in owned {
+        drop_raw_rest(document, &plugin_id);
+    }
     changed.into_iter().collect()
+}
+
+// 원본 그대로 보존한 버킷 표식을 뺀다 (해석 못 한 항목 보존분은 둔다)
+fn drop_raw_rest(document: &mut Document, plugin_id: &str) {
+    let Some(rest) = document.extra.get_mut(REST).and_then(Value::as_object_mut) else {
+        return;
+    };
+    if rest
+        .get(plugin_id)
+        .is_some_and(|value| value.get("raw").is_some())
+    {
+        rest.remove(plugin_id);
+    }
+    if rest.is_empty() {
+        document.extra.remove(REST);
+    }
 }
 
 /// 자리를 정하지 않고(index 없음) 넣은 플러그인 노드가 자기 항목에 zIndex·groupId를 들고 오면 그 값으로 다시 둔다 -

@@ -805,13 +805,14 @@ impl AppStore {
                 ))
             }
         };
+        // 다시 넣은 플러그인 노드를 먼저 제자리(그룹)로 - 빈 그룹 정리가 그 그룹을 지우지 않게
+        place_plugin_inserts(&mut after, ops);
         let prune = empty_tree_groups(&after, changes.scenes.keys());
         if !prune.is_empty() {
             if let Ok(more) = engine.apply(&mut after, &prune) {
                 changes.merge(more);
             }
         }
-        place_plugin_inserts(&mut after, ops);
         // 옮기거나 넣은 옛 종류 요소만 새 트리 자리에 맞는 zIndex를 받는다
         for (scene, moved) in moved_legacy_ids(&after, ops) {
             let fixes = moved_z_fixes(&after, &scene, &moved);
@@ -938,6 +939,8 @@ impl AppStore {
             Ok(changes) => changes,
             Err(violations) => return Ok((rejected(VIOLATION, violations), Vec::new())),
         };
+        // 다시 넣은 플러그인 노드를 먼저 제자리(그룹)로 - 빈 그룹 정리가 그 그룹을 지우지 않게
+        place_plugin_inserts(scratch.element_document_mut(), ops);
         // 빼기·옮기기로 비게 된 트리 전용 그룹은 함께 지운다 (옛 그룹의 빈 그룹 정리와 같다)
         let prune = empty_tree_groups(scratch.element_document(), changes.scenes.keys());
         if !prune.is_empty() {
@@ -946,7 +949,6 @@ impl AppStore {
                 Err(violations) => return Ok((rejected(VIOLATION, violations), Vec::new())),
             }
         }
-        place_plugin_inserts(scratch.element_document_mut(), ops);
         // 옛 모양이 그대로인지 확인 - 트리에만 있는 요소만 바뀌었어야 한다
         let before = project_document(guard.data.element_document())?;
         let after = project_document(scratch.element_document())?;
