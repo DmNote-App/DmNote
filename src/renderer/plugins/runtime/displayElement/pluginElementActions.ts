@@ -258,19 +258,3 @@ export const restorePluginElementGeometry = (
       : undefined,
   });
 };
-
-/** z-order 일괄 지정 */
-export const setPluginElementZIndexes = (
-  entries: Array<{ fullId: string; zIndex: number }>,
-): void => {
-  if (entries.length === 0) return;
-  // 공유 gestureId - 플러그인별 커밋이 히스토리 한 엔트리로 병합
-  rotateTargetPluginSessions(
-    entries.map(({ fullId }) => fullId),
-    crypto.randomUUID(),
-  );
-  const store = usePluginDisplayElementStore.getState();
-  entries.forEach(({ fullId, zIndex }) => {
-    store.updateElement(fullId, { zIndex });
-  });
-};

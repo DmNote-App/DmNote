@@ -13,6 +13,7 @@ import {
 } from '@src/renderer/editor/document/elementDocumentStore';
 import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { trackEditorWrite } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
+import type { ElementDocumentCommitResult } from '@api/modules/editor/elementDocumentApi';
 import type { Op } from '@src/types/generated/elementDocument';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import { createPluginInstanceSaveBarrier } from '../displayElement/instanceLifecycle';
@@ -24,6 +25,7 @@ import type { SavedInstance } from './pluginInstanceSnapshotApplier';
 import {
   pluginInstanceOps,
   pluginInstancesFromTree,
+  splitBackendPlacedOps,
 } from './pluginTreeInstances';
 
 // 드래그 등 프레임 단위 변경을 커밋 하나로 - 조용해진 뒤 보낸다
@@ -69,13 +71,7 @@ export const createPluginInstancePersistenceRuntime = ({
 
   let store: ElementDocumentStore | null = null;
 
-  const send = (ops: Op[]) => {
-    if (ops.length === 0 || !store?.editCoalesced) return;
-    const sent = store.editCoalesced(ops, {
-      key: pluginId,
-      quietMs: INSTANCE_SAVE_QUIET_MS,
-      gestureId: touchPluginInstancesEditSession(pluginId),
-    });
+  const report = (sent: Promise<ElementDocumentCommitResult>) => {
     void trackEditorWrite(sent).then(
       (result) => {
         if (result.status === 'rejected') {
@@ -89,6 +85,25 @@ export const createPluginInstancePersistenceRuntime = ({
         console.error(`[Plugin ${pluginId}] Failed to save instances:`, error);
       },
     );
+  };
+
+  const send = (ops: Op[]) => {
+    if (ops.length === 0 || !store?.editCoalesced) return;
+    const gestureId = touchPluginInstancesEditSession(pluginId);
+    // 겹침값을 바꾼 다시 넣기는 패치로 받는다(백엔드 놓기) - 나머지는 화면에 먼저 얹고 이어 붙인다
+    const { placed, local } = splitBackendPlacedOps(ops);
+    if (local.length > 0) {
+      report(
+        store.editCoalesced(local, {
+          key: pluginId,
+          quietMs: INSTANCE_SAVE_QUIET_MS,
+          gestureId,
+        }),
+      );
+    }
+    if (placed.length > 0 && store.edit) {
+      report(store.edit(placed, { gestureId, local: false }));
+    }
   };
 
   const connectSnapshotApplier = (

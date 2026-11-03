@@ -107,6 +107,52 @@ describe('편집 창 요소 문서 스토어', () => {
     expect(store.getElement('4key', 'k2')).toBe(untouched);
   });
 
+  it('local: false 편집은 화면에 먼저 얹지 않고 패치로 받는다 - 백엔드가 자리를 정하는 연산', async () => {
+    let resolve: (result: ElementDocumentCommitResult) => void = () =>
+      undefined;
+    const sent: Op[][] = [];
+    const { store, emit } = harness(
+      (ops) =>
+        new Promise((next) => {
+          sent.push(ops);
+          resolve = next;
+        }),
+    );
+    const listener = vi.fn();
+    store.subscribe(listener);
+    const pending = store.edit!(nudge('k1', 40), { local: false });
+    // 화면은 그대로, 알림도 없다
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(0);
+    expect(listener).not.toHaveBeenCalled();
+    // 뒤에 얹은 편집은 그 위에 낙관 적용한다
+    store.edit!(nudge('k2', 99));
+    expect(store.getElement('4key', 'k2')?.frame.x).toBe(99);
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(0);
+    await Promise.resolve();
+    expect(sent).toEqual([nudge('k1', 40)]);
+    resolve({ status: 'committed', revision: 2, changes: { scenes: {} } });
+    await pending;
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(0);
+    // 패치가 오면 그 자리로
+    emit(nudgedPatch(2, 40));
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(40);
+  });
+
+  it('local: false 편집이 거부되면 되돌릴 것 없이 거부를 돌려준다', async () => {
+    const { store } = harness(async () => ({
+      status: 'rejected',
+      revision: 1,
+      code: 'VIOLATION',
+      violations: [{ code: 'INVALID_FRAME', path: 'ops[0].frame' }],
+    }));
+    const listener = vi.fn();
+    store.subscribe(listener);
+    const result = await store.edit!(nudge('k1', -5), { local: false });
+    expect(result.status).toBe('rejected');
+    expect(store.getElement('4key', 'k1')?.frame.x).toBe(0);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
   it('거부된 편집은 화면에서 뺀다', async () => {
     const { store } = harness(async () => ({
       status: 'rejected',

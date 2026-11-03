@@ -5,6 +5,7 @@ import type { SavedInstance } from './pluginInstanceSnapshotApplier';
 import {
   pluginInstanceOps,
   pluginInstancesFromTree,
+  splitBackendPlacedOps,
 } from './pluginTreeInstances';
 
 const plugin = (
@@ -319,5 +320,49 @@ describe('런타임 변경 → 트리 연산', () => {
         },
       },
     ]);
+  });
+});
+
+describe('백엔드가 자리를 정하는 다시 넣기', () => {
+  const scenes = view({
+    '4key': [
+      plugin('a', box, {
+        legacy: { pluginEntry: { instanceId: 'a', tabId: '4key' }, order: 0 },
+      }),
+      plugin('b', box, {
+        legacy: { pluginEntry: { instanceId: 'b', tabId: '4key' }, order: 1 },
+      }),
+    ],
+    '5key': [],
+  });
+  const before = new Map([saved('a'), saved('b'), saved('c')]);
+
+  it('겹침값을 실은 다시 넣기와 그 빼기만 나누고, 나머지(탭 옮기기·새로 넣기·지우기·틀)는 화면에 먼저 얹는다', () => {
+    const next = new Map([
+      saved('a', { zIndex: 5 }),
+      saved('b', { tabId: '5key', position: { x: 9, y: 2 } }),
+      saved('d'),
+    ]);
+    const ops = pluginInstanceOps(scenes, 'demo', before, next);
+    const { placed, local } = splitBackendPlacedOps(ops);
+    expect(placed.map((op) => op.op)).toEqual(['remove', 'insert']);
+    expect(
+      placed.flatMap((op) =>
+        op.op === 'remove' ? op.ids : op.op === 'insert' ? [op.node.id] : [],
+      ),
+    ).toEqual(['demo::a', 'demo::a']);
+    // 겹침값 없는 탭 옮기기는 맨 위에 놓여 백엔드 놓기와 같다
+    expect(local.map((op) => op.op)).toEqual(['remove', 'insert', 'insert']);
+    expect(placed.length + local.length).toBe(ops.length);
+  });
+
+  it('겹침값을 실은 다시 넣기가 없으면 그대로 돌려준다', () => {
+    const ops = pluginInstanceOps(
+      scenes,
+      'demo',
+      before,
+      new Map([saved('a', { position: { x: 3, y: 4 } }), saved('b')]),
+    );
+    expect(splitBackendPlacedOps(ops)).toEqual({ placed: [], local: ops });
   });
 });
