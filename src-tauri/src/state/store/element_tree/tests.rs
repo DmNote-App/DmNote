@@ -3086,29 +3086,13 @@ fn tree_element(store: &crate::state::AppStore, id: &str) -> Option<element_docu
 }
 
 #[test]
-fn 새_버전_앱이_쓴_종류의_값·입력을_바꾸거나_새로_넣는_옛_모양_쓰기는_잠금으로_거절한다() {
+fn 새_버전_앱이_쓴_종류의_요소를_새로_넣거나_지우는_옛_모양_쓰기는_잠금으로_거절한다() {
     let (dir, store) = open_store();
     lock_key_kind(&store);
     let before = store.element_document_snapshot().1;
     let locked = |error: anyhow::Error| error.downcast_ref::<KindVersionLocked>().is_some();
 
-    // 값
-    assert!(locked(
-        legacy_write(&store, |data| {
-            data.legacy_mut().key_positions.get_mut("4key").unwrap()[1].display_text =
-                Some("잠김".into());
-        })
-        .unwrap_err()
-    ));
-    // 입력
-    assert!(locked(
-        legacy_write(&store, |data| {
-            data.legacy_mut().keys.get_mut("4key").unwrap()[1] =
-                crate::models::KeySlot::from("LockedKindKey");
-        })
-        .unwrap_err()
-    ));
-    // 새로 넣기
+    // 새로 넣기 - 이 앱의 모양이 새 버전으로 적힌다
     assert!(locked(
         legacy_write(&store, |data| {
             let legacy = data.legacy_mut();
@@ -3124,14 +3108,23 @@ fn 새_버전_앱이_쓴_종류의_값·입력을_바꾸거나_새로_넣는_옛
         })
         .unwrap_err()
     ));
+    // 지우기 - 옛 모양 되돌리기 기록으로는 저장된 그대로 되살릴 수 없다
+    assert!(locked(
+        legacy_write(&store, |data| {
+            let legacy = data.legacy_mut();
+            legacy.key_positions.get_mut("4key").unwrap().pop();
+            legacy.keys.get_mut("4key").unwrap().pop();
+        })
+        .unwrap_err()
+    ));
     assert_eq!(store.element_document_snapshot().1, before);
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
-fn 새_버전_앱이_쓴_종류도_옮기기·다른_종류_쓰기·빼기는_받고_저장된_요소를_이_앱의_모양으로_고쳐_쓰지_않는다(
-) {
+fn 새_버전_앱이_쓴_종류도_옮기기·다른_종류_쓰기는_받고_값·입력_쓰기에는_저장된_요소를_그대로_둔다()
+{
     let (dir, store) = open_store();
     let stored = lock_key_kind(&store);
 
@@ -3156,22 +3149,53 @@ fn 새_버전_앱이_쓴_종류도_옮기기·다른_종류_쓰기·빼기는_�
         positions.push(fresh);
     })
     .unwrap();
-    assert_eq!(tree_element(&store, &stored.id), Some(moved));
+    assert_eq!(tree_element(&store, &stored.id), Some(moved.clone()));
 
-    // 빼기
-    let last = store.snapshot().legacy().key_positions["4key"]
-        .last()
-        .unwrap()
-        .id
-        .clone();
+    // 값·입력을 바꾼 옛 모양 쓰기 - 옛 모양 쓰기는 배열 전체를 다시 쓰므로 잠긴 요소는 저장된 것을 둔다
     legacy_write(&store, |data| {
         let legacy = data.legacy_mut();
-        legacy.key_positions.get_mut("4key").unwrap().pop();
-        legacy.keys.get_mut("4key").unwrap().pop();
+        legacy.key_positions.get_mut("4key").unwrap()[0].display_text = Some("잠김".into());
+        legacy.keys.get_mut("4key").unwrap()[0] = crate::models::KeySlot::from("LockedKindKey");
     })
     .unwrap();
-    assert!(tree_element(&store, &last).is_none());
+    assert_eq!(tree_element(&store, &stored.id), Some(moved));
     assert_eq!(store.element_document_snapshot().1.kind_versions["key"], 99);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 편집_커밋의_문서_전체_정리가_잠긴_요소를_바꿔도_다른_요소_편집을_막지_않는다() {
+    let (dir, store) = open_store();
+    // 새 버전 앱이 쓴 키 - 이 앱의 정리(이미지 모드 replace → 없음)에 걸리는 값
+    legacy_write(&store, |data| {
+        data.legacy_mut().key_positions.get_mut("4key").unwrap()[1].image_mode =
+            Some(crate::models::ImageMode::Replace);
+    })
+    .unwrap();
+    lock_key_kind(&store);
+    let key = store.snapshot().legacy().key_positions["4key"][1]
+        .id
+        .clone();
+    let stored_key = tree_element(&store, &key).unwrap();
+    let stat = store.snapshot().legacy().stat_positions["4key"][0]
+        .position
+        .clone();
+
+    // 스탯 옮기기 - 편집 커밋이 문서 전체를 정리해도 잠긴 키는 저장된 그대로
+    commit_planned(
+        &store,
+        serde_json::json!([{
+            "op": "setFrame", "scene": "4key", "id": stat.id, "frame": { "x": stat.dx + 3.0 }
+        }]),
+    );
+    assert_eq!(
+        store.snapshot().legacy().stat_positions["4key"][0]
+            .position
+            .dx,
+        stat.dx + 3.0
+    );
+    assert_eq!(tree_element(&store, &key), Some(stored_key));
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -3213,10 +3237,11 @@ fn 잠긴_종류를_고치는_옛_편집_커밋은_다시_보내지_않는_검�
     let error = store
         .commit_legacy_editor_transaction(
             crate::models::EditorCommitOrigin::LegacyAdapter("locked-kind-test".into()),
-            &[EditorField::KeyPositions],
+            &[EditorField::Keys, EditorField::KeyPositions],
             |data| {
-                data.legacy_mut().key_positions.get_mut("4key").unwrap()[1].display_text =
-                    Some("잠김".into());
+                let legacy = data.legacy_mut();
+                legacy.key_positions.get_mut("4key").unwrap().pop();
+                legacy.keys.get_mut("4key").unwrap().pop();
                 Ok(())
             },
         )
@@ -3271,17 +3296,14 @@ fn 불러온_뒤_정리가_잠긴_종류의_칸을_바꿔도_시작을_막지_�
         before.element_document().scenes["4key"]
     );
 
-    // 커밋 경로는 틀을 받고(엔진 규칙), 값을 바꾸는 쓰기는 거부한다
+    // 커밋 경로는 틀을 받고, 지우기는 거부한다
     let mut moved = state.clone();
     moved.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx += 5.0;
     sync_element_document(&before, &mut moved).unwrap();
     let mut committed = state.clone();
-    committed
-        .legacy_mut()
-        .key_positions
-        .get_mut("4key")
-        .unwrap()[0]
-        .display_text = Some("잠김".into());
+    let legacy = committed.legacy_mut();
+    legacy.key_positions.get_mut("4key").unwrap().pop();
+    legacy.keys.get_mut("4key").unwrap().pop();
     assert!(sync_element_document(&before, &mut committed)
         .unwrap_err()
         .downcast_ref::<KindVersionLocked>()

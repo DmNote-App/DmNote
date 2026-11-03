@@ -451,7 +451,7 @@ impl AppStore {
         let key_counters = scratch.key_counters.clone();
 
         self.commit_locked(guard, scratch, ())
-            .map_err(|error| EditorCommitError::io(error.to_string()))?;
+            .map_err(super::element_tree::editor_commit_failure)?;
         guard.plugin_model_revision = plugin_model_revision;
 
         let change = editor_restore.and_then(|(candidate, changed_fields, _)| {
@@ -562,7 +562,7 @@ impl AppStore {
             })?
         };
         self.commit_locked(guard, scratch, ())
-            .map_err(|error| EditorCommitError::io(error.to_string()))?;
+            .map_err(super::element_tree::editor_commit_failure)?;
         guard.plugin_model_revision = plugin_model_revision;
 
         if changed_fields.is_empty() {
@@ -667,7 +667,7 @@ impl AppStore {
         let selected_key_type = scratch.selected_key_type.clone();
         let key_counters = scratch.key_counters.clone();
         self.commit_locked(guard, scratch, ())
-            .map_err(|error| EditorCommitError::io(error.to_string()))?;
+            .map_err(super::element_tree::editor_commit_failure)?;
 
         if changed_fields.is_empty() {
             return Ok((None, settings_diff));

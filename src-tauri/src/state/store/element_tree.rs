@@ -341,8 +341,8 @@ pub(crate) fn sync_loaded_element_document(
     sync_with_locked(before, after, LockedWrite::Keep)
 }
 
-// 새 버전 앱이 쓴 종류에 대한 옛 모양 쓰기 - 커밋은 엔진 규칙대로(값·입력·새로 넣기는 거부, 틀·공통 정보·자리는
-// 받음), 불러온 뒤 정리는 저장된 요소를 그대로 둔다
+// 새 버전 앱이 쓴 종류에 대한 옛 모양 쓰기 - 커밋은 새로 넣기·지우기를 거부하고 틀·공통 정보·자리만 받는다
+// (값·묶음·입력은 저장된 것), 불러온 뒤 정리는 저장된 요소를 그대로 둔다
 #[derive(Clone, Copy, PartialEq)]
 enum LockedWrite {
     Reject,
@@ -351,7 +351,7 @@ enum LockedWrite {
 
 pub(crate) const KIND_VERSION_LOCKED: &str = "KIND_VERSION_LOCKED";
 
-/// 새 버전 앱이 쓴 종류의 값·입력을 고치거나 새로 넣는 옛 모양 쓰기 (3.5 잠금) - 편집 커밋은 영구 거절로 돌려준다
+/// 새 버전 앱이 쓴 종류의 요소를 새로 넣거나 지우는 옛 모양 쓰기 (3.5 잠금) - 편집 커밋은 영구 거절로 돌려준다
 #[derive(Debug)]
 pub(crate) struct KindVersionLocked {
     pub(crate) ids: Vec<String>,
@@ -361,7 +361,7 @@ impl std::fmt::Display for KindVersionLocked {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{KIND_VERSION_LOCKED}: 새 버전 앱이 쓴 요소는 값을 고치거나 새로 넣을 수 없습니다 ({:?})",
+            "{KIND_VERSION_LOCKED}: 새 버전 앱이 쓴 종류의 요소는 새로 넣거나 지울 수 없습니다 ({:?})",
             self.ids
         )
     }

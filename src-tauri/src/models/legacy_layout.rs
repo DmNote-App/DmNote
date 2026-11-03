@@ -100,8 +100,10 @@ pub(crate) fn locked_legacy_kinds(document: &Document) -> Vec<EditorElementTypeV
         .collect()
 }
 
-/// 잠긴 종류의 요소를 엔진이 막는 방식으로 바꾸는 옛 모양 쓰기 - 그 요소 id. 엔진 규칙과 같다:
-/// 값·묶음·입력(옛 모양에만 있는 칸 포함)을 바꾸거나 새로 넣으면 위반, 틀·공통 정보·겹침 자리·빼기는 받는다
+/// 잠긴 종류의 요소를 새로 넣거나 지우는 옛 모양 쓰기 - 그 요소 id. 옛 종류는 되돌리기 기록이 옛 모양이라 지운
+/// 요소를 저장된 그대로 되살릴 수 없고, 새로 넣으면 이 앱의 모양이 새 버전으로 적힌다. 값·묶음·입력 차이는 위반이
+/// 아니다 - 옛 모양 쓰기는 배열 전체를 다시 쓰고 정리가 문서 전체를 돌므로 잠긴 요소는 저장된 것을 둔다
+/// (편집 창의 값 편집은 엔진이 거절한다)
 pub(crate) fn locked_legacy_violations(
     previous: LegacyRef<'_>,
     edit: LegacyRef<'_>,
@@ -109,45 +111,23 @@ pub(crate) fn locked_legacy_violations(
 ) -> Result<Vec<String>> {
     let mut violations = Vec::new();
     for mode in changed_modes(previous, edit) {
-        let before: HashMap<String, Element> = scene_entries(&ModeView::of(previous, &mode))?
-            .into_iter()
-            .filter(|entry| locked.contains(&entry.kind))
-            .map(|entry| (entry.element.id.clone(), entry.element))
-            .collect();
-        for entry in scene_entries(&ModeView::of(edit, &mode))? {
-            if !locked.contains(&entry.kind) {
-                continue;
-            }
-            let kept = before
-                .get(&entry.element.id)
-                .is_some_and(|old| locked_part(old) == locked_part(&entry.element));
-            if !kept {
-                violations.push(entry.element.id);
-            }
-        }
+        let locked_ids = |legacy: LegacyRef<'_>| -> Result<HashSet<String>> {
+            Ok(scene_entries(&ModeView::of(legacy, &mode))?
+                .into_iter()
+                .filter(|entry| locked.contains(&entry.kind))
+                .map(|entry| entry.element.id)
+                .collect())
+        };
+        let before = locked_ids(previous)?;
+        let after = locked_ids(edit)?;
+        violations.extend(after.symmetric_difference(&before).cloned());
     }
+    violations.sort();
     Ok(violations)
 }
 
-// 잠금이 지키는 몫 - 값·묶음·입력과 옛 모양에만 있는 칸
-type LockedPart<'a> = (
-    &'a Map<String, Value>,
-    &'a BTreeMap<String, Value>,
-    &'a Option<InputBinding>,
-    Option<&'a Value>,
-);
-
-fn locked_part(element: &Element) -> LockedPart<'_> {
-    (
-        &element.values,
-        &element.bundles,
-        &element.input,
-        legacy_info(element).and_then(|info| info.get("fields")),
-    )
-}
-
 /// 커밋 - 잠긴 종류의 요소는 저장된 것을 두고 틀·공통 정보·겹침 자리만 다시 만든 요소에서 받는다
-/// (값·묶음·입력은 이 앱의 모양으로 고쳐 쓰지 않는다)
+/// (값·묶음·입력은 이 앱의 모양으로 고쳐 쓰지 않는다 - 쓴 값이 달라도 저장된 것)
 pub(crate) fn settle_locked_elements(
     previous: &Document,
     next: &mut Document,
