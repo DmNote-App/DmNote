@@ -417,9 +417,7 @@ pub(super) fn apply_frozen_insert(
         .iter()
         .filter_map(frozen_element_group_id)
         .collect::<HashSet<_>>();
-    // 플러그인 멤버만 든 그룹도 생존 - 참조 집합은 커밋 후 상태 기준이라
-    // gesture가 동봉한 plugin_changes의 소속이 이미 반영되어 있다
-    // (apply_reorder·remove_empty_layer_groups와 같은 규칙)
+    // 플러그인 멤버만 든 그룹도 생존 (apply_reorder·remove_empty_layer_groups와 같은 규칙)
     let plugin_refs = plugin_group_refs.get(mode);
     if let Some(group) = groups.iter().find(|group| {
         !inserted_group_refs.contains(group.id.as_str())
@@ -910,8 +908,7 @@ pub(super) fn remove_empty_layer_groups(
                 referenced_group_ids.insert(group_id.to_string());
             }
         });
-        // 플러그인 멤버만 남은 그룹도 생존 - 참조 집합은 커밋 후 상태 기준
-        // (gesture는 요청 동봉 plugin_changes, editor 단독은 store decode)
+        // 플러그인 멤버만 남은 그룹도 생존 - 참조 집합은 store 인스턴스에서
         let plugin_refs = plugin_group_refs.get(mode);
         if let Some(groups) = document.layer_groups.get_mut(mode) {
             groups.retain(|group| {

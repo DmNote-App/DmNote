@@ -188,7 +188,7 @@ fn group_refs_fold_empty_tab_id_into_default_mode() {
             "groupId": "stored-group"
         }])),
     );
-    let refs = plugin_group_refs_from_store(&data, &HashSet::new());
+    let refs = plugin_group_refs_from_store(&data);
     assert!(refs["4key"].contains("stored-group"));
     assert!(!refs.contains_key(""));
 }

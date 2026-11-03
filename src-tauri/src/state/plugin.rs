@@ -145,17 +145,10 @@ pub(crate) fn for_each_stored_plugin_instances(
     }
 }
 
-// store의 인스턴스에서 그룹 참조 수집. exclude는 gesture 동봉 plugin_changes로
-// 대체될 플러그인 - editor op 적용이 pluginChanges보다 먼저라 store 값은 낡았다
-pub(crate) fn plugin_group_refs_from_store(
-    data: &AppStoreData,
-    exclude_plugin_ids: &HashSet<&str>,
-) -> PluginGroupRefs {
+// store의 인스턴스에서 그룹 참조 수집
+pub(crate) fn plugin_group_refs_from_store(data: &AppStoreData) -> PluginGroupRefs {
     let mut refs = PluginGroupRefs::new();
-    for_each_stored_plugin_instances(data, |plugin_id, instances| {
-        if exclude_plugin_ids.contains(plugin_id) {
-            return;
-        }
+    for_each_stored_plugin_instances(data, |_, instances| {
         add_plugin_group_refs(&mut refs, &instances);
     });
     refs

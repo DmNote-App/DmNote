@@ -1639,19 +1639,21 @@ fn frozen_insert_group_needs_a_native_or_plugin_member() {
         Some("UNREFERENCED_FROZEN_GROUP")
     );
 
-    // 동봉 plugin_changes가 그 그룹의 멤버를 실었다면 생존해야 한다.
+    // 플러그인 인스턴스가 그 그룹을 가리키면 생존해야 한다.
     // 구조 op는 단독 배치가 강제되므로 setElementGroups로 분리할 수 없다
-    let mut plugin_refs = PluginGroupRefs::new();
-    plugin_refs
-        .entry("4key".to_string())
-        .or_default()
-        .insert("plugin-only-group".to_string());
-    let transition = prepare_editor_ops_transition_with_plugin_refs(
-        &store,
-        std::slice::from_ref(&orphan),
-        &plugin_refs,
-    )
-    .unwrap();
+    let mut with_plugin_member = store.clone();
+    crate::state::plugin::write_plugin_instance_bucket(
+        &mut with_plugin_member,
+        "demo",
+        Some(serde_json::json!([{
+            "instanceId": uuid::Uuid::new_v4().to_string(),
+            "position": { "x": 0, "y": 0 },
+            "tabId": "4key",
+            "groupId": "plugin-only-group"
+        }])),
+    );
+    let transition =
+        prepare_editor_ops_transition(&with_plugin_member, std::slice::from_ref(&orphan)).unwrap();
     assert_eq!(
         transition.candidate.layer_groups["4key"]
             .iter()

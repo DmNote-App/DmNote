@@ -790,8 +790,6 @@ export const EDITOR_CAPACITY_VALIDATION_CODES: ReadonlySet<string> = new Set([
   // validate_count_limit 계열인데 위 셋과 달리 빠져 있던 코드
   'TOO_MANY_MODES',
   'TOO_MANY_CUSTOM_TABS',
-  // validate_saved_plugin_instances -> gesture 커밋에서 validationCode로 승격
-  'TOO_MANY_PLUGIN_INSTANCES',
   // 배치 상한. TOO_MANY_RENDER_ITEMS와 같은 MAX_RENDER_ITEMS를 쓰는데 이 셋만
   // 빠져 있어 같은 한도 위반이 경로에 따라 다른 안내를 냈다
   'FROZEN_INSERT_BATCH_TOO_LARGE',
@@ -802,9 +800,6 @@ export const EDITOR_CAPACITY_VALIDATION_CODES: ReadonlySet<string> = new Set([
   'INVALID_ELEMENT_GROUP_TARGET_COUNT',
   // 자세당 담당 키 상한 (MAX_SPRITE_POSE_TRIGGERS)
   'TOO_MANY_SPRITE_POSE_TRIGGERS',
-  // validate_plugin_instances_request 말미의 compact size 검사.
-  // TOO_MANY_PLUGIN_INSTANCES와 같은 gesture 승격 채널로 프론트에 도달한다
-  'PLUGIN_INSTANCES_REQUEST_TOO_LARGE',
 ]);
 
 export const isEditorCapacityFailure = (error: unknown): boolean =>

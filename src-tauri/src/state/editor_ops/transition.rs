@@ -3,22 +3,12 @@ use crate::models::{ELEMENT_ROTATION_MAX, ELEMENT_ROTATION_MIN};
 
 mod element_patch;
 
-// editor 단독 commit: 플러그인 그룹 참조를 store 인스턴스 decode로 파생
+// 플러그인 그룹 참조(플러그인 멤버만 남은 그룹의 생존 판정)는 store 인스턴스에서 파생
 pub(crate) fn prepare_editor_ops_transition(
     current_store: &AppStoreData,
     ops: &[EditorOpV1],
 ) -> Result<PreparedEditorOpsTransition, EditorCommitError> {
-    let plugin_group_refs = plugin_group_refs_from_store(current_store, &HashSet::new());
-    prepare_editor_ops_transition_with_plugin_refs(current_store, ops, &plugin_group_refs)
-}
-
-// gesture 경로 전용: editor op 적용이 pluginChanges보다 먼저 실행되므로
-// 요청 동봉 plugin_changes에서 파생한 참조 집합을 우선 사용해야 한다
-pub(crate) fn prepare_editor_ops_transition_with_plugin_refs(
-    current_store: &AppStoreData,
-    ops: &[EditorOpV1],
-    plugin_group_refs: &PluginGroupRefs,
-) -> Result<PreparedEditorOpsTransition, EditorCommitError> {
+    let plugin_group_refs = &plugin_group_refs_from_store(current_store);
     let current = EditorDocumentV1::from_store(current_store);
     let locations = build_element_locator(&current)?;
 

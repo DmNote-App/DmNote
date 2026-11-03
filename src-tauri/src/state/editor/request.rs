@@ -595,9 +595,8 @@ fn validate_group_structural_envelope(
             target_group,
         } => {
             validate_mode(mode)?;
-            // 빈 targets 허용 - plugin-only 그룹 편집은 그룹 def 생성·정리를
-            // native 대상 없이 editor op에 실어야 한다 (플러그인 소속은 동반
-            // plugin_changes가 운반)
+            // 빈 targets 허용 - 플러그인 멤버만 든 그룹 편집은 그룹 def 생성·정리를
+            // native 대상 없이 editor op에 싣는다
             if targets.len() > MAX_RENDER_ITEMS {
                 return Err(EditorCommitError::validation(
                     "INVALID_ELEMENT_GROUP_TARGET_COUNT",
