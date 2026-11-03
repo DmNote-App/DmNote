@@ -508,6 +508,23 @@ fn touches_legacy(document: &Document, op: &Op) -> bool {
     }
 }
 
+/// 트리 편집 적용 - 엔진 적용 뒤 다시 넣은 플러그인 노드를 제자리(그룹)로 놓고, 빼기·옮기기로 비게 된 트리 전용
+/// 그룹을 함께 지운다(옛 그룹의 빈 그룹 정리와 같다). 놓기를 먼저 해야 빈 그룹 정리가 그 그룹을 지우지 않는다.
+/// 편집 창 낙관 적용(documentLocalOps.ts)이 플러그인 놓기를 뺀 몫을 따라 한다 - 엔진 fixture로 고정
+fn apply_tree_ops(
+    engine: &Engine<'_>,
+    document: &mut Document,
+    ops: &[Op],
+) -> std::result::Result<ChangeSet, Vec<Violation>> {
+    let mut changes = engine.apply(document, ops)?;
+    place_plugin_inserts(document, ops);
+    let prune = empty_tree_groups(document, changes.scenes.keys());
+    if !prune.is_empty() {
+        changes.merge(engine.apply(document, &prune)?);
+    }
+    Ok(changes)
+}
+
 // 요소가 하나도 없는 트리 전용 그룹 - 가장 바깥 것만 (안쪽은 함께 지워진다)
 fn empty_tree_groups<'a>(
     document: &Document,
@@ -909,7 +926,7 @@ impl AppStore {
             ));
         }
         let mut after = (**document).clone();
-        let mut changes = match engine.apply(&mut after, ops) {
+        let changes = match apply_tree_ops(&engine, &mut after, ops) {
             Ok(changes) => changes,
             Err(violations) => {
                 return Ok(ElementDocumentCommitPlan::Rejected(
@@ -922,14 +939,6 @@ impl AppStore {
                 ))
             }
         };
-        // 다시 넣은 플러그인 노드를 먼저 제자리(그룹)로 - 빈 그룹 정리가 그 그룹을 지우지 않게
-        place_plugin_inserts(&mut after, ops);
-        let prune = empty_tree_groups(&after, changes.scenes.keys());
-        if !prune.is_empty() {
-            if let Ok(more) = engine.apply(&mut after, &prune) {
-                changes.merge(more);
-            }
-        }
         // 옮기거나 넣은 옛 종류 요소만 새 트리 자리에 맞는 zIndex를 받는다
         for (scene, moved) in moved_legacy_ids(&after, ops) {
             let fixes = moved_z_fixes(&after, &scene, &moved);
@@ -1042,20 +1051,10 @@ impl AppStore {
             ));
         }
         let mut scratch = guard.data.clone();
-        let mut changes = match engine.apply(scratch.element_document_mut(), ops) {
+        let changes = match apply_tree_ops(&engine, scratch.element_document_mut(), ops) {
             Ok(changes) => changes,
             Err(violations) => return Ok(rejected(VIOLATION, violations)),
         };
-        // 다시 넣은 플러그인 노드를 먼저 제자리(그룹)로 - 빈 그룹 정리가 그 그룹을 지우지 않게
-        place_plugin_inserts(scratch.element_document_mut(), ops);
-        // 빼기·옮기기로 비게 된 트리 전용 그룹은 함께 지운다 (옛 그룹의 빈 그룹 정리와 같다)
-        let prune = empty_tree_groups(scratch.element_document(), changes.scenes.keys());
-        if !prune.is_empty() {
-            match engine.apply(scratch.element_document_mut(), &prune) {
-                Ok(more) => changes.merge(more),
-                Err(violations) => return Ok(rejected(VIOLATION, violations)),
-            }
-        }
         // 옛 모양이 그대로인지 확인 - 트리에만 있는 요소만 바뀌었어야 한다
         let before = project_document(guard.data.element_document())?;
         let after = project_document(scratch.element_document())?;
