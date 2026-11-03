@@ -3317,6 +3317,84 @@ fn 잠긴_종류의_id가_이_앱_모양에_맞지_않아도_다른_편집과_�
 }
 
 #[test]
+fn 옛_패치가_잠긴_스프라이트의_포즈_id를_빼고_보내면_저장된_id를_값으로_이어받는다() {
+    let dir = std::env::temp_dir().join(format!("dmn-element-commit-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut state = default_state();
+    let sprite_id = uuid::Uuid::new_v4().to_string();
+    let mut sprite = crate::models::ReactiveSpritePosition {
+        id: sprite_id.clone(),
+        ..Default::default()
+    };
+    sprite.poses.push(crate::models::SpritePose {
+        pose_id: uuid::Uuid::new_v4().to_string(),
+        name: None,
+        triggers: vec![uuid::Uuid::new_v4().to_string()],
+        transform: sprite.idle_transform,
+        pivot: None,
+        image_override: None,
+        image_override_metrics: None,
+    });
+    state
+        .legacy_mut()
+        .sprite_positions
+        .insert("4key".into(), vec![sprite]);
+    std::fs::write(
+        dir.join(crate::state::store::STORE_FILE_NAME),
+        serde_json::to_vec_pretty(&state).unwrap(),
+    )
+    .unwrap();
+    let store = crate::state::AppStore::initialize_for_test(&dir).unwrap();
+    {
+        let mut guard = store.state.write();
+        let mut scratch = guard.data.clone();
+        let mut document = (**scratch.element_document()).clone();
+        document.kind_versions.insert("sprite".into(), 99);
+        scratch.set_element_document(std::sync::Arc::new(document));
+        store.commit_locked(&mut guard, scratch, ()).unwrap();
+    }
+    let stored = tree_element(&store, &sprite_id).unwrap();
+
+    // 플러그인 API가 허용하는 모양 - 스프라이트를 그대로 다시 보내며 포즈 id를 뺀다
+    let legacy = store.snapshot().legacy().clone();
+    let mut sprites = legacy.sprite_positions.clone();
+    for pose in &mut sprites.get_mut("4key").unwrap()[0].poses {
+        pose.pose_id.clear();
+    }
+    let mut stats = legacy.stat_positions.clone();
+    stats.get_mut("4key").unwrap()[0].position.dx += 1.0;
+    store
+        .commit_editor_document(crate::models::EditorCommitRequest {
+            base_revision: store.editor_get().revision,
+            mutation_id: uuid::Uuid::new_v4().to_string(),
+            multi_key: false,
+            gesture_id: None,
+            gesture_ids: Vec::new(),
+            changes: Some(crate::models::EditorPatchV1 {
+                sprite_positions: Some(sprites),
+                stat_positions: Some(stats),
+                ..Default::default()
+            }),
+            ops_version: None,
+            ops: None,
+            element_tree: None,
+        })
+        .unwrap();
+    assert_eq!(
+        tree_element(&store, &sprite_id).unwrap().values,
+        stored.values
+    );
+    assert_eq!(
+        store.snapshot().legacy().stat_positions["4key"][0]
+            .position
+            .dx,
+        legacy.stat_positions["4key"][0].position.dx + 1.0
+    );
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn 숨긴_그룹에서_다른_멤버만_보이게_해도_잠긴_멤버는_숨김을_지킨다() {
     let (dir, store) = open_store();
     // 스탯도 g1에 넣고 g1을 숨긴다 (잠그기 전)

@@ -318,11 +318,13 @@ fn sanitize_v1_supplied_patch_ids(
     Ok(())
 }
 
+// 잠긴 스프라이트는 저장된 id를 값으로 이어받기만 하고 새 id는 주지 않는다 (설계 3.5)
 fn adapt_v1_sprite_pose_ids(
     current: &HashMap<String, Vec<ReactiveSpritePosition>>,
     candidate: &mut HashMap<String, Vec<ReactiveSpritePosition>>,
     consumed_current_ids: &mut HashSet<String>,
     reserved: &mut HashSet<String>,
+    locked: bool,
 ) {
     for mode in sorted_modes(candidate) {
         let Some(sprites) = candidate.get_mut(&mode) else {
@@ -353,8 +355,11 @@ fn adapt_v1_sprite_pose_ids(
                         .iter()
                         .zip(&normalized_current)
                         .find(|(current_pose, normalized)| {
-                            is_valid_element_id(&current_pose.pose_id)
-                                && !consumed_current_ids.contains(&current_pose.pose_id)
+                            (if locked {
+                                !current_pose.pose_id.is_empty()
+                            } else {
+                                is_valid_element_id(&current_pose.pose_id)
+                            }) && !consumed_current_ids.contains(&current_pose.pose_id)
                                 && **normalized == target
                         })
                         .map(|(current_pose, _)| current_pose.pose_id.clone())
@@ -362,7 +367,7 @@ fn adapt_v1_sprite_pose_ids(
                 if let Some(id) = inherited {
                     consumed_current_ids.insert(id.clone());
                     pose.pose_id = id;
-                } else {
+                } else if !locked {
                     pose.pose_id = new_unique_id(reserved);
                 }
             }
@@ -788,17 +793,13 @@ fn adapt_v1_patch_ids(
             reserved: &mut reserved,
         },
     );
-    // 잠긴 스프라이트의 포즈 id는 이어받거나 새로 주지 않는다 - 쓴 그대로 (설계 3.5)
-    if let Some(collection) = patch
-        .sprite_positions
-        .as_mut()
-        .filter(|_| !locked.contains(&EditorElementTypeV1::Sprite))
-    {
+    if let Some(collection) = patch.sprite_positions.as_mut() {
         adapt_v1_sprite_pose_ids(
             &store.sprite_positions,
             collection,
             &mut consumed_current_ids,
             &mut reserved,
+            locked.contains(&EditorElementTypeV1::Sprite),
         );
     }
     Ok(())
