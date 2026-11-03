@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react';
 
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import {
-  applyPluginElementEdit,
-  commitPluginFrames,
-} from '@plugins/runtime/displayElement/pluginTreeGeometry';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import type { Frame } from '@src/types/generated/elementDocument';
+import { sendPluginTreeEdit } from '@plugins/runtime/displayElement/pluginTreeGeometry';
 import {
   capturePluginElementGeometry,
   restorePluginElementGeometry,
@@ -13,7 +12,7 @@ import {
   type PluginElementGeometrySnapshot,
   type PluginElementUpdatePatch,
 } from '@plugins/runtime/displayElement/pluginElementActions';
-import { releasePluginElementsEditing } from '@plugins/runtime/displayElement/pluginTreeEditOwnership';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 
 export type PluginGeometryField = 'x' | 'y' | 'width' | 'height';
 
@@ -26,7 +25,10 @@ interface PluginGeometrySession {
   fullId: string;
   sceneId: string;
   gestureId: string;
-  snapshot: PluginElementGeometrySnapshot;
+  // 트리에 노드가 있는 인스턴스 - 시작 틀 (미리보기는 트리 편집기의 틀 미리보기)
+  frame: Frame | null;
+  // 트리에 없는 런타임 요소 - 취소할 때 되돌릴 값
+  snapshot: PluginElementGeometrySnapshot | null;
 }
 
 const geometryPatch = (
@@ -49,23 +51,24 @@ const geometryPatch = (
 const isSelectedPluginElement = (fullId: string): boolean =>
   useDocumentSelectionStore.getState().isSelected(fullId);
 
-// 속성 패널 숫자 입력(X/Y/W/H)의 플러그인 요소 게스처. 값의 원본이 프론트
-// 스토어라 preview_broker를 타지 않는다 - 미리보기는 스토어만 바꾸고(자동 저장 없이),
-// 확정은 트리 노드 틀 커밋 한 번(캔버스 끌기와 같은 저장)
+// 속성 패널 숫자 입력(X/Y/W/H)의 플러그인 요소 게스처. 인스턴스는 캔버스 끌기와 같이 트리 틀 미리보기로 보이고
+// 확정은 트리 틀 연산 한 번, 트리에 없는 런타임 요소는 런타임 스토어만 고친다
 export const createPluginGeometryGestureController = () => {
   let session: PluginGeometrySession | null = null;
 
-  const edit = (current: PluginGeometrySession, change: () => void) =>
-    applyPluginElementEdit(new Set([current.fullId]), change);
+  const previewFrame = (current: PluginGeometrySession) =>
+    useDocumentFramePreviewStore.getState().frames[current.fullId] ??
+    current.frame;
 
   const cancel = () => {
     if (!session) return;
     const current = session;
     session = null;
-    edit(current, () =>
-      restorePluginElementGeometry(current.fullId, current.snapshot),
-    );
-    releasePluginElementsEditing([current.fullId]);
+    if (current.frame) {
+      useDocumentFramePreviewStore.getState().clear(current.fullId);
+    } else if (current.snapshot) {
+      restorePluginElementGeometry(current.fullId, current.snapshot);
+    }
   };
 
   const ensureSession = (target: PluginGeometryTarget): boolean => {
@@ -74,15 +77,33 @@ export const createPluginGeometryGestureController = () => {
     // 선택이 바뀐 뒤 도착한 지각 preview(언마운트 직전 after-paint 발행)는
     // 새 세션을 열지 않는다
     if (!isSelectedPluginElement(target.fullId)) return false;
-    const snapshot = capturePluginElementGeometry(target.fullId);
-    if (!snapshot) return false;
+    const sceneId = useKeyStore.getState().selectedKeyType;
+    const node = getElementDocumentStore()?.getElement(sceneId, target.fullId);
+    const snapshot = node ? null : capturePluginElementGeometry(target.fullId);
+    if (!node && !snapshot) return false;
     session = {
       fullId: target.fullId,
-      sceneId: useKeyStore.getState().selectedKeyType,
+      sceneId,
       gestureId: crypto.randomUUID(),
+      frame: node?.frame ?? null,
       snapshot,
     };
     return true;
+  };
+
+  const apply = (
+    current: PluginGeometrySession,
+    field: PluginGeometryField,
+    value: number,
+  ) => {
+    const frame = previewFrame(current);
+    if (frame) {
+      useDocumentFramePreviewStore
+        .getState()
+        .set(current.fullId, { ...frame, [field]: value });
+      return;
+    }
+    updatePluginElement(current.fullId, geometryPatch(field, value));
   };
 
   const preview = (
@@ -91,9 +112,7 @@ export const createPluginGeometryGestureController = () => {
     value: number,
   ) => {
     if (!ensureSession(target) || !session) return;
-    edit(session, () =>
-      updatePluginElement(target.fullId, geometryPatch(field, value)),
-    );
+    apply(session, field, value);
   };
 
   // preview 없이 온 확정(짧은 타이핑 후 blur)도 같은 세션 경계로 저장한다
@@ -105,16 +124,28 @@ export const createPluginGeometryGestureController = () => {
     if (!ensureSession(target) || !session) return;
     const current = session;
     session = null;
-    edit(current, () =>
-      updatePluginElement(target.fullId, geometryPatch(field, value)),
-    );
-    commitPluginFrames(
-      current.sceneId,
-      [current.fullId],
+    apply(current, field, value);
+    if (!current.frame) return;
+    const last = useDocumentFramePreviewStore.getState().frames[current.fullId];
+    if (!last) return;
+    const { x, y, width, height } = last;
+    void sendPluginTreeEdit(
+      [
+        {
+          op: 'setFrame',
+          scene: current.sceneId,
+          id: current.fullId,
+          frame: { x, y, width, height },
+        },
+      ],
       current.gestureId,
-    ).catch((error: unknown) =>
-      console.error('[Plugin] Failed to save geometry', error),
-    );
+    )
+      .catch((error: unknown) =>
+        console.error('[Plugin] Failed to save geometry', error),
+      )
+      .finally(() =>
+        useDocumentFramePreviewStore.getState().clear(current.fullId),
+      );
   };
 
   return { preview, commit, cancel };

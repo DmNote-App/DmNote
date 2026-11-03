@@ -14,21 +14,15 @@ import {
   type SelectedElement,
 } from '@stores/grid/useGridSelectionStore';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
-import { ARROW_KEY_HISTORY_DELAY } from '../constants';
 import { isMac } from '@utils/core/platform';
 import { useHistoryShortcuts } from './useHistoryShortcuts';
 import { isHistoryEditorFlushLocked } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 import { isModalLayerActive } from '@components/main/Modal/popupLayer';
-import { registerPendingOptimisticCommit } from '@hooks/pendingOptimisticCommits';
 
 interface UseGridKeyboardParams {
   selectedElements: SelectedElement[];
-  moveSelectedElements: (
-    deltaX: number,
-    deltaY: number,
-    gestureId?: string,
-    syncToOverlay?: boolean,
-  ) => void;
+  // 옛 선택(트리에 없는 런타임 요소) 이동 - 저장하지 않는다 (트리 요소는 트리 키보드가 옮긴다)
+  moveSelectedElements: (deltaX: number, deltaY: number) => void;
   deleteSelectedElements: () => void;
   clearSelection: () => void;
   copySelectedElements: () => void;
@@ -55,28 +49,17 @@ export function useGridKeyboard({
   continuousInputStrategy = 'frame',
   afterKeyDown,
 }: UseGridKeyboardParams): void {
-  const lastArrowKeyTime = useRef(0);
-  const arrowGestureId = useRef<string | null>(null);
-  const lastArrowSelectionSignature = useRef<string | null>(null);
-  const selectionSignature = JSON.stringify(
-    selectedElements.map(({ type, id }) => ({ type, id })),
-  );
   const macOS = isMac();
-  const pendingArrowMove = useRef<{
-    deltaX: number;
-    deltaY: number;
-    gestureId: string;
-  } | null>(null);
+  const pendingArrowMove = useRef<{ deltaX: number; deltaY: number } | null>(
+    null,
+  );
   const arrowMoveFrame = useRef<number | null>(null);
-  const unregisterPendingArrowMove = useRef<(() => void) | null>(null);
 
   useHistoryShortcuts({ onUndo, onRedo });
 
   // 선택 요소 키보드 조작
   useEffect(() => {
     const flushArrowMove = () => {
-      unregisterPendingArrowMove.current?.();
-      unregisterPendingArrowMove.current = null;
       if (arrowMoveFrame.current !== null) {
         cancelAnimationFrame(arrowMoveFrame.current);
         arrowMoveFrame.current = null;
@@ -84,31 +67,21 @@ export function useGridKeyboard({
       const pending = pendingArrowMove.current;
       pendingArrowMove.current = null;
       if (pending && !isModalLayerActive()) {
-        moveSelectedElements(pending.deltaX, pending.deltaY, pending.gestureId);
+        moveSelectedElements(pending.deltaX, pending.deltaY);
       }
     };
 
-    const scheduleArrowMove = (
-      deltaX: number,
-      deltaY: number,
-      gestureId: string,
-    ) => {
+    const scheduleArrowMove = (deltaX: number, deltaY: number) => {
       if (continuousInputStrategy === 'sync') {
-        moveSelectedElements(deltaX, deltaY, gestureId);
+        moveSelectedElements(deltaX, deltaY);
         return;
       }
 
       const pending = pendingArrowMove.current;
       pendingArrowMove.current = pending
-        ? {
-            deltaX: pending.deltaX + deltaX,
-            deltaY: pending.deltaY + deltaY,
-            gestureId,
-          }
-        : { deltaX, deltaY, gestureId };
+        ? { deltaX: pending.deltaX + deltaX, deltaY: pending.deltaY + deltaY }
+        : { deltaX, deltaY };
       if (arrowMoveFrame.current !== null) return;
-      unregisterPendingArrowMove.current =
-        registerPendingOptimisticCommit(flushArrowMove);
       arrowMoveFrame.current = requestAnimationFrame(() => {
         arrowMoveFrame.current = null;
         flushArrowMove();
@@ -181,21 +154,10 @@ export function useGridKeyboard({
             break;
         }
 
-        // 500ms 내 방향키 입력의 undo 병합
-        const now = Date.now();
-        if (
-          lastArrowSelectionSignature.current !== selectionSignature ||
-          !arrowGestureId.current ||
-          now - lastArrowKeyTime.current > ARROW_KEY_HISTORY_DELAY
-        ) {
-          arrowGestureId.current = crypto.randomUUID();
-        }
-        lastArrowKeyTime.current = now;
-        lastArrowSelectionSignature.current = selectionSignature;
-        // 함께 고른 트리 요소 이동도 같은 되돌리기 단계로
-        markGridKeyHandled(e, arrowGestureId.current);
+        // 함께 고른 트리 요소는 트리 키보드가 옮긴다 (되돌리기 묶음도 그쪽)
+        markGridKeyHandled(e);
 
-        scheduleArrowMove(deltaX, deltaY, arrowGestureId.current);
+        scheduleArrowMove(deltaX, deltaY);
         return;
       }
 
@@ -242,7 +204,6 @@ export function useGridKeyboard({
     clearSelection,
     copySelectedElements,
     pasteElements,
-    selectionSignature,
     continuousInputStrategy,
     afterKeyDown,
   ]);

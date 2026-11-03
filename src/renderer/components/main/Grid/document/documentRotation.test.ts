@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('./documentEditActions', () => ({ setDocumentFrame: mocks.setFrame }));
 
 import { startDocumentRotation } from './documentRotation';
-import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 
 const frame = { x: 10, y: 20, width: 30, height: 40, rotation: 0 };
 

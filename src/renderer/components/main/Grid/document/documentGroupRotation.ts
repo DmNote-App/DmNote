@@ -8,7 +8,7 @@ import {
   type Point,
 } from '@utils/element/rotation';
 import { editDocument } from './documentEditActions';
-import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 
 export interface DocumentRotationEntry {
   id: string;

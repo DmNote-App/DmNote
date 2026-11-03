@@ -13,7 +13,7 @@ import {
 import { legacyPreviewFrameOf } from '@src/renderer/elementKinds/runtime/useLegacyPreviewFrame';
 import { treeGroupHiddenKey } from '@src/renderer/elementKinds/runtime/documentElementOrder';
 import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
-import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 
 interface FramedPosition {
   id: string;

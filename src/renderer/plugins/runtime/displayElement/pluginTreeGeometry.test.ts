@@ -3,20 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import { ElementEditHeldError } from '@src/renderer/editor/document/elementDocumentStore';
-import {
-  isPluginElementEditing,
-  resetPluginTreeEditOwnership,
-  subscribePluginEditingReleased,
-} from './pluginTreeEditOwnership';
 
 const mocks = vi.hoisted(() => ({
-  nodes: new Map<string, { frame: Record<string, number> }>(),
+  nodes: new Set<string>(),
   edit: vi.fn(),
   hideBySave: vi.fn(async () => true),
 }));
 vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   getElementDocumentStore: () => ({
-    getElement: (_scene: string, id: string) => mocks.nodes.get(id),
+    getElement: (_scene: string, id: string) =>
+      mocks.nodes.has(id) ? { id } : undefined,
     edit: mocks.edit,
   }),
 }));
@@ -25,15 +21,13 @@ vi.mock('./pluginElementActions', () => ({
 }));
 
 const {
-  applyPluginElementEdit,
-  commitPluginFrames,
   sendPluginTreeEdit,
+  setPluginElementFrames,
   setPluginElementHiddenInTree,
 } = await import('./pluginTreeGeometry');
 
 const element = (
   fullId: string,
-  position: { x: number; y: number },
   extra: Partial<PluginDisplayElementInternal> = {},
 ) =>
   ({
@@ -41,76 +35,56 @@ const element = (
     fullId,
     pluginId: fullId.split('::')[0],
     html: '',
-    position,
+    position: { x: 0, y: 0 },
     tabId: '4key',
     ...extra,
   } as PluginDisplayElementInternal);
 
-const frame = (x: number, y: number) => ({
-  frame: { x, y, width: 200, height: 150, rotation: 0 },
-});
-
-describe('편집기의 플러그인 요소 위치 저장', () => {
+describe('편집기의 플러그인 요소 틀·숨김 저장', () => {
   beforeEach(() => {
     mocks.nodes.clear();
     mocks.edit.mockReset().mockResolvedValue({ status: 'committed' });
     mocks.hideBySave.mockClear();
-    resetPluginTreeEditOwnership();
   });
 
-  it('미리보기는 런타임 스토어만 고치고 미리보는 요소로 표시한다', () => {
-    const seen: string[][] = [];
-    applyPluginElementEdit(new Set(['a::1']), (ids) => seen.push([...ids]));
-    expect(seen).toEqual([['a::1']]);
-    expect(isPluginElementEditing('a::1')).toBe(true);
-  });
-
-  it('바뀐 위치·측정 크기만 같은 동작 id의 틀 연산으로 보내고, 보낸 뒤 미리보기를 푼다', async () => {
-    mocks.nodes.set('a::1', frame(0, 0));
-    mocks.nodes.set('a::2', frame(5, 5));
+  it('틀 - 인스턴스는 트리 틀 연산 하나로, 런타임 요소는 런타임 스토어에서', async () => {
+    mocks.nodes.add('a::1');
     usePluginDisplayElementStore.setState({
       elements: [
-        element(
-          'a::1',
-          { x: 10, y: 0 },
-          { measuredSize: { width: 80, height: 150 } },
-        ),
-        element('a::2', { x: 5, y: 5 }),
-        element('a::missing', { x: 1, y: 1 }),
+        element('a::1'),
+        element('a::free', { measuredSize: { width: 10, height: 20 } }),
       ],
     });
-    applyPluginElementEdit(new Set(['a::1', 'a::2']), () => undefined);
-    const released: string[][] = [];
-    const stop = subscribePluginEditingReleased((ids) =>
-      // 풀릴 때는 이미 보냈다
-      released.push([...ids, `sent:${mocks.edit.mock.calls.length}`]),
+    await setPluginElementFrames(
+      '4key',
+      new Map([
+        ['a::1', { x: 5, width: 80 }],
+        ['a::free', { y: 7, height: 30 }],
+      ]),
+      'g1',
     );
-    await commitPluginFrames('4key', ['a::1', 'a::2', 'a::missing'], 'g1');
-    stop();
     expect(mocks.edit).toHaveBeenCalledWith(
       [
         {
           op: 'setFrame',
           scene: '4key',
           id: 'a::1',
-          frame: { x: 10, width: 80 },
+          frame: { x: 5, width: 80 },
         },
       ],
       { gestureId: 'g1' },
     );
-    expect(released).toEqual([['a::1', 'a::2', 'sent:1']]);
-    expect(isPluginElementEditing('a::1')).toBe(false);
-  });
-
-  it('바뀐 것이 없으면 보내지 않고 미리보기만 푼다', async () => {
-    mocks.nodes.set('a::1', frame(3, 4));
-    usePluginDisplayElementStore.setState({
-      elements: [element('a::1', { x: 3, y: 4 })],
-    });
-    applyPluginElementEdit(new Set(['a::1']), () => undefined);
-    await commitPluginFrames('4key', ['a::1']);
-    expect(mocks.edit).not.toHaveBeenCalled();
-    expect(isPluginElementEditing('a::1')).toBe(false);
+    const free = usePluginDisplayElementStore
+      .getState()
+      .elements.find(({ fullId }) => fullId === 'a::free')!;
+    expect(free.position).toEqual({ x: 0, y: 7 });
+    expect(free.measuredSize).toEqual({ width: 10, height: 30 });
+    // 인스턴스의 런타임 값은 트리를 따라온다 - 여기서 고치지 않는다
+    expect(
+      usePluginDisplayElementStore
+        .getState()
+        .elements.find(({ fullId }) => fullId === 'a::1')!.position,
+    ).toEqual({ x: 0, y: 0 });
   });
 
   it('거절은 오류로 올리고, 보류는 화면에 남긴 채 끝난 것으로 본다', async () => {
@@ -124,7 +98,7 @@ describe('편집기의 플러그인 요소 위치 저장', () => {
   });
 
   it('숨김 - 트리에 노드가 있으면 공통 정보 연산, 없으면 런타임 스토어에서', async () => {
-    mocks.nodes.set('a::1', frame(0, 0));
+    mocks.nodes.add('a::1');
     await setPluginElementHiddenInTree('4key', 'a::1', true);
     expect(mocks.edit).toHaveBeenCalledWith(
       [{ op: 'setCommon', scene: '4key', id: 'a::1', hidden: true }],

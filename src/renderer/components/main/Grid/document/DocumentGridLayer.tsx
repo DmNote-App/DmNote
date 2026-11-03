@@ -24,7 +24,7 @@ import {
 import { groupSelectionOf } from './documentGroups';
 import { documentRangeSelection, toggleDocumentId } from './documentSelection';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useRenderedPluginKinds } from '@plugins/runtime/displayElement/pluginKindPresence';
 

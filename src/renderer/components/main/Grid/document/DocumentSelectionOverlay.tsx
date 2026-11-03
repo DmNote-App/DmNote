@@ -28,7 +28,7 @@ import {
   documentSelectionFrame,
   startDocumentGroupRotation,
 } from './documentGroupRotation';
-import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { isPluginKind } from '@src/types/elementKinds';
 import {

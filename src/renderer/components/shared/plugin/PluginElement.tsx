@@ -44,7 +44,7 @@ import {
   startDocumentSelectionDrag,
   type MixedDragLifecycle,
 } from '../../main/Grid/document/documentSelectionDrag';
-import { useDocumentFramePreviewStore } from '../../main/Grid/document/useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 import {
   setSplitSelection,
   setStructureSelection,

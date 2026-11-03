@@ -3,7 +3,7 @@
  */
 
 // 상수
-export { PASTE_OFFSET, ARROW_KEY_HISTORY_DELAY } from './constants';
+export { PASTE_OFFSET } from './constants';
 
 // 유틸리티
 export { snapToGrid, snapCursorToGrid } from './utils';

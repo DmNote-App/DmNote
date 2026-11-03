@@ -46,11 +46,6 @@ import {
   displayElementApi,
 } from '../displayElement/displayElementApi';
 import {
-  markPluginElementsEditing,
-  releasePluginElementsEditing,
-  resetPluginTreeEditOwnership,
-} from '../displayElement/pluginTreeEditOwnership';
-import {
   buildSavedPluginInstances,
   createDefineElement,
   type SavedInstance,
@@ -186,7 +181,6 @@ describe('플러그인 인스턴스 저장 - 원본은 트리', () => {
     await drainEditorWrites();
     while (cleanups.length > 0) cleanups.pop()?.();
     displayElementInstanceRegistry.clearAll();
-    resetPluginTreeEditOwnership();
     usePluginDisplayElementStore.setState({
       elements: [],
       definitions: new Map(),
@@ -475,30 +469,5 @@ describe('플러그인 인스턴스 저장 - 원본은 트리', () => {
       expect(findElement(fullIdA)!.position).toEqual({ x: 1, y: 1 }),
     );
     warn.mockRestore();
-  });
-
-  it('편집기가 미리보는 요소는 바깥 변경이 틀을 덮지 않고, 풀면 트리 값으로 맞춘다', async () => {
-    const pluginId = 'plugin-diff-preview';
-    defineFor(pluginId, [saved(ID_A), saved(ID_B)]);
-    await vi.waitFor(() => expect(defElements(pluginId)).toHaveLength(2));
-    const fullIdA = `${pluginId}::${ID_A}`;
-
-    markPluginElementsEditing([fullIdA]);
-    usePluginDisplayElementStore
-      .getState()
-      .updateElement(fullIdA, { position: { x: 40, y: 40 } });
-    // 같은 플러그인의 다른 요소가 바깥에서 바뀌어도 미리보기 위치는 그대로
-    reapply(pluginId, [saved(ID_A), saved(ID_B, { position: { x: 9, y: 9 } })]);
-    expect(findElement(fullIdA)!.position).toEqual({ x: 40, y: 40 });
-    expect(findElement(`${pluginId}::${ID_B}`)!.position).toEqual({
-      x: 9,
-      y: 9,
-    });
-
-    // 취소 - 풀면 트리 값으로
-    releasePluginElementsEditing([fullIdA]);
-    expect(findElement(fullIdA)!.position).toEqual({ x: 0, y: 0 });
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    expect(backend().commit).not.toHaveBeenCalled();
   });
 });

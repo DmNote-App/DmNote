@@ -16,7 +16,7 @@ import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStor
 import { isMac } from '@utils/core/platform';
 import { moveDocumentElements } from './documentEditActions';
 import { documentDragSnap } from './documentDragSnap';
-import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 
 // 드래그로 보지 않는 움직임 (화면 px)
 export const DRAG_THRESHOLD = 3;

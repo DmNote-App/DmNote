@@ -1,20 +1,20 @@
 /**
- * 플러그인 기하 게스처 × 실물 트리 틀 저장 통합 계약
- * - preview 동안 스토어 변경은 인스턴스 저장을 부르지 않는다 (미리보는 요소)
- * - commit은 바뀐 틀만 같은 동작 id의 트리 커밋 한 번으로, cancel은 저장 없이 복원
- * - 끝난 뒤 쓰기 대기가 남지 않는다
+ * 플러그인 기하 게스처 × 트리 틀 미리보기·커밋 통합 계약 (트리에 노드가 있는 인스턴스)
+ * - preview는 트리 틀 미리보기만 바꾸고(플러그인 요소가 따라 그린다) 저장하지 않는다
+ * - commit은 마지막 틀을 같은 동작 id의 트리 틀 커밋 한 번으로 보내고 미리보기를 지운다
+ * - cancel은 미리보기만 지운다
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { isPluginElementEditing } from '@plugins/runtime/displayElement/pluginTreeEditOwnership';
 import { drainEditorWrites } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
-import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
 import { createPluginGeometryGestureController } from './usePluginGeometryGesture';
+
+const FRAME = { x: 30, y: 40, width: 200, height: 150, rotation: 0 };
 
 const tree = vi.hoisted(() => ({
   edit: vi.fn(async (_ops: unknown[], _options?: { gestureId?: string }) => ({
@@ -25,7 +25,7 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   getElementDocumentStore: () => ({
     getElement: (_scene: string, id: string) =>
       id === FULL_ID
-        ? { frame: { x: 30, y: 40, width: 200, height: 150, rotation: 0 } }
+        ? { id, kind: 'plugin:plugin-int', frame: FRAME }
         : undefined,
     edit: tree.edit,
   }),
@@ -36,52 +36,30 @@ vi.mock('@utils/plugin/bridgeMessages', () => ({
 
 const PLUGIN_ID = 'plugin-int';
 const FULL_ID = 'plugin-int::element';
-
-const pluginElement = (): PluginDisplayElementInternal => ({
-  id: 'element',
-  fullId: FULL_ID,
-  pluginId: PLUGIN_ID,
-  definitionId: PLUGIN_ID,
-  html: '<div />',
-  position: { x: 30, y: 40 },
-  estimatedSize: { width: 200, height: 150 },
-  tabId: '4key',
-});
-
 const target = { fullId: FULL_ID, pluginId: PLUGIN_ID };
+const preview = () => useDocumentFramePreviewStore.getState().frames[FULL_ID];
 
-describe('usePluginGeometryGesture 트리 틀 저장 통합', () => {
-  // 인스턴스 저장의 스토어 구독을 흉내 - 미리보는 요소의 변경은 저장하지 않는다
-  let scheduledSaves: number;
-  let unsubscribe: () => void;
-
+describe('usePluginGeometryGesture 트리 틀 미리보기·커밋 통합', () => {
   beforeEach(() => {
-    scheduledSaves = 0;
     tree.edit.mockClear();
+    useDocumentFramePreviewStore.getState().clear(FULL_ID);
     useKeyStore.setState({ selectedKeyType: '4key' });
-    usePluginDisplayElementStore.setState({ elements: [pluginElement()] });
     useDocumentSelectionStore
       .getState()
-      .setSelectedElements([{ type: 'plugin', id: FULL_ID }]);
-    unsubscribe = usePluginDisplayElementStore.subscribe(() => {
-      if (!isPluginElementEditing(FULL_ID)) scheduledSaves += 1;
-    });
+      .replaceSelection('4key', [], [{ type: 'plugin', id: FULL_ID }]);
   });
 
-  afterEach(() => unsubscribe());
-
-  it('preview 중에는 저장 예약이 없고 commit은 바뀐 틀을 트리 커밋 한 번으로 보낸다', async () => {
+  it('preview는 틀 미리보기만, commit은 마지막 틀을 트리 커밋 한 번으로 보내고 미리보기를 지운다', async () => {
     const gesture = createPluginGeometryGestureController();
 
     gesture.preview(target, 'x', 35);
     gesture.preview(target, 'x', 41);
     gesture.preview(target, 'width', 120);
-    expect(scheduledSaves).toBe(0);
+    expect(preview()).toEqual({ ...FRAME, x: 41, width: 120 });
     expect(tree.edit).not.toHaveBeenCalled();
 
     gesture.commit(target, 'width', 130);
 
-    expect(scheduledSaves).toBe(0);
     expect(tree.edit).toHaveBeenCalledOnce();
     const [ops, options] = tree.edit.mock.calls[0];
     expect(ops).toEqual([
@@ -89,26 +67,22 @@ describe('usePluginGeometryGesture 트리 틀 저장 통합', () => {
         op: 'setFrame',
         scene: '4key',
         id: FULL_ID,
-        frame: { x: 41, width: 130 },
+        frame: { x: 41, y: 40, width: 130, height: 150 },
       },
     ]);
     expect(typeof options?.gestureId).toBe('string');
     await expect(drainEditorWrites()).resolves.toBe(true);
+    expect(preview()).toBeUndefined();
   });
 
-  it('cancel은 저장 없이 스냅샷을 복원한다', async () => {
+  it('cancel은 미리보기만 지우고 저장하지 않는다', async () => {
     const gesture = createPluginGeometryGestureController();
 
     gesture.preview(target, 'y', 77);
     gesture.cancel();
 
-    expect(scheduledSaves).toBe(0);
     expect(tree.edit).not.toHaveBeenCalled();
-    const element = usePluginDisplayElementStore
-      .getState()
-      .elements.find((candidate) => candidate.fullId === FULL_ID);
-    expect(element?.position).toEqual({ x: 30, y: 40 });
-    expect(element?.measuredSize).toBeUndefined();
+    expect(preview()).toBeUndefined();
     await expect(drainEditorWrites()).resolves.toBe(true);
   });
 });

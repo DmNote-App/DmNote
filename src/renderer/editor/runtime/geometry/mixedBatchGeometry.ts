@@ -3,10 +3,7 @@
 // 한 번에 되돌린다
 
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import {
-  applyPluginElementEdit,
-  commitPluginFrames,
-} from '@plugins/runtime/displayElement/pluginTreeGeometry';
+import { setPluginElementFrames } from '@plugins/runtime/displayElement/pluginTreeGeometry';
 import { isPluginVisibleInMode } from '@utils/layerGroupUtils';
 import { resolveResizablePluginElementSize } from '@utils/plugin/layout/pluginElementMeasurement';
 import { isNativeElementId } from '../../model/elementId';
@@ -252,24 +249,19 @@ export const commitMixedBatchGeometry = (
   if (nativeOps.length > 0) {
     writes.push(commitSemanticOps(nativeOps, { gestureId }));
   }
-  // 플러그인 위치는 바로 보이게(자동 저장 없이) 고치고 트리 노드 틀로 저장
-  applyPluginElementEdit(new Set(pluginPositions.keys()), (ids) => {
-    const store = usePluginDisplayElementStore.getState();
-    store.setElements(
-      store.elements.map((element) => {
-        const next = ids.has(element.fullId)
-          ? pluginPositions.get(element.fullId)
-          : undefined;
-        return next
-          ? { ...element, position: { ...element.position, ...next } }
-          : element;
-      }),
-    );
-  });
+  // 플러그인 위치는 트리 노드 틀로 (트리 스토어가 바로 얹는다 - 런타임은 트리를 따라온다)
   writes.push(
-    commitPluginFrames(
+    setPluginElementFrames(
       frozenDescriptor.mode,
-      pluginPositions.keys(),
+      new Map(
+        [...pluginPositions].map(([fullId, position]) => [
+          fullId,
+          {
+            ...(position.x !== undefined ? { x: position.x } : {}),
+            ...(position.y !== undefined ? { y: position.y } : {}),
+          },
+        ]),
+      ),
       gestureId,
     ),
   );

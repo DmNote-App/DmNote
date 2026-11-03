@@ -9,7 +9,7 @@ import {
   setDocumentFrame,
   setDocumentValues,
 } from '../../document/documentEditActions';
-import { useDocumentFramePreviewStore } from '../../document/useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 import { PropertySection } from '../index';
 import { PANEL_ROOT_CLASS } from '../navigation/panelChrome';
 import EditSessionBoundary from '../selection/EditSessionBoundary';

@@ -13,10 +13,6 @@ import { useGridSelection } from './useGridSelection';
 
 const mocks = vi.hoisted(() => ({
   scene: { nodes: [] } as Scene,
-  commitFrames: vi.fn(
-    (_scene: string, _ids: Set<string>, _gestureId?: string) =>
-      Promise.resolve(),
-  ),
   sendBridgeMessage: vi.fn(),
   rotateSession: vi.fn(),
   flushSession: vi.fn(),
@@ -32,13 +28,6 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 vi.mock('@plugins/runtime/displayElement/instancesCommitQueue', () => ({
   rotatePluginInstancesEditSession: mocks.rotateSession,
   flushPluginInstancesEditSession: mocks.flushSession,
-}));
-vi.mock('@plugins/runtime/displayElement/pluginTreeGeometry', () => ({
-  commitPluginFrames: mocks.commitFrames,
-  applyPluginElementEdit: (
-    ids: ReadonlySet<string>,
-    change: (ids: ReadonlySet<string>) => void,
-  ) => change(ids),
 }));
 vi.mock('@utils/plugin/bridgeMessages', () => ({
   sendBridgeMessageBestEffort: mocks.sendBridgeMessage,
@@ -105,37 +94,9 @@ describe('옛 선택(플러그인 요소) 동작', () => {
     host.remove();
   });
 
-  it('정산은 고른 플러그인을 같은 동작 id의 트리 틀 커밋으로 저장한다', () => {
-    select(['plugin-a::element']);
-    api.syncSelectedElementsToOverlay('gesture-1');
-    expect(mocks.commitFrames).toHaveBeenCalledWith(
-      '4key',
-      new Set(['plugin-a::element']),
-      'gesture-1',
-    );
-  });
-
-  it('게스처 시작에 동결한 대상은 정산 1회에만 쓰인다', () => {
-    select(['plugin-a::element']);
-    api.freezeSelectionForGesture();
-    select([]);
-    api.syncSelectedElementsToOverlay('gesture-frozen');
-    expect(mocks.commitFrames).toHaveBeenCalledTimes(1);
-
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    api.syncSelectedElementsToOverlay('gesture-live');
-    expect(mocks.commitFrames).toHaveBeenCalledTimes(1);
-    expect(
-      warn.mock.calls.some(
-        (call) => call[1] === 'drag settlement without frozen targets',
-      ),
-    ).toBe(true);
-    warn.mockRestore();
-  });
-
   it('이동은 고른 플러그인 위치만 옮긴다', () => {
     select(['plugin-a::element']);
-    act(() => api.moveSelectedElements(5, -5, undefined, false));
+    act(() => api.moveSelectedElements(5, -5, false));
     expect(
       usePluginDisplayElementStore.getState().elements[0].position,
     ).toEqual({ x: 35, y: 35 });

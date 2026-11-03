@@ -17,7 +17,7 @@ vi.mock('./documentEditActions', () => ({
 }));
 
 import { createDocumentDragReceipt } from './documentDragReceipt';
-import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 describe('섞인 선택 끌기의 트리 요소 영수증', () => {

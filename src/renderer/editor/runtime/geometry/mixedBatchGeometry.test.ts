@@ -39,17 +39,36 @@ vi.mock(
     commitBatchGeometryByIds: mocks.commitBatchGeometryByIds,
   }),
 );
-vi.mock('@plugins/runtime/displayElement/pluginTreeGeometry', () => ({
-  applyPluginElementEdit: (
-    ids: ReadonlySet<string>,
-    change: (ids: ReadonlySet<string>) => void,
-  ) => change(ids),
-  commitPluginFrames: (
-    scene: string,
-    ids: Iterable<string>,
-    gestureId?: string,
-  ) => mocks.commitFrames(scene, [...ids], gestureId),
-}));
+// 플러그인 틀 - 트리 틀 연산을 기록하고, 런타임이 트리를 따라오는 것처럼 위치를 바로 얹는다
+vi.mock('@plugins/runtime/displayElement/pluginTreeGeometry', async () => {
+  const { usePluginDisplayElementStore: store } = await import(
+    '@stores/plugin/usePluginDisplayElementStore'
+  );
+  return {
+    setPluginElementFrames: (
+      scene: string,
+      frames: ReadonlyMap<string, { x?: number; y?: number }>,
+      gestureId?: string,
+    ) => {
+      const state = store.getState();
+      state.setElements(
+        state.elements.map((element) => {
+          const frame = frames.get(element.fullId);
+          return frame
+            ? {
+                ...element,
+                position: {
+                  x: frame.x ?? element.position.x,
+                  y: frame.y ?? element.position.y,
+                },
+              }
+            : element;
+        }),
+      );
+      return mocks.commitFrames(scene, [...frames.keys()], gestureId);
+    },
+  };
+});
 
 import { commitMixedBatchGeometry } from './mixedBatchGeometry';
 import type { BatchGeometryDescriptor } from '../operations/elementOps';

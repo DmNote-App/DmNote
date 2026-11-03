@@ -1,8 +1,8 @@
 /**
- * 플러그인 요소 기하 입력(X/Y/W/H) 게스처 계약 테스트
- * - preview는 스토어만 바꾼다(자동 저장 없이 - 트리에 있는 요소)
- * - commit은 마지막 값을 반영하고 같은 동작 id의 트리 틀 커밋을 한 번 보낸다
+ * 플러그인 요소 기하 입력(X/Y/W/H) 게스처 계약 테스트 - 트리에 없는 런타임 요소 (트리 스토어 없음)
+ * - preview·commit은 런타임 스토어만 바꾸고 트리로 보내지 않는다
  * - cancel은 스냅샷(measuredSize 부재 포함)을 복원하고 멱등이다
+ * (인스턴스의 트리 틀 미리보기·커밋은 integration 테스트)
  */
 
 import React, { act, useEffect } from 'react';
@@ -22,19 +22,13 @@ import {
 
 const mocks = vi.hoisted(() => ({
   order: [] as string[],
-  commitFrames: vi.fn((_scene: string, _ids: string[], _gestureId?: string) =>
-    Promise.resolve(),
-  ),
+  commitFrames: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('@plugins/runtime/displayElement/pluginTreeGeometry', () => ({
-  applyPluginElementEdit: (
-    ids: ReadonlySet<string>,
-    change: (ids: ReadonlySet<string>) => void,
-  ) => change(ids),
-  commitPluginFrames: (scene: string, ids: string[], gestureId?: string) => {
+  sendPluginTreeEdit: () => {
     mocks.order.push('commit');
-    return mocks.commitFrames(scene, ids, gestureId);
+    return mocks.commitFrames();
   },
 }));
 
@@ -97,30 +91,22 @@ describe('createPluginGeometryGestureController', () => {
     expect(findElement(FULL_ID)?.position).toEqual({ x: 41, y: 40 });
   });
 
-  it('commit은 마지막 값을 반영한 뒤 같은 동작 id로 트리 틀 커밋을 한 번 보낸다', () => {
+  it('commit은 마지막 값을 반영하고 트리로 보내지 않는다 (저장하지 않는 런타임 요소)', () => {
     const gesture = createPluginGeometryGestureController();
 
     gesture.preview(target, 'y', 45);
     gesture.commit(target, 'y', 50);
 
-    expect(mocks.order).toEqual(['update', 'update', 'commit']);
-    const [scene, ids, gestureId] = mocks.commitFrames.mock.calls[0];
-    expect(scene).toBe('4key');
-    expect(ids).toEqual([FULL_ID]);
-    expect(typeof gestureId).toBe('string');
+    expect(mocks.order).toEqual(['update', 'update']);
     expect(findElement(FULL_ID)?.position).toEqual({ x: 30, y: 50 });
-
-    // 다음 입력은 새 동작
-    gesture.commit(target, 'y', 60);
-    expect(mocks.commitFrames.mock.calls[1][2]).not.toBe(gestureId);
   });
 
-  it('preview 없이 온 commit도 저장을 한 번 보낸다', () => {
+  it('preview 없이 온 commit도 값을 반영한다', () => {
     const gesture = createPluginGeometryGestureController();
 
     gesture.commit(target, 'width', 120);
 
-    expect(mocks.order).toEqual(['update', 'commit']);
+    expect(mocks.order).toEqual(['update']);
     expect(findElement(FULL_ID)?.measuredSize).toEqual({
       width: 120,
       height: 150,

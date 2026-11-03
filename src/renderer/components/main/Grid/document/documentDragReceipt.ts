@@ -1,6 +1,6 @@
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { moveDocumentElements } from './documentEditActions';
-import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 /** 섞인 선택 끌기 - 고른 트리 요소를 증분 이동으로 미리 보이고 끝낼 때 한 번 커밋한다 */

@@ -12,7 +12,7 @@ import type {
   Op,
 } from '@src/types/generated/elementDocument';
 import { editDocument } from './documentEditActions';
-import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 
 // 비율을 잠근 종류는 크기 일괄에서도 지금 비율을 지킨다
 const keepAspect = (element: ElementNode, patch: FramePatch): FramePatch => {

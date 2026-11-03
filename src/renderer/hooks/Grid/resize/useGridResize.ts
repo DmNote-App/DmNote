@@ -21,10 +21,7 @@ import { useSettingsStore } from '@stores/useSettingsStore';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import type { ElementBounds } from '@utils/grid/smartGuides';
-import {
-  applyPluginElementEdit,
-  commitPluginFrames,
-} from '@plugins/runtime/displayElement/pluginTreeGeometry';
+import { setPluginElementFrames } from '@plugins/runtime/displayElement/pluginTreeGeometry';
 import {
   calculateResizePreviewPlan,
   type ResizeBounds,
@@ -94,25 +91,24 @@ export function useGridResize({
     resizeGestureIdRef.current = null;
   }, []);
 
-  // 플러그인 요소 최종 위치·크기 - 자동 저장 없이 반영하고 트리 노드 틀로 저장 (같은 동작 id)
+  // 플러그인 요소 최종 위치·크기 - 인스턴스는 트리 노드 틀로, 런타임 요소는 런타임 스토어에서 (같은 동작 id)
   const commitPluginBounds = (
     updates: ReadonlyArray<{ id: string; bounds: ResizeBounds }>,
   ) => {
     if (updates.length === 0) return;
-    const ids = new Set(updates.map(({ id }) => id));
-    applyPluginElementEdit(ids, (editable) => {
-      const pluginStore = usePluginDisplayElementStore.getState();
-      for (const { id, bounds } of updates) {
-        if (!editable.has(id)) continue;
-        pluginStore.updateElement(id, {
-          position: { x: bounds.x, y: bounds.y },
-          measuredSize: { width: bounds.width, height: bounds.height },
-        });
-      }
-    });
-    commitPluginFrames(
+    setPluginElementFrames(
       selectedKeyType,
-      ids,
+      new Map(
+        updates.map(({ id, bounds }) => [
+          id,
+          {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+          },
+        ]),
+      ),
       resizeGestureIdRef.current ?? undefined,
     ).catch(reportElementOpError);
   };

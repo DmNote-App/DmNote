@@ -286,7 +286,6 @@ const Grid = ({
     copySelectedElements,
     pasteElements,
     syncSelectedElementsToOverlay,
-    freezeSelectionForGesture,
   } = useGridSelection({
     selectedElements,
     selectedKeyType,
@@ -296,10 +295,9 @@ const Grid = ({
     commitSelectedElementsDrag,
     moveSelectedElementsDrag,
   } = useSelectedElementDragLifecycle({
-    freezeSelectionForGesture,
     syncSelectedElementsToOverlay,
     moveSelectedElements: (deltaX, deltaY) =>
-      moveSelectedElements(deltaX, deltaY, undefined, false),
+      moveSelectedElements(deltaX, deltaY, false),
     // 함께 고른 트리 요소(커서 트래커 등)도 같이 옮긴다
     createCompanionReceipt: () => createDocumentDragReceipt(selectedKeyType),
   });
@@ -796,6 +794,7 @@ const Grid = ({
             onMultiDrag={moveSelectedElementsDrag}
             onMultiDragStart={beginSelectedPluginInstancesDrag}
             onMultiDragEnd={commitSelectedElementsDrag}
+            mixedDrag={documentMixedDrag}
           />
           {/* 트리 문서에만 있는 종류 (커서 트래커 등) */}
           <DocumentGridLayer

@@ -17,14 +17,12 @@ describe('useSelectedElementDragLifecycle', () => {
   let host: HTMLDivElement;
   let root: Root;
   let controller: ReturnType<typeof useSelectedElementDragLifecycle>;
-  const freezeSelection = vi.fn();
   const syncSelection = vi.fn();
   const moveSelection = vi.fn();
   const companion = { move: vi.fn(), commit: vi.fn(), rollback: vi.fn() };
 
   const Harness = () => {
     const value = useSelectedElementDragLifecycle({
-      freezeSelectionForGesture: freezeSelection,
       syncSelectedElementsToOverlay: syncSelection,
       moveSelectedElements: moveSelection,
       createCompanionReceipt: () => companion,
@@ -70,19 +68,19 @@ describe('useSelectedElementDragLifecycle', () => {
     vi.unstubAllGlobals();
   });
 
-  it('선택을 동결하고, 끝낼 때 같은 동작 id로 정산한다', () => {
+  it('끝낼 때 함께 고른 트리 요소 영수증을 같은 동작 id로 커밋하고 오버레이에 알린다', () => {
     let cleanup: (() => void) | undefined;
     act(() => {
       cleanup = controller.beginSelectedElementsDrag();
     });
 
-    expect(freezeSelection).toHaveBeenCalledTimes(1);
     controller.commitSelectedElementsDrag();
-    expect(syncSelection).toHaveBeenCalledWith(GESTURE_ID);
+    expect(companion.commit).toHaveBeenCalledWith(GESTURE_ID);
+    expect(syncSelection).toHaveBeenCalledTimes(1);
 
     cleanup?.();
     controller.commitSelectedElementsDrag();
-    expect(syncSelection).toHaveBeenLastCalledWith(undefined);
+    expect(syncSelection).toHaveBeenCalledTimes(2);
   });
 
   it('드래그 이동은 선택 이동으로 위임하고, 취소는 플러그인을 시작 위치로 되돌린다', () => {

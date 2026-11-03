@@ -2,7 +2,6 @@ import { useRef } from 'react';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { createPluginPositionDragReceipt } from '@plugins/runtime/displayElement/pluginElementActions';
-import { releasePluginElementsEditing } from '@plugins/runtime/displayElement/pluginTreeEditOwnership';
 
 // 함께 고른 다른 선택(트리 요소)의 끌기 - 증분 이동, 끝낼 때 커밋, 취소 때 되돌리기
 export interface CompanionDragReceipt {
@@ -13,14 +12,12 @@ export interface CompanionDragReceipt {
 }
 
 interface UseSelectedElementDragLifecycleOptions {
-  freezeSelectionForGesture: () => void;
-  syncSelectedElementsToOverlay: (gestureId?: string) => void;
+  syncSelectedElementsToOverlay: () => void;
   moveSelectedElements: (deltaX: number, deltaY: number) => void;
   createCompanionReceipt?: () => CompanionDragReceipt;
 }
 
 export const useSelectedElementDragLifecycle = ({
-  freezeSelectionForGesture,
   syncSelectedElementsToOverlay,
   moveSelectedElements,
   createCompanionReceipt,
@@ -43,7 +40,6 @@ export const useSelectedElementDragLifecycle = ({
   const beginSelectedElementsDrag = () => {
     const gestureId = crypto.randomUUID();
     gestureIdRef.current = gestureId;
-    freezeSelectionForGesture();
     const frozenSelection =
       useDocumentSelectionStore.getState().selectedElements;
     const selectedPluginElementIds = new Set(
@@ -57,7 +53,7 @@ export const useSelectedElementDragLifecycle = ({
     pluginReceiptRef.current = pluginReceipt;
     const companionReceipt = createCompanionReceipt?.() ?? null;
     companionReceiptRef.current = companionReceipt;
-    // 끌기 중 플러그인 이동은 저장하지 않는다 - 끝낼 때 정산이 트리로 저장하고, 취소면 시작 위치로
+    // 옛 선택은 트리에 없는 런타임 요소 - 취소면 시작 위치로 (함께 고른 트리 요소는 영수증이 커밋·되돌린다)
     const pluginIds = [
       ...new Set(
         usePluginDisplayElementStore
@@ -71,9 +67,7 @@ export const useSelectedElementDragLifecycle = ({
     return (commit = true) => {
       if (!commit) {
         companionReceipt?.rollback();
-        // 미리보는 요소라 저장되지 않는다 - 풀면 트리 값으로 다시 맞춘다
         pluginIds.forEach(pluginReceipt.rollback);
-        releasePluginElementsEditing(selectedPluginElementIds);
       }
       if (gestureIdRef.current === gestureId) {
         gestureIdRef.current = null;
@@ -85,7 +79,7 @@ export const useSelectedElementDragLifecycle = ({
 
   const commitSelectedElementsDrag = () => {
     void companionReceiptRef.current?.commit(gestureIdRef.current ?? undefined);
-    syncSelectedElementsToOverlay(gestureIdRef.current ?? undefined);
+    syncSelectedElementsToOverlay();
   };
 
   return {

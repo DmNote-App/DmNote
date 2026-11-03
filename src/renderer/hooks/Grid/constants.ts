@@ -13,6 +13,3 @@ export const DRAG_THRESHOLD = 5;
 
 // 붙여넣기 시 오프셋
 export const PASTE_OFFSET = 20;
-
-// 방향키 히스토리 저장 딜레이 (ms)
-export const ARROW_KEY_HISTORY_DELAY = 500;

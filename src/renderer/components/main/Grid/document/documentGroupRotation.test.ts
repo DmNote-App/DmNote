@@ -13,7 +13,7 @@ import {
   documentSelectionFrame,
   startDocumentGroupRotation,
 } from './documentGroupRotation';
-import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 
 const box = (x: number, y: number, rotation = 0): Frame => ({
   x,

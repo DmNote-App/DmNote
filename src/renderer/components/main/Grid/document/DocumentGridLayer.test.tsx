@@ -45,7 +45,7 @@ import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import DocumentGridLayer from './DocumentGridLayer';
-import { useDocumentFramePreviewStore } from './useDocumentFramePreviewStore';
+import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 const pointer = (type: string, x: number, y: number) =>

@@ -18,11 +18,7 @@ import { registerPopupLayer } from '@components/main/Modal/popupLayer';
 
 import type { CanonicalKeyPosition } from '@src/types/editor';
 import { flushFocusedEditor } from '@src/renderer/editor/runtime/lifecycle/lifecycleEditorFlush';
-import { trackEditorWrite } from '@src/renderer/editor/runtime/lifecycle/editorWriteBarrier';
-import {
-  acquireHistoryEditorFlushLock,
-  resetHistoryEditorFlushLock,
-} from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
+import { resetHistoryEditorFlushLock } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 
 const {
   commitPatchMock,
@@ -248,59 +244,11 @@ describe('useGridKeyboard arrow history burst', () => {
       .elements.find((element) => element.fullId === PLUGIN_IDS[index])!
       .position;
 
-  const committedGestureIds = () =>
-    commitPatchMock.mock.calls.map((call) => call[1]?.gestureId);
-
-  it('500ms 안의 연속 이동을 같은 history gesture로 묶는다', () => {
-    pressArrow('ArrowRight');
-    vi.advanceTimersByTime(500);
+  it('옛 선택(트리에 없는 런타임 요소) 방향키 이동은 런타임 위치만 옮기고 저장하지 않는다', () => {
     pressArrow('ArrowRight');
 
-    expect(committedGestureIds()).toEqual([firstGestureId, firstGestureId]);
-    expect(randomUUIDMock).toHaveBeenCalledOnce();
-  });
-
-  it('500ms를 넘긴 이동은 새 history gesture로 분리한다', () => {
-    pressArrow('ArrowRight');
-    vi.advanceTimersByTime(501);
-    pressArrow('ArrowRight');
-
-    expect(committedGestureIds()).toEqual([firstGestureId, secondGestureId]);
-    expect(randomUUIDMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('방향이 섞여도 500ms burst 안에서는 같은 gesture를 사용한다', () => {
-    pressArrow('ArrowLeft');
-    vi.advanceTimersByTime(100);
-    pressArrow('ArrowUp');
-    vi.advanceTimersByTime(100);
-    pressArrow('ArrowDown');
-
-    expect(committedGestureIds()).toEqual([
-      firstGestureId,
-      firstGestureId,
-      firstGestureId,
-    ]);
-    expect(randomUUIDMock).toHaveBeenCalledOnce();
-  });
-
-  it('500ms 안이어도 선택 대상이 바뀌면 새 history gesture를 사용한다', async () => {
-    pressArrow('ArrowRight');
-    vi.advanceTimersByTime(100);
-    await act(async () => {
-      root.render(<Harness selectedIndex={1} />);
-    });
-    pressArrow('ArrowRight');
-
-    expect(committedGestureIds()).toEqual([firstGestureId, secondGestureId]);
-    expect(randomUUIDMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('플러그인 방향키 이동은 같은 gesture의 트리 틀 커밋으로 저장한다', () => {
-    pressArrow('ArrowRight');
-
-    expect(committedGestureIds()).toEqual([firstGestureId]);
     expect(pluginPosition(0)).toEqual({ x: 1, y: 0 });
+    expect(commitPatchMock).not.toHaveBeenCalled();
   });
 
   it('같은 프레임의 방향키 burst를 누적해 한 번만 이동한다', async () => {
@@ -319,7 +267,7 @@ describe('useGridKeyboard arrow history burst', () => {
     pressArrow('ArrowRight');
     pressArrow('ArrowRight');
     pressArrow('ArrowDown');
-    expect(commitPatchMock).not.toHaveBeenCalled();
+    expect(pluginPosition(0)).toEqual({ x: 0, y: 0 });
     expect(callbacks).toHaveLength(1);
 
     act(() => {
@@ -327,12 +275,11 @@ describe('useGridKeyboard arrow history burst', () => {
       callbacks.clear();
       callback(performance.now());
     });
-    expect(commitPatchMock).toHaveBeenCalledOnce();
     expect(pluginPosition(0)).toEqual({ x: 2, y: 1 });
     vi.unstubAllGlobals();
   });
 
-  it('pending 중 선택이 바뀌어도 flush는 옛 대상 이동을 wire에 커밋한다', async () => {
+  it('pending 중 선택이 바뀌면 정리가 옛 대상을 옮긴다', async () => {
     const callbacks = new Map<number, FrameRequestCallback>();
     let nextFrameId = 1;
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -346,7 +293,7 @@ describe('useGridKeyboard arrow history burst', () => {
     });
 
     pressArrow('ArrowRight');
-    expect(commitPatchMock).not.toHaveBeenCalled();
+    expect(pluginPosition(0)).toEqual({ x: 0, y: 0 });
 
     // flush 전에 선택이 A → B로 넘어간다 - cleanup flush가 옛 클로저로 실행
     await act(async () => {
@@ -355,117 +302,10 @@ describe('useGridKeyboard arrow history burst', () => {
       );
     });
 
-    expect(commitPatchMock).toHaveBeenCalledOnce();
-    expect(committedGestureIds()).toEqual([firstGestureId]);
-    // 정산은 이동을 적용한 옛 대상(A) - 현재 선택(B)은 움직이지 않는다
+    // 옮기는 것은 누른 때의 대상(A) - 현재 선택(B)은 움직이지 않는다
     expect(pluginPosition(0)).toEqual({ x: 1, y: 0 });
     expect(pluginPosition(1)).toEqual({ x: 0, y: 0 });
     vi.unstubAllGlobals();
-  });
-
-  it.each(['종료 후 언마운트', '히스토리 후 늦은 프레임'] as const)(
-    '%s 전에 멈춘 화살표 예약을 한 번 정산한다',
-    async (boundary) => {
-      const callbacks = new Map<number, FrameRequestCallback>();
-      vi.stubGlobal(
-        'requestAnimationFrame',
-        (callback: FrameRequestCallback) => {
-          callbacks.set(1, callback);
-          return 1;
-        },
-      );
-      vi.stubGlobal('cancelAnimationFrame', (id: number) =>
-        callbacks.delete(id),
-      );
-      await act(async () =>
-        root.render(<Harness continuousInputStrategy="frame" />),
-      );
-      pressArrow('ArrowRight');
-      pressArrow('ArrowRight');
-      expect(commitPatchMock).not.toHaveBeenCalled();
-      const delayedCallbacks = [...callbacks.values()];
-      if (boundary === '히스토리 후 늦은 프레임') {
-        acquireHistoryEditorFlushLock('arrow-history');
-      }
-      let settlement!: Promise<boolean>;
-      await act(async () => {
-        settlement = flushFocusedEditor();
-        await vi.advanceTimersByTimeAsync(0);
-        expect(await settlement).toBe(true);
-      });
-      const commitsAtAck = commitPatchMock.mock.calls.length;
-      const framesAtAck = callbacks.size;
-      const positionAtAck = pluginPosition(0).x;
-      if (boundary === '히스토리 후 늦은 프레임') {
-        act(() => {
-          usePluginDisplayElementStore
-            .getState()
-            .updateElement(PLUGIN_IDS[0], { position: { x: 40, y: 0 } });
-          delayedCallbacks.forEach((callback) => callback(performance.now()));
-        });
-      } else {
-        await act(async () => root.render(null));
-      }
-      expect({
-        commitsAtAck,
-        framesAtAck,
-        positionAtAck,
-        commitsAfterBoundary: commitPatchMock.mock.calls.length,
-        positionAfterBoundary: pluginPosition(0).x,
-      }).toEqual({
-        commitsAtAck: 1,
-        framesAtAck: 0,
-        positionAtAck: 2,
-        commitsAfterBoundary: 1,
-        positionAfterBoundary: boundary === '히스토리 후 늦은 프레임' ? 40 : 2,
-      });
-    },
-  );
-
-  it('화살표 정산이 시작한 저장 응답을 기다리고 실패하면 정산을 거절한다', async () => {
-    vi.stubGlobal('requestAnimationFrame', () => 1);
-    vi.stubGlobal('cancelAnimationFrame', vi.fn());
-    let reject!: (error: Error) => void;
-    const write = new Promise<void>((_resolve, no) => {
-      reject = no;
-    });
-    const move = vi.fn(() => {
-      void trackEditorWrite(write).catch(() => {});
-    });
-    const handlers = {
-      remove: vi.fn(),
-      clear: vi.fn(),
-      copy: vi.fn(),
-      paste: vi.fn(),
-    };
-    await act(async () =>
-      root.render(
-        <BlockingHarness
-          {...handlers}
-          move={move}
-          continuousInputStrategy="frame"
-        />,
-      ),
-    );
-    pressArrow('ArrowRight');
-    let settled = false;
-    let result!: Promise<boolean>;
-    await act(async () => {
-      result = flushFocusedEditor().then((value) => {
-        settled = true;
-        return value;
-      });
-      await vi.advanceTimersByTimeAsync(0);
-    });
-    const commitsBeforeResponse = move.mock.calls.length;
-    const settledBeforeResponse = settled;
-    await act(async () => {
-      reject(new Error('arrow save failed'));
-      await result;
-    });
-    expect(commitsBeforeResponse).toBe(1);
-    expect(settledBeforeResponse).toBe(false);
-    expect(await result).toBe(false);
   });
 
   it('모드 변경 cleanup은 이전 모드 콜백으로 정산하고 새 모드에 중복 전달하지 않는다', async () => {
@@ -507,7 +347,7 @@ describe('useGridKeyboard arrow history burst', () => {
     act(() =>
       window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' })),
     );
-    expect(oldModeMove).toHaveBeenCalledExactlyOnceWith(1, 0, firstGestureId);
+    expect(oldModeMove).toHaveBeenCalledExactlyOnceWith(1, 0);
     expect(newModeMove).not.toHaveBeenCalled();
     expect(useKeyStore.getState().selectedKeyType).toBe('8key');
   });
@@ -527,7 +367,7 @@ describe('useGridKeyboard arrow history burst', () => {
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
     });
-    expect(commitPatchMock).toHaveBeenCalledOnce();
+    expect(pluginPosition(0)).toEqual({ x: -1, y: 0 });
     expect(callbacks).toHaveLength(0);
     vi.unstubAllGlobals();
   });
@@ -547,7 +387,7 @@ describe('useGridKeyboard arrow history burst', () => {
       );
     });
 
-    expect(commitPatchMock).not.toHaveBeenCalled();
+    expect(pluginPosition(0)).toEqual({ x: 0, y: 0 });
     widget.remove();
   });
 

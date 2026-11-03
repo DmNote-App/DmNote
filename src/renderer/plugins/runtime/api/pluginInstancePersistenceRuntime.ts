@@ -19,10 +19,6 @@ import {
   registerPluginInstancesEditSessionFlush,
   touchPluginInstancesEditSession,
 } from '../displayElement/instancesCommitQueue';
-import {
-  isPluginElementEditing,
-  subscribePluginEditingReleased,
-} from '../displayElement/pluginTreeEditOwnership';
 import type { SavedInstance } from './pluginInstanceSnapshotApplier';
 import {
   pluginInstanceOps,
@@ -116,34 +112,16 @@ export const createPluginInstancePersistenceRuntime = ({
       store = null;
     });
 
-    // 트리 → 런타임. 편집기가 미리보는 요소의 틀은 런타임 값을 지킨다 (끝날 때 트리 틀 연산으로 저장)
+    // 트리 → 런타임
     const reapply = () => {
       if (!store) return;
       const instances = pluginInstancesFromTree(store, pluginId);
       const key = JSON.stringify(instances);
       if (key === lastApplied) return;
       lastApplied = key;
-      const runtime = new Map(
-        usePluginDisplayElementStore
-          .getState()
-          .elements.map((element) => [element.fullId, element]),
-      );
       applying = true;
       try {
-        applyInstancesSnapshot(
-          instances.map((instance) => {
-            const fullId = `${pluginId}::${instance.instanceId}`;
-            const element = runtime.get(fullId);
-            return element && isPluginElementEditing(fullId)
-              ? {
-                  ...instance,
-                  position: element.position,
-                  measuredSize: element.measuredSize,
-                }
-              : instance;
-          }),
-          'ready',
-        );
+        applyInstancesSnapshot(instances, 'ready');
       } finally {
         applying = false;
       }
@@ -186,32 +164,23 @@ export const createPluginInstancePersistenceRuntime = ({
       console.error(`[Plugin ${pluginId}] Failed to restore instances:`, error);
     });
 
-    // 런타임 → 트리. 바뀐 칸만 (트리 → 런타임 반영·편집기 미리보기·다시 불러오기 중 변경은 빼고)
+    // 런타임 → 트리. 바뀐 칸만 (트리 → 런타임 반영·다시 불러오기 중 변경은 빼고)
     const unsubscribeStore = usePluginDisplayElementStore.subscribe(
       (state, previous) => {
         if (state.elements === previous.elements || applying) return;
         if (!instanceSaveBarrier.shouldSave()) return;
         if (isReloading() || !store) return;
-        const before = instancesOf(previous.elements);
-        const next = instancesOf(state.elements);
-        for (const fullId of new Set([...before.keys(), ...next.keys()])) {
-          if (isPluginElementEditing(fullId)) {
-            before.delete(fullId);
-            next.delete(fullId);
-          }
-        }
-        send(pluginInstanceOps(store, pluginId, before, next));
+        send(
+          pluginInstanceOps(
+            store,
+            pluginId,
+            instancesOf(previous.elements),
+            instancesOf(state.elements),
+          ),
+        );
       },
     );
     registerCleanup(unsubscribeStore);
-    // 미리보기를 푼 요소 - 보냈으면 이미 같은 값이고, 취소했으면 트리 값으로 돌아간다
-    registerCleanup(
-      subscribePluginEditingReleased((fullIds) => {
-        if (![...fullIds].some((id) => id.startsWith(`${pluginId}::`))) return;
-        lastApplied = null;
-        reapply();
-      }),
-    );
     // 지우기·만들기는 끊어 보낸다 (조용해지길 기다리지 않는다)
     registerCleanup(
       registerPluginInstancesEditSessionFlush(pluginId, () =>

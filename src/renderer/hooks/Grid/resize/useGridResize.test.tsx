@@ -50,12 +50,24 @@ const mocks = vi.hoisted(() => ({
 }));
 
 // 플러그인 요소 최종 위치·크기는 트리 노드 틀 커밋 - 고친 요소·동작 id를 기록한다
+// 플러그인 틀 - 요소마다 위치·크기를 고치고(런타임 요소는 런타임 스토어, 인스턴스는 트리를 따라온다) 한 번에 보낸다
 vi.mock('@plugins/runtime/displayElement/pluginTreeGeometry', () => ({
-  applyPluginElementEdit: (
-    ids: ReadonlySet<string>,
-    change: (ids: ReadonlySet<string>) => void,
-  ) => change(ids),
-  commitPluginFrames: mocks.commitFrames,
+  setPluginElementFrames: (
+    scene: string,
+    frames: ReadonlyMap<
+      string,
+      { x?: number; y?: number; width?: number; height?: number }
+    >,
+    gestureId?: string,
+  ) => {
+    for (const [fullId, frame] of frames) {
+      mocks.updateElement(fullId, {
+        position: { x: frame.x, y: frame.y },
+        measuredSize: { width: frame.width, height: frame.height },
+      });
+    }
+    return mocks.commitFrames(scene, [...frames.keys()], gestureId);
+  },
 }));
 
 vi.mock('@utils/plugin/bridgeMessages', () => ({
