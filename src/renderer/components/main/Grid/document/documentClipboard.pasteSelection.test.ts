@@ -34,8 +34,8 @@ import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayEle
 import {
   copyDocumentSelection,
   pasteDocumentClipboard,
-  useDocumentClipboardStore,
 } from './documentClipboard';
+import { useDocumentClipboardStore } from '@stores/grid/useDocumentClipboardStore';
 
 const tracker = {
   type: 'element' as const,

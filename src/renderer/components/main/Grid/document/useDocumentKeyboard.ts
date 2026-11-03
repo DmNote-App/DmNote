@@ -21,8 +21,8 @@ import {
 import {
   copyDocumentSelection,
   pasteDocumentClipboard,
-  useDocumentClipboardStore,
 } from './documentClipboard';
+import { useDocumentClipboardStore } from '@stores/grid/useDocumentClipboardStore';
 import { structureTargetIds } from './treeEditedSelection';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 

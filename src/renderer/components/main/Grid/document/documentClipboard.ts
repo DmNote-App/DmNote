@@ -1,7 +1,6 @@
 // 트리 요소 클립보드 - 옛 종류 클립보드와 같은 규칙(같은 만큼 비켜 붙이기, 다른 탭에도 붙이기)
 // 두 클립보드는 함께 서지 않는다 - 한쪽에 복사하면 다른 쪽을 비운다
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
-import { create } from 'zustand';
 
 import { PASTE_OFFSET } from '@hooks/Grid/constants';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
@@ -18,6 +17,7 @@ import {
 import { useLayerCollapseStore } from '@stores/grid/useLayerCollapseStore';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
+import { useDocumentClipboardStore } from '@stores/grid/useDocumentClipboardStore';
 import { treeModeArrays } from '@src/renderer/elementKinds/runtime/treeModeArrays';
 import { takePastedKeyIds } from '@stores/grid/pastedKeyIds';
 import type { SpritePose } from '@src/types/key/sprites';
@@ -34,30 +34,6 @@ import { toPoseWireShape } from '@utils/sprite/spriteWireShape';
 import { isPluginKind, pluginIdOfKind } from '@src/types/elementKinds';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { reportElementOpSkipped } from '@src/renderer/editor/runtime/intent/elementIntent';
-
-// 복사한 탭과 스프라이트 트리거가 가리키던 키의 canonical (스프라이트 id별) - 다른 탭에 붙일 때 다시 결합
-interface DocumentClipboardSource {
-  mode: string;
-  triggerCanonicals: Record<string, Record<string, string>>;
-  // 레이어 패널에서 접혀 있던 복사한 그룹 - 붙인 그룹도 접는다 (예전과 같다)
-  collapsedGroups?: string[];
-}
-
-interface DocumentClipboardState {
-  nodes: Node[];
-  source: DocumentClipboardSource | null;
-  set: (nodes: Node[], source?: DocumentClipboardSource) => void;
-  clear: () => void;
-}
-
-export const useDocumentClipboardStore = create<DocumentClipboardState>(
-  (set) => ({
-    nodes: [],
-    source: null,
-    set: (nodes, source) => set({ nodes, source: source ?? null }),
-    clear: () => set({ nodes: [], source: null }),
-  }),
-);
 
 const spritePosesOf = (node: Node): SpritePose[] | null =>
   node.type === 'element' &&

@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('./documentClipboard', () => ({
   copyDocumentSelection: mocks.copy,
   pasteDocumentClipboard: mocks.paste,
+}));
+vi.mock('@stores/grid/useDocumentClipboardStore', () => ({
   useDocumentClipboardStore: {
     getState: () => ({ nodes: mocks.clipboard }),
   },

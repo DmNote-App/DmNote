@@ -22,8 +22,8 @@ import {
   buildDocumentPaste,
   copyDocumentSelection,
   pastedSpriteNodes,
-  useDocumentClipboardStore,
 } from './documentClipboard';
+import { useDocumentClipboardStore } from '@stores/grid/useDocumentClipboardStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 const tracker = (id: string, x: number, y = 10) => ({
