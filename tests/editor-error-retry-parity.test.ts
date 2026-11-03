@@ -1,7 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { EDITOR_COMMIT_ERROR_RETRYABLE } from '../src/types/generated/editorErrors';
 import {
   EDITOR_COMMIT_ERROR_RETRY_POLICY,
   isRetryableEditorCommitError,
@@ -9,12 +8,9 @@ import {
 
 import type { EditorCommitError } from '../src/types/editor';
 
-// Rust 테스트(src-tauri/src/errors.rs)와 같은 fixture를 공유해 오류 코드
-// 전수와 코드별 재시도 분류가 양 언어에서 기계적으로 일치함을 고정한다
-const FIXTURE_PATH = join(__dirname, 'fixtures', 'editor-error-retry.json');
-
-const fixture = (): Record<string, boolean> =>
-  JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as Record<string, boolean>;
+// 오류 코드 전수와 코드별 retryable은 Rust 원본(src-tauri/src/errors.rs)에서 만든다 -
+// 프론트 재시도 정책 표가 그 분류와 맞는지 고정한다
+const fixture = (): Record<string, boolean> => EDITOR_COMMIT_ERROR_RETRYABLE;
 
 const commitError = (
   errorCode: keyof typeof EDITOR_COMMIT_ERROR_RETRY_POLICY,

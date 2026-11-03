@@ -262,18 +262,14 @@ pub type CmdResult<T> = Result<T, CommandError>;
 mod tests {
     use super::*;
 
-    // TS 재시도 정책 테이블(src/types/editor.ts)과 공유하는 fixture
-    const RETRY_FIXTURE: &str = include_str!("../../tests/fixtures/editor-error-retry.json");
-
-    // TS 용량 코드 집합(src/types/editor.ts)과 공유하는 fixture
-    const CAPACITY_FIXTURE: &str = include_str!("../../tests/fixtures/editor-capacity-codes.json");
-
     // VALIDATION_FAILED의 details.validationCode 중 "저장 한도 초과" 계열 전수.
-    // 여기 없는 코드는 프론트에서 한도 안내 대신 일반 오류 안내로 표시된다
+    // 여기 없는 코드는 프론트에서 한도 안내 대신 일반 오류 안내로 표시된다 (TS는 이 목록에서 만든다)
     const CAPACITY_VALIDATION_CODES: &[&str] = &[
         "COLLECTION_TOO_LARGE",
+        // 배치 상한 - TOO_MANY_RENDER_ITEMS와 같은 MAX_RENDER_ITEMS를 쓴다
         "FROZEN_INSERT_BATCH_TOO_LARGE",
         "HISTORY_ENTRY_TOO_LARGE",
+        // setElementGroups targets 상한. 빈 배열은 플러그인 전용 편집으로 허용되므로 순수 배치 초과 전용이다
         "INVALID_ELEMENT_GROUP_TARGET_COUNT",
         "REORDER_BATCH_TOO_LARGE",
         "REQUEST_TOO_LARGE",
@@ -281,6 +277,7 @@ mod tests {
         "TOO_MANY_EDITOR_OPS",
         "TOO_MANY_LAYER_GROUPS",
         "TOO_MANY_MODES",
+        // 자세당 담당 키 상한 (MAX_SPRITE_POSE_TRIGGERS)
         "TOO_MANY_SPRITE_POSE_TRIGGERS",
         "TOO_MANY_RENDER_ITEMS",
         "TOO_MANY_SLOTS_PER_MEMBER",
@@ -362,20 +359,6 @@ mod tests {
     }
 
     #[test]
-    fn capacity_fixture_matches_backend_capacity_codes() {
-        let fixture: Vec<String> =
-            serde_json::from_str(CAPACITY_FIXTURE).expect("fixture must be valid json");
-        let mut expected: Vec<String> = CAPACITY_VALIDATION_CODES
-            .iter()
-            .map(|code| (*code).to_string())
-            .collect();
-        expected.sort();
-        let mut actual = fixture;
-        actual.sort();
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn capacity_codes_serialize_as_validation_failed_with_their_code() {
         for code in CAPACITY_VALIDATION_CODES {
             let wire = serde_json::to_value(EditorCommitError::validation(*code, "sample"))
@@ -428,28 +411,58 @@ mod tests {
     ];
 
     #[test]
-    fn retry_fixture_matches_every_error_constructor() {
-        let fixture: serde_json::Value =
-            serde_json::from_str(RETRY_FIXTURE).expect("fixture must be valid json");
-        let fixture = fixture.as_object().expect("fixture must be an object");
-        assert_eq!(
-            fixture.len(),
-            ALL_CODES.len(),
-            "fixture code count must match enum variants"
+    fn every_error_code_has_a_constructor_with_matching_wire_retryable() {
+        for code in ALL_CODES {
+            let error = sample(code);
+            assert_eq!(error.error_code, code);
+            let wire = serde_json::to_value(&error).expect("error must serialize");
+            assert_eq!(wire["retryable"], serde_json::json!(error.retryable));
+        }
+    }
+
+    // 프론트 오류 코드(src/types/generated/editorErrors.ts) - 코드 전수·코드별 retryable·한도 코드 목록.
+    // 커밋된 파일과 다르면 실패한다. 갱신: UPDATE_TS_BINDINGS=1 cargo test --lib editor_error_bindings
+    fn editor_error_bindings() -> String {
+        let mut out = String::from(
+            "// 자동 생성 파일 - 직접 고치지 않는다. 원본: src-tauri/src/errors.rs\n\
+             // 갱신: UPDATE_TS_BINDINGS=1 cargo test --lib editor_error_bindings --manifest-path src-tauri/Cargo.toml\n\n\
+             // 편집 커밋 오류 코드 → 백엔드가 싣는 retryable\n\
+             export const EDITOR_COMMIT_ERROR_RETRYABLE = {\n",
         );
         for code in ALL_CODES {
             let error = sample(code);
-            let wire = serde_json::to_value(&error).expect("error must serialize");
-            let wire_code = wire["errorCode"]
-                .as_str()
-                .expect("errorCode must be a string");
-            let expected = fixture
-                .get(wire_code)
-                .unwrap_or_else(|| panic!("fixture is missing {wire_code}"))
-                .as_bool()
-                .expect("fixture value must be a bool");
-            assert_eq!(error.retryable, expected, "retryable drift for {wire_code}");
-            assert_eq!(wire["retryable"], serde_json::json!(expected));
+            let wire = serde_json::to_value(error.error_code).expect("code must serialize");
+            out.push_str(&format!(
+                "  {}: {},\n",
+                wire.as_str().expect("code must be a string"),
+                error.retryable
+            ));
         }
+        out.push_str(
+            "} as const;\n\n\
+             export type EditorCommitErrorCode = keyof typeof EDITOR_COMMIT_ERROR_RETRYABLE;\n\n\
+             // VALIDATION_FAILED의 details.validationCode 중 저장 한도 초과 계열\n\
+             export const EDITOR_CAPACITY_VALIDATION_CODES = [\n",
+        );
+        for code in CAPACITY_VALIDATION_CODES {
+            out.push_str(&format!("  '{code}',\n"));
+        }
+        out.push_str("] as const;\n");
+        out
+    }
+
+    #[test]
+    fn editor_error_bindings_match_committed_file() {
+        let generated = editor_error_bindings();
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../src/types/generated/editorErrors.ts");
+        if std::env::var_os("UPDATE_TS_BINDINGS").is_some() {
+            std::fs::write(&path, &generated).expect("bindings must be written");
+            return;
+        }
+        assert!(
+            std::fs::read_to_string(&path).unwrap_or_default() == generated,
+            "프론트 오류 코드가 Rust 원본과 다릅니다. UPDATE_TS_BINDINGS=1 cargo test --lib editor_error_bindings 로 갱신하세요"
+        );
     }
 }

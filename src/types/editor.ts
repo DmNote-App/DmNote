@@ -22,6 +22,10 @@ import {
   type StatItemPositions,
 } from '@src/types/key/statItems';
 import type { LayerGroupDef, LayerGroups } from '@src/types/layerGroups';
+import {
+  EDITOR_CAPACITY_VALIDATION_CODES as CAPACITY_VALIDATION_CODES,
+  type EditorCommitErrorCode,
+} from '@src/types/generated/editorErrors';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import type { ElementShadowValuePatch } from '@src/types/key/shadows';
 import { isElementRotationValue } from '@src/types/key/rotation';
@@ -719,21 +723,8 @@ export interface EditorCommittedV1 {
   gestureIds?: string[];
 }
 
-export type EditorCommitErrorCode =
-  | 'REVISION_CONFLICT'
-  | 'PLUGIN_REVISION_CONFLICT'
-  | 'VALIDATION_FAILED'
-  | 'TOO_MANY_GESTURE_IDS'
-  | 'INVALID_GESTURE_ID'
-  | 'PAIRED_UPDATE_REQUIRED'
-  | 'MUTATION_ID_REUSED'
-  | 'IO_ERROR'
-  // undo/redo barrier 진행 중, retryable
-  | 'HISTORY_IN_PROGRESS'
-  // observedHistoryEpoch가 낡음, retryable
-  | 'HISTORY_EPOCH_CONFLICT'
-  // 멀티 키 슬롯 존재 + multiKey 미선언 keys 쓰기, 비 retryable
-  | 'MULTI_KEY_UNSUPPORTED';
+// 오류 코드는 Rust 원본(src-tauri/src/errors.rs)에서 만든다
+export type { EditorCommitErrorCode };
 
 export interface EditorCommitErrorDetails {
   currentRevision?: number;
@@ -751,10 +742,11 @@ export interface EditorCommitError {
 
 export type EditorCommitErrorRetryPolicy = 'transient' | 'permanent' | 'rebase';
 
-// 오류 코드별 재시도 정책 단일 테이블. 백엔드 errors.rs 생성자의 retryable
-// 상수와 파리티 (tests/fixtures/editor-error-retry.json 대조 테스트로 고정).
+// 오류 코드별 재시도 정책 단일 테이블. 백엔드 생성자의 retryable(생성된
+// EDITOR_COMMIT_ERROR_RETRYABLE)과 맞는지 테스트로 고정한다.
 // rebase는 base 재동기화 후 재시도 - 소비처에서는 transient와 같은 재시도군.
-// 코드를 추가할 때는 여기에 정책과 함께 등록한다 (인식 집합도 이 키에서 파생)
+// 백엔드에 코드가 생기면 생성된 타입 때문에 여기에 정책을 정할 때까지 타입 검사가 막는다
+// (인식 집합도 이 키에서 파생)
 export const EDITOR_COMMIT_ERROR_RETRY_POLICY = {
   REVISION_CONFLICT: 'rebase',
   PLUGIN_REVISION_CONFLICT: 'transient',
@@ -778,29 +770,10 @@ export const isRetryableEditorCommitError = (
 ): boolean => EDITOR_COMMIT_ERROR_RETRY_POLICY[error.errorCode] !== 'permanent';
 
 // 백엔드가 VALIDATION_FAILED의 details.validationCode로 싣는 코드 중 "저장 한도
-// 초과" 계열. 목록에서 빠진 코드는 한도 안내 대신 일반 오류 안내로 새어 나가므로
-// 오류 코드 동기화 규칙 대상이 되도록 여기에 둔다 (tests/fixtures 공유 fixture로 고정)
-export const EDITOR_CAPACITY_VALIDATION_CODES: ReadonlySet<string> = new Set([
-  'COLLECTION_TOO_LARGE',
-  'TOO_MANY_RENDER_ITEMS',
-  'TOO_MANY_LAYER_GROUPS',
-  'TOO_MANY_SLOTS_PER_MEMBER',
-  'REQUEST_TOO_LARGE',
-  'HISTORY_ENTRY_TOO_LARGE',
-  // validate_count_limit 계열인데 위 셋과 달리 빠져 있던 코드
-  'TOO_MANY_MODES',
-  'TOO_MANY_CUSTOM_TABS',
-  // 배치 상한. TOO_MANY_RENDER_ITEMS와 같은 MAX_RENDER_ITEMS를 쓰는데 이 셋만
-  // 빠져 있어 같은 한도 위반이 경로에 따라 다른 안내를 냈다
-  'FROZEN_INSERT_BATCH_TOO_LARGE',
-  'REORDER_BATCH_TOO_LARGE',
-  'TOO_MANY_EDITOR_OPS',
-  // setElementGroups targets 상한. 빈 배열은 plugin-only 편집으로 허용되므로
-  // 이 코드는 순수 배치 초과 전용이다
-  'INVALID_ELEMENT_GROUP_TARGET_COUNT',
-  // 자세당 담당 키 상한 (MAX_SPRITE_POSE_TRIGGERS)
-  'TOO_MANY_SPRITE_POSE_TRIGGERS',
-]);
+// 초과" 계열 - 한도 안내를 띄운다. 목록은 Rust 원본(errors.rs)에서 만든다
+export const EDITOR_CAPACITY_VALIDATION_CODES: ReadonlySet<string> = new Set(
+  CAPACITY_VALIDATION_CODES,
+);
 
 export const isEditorCapacityFailure = (error: unknown): boolean =>
   typeof error === 'object' &&

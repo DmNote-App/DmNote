@@ -1,7 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { EDITOR_CAPACITY_VALIDATION_CODES as GENERATED_CAPACITY_CODES } from '../src/types/generated/editorErrors';
 import {
   EDITOR_CAPACITY_VALIDATION_CODES,
   isEditorCapacityFailure,
@@ -9,13 +8,9 @@ import {
 
 import type { EditorCommitError } from '../src/types/editor';
 
-// Rust 테스트(src-tauri/src/errors.rs)와 같은 fixture를 공유해, 용량 초과로
-// 분류되는 validationCode 전수가 양 언어에서 기계적으로 일치함을 고정한다.
+// 용량 초과로 분류되는 validationCode 전수는 Rust 원본(src-tauri/src/errors.rs)에서 만든다.
 // 목록에서 빠진 코드는 "저장 한도 초과" 대신 일반 오류 안내로 새어 나간다
-const FIXTURE_PATH = join(__dirname, 'fixtures', 'editor-capacity-codes.json');
-
-const fixture = (): string[] =>
-  JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as string[];
+const fixture = (): string[] => [...GENERATED_CAPACITY_CODES];
 
 const capacityError = (validationCode: string): EditorCommitError => ({
   errorCode: 'VALIDATION_FAILED',
