@@ -78,7 +78,7 @@ import {
   structureTargetIds,
   usePanelSelection,
 } from '../document/treeEditedSelection';
-import { useDocumentContextMenuStore } from '../document/useDocumentContextMenuStore';
+import { useDocumentContextMenuStore } from '@stores/grid/useDocumentContextMenuStore';
 import DocumentGridLayer from '../document/DocumentGridLayer';
 import DocumentSelectionOverlay from '../document/DocumentSelectionOverlay';
 import { documentKindForAddMenuItem } from '../document/documentAddMenu';
