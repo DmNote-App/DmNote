@@ -1,15 +1,22 @@
 import React, { act } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { resetAllKeySignals } from '@stores/signals/keySignals';
+import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { fillKindDefaults } from '@src/renderer/elementKinds/runtime/elementKindDefaults';
+import {
+  createFakeElementDocumentBackend,
+  type FakeElementDocumentBackend,
+} from '@src/renderer/__tests__/fakeElementDocumentBackend';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
+import type { Document } from '@src/types/generated/elementDocument';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const mocks = vi.hoisted(() => ({
+  backend: null as FakeElementDocumentBackend | null,
   bootstrap: vi.fn(),
   resize: vi.fn(),
   currentMonitor: vi.fn(),
@@ -32,14 +39,16 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-// 오버레이는 키·아이템 위치를 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
-vi.mock(
-  '@src/renderer/editor/document/elementDocumentRuntime',
-  async (importOriginal) =>
-    (
-      await import('@src/renderer/__tests__/treeFromLegacyStores')
-    ).treeFromStores(importOriginal as never),
-);
+// 오버레이는 키·아이템 위치를 트리에서 읽는다 - 실제 트리 스토어 아래에 가짜 백엔드를 붙인다
+vi.mock('@api/modules/editor/elementDocumentApi', () => ({
+  elementDocumentApi: new Proxy(
+    {},
+    {
+      get: (_target, name: string) =>
+        (mocks.backend!.api as Record<string, unknown>)[name],
+    },
+  ),
+}));
 vi.mock('@tauri-apps/api/window', () => ({
   currentMonitor: mocks.currentMonitor,
   getCurrentWindow: () => mocks.overlayWindow,
@@ -154,6 +163,29 @@ vi.mock('@api/modules/window/obsApi', () => ({
 
 import App from './App';
 
+// 4key 장면에 키 하나 (KeyK, 0,0 60×60)
+const documentWithKey = (): Document =>
+  ({
+    formatVersion: 1,
+    kindVersions: {},
+    scenes: {
+      '4key': {
+        nodes: [
+          fillKindDefaults({
+            type: 'element',
+            id: '00000000-0000-4000-8000-0000000000c1',
+            kind: 'key',
+            frame: { x: 0, y: 0, width: 60, height: 60, rotation: 0 },
+            input: { type: 'key', slot: 'KeyK' },
+            legacy: { index: 0 },
+          } as unknown as ElementNode),
+        ],
+      },
+    },
+  } as unknown as Document);
+
+mocks.backend = createFakeElementDocumentBackend(documentWithKey());
+
 const flushAsync = () =>
   act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -174,7 +206,7 @@ const mount = async () => {
   await flushAsync();
 };
 
-const setupOverlay = () => {
+const setupOverlay = async () => {
   originalApi = window.api;
   originalRuntime = window.__dmn_runtime;
   mocks.bootstrap.mockReset().mockResolvedValue({ activeKeys: [] });
@@ -205,13 +237,13 @@ const setupOverlay = () => {
     isLocalUpdateInProgress: false,
     setSelectedKeyType: mocks.setSelectedKeyType,
   });
-  useLegacyKeyArrays.setState({
-    keyMappings: { '4key': ['KeyK'] },
-    positions: { '4key': [createDefaultKeyPosition(0, 0)] },
-    canonicalPositions: { '4key': [] },
-  });
   useSettingsStore.setState({ alwaysOnTop: false, trayEnabled: true });
   resetAllKeySignals();
+  // 트리 스토어는 부트스트랩(목)이 아니라 여기서 불러온다. 앞 테스트가 바꾼 문서는 처음 모양으로
+  await act(async () => {
+    await loadElementDocumentStore();
+    mocks.backend!.replace(() => documentWithKey());
+  });
 };
 
 const teardownOverlay = () => {

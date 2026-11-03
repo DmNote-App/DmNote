@@ -1,9 +1,18 @@
 import React, { act } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { useKeyStore } from '@stores/data/useKeyStore';
+import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { fillKindDefaults } from '@src/renderer/elementKinds/runtime/elementKindDefaults';
+import {
+  createFakeElementDocumentBackend,
+  type FakeElementDocumentBackend,
+} from '@src/renderer/__tests__/fakeElementDocumentBackend';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
+import {
+  BUILTIN_BUNDLE_DEFAULTS,
+  type Document,
+} from '@src/types/generated/elementDocument';
 import {
   getKeySignal,
   resetAllKeySignals,
@@ -13,6 +22,7 @@ import {
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const mocks = vi.hoisted(() => ({
+  backend: null as FakeElementDocumentBackend | null,
   axisInitialize: vi.fn(),
   axisResetBaselines: vi.fn(),
   bootstrap: vi.fn(),
@@ -37,14 +47,16 @@ const mocks = vi.hoisted(() => ({
   sceneRenders: { count: 0 },
 }));
 
-// 오버레이는 키·아이템 위치를 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
-vi.mock(
-  '@src/renderer/editor/document/elementDocumentRuntime',
-  async (importOriginal) =>
-    (
-      await import('@src/renderer/__tests__/treeFromLegacyStores')
-    ).treeFromStores(importOriginal as never),
-);
+// 오버레이는 키·아이템 위치를 트리에서 읽는다 - 실제 트리 스토어 아래에 가짜 백엔드를 붙인다
+vi.mock('@api/modules/editor/elementDocumentApi', () => ({
+  elementDocumentApi: new Proxy(
+    {},
+    {
+      get: (_target, name: string) =>
+        (mocks.backend!.api as Record<string, unknown>)[name],
+    },
+  ),
+}));
 vi.mock('@tauri-apps/api/window', () => ({
   currentMonitor: vi.fn(),
   getCurrentWindow: () => ({
@@ -171,6 +183,79 @@ vi.mock('@api/modules/window/obsApi', () => ({
 import App from './App';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
+
+// 키 하나 - 입력 슬롯·자리·노트 이펙트(빼면 기본값)
+interface KeySpec {
+  slot: string;
+  x?: number;
+  y?: number;
+  noteEffectEnabled?: boolean;
+}
+
+const keyNode = (
+  id: string,
+  { slot, x = 0, y = 0, noteEffectEnabled }: KeySpec,
+  index: number,
+): ElementNode =>
+  fillKindDefaults({
+    type: 'element',
+    id,
+    kind: 'key',
+    frame: { x, y, width: 60, height: 60, rotation: 0 },
+    input: { type: 'key', slot },
+    legacy: { index },
+    ...(noteEffectEnabled === undefined
+      ? {}
+      : {
+          bundles: {
+            note: { ...BUILTIN_BUNDLE_DEFAULTS.note, noteEffectEnabled },
+          },
+        }),
+  } as unknown as ElementNode);
+
+// 탭 장면 - 키를 트리 순서대로 (id는 탭·순번)
+const sceneOf = (sceneId: string, keys: readonly KeySpec[]) => ({
+  nodes: keys.map((spec, index) =>
+    keyNode(`${sceneId}-key-${index}`, spec, index),
+  ),
+});
+
+// 기본 탭 - 4key: K·J, 8key: Q
+const BASE_KEYS: Record<string, readonly KeySpec[]> = {
+  '4key': [{ slot: 'KeyK' }, { slot: 'KeyJ' }],
+  '8key': [{ slot: 'KeyQ' }],
+};
+
+const documentOf = (scenes: Record<string, readonly KeySpec[]>): Document =>
+  ({
+    formatVersion: 1,
+    kindVersions: {},
+    scenes: Object.fromEntries(
+      Object.entries(scenes).map(([sceneId, keys]) => [
+        sceneId,
+        sceneOf(sceneId, keys),
+      ]),
+    ),
+  } as unknown as Document);
+
+mocks.backend = createFakeElementDocumentBackend(documentOf(BASE_KEYS));
+
+// 트리 스토어는 부트스트랩(목)이 아니라 여기서 불러온다. 앞 테스트가 바꾼 문서는 이 모양으로
+const loadKeys = (scenes: Record<string, readonly KeySpec[]>) =>
+  act(async () => {
+    await loadElementDocumentStore();
+    mocks.backend!.replace(() => documentOf(scenes));
+  });
+
+// 다른 창·되돌리기처럼 탭 하나의 키가 바뀐다 (다른 탭 장면은 그대로)
+const replaceTabKeys = (sceneId: string, keys: readonly KeySpec[]) =>
+  mocks.backend!.replace(
+    (document) =>
+      ({
+        ...document,
+        scenes: { ...document.scenes, [sceneId]: sceneOf(sceneId, keys) },
+      } as unknown as Document),
+  );
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -307,14 +392,7 @@ describe('overlay active key reconciliation', () => {
       isBootstrapped: true,
       isLocalUpdateInProgress: false,
     });
-    useLegacyKeyArrays.setState({
-      keyMappings: {
-        '4key': ['KeyK', 'KeyJ'],
-        '8key': ['KeyQ'],
-      },
-      positions: { '4key': [], '8key': [] },
-      canonicalPositions: { '4key': [], '8key': [] },
-    });
+    await loadKeys(BASE_KEYS);
     resetAllKeySignals();
     container = document.createElement('div');
     document.body.append(container);
@@ -352,12 +430,10 @@ describe('overlay active key reconciliation', () => {
     );
 
     await act(async () => {
-      useLegacyKeyArrays.setState({
-        positions: {
-          '4key': [createDefaultKeyPosition(10, 20)],
-          '8key': [],
-        },
-      });
+      replaceTabKeys('4key', [
+        { slot: 'KeyK', x: 10, y: 20 },
+        { slot: 'KeyJ' },
+      ]);
       useSettingsStore.setState({ backgroundColor: '#123456' });
     });
 
@@ -418,12 +494,10 @@ describe('overlay active key reconciliation', () => {
     setKeyActive('KeyK', true);
 
     await act(async () => {
-      useLegacyKeyArrays.setState({
-        positions: {
-          '4key': [createDefaultKeyPosition(10, 20)],
-          '8key': [],
-        },
-      });
+      replaceTabKeys('4key', [
+        { slot: 'KeyK', x: 10, y: 20 },
+        { slot: 'KeyJ' },
+      ]);
     });
     await flushAsync();
 
@@ -437,9 +511,7 @@ describe('overlay active key reconciliation', () => {
     mocks.bootstrap.mockResolvedValue({ activeKeys: ['KeyK', 'KeyJ'] });
 
     await act(async () => {
-      useLegacyKeyArrays.setState((state) => ({
-        keyMappings: { ...state.keyMappings, '4key': ['KeyJ'] },
-      }));
+      replaceTabKeys('4key', [{ slot: 'KeyJ' }]);
     });
     await flushAsync();
 
@@ -452,9 +524,7 @@ describe('overlay active key reconciliation', () => {
     setKeyActive('KeyK', true);
 
     await act(async () => {
-      useLegacyKeyArrays.setState((state) => ({
-        keyMappings: { ...state.keyMappings, '8key': ['KeyW'] },
-      }));
+      replaceTabKeys('8key', [{ slot: 'KeyW' }]);
     });
     await flushAsync();
 
@@ -466,12 +536,12 @@ describe('overlay active key reconciliation', () => {
     setKeyActive('KeyK', true);
 
     await act(async () => {
-      useLegacyKeyArrays.setState((state) => ({
-        keyMappings: {
-          ...state.keyMappings,
-          '4key': ['', 'KeyJ', 'KeyK', 'KeyK'],
-        },
-      }));
+      replaceTabKeys('4key', [
+        { slot: '' },
+        { slot: 'KeyJ' },
+        { slot: 'KeyK' },
+        { slot: 'KeyK' },
+      ]);
     });
     await flushAsync();
 
@@ -487,15 +557,11 @@ describe('overlay active key reconciliation', () => {
       .mockReturnValueOnce(second.promise);
 
     await act(async () => {
-      useLegacyKeyArrays.setState((state) => ({
-        keyMappings: { ...state.keyMappings, '4key': ['KeyJ'] },
-      }));
+      replaceTabKeys('4key', [{ slot: 'KeyJ' }]);
     });
     await flushAsync();
     await act(async () => {
-      useLegacyKeyArrays.setState((state) => ({
-        keyMappings: { ...state.keyMappings, '4key': ['KeyL'] },
-      }));
+      replaceTabKeys('4key', [{ slot: 'KeyL' }]);
     });
     await flushAsync();
     expect(mocks.bootstrap).toHaveBeenCalledTimes(2);
@@ -527,19 +593,12 @@ describe('note timing payload and loss recovery', () => {
       isBootstrapped: true,
       isLocalUpdateInProgress: false,
     });
-    useLegacyKeyArrays.setState({
-      keyMappings: {
-        '4key': ['KeyK', 'KeyJ'],
-        '8key': ['KeyQ'],
-      },
-      positions: {
-        '4key': [
-          { ...createDefaultKeyPosition(0, 0), noteEffectEnabled: false },
-          createDefaultKeyPosition(70, 0),
-        ],
-        '8key': [],
-      },
-      canonicalPositions: { '4key': [], '8key': [] },
+    await loadKeys({
+      '4key': [
+        { slot: 'KeyK', noteEffectEnabled: false },
+        { slot: 'KeyJ', x: 70 },
+      ],
+      '8key': [{ slot: 'KeyQ' }],
     });
     resetAllKeySignals();
     container = document.createElement('div');
@@ -779,14 +838,7 @@ describe('plugin element 갱신 격리 (#111)', () => {
       isBootstrapped: true,
       isLocalUpdateInProgress: false,
     });
-    useLegacyKeyArrays.setState({
-      keyMappings: {
-        '4key': ['KeyK', 'KeyJ'],
-        '8key': ['KeyQ'],
-      },
-      positions: { '4key': [], '8key': [] },
-      canonicalPositions: { '4key': [], '8key': [] },
-    });
+    await loadKeys(BASE_KEYS);
     resetAllKeySignals();
     container = document.createElement('div');
     document.body.append(container);
@@ -874,14 +926,7 @@ describe('computeLayout 메모이제이션', () => {
       isBootstrapped: true,
       isLocalUpdateInProgress: false,
     });
-    useLegacyKeyArrays.setState({
-      keyMappings: {
-        '4key': ['KeyK', 'KeyJ'],
-        '8key': ['KeyQ'],
-      },
-      positions: { '4key': [createDefaultKeyPosition(0, 0)], '8key': [] },
-      canonicalPositions: { '4key': [], '8key': [] },
-    });
+    await loadKeys(BASE_KEYS);
     resetAllKeySignals();
     container = document.createElement('div');
     document.body.append(container);
@@ -914,9 +959,10 @@ describe('computeLayout 메모이제이션', () => {
 
     // positive control - 레이아웃 입력(positions) 변경은 재호출되어야 함
     await act(async () => {
-      useLegacyKeyArrays.setState({
-        positions: { '4key': [createDefaultKeyPosition(10, 20)], '8key': [] },
-      });
+      replaceTabKeys('4key', [
+        { slot: 'KeyK', x: 10, y: 20 },
+        { slot: 'KeyJ' },
+      ]);
     });
     expect(mocks.updateTrackLayouts).toHaveBeenCalled();
   });

@@ -1,8 +1,6 @@
 import React, { act } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { getKeySignal, resetAllKeySignals } from '@stores/signals/keySignals';
 import { useSettingsStore } from '@stores/useSettingsStore';
@@ -151,13 +149,6 @@ describe('키 표시 지연 타이머', () => {
       isBootstrapped: true,
       isLocalUpdateInProgress: false,
     });
-    useLegacyKeyArrays.setState({
-      keyMappings: { '4key': ['KeyK'] },
-      positions: {
-        '4key': [createDefaultKeyPosition(0, 0)],
-      },
-      canonicalPositions: { '4key': [] },
-    });
     useSettingsStore.setState((state) => ({
       noteEffect: false,
       noteSettings: {
@@ -229,13 +220,6 @@ describe('키 표시 지연 타이머', () => {
     // 백엔드 확인 전에 화면 모드만 먼저 바뀐 구간을 재현
     await act(async () => {
       useKeyStore.setState({ selectedKeyType: '8key' });
-      useLegacyKeyArrays.setState({
-        keyMappings: { '4key': ['KeyK'], '8key': ['KeyK'] },
-        positions: {
-          '4key': [createDefaultKeyPosition(0, 0)],
-          '8key': [createDefaultKeyPosition(0, 0)],
-        },
-      });
     });
     await flushAsync();
 
