@@ -68,7 +68,6 @@ const fallbackChrome = (): PanelWindowChrome =>
 interface PropertiesPanelHostProps {
   // 실제 그리드 영역만 드래그 도킹 대상으로 사용
   dockAreaRef: React.RefObject<HTMLElement | null>;
-  onKeyMappingChange?: (index: number, newKey: string) => void;
   // 분리/도킹 전환이 사용자에게 알릴 만한 이유로 실패했을 때
   onTransitionFailure?: (kind: 'detach' | 'dock') => void;
 }
@@ -84,7 +83,6 @@ const DIM_FADE_MS = 150;
 
 const PropertiesPanelHost = ({
   dockAreaRef,
-  onKeyMappingChange,
   onTransitionFailure,
 }: PropertiesPanelHostProps) => {
   const modalLayerActive = useModalLayerActive();
@@ -437,7 +435,6 @@ const PropertiesPanelHost = ({
             }
           >
             <PropertiesPanel
-              onKeyMappingChange={onKeyMappingChange}
               detachAction={detached ? 'reattach' : 'detach'}
               onDetachAction={() =>
                 void (detached ? requestDock() : requestDetach())

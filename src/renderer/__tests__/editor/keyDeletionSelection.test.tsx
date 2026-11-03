@@ -16,25 +16,13 @@ import type { Document } from '@src/types/generated/elementDocument';
 
 const apiMocks = vi.hoisted(() => ({
   resetMode: vi.fn(),
-  update: vi.fn(),
-  rebindKeySlotById: vi.fn(async (_id: string, _slot: unknown) => true),
 }));
 
 vi.mock('@api/modules/editor/keysApi', () => ({
   keysApi: {
     resetMode: (...args: unknown[]) => apiMocks.resetMode(...args),
-    update: (...args: unknown[]) => apiMocks.update(...args),
   },
 }));
-
-vi.mock(
-  '@src/renderer/editor/runtime/operations/keySlotOps',
-  async (importOriginal) => ({
-    ...(await importOriginal<Record<string, unknown>>()),
-    rebindKeySlotById: (id: string, slot: unknown) =>
-      apiMocks.rebindKeySlotById(id, slot),
-  }),
-);
 
 // IPC 경계만 대역 - 키 순번은 트리 순서 (트리 스토어·런타임은 실물)
 const ipc = vi.hoisted(() => ({
@@ -181,30 +169,5 @@ describe('키 삭제 선택 정리', () => {
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual([
       keyIds[0],
     ]);
-  });
-
-  it('키 매핑은 canonical ID로만 저장하고 잘못된 index에서 후퇴하지 않는다', () => {
-    act(() => root.render(<Harness />));
-
-    act(() => latest().handleKeyMappingChange(1, 'Z'));
-    expect(apiMocks.rebindKeySlotById).toHaveBeenCalledWith(keyIds[1], 'Z');
-
-    apiMocks.rebindKeySlotById.mockClear();
-    act(() => latest().handleKeyMappingChange(99, 'X'));
-    expect(apiMocks.rebindKeySlotById).not.toHaveBeenCalled();
-    expect(apiMocks.update).not.toHaveBeenCalled();
-  });
-
-  it('저장 대기 중 대상 키가 사라지면 무시된 편집을 기록한다', async () => {
-    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    apiMocks.rebindKeySlotById.mockResolvedValueOnce(false);
-    act(() => root.render(<Harness />));
-    await act(async () => latest().handleKeyMappingChange(1, 'Z'));
-
-    expect(warning).toHaveBeenCalledWith(
-      'Element operation skipped (fail-closed)',
-      'key mapping target disappeared',
-    );
-    warning.mockRestore();
   });
 });

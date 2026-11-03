@@ -9,7 +9,6 @@ import {
   type SettingsNormalizationErrorKind,
 } from '@plugins/runtime/settingsSections';
 import { updatePluginElement } from '@plugins/runtime/displayElement/pluginElementActions';
-import type { KeyPosition } from '@src/types/key/keys';
 import { useLenis } from '@hooks/useLenis';
 import { usePluginGeometryGesture } from '@hooks/Grid/usePluginGeometryGesture';
 
@@ -18,7 +17,6 @@ import {
   TABS,
   LayerPanel,
   PluginSelectionPanel,
-  SingleKeyStatPanel,
   BatchKeyLikePanel,
   BatchPluginOnlyPanel,
   PluginSettingsPanelView,
@@ -40,7 +38,6 @@ import PluginSettingsForm from './PropertiesPanel/plugin/PluginSettingsForm';
 import { usePropertiesPanelSelection } from './PropertiesPanel/selection/usePropertiesPanelSelection';
 import { usePanelNavigation } from './PropertiesPanel/navigation/usePanelNavigation';
 import { createBatchSelectionModel } from './PropertiesPanel/batch/batchSelectionModel';
-import { singleSelectionHandlers } from './PropertiesPanel/selection/singleSelectionHandlers';
 import { shouldNormalizePropertyTabToStyle } from './PropertiesPanel/selection/propertyPanelAdapters';
 import { panelSelectionOf } from './document/treeEditedSelection';
 import { usePropertiesPanelRename } from './PropertiesPanel/navigation/usePropertiesPanelRename';
@@ -55,7 +52,6 @@ import { useBatchColorPickerController } from './PropertiesPanel/batch/style/use
 // ============================================================================
 
 interface PropertiesPanelProps {
-  onKeyMappingChange?: (index: number, newKey: string) => void;
   // 분리 창 전환 액션 - 메인은 detach, 분리 창은 reattach
   detachAction?: 'detach' | 'reattach';
   onDetachAction?: () => void;
@@ -71,7 +67,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   detachAction,
   onDetachAction,
   frameVariant = 'inline',
-  onKeyMappingChange,
 }) => {
   const { t, i18n } = useTranslation();
   // 패널이 분리 창에 있으면 키·마우스 이벤트는 그 창의 document로 온다
@@ -109,11 +104,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     pluginDisplaySize,
     singleKeyIndex,
     singleKeyPosition,
-    singleCanonicalKeyPosition,
-    singleKeySlot,
     singleKeyCode,
     singleKeyInfo,
-    singleStatIndex,
     singleStatPosition,
     singleGraphPosition,
     singleKnobPosition,
@@ -170,15 +162,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   );
   const locale = i18n.language;
 
-  // 로컬 상태 (실시간 편집용)
-  const [localState, setLocalState] = useState<
-    Partial<KeyPosition> & { dx?: number; dy?: number }
-  >({});
   const pluginVisibilityErrorsRef = useRef(new Set<string>());
-
-  // 이미지 픽커 상태
-  const [showImagePicker, setShowImagePicker] = useState(false);
-  const imageButtonRef = useRef<HTMLButtonElement>(null);
 
   // 다중 선택용 이미지 픽커 상태
   const [showBatchImagePicker, setShowBatchImagePicker] = useState(false);
@@ -304,22 +288,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     getSelectedKeyOnlyPositions,
   });
 
-  // 선택이 변경되면 로컬 상태 초기화
-  useEffect(() => {
-    const targetPosition = singleKeyPosition || singleStatPosition;
-    if (targetPosition) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 선택 대상의 편집 draft 동기화
-      setLocalState({
-        dx: targetPosition.dx,
-        dy: targetPosition.dy,
-        width: targetPosition.width || 60,
-        height: targetPosition.height || 60,
-      });
-    } else {
-      setLocalState({});
-    }
-  }, [singleKeyPosition, singleStatPosition]);
-
   const { selectionFromLayerPanelRef, handleTogglePanel } =
     usePropertiesPanelVisibility({
       frameVariant,
@@ -337,7 +305,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       documentSelectedIds,
       pluginSettingsPanel,
       closePage,
-      setShowImagePicker,
       setShowBatchImagePicker,
       setBatchPickerFor,
     });
@@ -399,33 +366,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     handleTogglePanel();
   });
 
-  const {
-    stableGeometryHandler,
-    stableGeometryPreviewHandler,
-    stableElementPropertyCommitHandler,
-    stableInactiveImageHandler,
-    stableActiveImageHandler,
-    stableIdleTransparentHandler,
-    stableActiveTransparentHandler,
-    stableIdleImageFitHandler,
-    stableActiveImageFitHandler,
-    stableSoundPathHandler,
-    stableSoundEnabledHandler,
-    stableSoundVolumeHandler,
-    stableStylePropertyPreviewHandler,
-    stableStylePropertyCommitHandler,
-    stablePaintCommitHandler,
-    stablePaintPreviewHandler,
-    stableShadowCommitHandler,
-    stableNotePaintCommitHandler,
-    stableNotePaintPreviewHandler,
-    stableCounterAnimationPresetHandler,
-    stableCounterEnabledHandler,
-    stableCounterAnimationEnabledHandler,
-    stableCounterLayoutHandler,
-    stableCounterTypographyHandler,
-    stableCounterFillHandler,
-  } = singleSelectionHandlers;
   // 다중 선택 일괄 편집 핸들러 (훅 사용)
   // ============================================================================
 
@@ -719,7 +659,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           elementId={selectedSpriteElements[0].id}
           panelElement={panelElement}
           setPanelElement={setPanelElement}
-          scrollRef={singleScrollRefFor(TABS.STYLE)}
+          scrollRefFor={singleScrollRefFor}
           t={t}
         />
       );
@@ -733,7 +673,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           elementId={selectedKnobElements[0].id}
           panelElement={panelElement}
           setPanelElement={setPanelElement}
-          scrollRef={singleScrollRefFor(TABS.STYLE)}
+          scrollRefFor={singleScrollRefFor}
           t={t}
         />
       );
@@ -747,195 +687,26 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           elementId={selectedGraphElements[0].id}
           panelElement={panelElement}
           setPanelElement={setPanelElement}
-          scrollRef={singleScrollRefFor(TABS.STYLE)}
+          scrollRefFor={singleScrollRefFor}
           t={t}
         />
       );
     }
 
-    // 단일 키/통계 요소 선택인 경우
-    const isSingleStat = !singleKeyPosition && !!singleStatPosition;
-    const isSingleKey = !!singleKeyPosition;
-    if (route.kind !== 'singleKeyStat' || (!isSingleKey && !isSingleStat)) {
-      return null;
-    }
-
+    // 단일 키·스탯 요소 선택인 경우 - 키·스탯 정의의 패널 선언 (탭: 스타일·노트·카운터)
+    const singleKeyStatId = singleKeyPosition
+      ? selectedKeyElements[0]?.id
+      : singleStatPosition
+      ? selectedStatElements[0]?.id
+      : undefined;
+    if (route.kind !== 'singleKeyStat' || !singleKeyStatId) return null;
     return (
-      <SingleKeyStatPanel
-        setPanelElement={setPanelElement}
-        isSingleStat={isSingleStat}
-        isSingleKey={isSingleKey}
-        singleKeyIndex={singleKeyIndex}
-        singleStatIndex={singleStatIndex}
-        singleKeyPosition={singleKeyPosition}
-        canonicalKeyPosition={singleCanonicalKeyPosition}
-        singleStatPosition={singleStatPosition}
-        singleKeyCode={singleKeyCode}
-        singleKeySlot={singleKeySlot}
-        singleKeyInfo={singleKeyInfo}
-        selectedKeyType={selectedKeyType}
-        isRenaming={isRenaming}
-        renameInputRef={renameInputRef}
-        renameValue={renameValue}
-        setRenameValue={setRenameValue}
-        renameCancelledRef={renameCancelledRef}
-        handleRenameCommit={handleRenameCommit}
-        handleRenameCancel={handleRenameCancel}
-        handleRenameStart={handleRenameStart}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onKeyMappingChange={onKeyMappingChange}
-        localState={localState}
-        setLocalState={setLocalState}
-        handleGeometryPreview={stableGeometryPreviewHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onElementPropertyCommit={stableElementPropertyCommitHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onInactiveImageCommit={stableInactiveImageHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onActiveImageCommit={
-          isSingleKey
-            ? stableActiveImageHandler('key', selectedKeyElements[0]?.id)
-            : undefined
-        }
-        onIdleTransparentCommit={stableIdleTransparentHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onActiveTransparentCommit={
-          isSingleKey
-            ? stableActiveTransparentHandler('key', selectedKeyElements[0]?.id)
-            : undefined
-        }
-        onIdleImageFitCommit={stableIdleImageFitHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onActiveImageFitCommit={
-          isSingleKey
-            ? stableActiveImageFitHandler('key', selectedKeyElements[0]?.id)
-            : undefined
-        }
-        onSoundPathCommit={
-          isSingleKey
-            ? stableSoundPathHandler(selectedKeyElements[0]?.id)
-            : undefined
-        }
-        onSoundEnabledCommit={
-          isSingleKey
-            ? stableSoundEnabledHandler(selectedKeyElements[0]?.id)
-            : undefined
-        }
-        onSoundVolumeCommit={
-          isSingleKey
-            ? stableSoundVolumeHandler(selectedKeyElements[0]?.id)
-            : undefined
-        }
-        onStylePropertyPreview={stableStylePropertyPreviewHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onStylePropertyCommit={stableStylePropertyCommitHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-          { settleGesture: true },
-        )}
-        onPaintPreview={stablePaintPreviewHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onPaintCommit={stablePaintCommitHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onShadowCommit={stableShadowCommitHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onNotePaintCommit={
-          isSingleKey
-            ? stableNotePaintCommitHandler(selectedKeyElements[0]?.id)
-            : undefined
-        }
-        onNotePaintPreview={
-          isSingleKey
-            ? stableNotePaintPreviewHandler(selectedKeyElements[0]?.id)
-            : undefined
-        }
-        onCounterAnimationPresetCommit={stableCounterAnimationPresetHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onCounterEnabledCommit={stableCounterEnabledHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onCounterAnimationEnabledCommit={stableCounterAnimationEnabledHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onCounterLayoutCommit={stableCounterLayoutHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onCounterTypographyCommit={stableCounterTypographyHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        onCounterFillCommit={stableCounterFillHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        handleGeometryCommit={stableGeometryHandler(
-          isSingleStat ? 'stat' : 'key',
-          isSingleStat
-            ? selectedStatElements[0]?.id
-            : selectedKeyElements[0]?.id,
-        )}
-        showImagePicker={showImagePicker}
-        setShowImagePicker={setShowImagePicker}
-        imageButtonRef={imageButtonRef}
+      <DocumentElementPanel
+        sceneId={selectedKeyType}
+        elementId={singleKeyStatId}
         panelElement={panelElement}
-        useCustomCSS={useCustomCSS}
-        singleScrollRefFor={singleScrollRefFor}
+        setPanelElement={setPanelElement}
+        scrollRefFor={singleScrollRefFor}
         t={t}
       />
     );
@@ -1020,7 +791,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             elementId={documentElementId}
             panelElement={panelElement}
             setPanelElement={setPanelElement}
-            scrollRef={singleScrollRefFor(TABS.STYLE)}
+            scrollRefFor={singleScrollRefFor}
             t={t}
           />
         </EditSessionScope>

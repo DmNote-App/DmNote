@@ -167,12 +167,7 @@ export default function App() {
   const primaryButtonRef = useRef(null);
   const gridAreaRef = useRef<HTMLDivElement | null>(null);
 
-  const {
-    handleKeyMappingChange,
-    handleResetCurrentMode,
-    handleUndo,
-    handleRedo,
-  } = useKeyManager();
+  const { handleResetCurrentMode, handleUndo, handleRedo } = useKeyManager();
   const {
     backgroundColor,
     color,
@@ -452,7 +447,6 @@ export default function App() {
         {(!isSettingsOpen || panelPlacement === 'detached') && (
           <PropertiesPanelHost
             dockAreaRef={gridAreaRef}
-            onKeyMappingChange={handleKeyMappingChange}
             onTransitionFailure={handlePanelTransitionFailure}
           />
         )}

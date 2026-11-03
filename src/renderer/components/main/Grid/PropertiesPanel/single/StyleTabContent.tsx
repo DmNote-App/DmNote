@@ -12,10 +12,8 @@ import PopupExit from '@components/main/Modal/PopupExit';
 import Checkbox from '../../../common/checkbox/Checkbox';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import SoundSection from '../controls/SoundSection';
-import SingleGeometrySection from './SingleGeometrySection';
 import SingleTypographySection from './SingleTypographySection';
 import SingleSurfaceSection from './SingleSurfaceSection';
-import SingleMappingSection from './SingleMappingSection';
 import SingleImagePickerPopup from './SingleImagePickerPopup';
 import {
   useSingleStyleColorController,
@@ -25,31 +23,12 @@ import {
 // 인-패널 서브 페이지 키 — 트리거 사이트별 유니크
 const SOUND_PAGE_KEY = 'single-style:sound';
 
-interface StyleTabContentInternalProps extends StyleTabContentProps {
-  // 로컬 상태 (단일 선택 시에만 사용, 개별 편집 모드에서는 사용하지 않음)
-  localDx?: number;
-  localDy?: number;
-  localWidth?: number;
-  localHeight?: number;
-  onLocalDxChange?: (value: number) => void;
-  onLocalDyChange?: (value: number) => void;
-  onLocalWidthChange?: (value: number) => void;
-  onLocalHeightChange?: (value: number) => void;
-}
-
-const StyleTabContent: React.FC<StyleTabContentInternalProps> = ({
-  keyIndex,
+// 키·스탯 스타일 탭의 겉모습 - 표면·글자(색 피커 하나를 같이 쓴다)·사용자 CSS·사운드·이미지.
+// 키 매핑·위치·크기는 선언 패널의 섹션이 그 위에 그린다
+const StyleTabContent: React.FC<StyleTabContentProps> = ({
   keyPosition,
-  keyCode: _keyCode,
   keyInfo,
-  onGeometryPreview,
-  onGeometryCommit,
   onElementPropertyCommit,
-  onKeyMappingChange,
-  keySlot,
-  mappingControl,
-  mappingControlLayout,
-  mappingLabel,
   hideDisplayText = false,
   showSoundControls = true,
   shadowActiveState = true,
@@ -74,15 +53,6 @@ const StyleTabContent: React.FC<StyleTabContentInternalProps> = ({
   useCustomCSS = false,
   canvasAnchor,
   t,
-  // 로컬 상태
-  localDx,
-  localDy,
-  localWidth,
-  localHeight,
-  onLocalDxChange,
-  onLocalDyChange,
-  onLocalWidthChange,
-  onLocalHeightChange,
 }) => {
   const {
     pickerFor,
@@ -177,42 +147,6 @@ const StyleTabContent: React.FC<StyleTabContentInternalProps> = ({
 
   return (
     <>
-      <SingleMappingSection
-        keyIndex={keyIndex}
-        keySlot={keySlot}
-        onKeyMappingChange={onKeyMappingChange}
-        mappingControl={mappingControl}
-        mappingControlLayout={mappingControlLayout}
-        mappingLabel={mappingLabel}
-        panelElement={panelElement}
-        t={t}
-      />
-
-      <SingleGeometrySection
-        keyPosition={keyPosition}
-        localDx={localDx}
-        localDy={localDy}
-        localWidth={localWidth}
-        localHeight={localHeight}
-        onLocalDxChange={onLocalDxChange}
-        onLocalDyChange={onLocalDyChange}
-        onLocalWidthChange={onLocalWidthChange}
-        onLocalHeightChange={onLocalHeightChange}
-        onGeometryPreview={onGeometryPreview}
-        onGeometryCommit={onGeometryCommit}
-        onRotationPreview={
-          onStylePropertyPreview
-            ? (value) => onStylePropertyPreview({ property: 'rotation', value })
-            : undefined
-        }
-        onRotationCommit={
-          onStylePropertyCommit
-            ? (value) => onStylePropertyCommit({ property: 'rotation', value })
-            : undefined
-        }
-        t={t}
-      />
-
       <SingleSurfaceSection
         keyPosition={keyPosition}
         backgroundColorButtonRef={bgColorBtnRef}

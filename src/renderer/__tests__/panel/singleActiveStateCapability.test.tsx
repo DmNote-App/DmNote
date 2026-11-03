@@ -103,9 +103,7 @@ describe('단일 통계 active 색 편집 차단', () => {
       root.render(
         <PanelNavProvider value={navValue}>
           <StyleTabContent
-            keyIndex={0}
             keyPosition={keyPosition}
-            keyCode={null}
             keyInfo={null}
             onPaintCommit={onPaintCommit}
             shadowActiveState={showActiveState}

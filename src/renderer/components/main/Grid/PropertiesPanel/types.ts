@@ -1,4 +1,4 @@
-import type { ImageFit, KeyPosition, KeySlot } from '@src/types/key/keys';
+import type { ImageFit, KeyPosition } from '@src/types/key/keys';
 import type { ColorModeValue, GradientSpec } from '@src/types/color';
 import type {
   GradientCanvasAnchor,
@@ -144,31 +144,13 @@ export interface FontStyleToggleProps {
 export interface StyleTabContentProps {
   /** 온캔버스 각도 핸들 앵커 (단일 키/통계) */
   canvasAnchor?: GradientCanvasAnchor;
-  keyIndex: number;
   keyPosition: KeyPosition;
-  keyCode: string | null;
   keyInfo: { globalKey: string; displayName: string } | null;
-  onGeometryPreview?: (
-    field: 'dx' | 'dy' | 'width' | 'height',
-    value: number,
-  ) => void;
-  onGeometryCommit?: (
-    field: 'dx' | 'dy' | 'width' | 'height',
-    value: number,
-  ) => void;
   // gestureId를 공유하면 연속 커밋(폰트 변경 + 굵기 재선택)이 한 undo 단계가 된다
   onElementPropertyCommit?: (
     patch: EditorElementPropertyPatchV1,
     options?: { gestureId?: string },
   ) => void;
-  onKeyMappingChange?: (index: number, newSlot: KeySlot) => void;
-  // 편집 대상 슬롯 (칩 에디터용)
-  keySlot?: KeySlot | null;
-  // 키 매핑 UI를 대체하는 커스텀 컨트롤 (통계 요소 등)
-  mappingControl?: React.ReactNode;
-  // 키 매핑 영역을 통째로 대체하는 커스텀 레이아웃 (다중 라인 라벨 등)
-  mappingControlLayout?: React.ReactNode;
-  mappingLabel?: string;
   // 표시 텍스트 입력 숨김 (통계 요소는 statType이 displayText 역할)
   hideDisplayText?: boolean;
   showSoundControls?: boolean;

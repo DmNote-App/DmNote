@@ -331,6 +331,7 @@ vi.mock('../document/documentPanelWriter', () => ({
 }));
 
 import ActualStyleTabContent from './StyleTabContent';
+import SingleGeometrySection from './SingleGeometrySection';
 import ActualNoteTabContent from './NoteTabContent';
 import ActualCounterTabContent from './CounterTabContent';
 import DocumentElementPanel from '../document/DocumentElementPanel';
@@ -2024,18 +2025,13 @@ describe('single geometry input bindings', () => {
     vi.unstubAllGlobals();
   });
 
+  // 키·스탯 위치·크기 섹션(입력 중 값을 패널에 먼저 두는 모드)
   it('stable W/H untouched blur는 stale local sibling을 저장하지 않는다', () => {
     const geometry = vi.fn();
-    const legacySize = vi.fn();
     act(() => {
       root.render(
-        <StyleTabContent
-          keyIndex={0}
+        <SingleGeometrySection
           keyPosition={createDefaultKeyPosition()}
-          keyCode="A"
-          keyInfo={{ globalKey: 'A', displayName: 'A' }}
-          onPositionChange={vi.fn()}
-          onKeyUpdate={vi.fn()}
           onGeometryCommit={geometry}
           localWidth={999}
           localHeight={998}
@@ -2043,17 +2039,16 @@ describe('single geometry input bindings', () => {
           onLocalDyChange={vi.fn()}
           onLocalWidthChange={vi.fn()}
           onLocalHeightChange={vi.fn()}
-          onSizeBlur={legacySize}
           t={(key) => key}
         />,
       );
     });
+    expect(captured.numbers.get('W')).toBeDefined();
 
     act(() => captured.numbers.get('W')?.onBlur?.());
     act(() => captured.numbers.get('H')?.onBlur?.());
 
     expect(geometry).not.toHaveBeenCalled();
-    expect(legacySize).not.toHaveBeenCalled();
   });
 
   it.each(['graph', 'knob'] as const)(

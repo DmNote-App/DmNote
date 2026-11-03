@@ -111,7 +111,7 @@ const {
   statUpdatePositionsMock,
   settleCommitMock,
   activeGestureIdMock,
-  singleKeyStatPropsMock,
+  documentElementPropsMock,
   reportElementOpSkippedMock,
 } = vi.hoisted(() => ({
   batchKeyLikePropsMock: vi.fn(),
@@ -198,7 +198,7 @@ const {
   statUpdatePositionsMock: vi.fn(() => Promise.resolve()),
   settleCommitMock: vi.fn(),
   activeGestureIdMock: vi.fn(() => null as string | null),
-  singleKeyStatPropsMock: vi.fn(),
+  documentElementPropsMock: vi.fn(),
   reportElementOpSkippedMock: vi.fn(),
 }));
 
@@ -313,32 +313,9 @@ vi.mock('@src/renderer/editor/runtime/gesture/editGestureController', () => ({
   },
 }));
 vi.mock('./PropertiesPanel/index', async () => {
-  const { default: PanelRenameControl } = await import(
-    './PropertiesPanel/navigation/PanelRenameControl'
-  );
   const Stub = ({ children }: { children?: React.ReactNode }) => (
     <div>{children}</div>
   );
-  // 헤더 이름 변경 계약만 실제 컨트롤로 검증 - 패널 props와 컨트롤 props가 같은 이름을 쓴다
-  const SingleKeyStatPanel = (
-    renameProps: Omit<
-      React.ComponentProps<typeof PanelRenameControl>,
-      'title' | 'titleClassName' | 'renameButtonTitle'
-    >,
-  ) => {
-    singleKeyStatPropsMock(renameProps);
-    return (
-      <>
-        <ScopeProbe id="single-key-stat" />
-        <PanelRenameControl
-          {...renameProps}
-          title="Key"
-          titleClassName=""
-          renameButtonTitle="contextMenu.rename"
-        />
-      </>
-    );
-  };
   return {
     TABS: { STYLE: 'style', NOTE: 'note', COUNTER: 'counter' },
     PropertyRow: Stub,
@@ -348,7 +325,6 @@ vi.mock('./PropertiesPanel/index', async () => {
     TextInput: Stub,
     LayerPanel: () => <div data-testid="layer-panel" />,
     PluginSelectionPanel: Stub,
-    SingleKeyStatPanel,
     BatchKeyLikePanel: (props: Record<string, unknown>) => {
       batchKeyLikePropsMock(props);
       return <div />;
@@ -375,6 +351,13 @@ vi.mock('./PropertiesPanel/index', async () => {
     }),
   };
 });
+// 선언 단일 패널 - 무엇을 그리는지(장면·요소 id)와 편집 세션 scope만 본다
+vi.mock('./PropertiesPanel/document/DocumentElementPanel', () => ({
+  default: (props: { sceneId: string; elementId: string }) => {
+    documentElementPropsMock(props);
+    return <ScopeProbe id="document-element" />;
+  },
+}));
 vi.mock('./PropertiesPanel/batch/useBatchHandlers', () => ({
   useBatchHandlers: (props: Record<string, unknown>) => {
     batchPropsMock(props);
@@ -415,20 +398,13 @@ interface MountedPanel {
   render: () => void;
 }
 
-const mountPanel = (
-  onKeyMappingChange: (index: number, newKey: string) => void = vi.fn(),
-): MountedPanel => {
+const mountPanel = (): MountedPanel => {
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
   const render = () => {
     act(() => {
-      root.render(
-        <PropertiesPanel
-          onKeyMappingChange={onKeyMappingChange}
-          frameVariant="window"
-        />,
-      );
+      root.render(<PropertiesPanel frameVariant="window" />);
     });
   };
   render();
@@ -440,7 +416,7 @@ const resetStores = () => {
   settleCommitMock.mockClear();
   activeGestureIdMock.mockReset();
   activeGestureIdMock.mockReturnValue(null);
-  singleKeyStatPropsMock.mockClear();
+  documentElementPropsMock.mockClear();
   batchPluginPropsMock.mockClear();
   batchPropsMock.mockClear();
   batchKeyLikePropsMock.mockClear();
@@ -618,16 +594,6 @@ describe('PropertiesPanel canonical native contract', () => {
     });
   };
 
-  const latestSingleProps = (_type: 'key' | 'stat') =>
-    singleKeyStatPropsMock.mock.lastCall?.[0] as {
-      handleGeometryCommit?: (field: 'dx', value: number) => void;
-      handleGeometryPreview?: (field: 'dx', value: number) => void;
-      onElementPropertyCommit?: (patch: Record<string, unknown>) => void;
-      onPaintCommit?: (patch: Record<string, unknown>) => void;
-      onCounterEnabledCommit?: (enabled: boolean) => void;
-      onCounterAnimationEnabledCommit?: (enabled: boolean) => void;
-    };
-
   beforeEach(() => {
     originalWindowType = window.__dmn_window_type;
     window.__dmn_window_type = 'main';
@@ -643,110 +609,18 @@ describe('PropertiesPanel canonical native contract', () => {
     window.__dmn_window_type = originalWindowType;
   });
 
-  it('헤더 이름을 Escape로 취소한 뒤 다음 이름을 저장한다', async () => {
-    const id = '61111111-1111-4111-8111-111111111111';
-    installSingle('key', id);
-    mounted = mountPanel();
-    const container = mounted.container;
-    const startRename = async () => {
-      await act(async () =>
-        container
-          .querySelector<HTMLButtonElement>(
-            'button[title="contextMenu.rename"]',
-          )!
-          .click(),
-      );
-      const input = container.querySelector('input')!;
-      await act(async () => input.focus());
-      return input;
-    };
-    const typeName = async (input: HTMLInputElement, value: string) => {
-      await act(async () => {
-        Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          'value',
-        )!.set!.call(input, value);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      });
-    };
-
-    const cancelled = await startRename();
-    await typeName(cancelled, 'Cancelled');
-    const blur = vi.fn();
-    cancelled.addEventListener('blur', blur);
-    await act(async () =>
-      cancelled.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
-      ),
-    );
-    expect(container.querySelector('input')).toBeNull();
-    expect(blur).not.toHaveBeenCalled();
-    expect(patchLayerNameMock).not.toHaveBeenCalled();
-
-    const input = await startRename();
-    await typeName(input, 'Saved');
-    await act(async () =>
-      input.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
-      ),
-    );
-
-    expect(patchLayerNameMock).toHaveBeenCalledExactlyOnceWith(
-      'key',
-      id,
-      'Saved',
-    );
-  });
-
   it.each([
     ['key', '11111111-1111-4111-8111-111111111111'],
     ['stat', '22222222-2222-4222-8222-222222222222'],
   ] as const)(
-    'single stable %s geometry는 stale index가 아니라 선택 ID를 쓴다',
+    '단일 %s는 선택의 낡은 순번이 아니라 선택 ID로 선언 패널을 그린다',
     (type, id) => {
       installSingle(type, id);
       mounted = mountPanel();
 
-      act(() => latestSingleProps(type).handleGeometryCommit?.('dx', 42));
-
-      expect(patchGeometryMock).toHaveBeenCalledWith(type, id, { dx: 42 }, {});
-      expect(patchBoundsViaAuthorityMock).not.toHaveBeenCalled();
-      expect(graphUpdatePositionsMock).not.toHaveBeenCalled();
-      expect(knobUpdatePositionsMock).not.toHaveBeenCalled();
-      expect(statUpdatePositionsMock).not.toHaveBeenCalled();
-      expect(keyLegacyUpdateMock).not.toHaveBeenCalled();
-    },
-  );
-
-  it('single key preview는 선택 ID를 신원으로 전달한다', () => {
-    const id = '61111111-1111-4111-8111-111111111111';
-    installSingle('key', id);
-    mounted = mountPanel();
-
-    act(() => latestSingleProps('key').handleGeometryPreview?.('dx', 17));
-
-    expect(previewMock).toHaveBeenCalledWith(
-      '4key',
-      [{ id, patch: { dx: 17 } }],
-      { domain: 'keyPosition' },
-    );
-  });
-
-  it.each(['key', 'stat'] as const)(
-    'invalid %s ID는 semantic과 full-record writer를 모두 막는다',
-    (type) => {
-      installSingle(type, `${type}-0`, 1);
-      mounted = mountPanel();
-      const props = latestSingleProps(type);
-
-      expect(props?.handleGeometryCommit).toBeUndefined();
-      expect(props?.onElementPropertyCommit).toBeUndefined();
-      expect(patchGeometryMock).not.toHaveBeenCalled();
-      expect(patchBoundsViaAuthorityMock).not.toHaveBeenCalled();
-      expect(graphUpdatePositionsMock).not.toHaveBeenCalled();
-      expect(knobUpdatePositionsMock).not.toHaveBeenCalled();
-      expect(statUpdatePositionsMock).not.toHaveBeenCalled();
-      expect(keyLegacyUpdateMock).not.toHaveBeenCalled();
+      expect(documentElementPropsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sceneId: '4key', elementId: id }),
+      );
     },
   );
 
@@ -1165,7 +1039,7 @@ describe('PropertiesPanel 편집 세션 scope 경계', () => {
     });
     mounted = mountPanel();
 
-    expect(scopedOf('single-key-stat')).toBe('true');
+    expect(scopedOf('document-element')).toBe('true');
   });
 
   it('플러그인 설정 패널은 편집 세션 scope 밖이다', () => {

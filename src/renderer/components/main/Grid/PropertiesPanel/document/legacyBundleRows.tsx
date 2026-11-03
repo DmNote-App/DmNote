@@ -5,6 +5,7 @@ import {
   captureBatchElementBinding,
   useBatchElementBinding,
 } from '@hooks/pickers/useBatchElementBinding';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { paintDescriptor } from '@src/types/color';
 import type { SurfaceStyledElementType } from '@src/types/elementKinds';
@@ -40,8 +41,13 @@ import {
 } from '../controls/PropertyInputs';
 import SingleImagePickerPopup from '../single/SingleImagePickerPopup';
 import type { PanelWriter } from './documentPanelWriter';
-import type { Translate } from './documentPanelModel';
+import { isKeyStatKind, type Translate } from './documentPanelModel';
 import LegacyKnobStyle from './legacyKnobStyle';
+import {
+  KeyNoteTab,
+  KeyStatCounterTab,
+  KeyStatStyle,
+} from './legacyKeyStatSections';
 
 // 옛 종류의 겉모습 섹션 - 옛 패널마다 칸 배치가 달라 종류별로 옛 패널 그대로 그린다. 값은 옛 패널이 보던
 // 옛 칸 모양 보기(트리 값 + 편집 미리보기)를 읽고, 쓰기는 옛 패널 처리기(documentPanelWriter)로 한다
@@ -200,16 +206,38 @@ const GraphImageRow = ({
   );
 };
 
-// 사용자 CSS를 겉모습 섹션 안에 그리는 종류 (옛 노브 패널)
-const CUSTOM_CSS_IN_STYLE: ReadonlySet<string> = new Set(['knob']);
+// 사용자 CSS를 겉모습 섹션 안에 그리는 종류 (옛 노브·키·스탯 패널)
+const CUSTOM_CSS_IN_STYLE: ReadonlySet<string> = new Set([
+  'knob',
+  'key',
+  'stat',
+]);
 
-/** 하나 - 겉모습(표면·이미지 묶음) 섹션 */
+/** 하나 - 기능 묶음 섹션 무리 하나. 키·스탯은 탭마다 무리가 하나다 (스타일 탭 겉모습·노트·카운터) */
 export const LegacySingleStyle = ({
   kind,
+  element,
+  bundles,
   useCustomCSS,
   ...props
-}: SingleStyleProps & { kind: string; useCustomCSS: boolean }) =>
-  kind === 'knob' ? (
+}: SingleStyleProps & {
+  kind: string;
+  element: ElementNode;
+  bundles: readonly string[];
+  useCustomCSS: boolean;
+}) => {
+  if (isKeyStatKind(kind)) {
+    const section = {
+      element,
+      position: props.position,
+      panelElement: props.panelElement,
+      t: props.t,
+    };
+    if (bundles.includes('note')) return <KeyNoteTab {...section} />;
+    if (bundles.includes('counter')) return <KeyStatCounterTab {...section} />;
+    return <KeyStatStyle {...section} useCustomCSS={useCustomCSS} />;
+  }
+  return kind === 'knob' ? (
     <LegacyKnobStyle
       {...props}
       position={props.position as unknown as KnobItemPosition}
@@ -221,9 +249,10 @@ export const LegacySingleStyle = ({
       <GraphImageRow {...props} />
     </PropertySection>
   );
+};
 
 /** 하나 - 사용자 CSS: 인라인 스타일 우선·클래스 (설정에서 사용자 CSS를 켰을 때).
- * 옛 노브 패널은 겉모습 섹션 안에 그려 따로 그리지 않는다 */
+ * 옛 노브·키·스탯 패널은 겉모습 섹션 안에 그려 따로 그리지 않는다 */
 export const LegacyCustomCssSection = ({
   kind,
   ...props

@@ -65456,6 +65456,130 @@ exports[`속성 패널 DOM 약속 > 키 하나 - 기본값 1`] = `
                                     "text-label",
                                   ],
                                   "tag": "p",
+                                  "text": "propertiesPanel.keyMapping",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "class": [
+                                            "truncate",
+                                          ],
+                                          "tag": "span",
+                                          "text": "KeyA",
+                                        },
+                                      ],
+                                      "class": [
+                                        "active:bg-fill-active",
+                                        "bg-fill",
+                                        "duration-fast",
+                                        "flex",
+                                        "h-[23px]",
+                                        "hover:bg-fill-hover",
+                                        "items-center",
+                                        "justify-center",
+                                        "max-w-[120px]",
+                                        "min-w-[0px]",
+                                        "px-[8px]",
+                                        "rounded-md",
+                                        "text-body",
+                                        "text-fg",
+                                        "transition-colors",
+                                      ],
+                                      "tag": "button",
+                                    },
+                                  ],
+                                  "class": [
+                                    "flex",
+                                    "gap-[8px]",
+                                    "items-center",
+                                  ],
+                                  "tag": "div",
+                                },
+                              ],
+                              "class": [
+                                "flex",
+                                "items-center",
+                                "justify-between",
+                                "min-h-[32px]",
+                                "w-full",
+                              ],
+                              "tag": "div",
+                            },
+                            {
+                              "children": [
+                                {
+                                  "class": [
+                                    "text-fg-muted",
+                                    "text-label",
+                                  ],
+                                  "tag": "p",
+                                  "text": "propertiesPanel.multiKey",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "class": [
+                                        "active:bg-fill-active",
+                                        "bg-fill",
+                                        "duration-fast",
+                                        "flex",
+                                        "h-[23px]",
+                                        "hover:bg-fill-hover",
+                                        "items-center",
+                                        "justify-center",
+                                        "px-[8px]",
+                                        "rounded-md",
+                                        "text-body",
+                                        "text-fg",
+                                        "transition-colors",
+                                      ],
+                                      "tag": "button",
+                                      "text": "propertiesPanel.configure",
+                                    },
+                                  ],
+                                  "class": [
+                                    "flex",
+                                    "gap-[8px]",
+                                    "items-center",
+                                  ],
+                                  "tag": "div",
+                                },
+                              ],
+                              "class": [
+                                "flex",
+                                "items-center",
+                                "justify-between",
+                                "min-h-[32px]",
+                                "w-full",
+                              ],
+                              "tag": "div",
+                            },
+                          ],
+                          "class": [
+                            "bg-fill-faint",
+                            "flex",
+                            "flex-col",
+                            "px-[10px]",
+                            "py-[4px]",
+                            "rounded-surface",
+                          ],
+                          "tag": "div",
+                        },
+                        {
+                          "attrs": {
+                            "data-dmn-section": "true",
+                          },
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "class": [
+                                    "text-fg-muted",
+                                    "text-label",
+                                  ],
+                                  "tag": "p",
                                   "text": "propertiesPanel.position",
                                 },
                                 {
@@ -70303,6 +70427,130 @@ exports[`속성 패널 DOM 약속 > 키 하나 - 노트 탭 1`] = `
                   "children": [
                     {
                       "children": [
+                        {
+                          "attrs": {
+                            "data-dmn-section": "true",
+                          },
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "class": [
+                                    "text-fg-muted",
+                                    "text-label",
+                                  ],
+                                  "tag": "p",
+                                  "text": "propertiesPanel.keyMapping",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "class": [
+                                            "truncate",
+                                          ],
+                                          "tag": "span",
+                                          "text": "KeyA",
+                                        },
+                                      ],
+                                      "class": [
+                                        "active:bg-fill-active",
+                                        "bg-fill",
+                                        "duration-fast",
+                                        "flex",
+                                        "h-[23px]",
+                                        "hover:bg-fill-hover",
+                                        "items-center",
+                                        "justify-center",
+                                        "max-w-[120px]",
+                                        "min-w-[0px]",
+                                        "px-[8px]",
+                                        "rounded-md",
+                                        "text-body",
+                                        "text-fg",
+                                        "transition-colors",
+                                      ],
+                                      "tag": "button",
+                                    },
+                                  ],
+                                  "class": [
+                                    "flex",
+                                    "gap-[8px]",
+                                    "items-center",
+                                  ],
+                                  "tag": "div",
+                                },
+                              ],
+                              "class": [
+                                "flex",
+                                "items-center",
+                                "justify-between",
+                                "min-h-[32px]",
+                                "w-full",
+                              ],
+                              "tag": "div",
+                            },
+                            {
+                              "children": [
+                                {
+                                  "class": [
+                                    "text-fg-muted",
+                                    "text-label",
+                                  ],
+                                  "tag": "p",
+                                  "text": "propertiesPanel.multiKey",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "class": [
+                                        "active:bg-fill-active",
+                                        "bg-fill",
+                                        "duration-fast",
+                                        "flex",
+                                        "h-[23px]",
+                                        "hover:bg-fill-hover",
+                                        "items-center",
+                                        "justify-center",
+                                        "px-[8px]",
+                                        "rounded-md",
+                                        "text-body",
+                                        "text-fg",
+                                        "transition-colors",
+                                      ],
+                                      "tag": "button",
+                                      "text": "propertiesPanel.configure",
+                                    },
+                                  ],
+                                  "class": [
+                                    "flex",
+                                    "gap-[8px]",
+                                    "items-center",
+                                  ],
+                                  "tag": "div",
+                                },
+                              ],
+                              "class": [
+                                "flex",
+                                "items-center",
+                                "justify-between",
+                                "min-h-[32px]",
+                                "w-full",
+                              ],
+                              "tag": "div",
+                            },
+                          ],
+                          "class": [
+                            "bg-fill-faint",
+                            "flex",
+                            "flex-col",
+                            "px-[10px]",
+                            "py-[4px]",
+                            "rounded-surface",
+                          ],
+                          "tag": "div",
+                        },
                         {
                           "attrs": {
                             "data-dmn-section": "true",
@@ -75176,6 +75424,130 @@ exports[`속성 패널 DOM 약속 > 키 하나 - 이름·고른 값·사용자 C
                                     "text-label",
                                   ],
                                   "tag": "p",
+                                  "text": "propertiesPanel.keyMapping",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "class": [
+                                            "truncate",
+                                          ],
+                                          "tag": "span",
+                                          "text": "KeyB",
+                                        },
+                                      ],
+                                      "class": [
+                                        "active:bg-fill-active",
+                                        "bg-fill",
+                                        "duration-fast",
+                                        "flex",
+                                        "h-[23px]",
+                                        "hover:bg-fill-hover",
+                                        "items-center",
+                                        "justify-center",
+                                        "max-w-[120px]",
+                                        "min-w-[0px]",
+                                        "px-[8px]",
+                                        "rounded-md",
+                                        "text-body",
+                                        "text-fg",
+                                        "transition-colors",
+                                      ],
+                                      "tag": "button",
+                                    },
+                                  ],
+                                  "class": [
+                                    "flex",
+                                    "gap-[8px]",
+                                    "items-center",
+                                  ],
+                                  "tag": "div",
+                                },
+                              ],
+                              "class": [
+                                "flex",
+                                "items-center",
+                                "justify-between",
+                                "min-h-[32px]",
+                                "w-full",
+                              ],
+                              "tag": "div",
+                            },
+                            {
+                              "children": [
+                                {
+                                  "class": [
+                                    "text-fg-muted",
+                                    "text-label",
+                                  ],
+                                  "tag": "p",
+                                  "text": "propertiesPanel.multiKey",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "class": [
+                                        "active:bg-fill-active",
+                                        "bg-fill",
+                                        "duration-fast",
+                                        "flex",
+                                        "h-[23px]",
+                                        "hover:bg-fill-hover",
+                                        "items-center",
+                                        "justify-center",
+                                        "px-[8px]",
+                                        "rounded-md",
+                                        "text-body",
+                                        "text-fg",
+                                        "transition-colors",
+                                      ],
+                                      "tag": "button",
+                                      "text": "propertiesPanel.configure",
+                                    },
+                                  ],
+                                  "class": [
+                                    "flex",
+                                    "gap-[8px]",
+                                    "items-center",
+                                  ],
+                                  "tag": "div",
+                                },
+                              ],
+                              "class": [
+                                "flex",
+                                "items-center",
+                                "justify-between",
+                                "min-h-[32px]",
+                                "w-full",
+                              ],
+                              "tag": "div",
+                            },
+                          ],
+                          "class": [
+                            "bg-fill-faint",
+                            "flex",
+                            "flex-col",
+                            "px-[10px]",
+                            "py-[4px]",
+                            "rounded-surface",
+                          ],
+                          "tag": "div",
+                        },
+                        {
+                          "attrs": {
+                            "data-dmn-section": "true",
+                          },
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "class": [
+                                    "text-fg-muted",
+                                    "text-label",
+                                  ],
+                                  "tag": "p",
                                   "text": "propertiesPanel.position",
                                 },
                                 {
@@ -80035,6 +80407,130 @@ exports[`속성 패널 DOM 약속 > 키 하나 - 카운터 탭 1`] = `
                   "children": [
                     {
                       "children": [
+                        {
+                          "attrs": {
+                            "data-dmn-section": "true",
+                          },
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "class": [
+                                    "text-fg-muted",
+                                    "text-label",
+                                  ],
+                                  "tag": "p",
+                                  "text": "propertiesPanel.keyMapping",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "class": [
+                                            "truncate",
+                                          ],
+                                          "tag": "span",
+                                          "text": "KeyA",
+                                        },
+                                      ],
+                                      "class": [
+                                        "active:bg-fill-active",
+                                        "bg-fill",
+                                        "duration-fast",
+                                        "flex",
+                                        "h-[23px]",
+                                        "hover:bg-fill-hover",
+                                        "items-center",
+                                        "justify-center",
+                                        "max-w-[120px]",
+                                        "min-w-[0px]",
+                                        "px-[8px]",
+                                        "rounded-md",
+                                        "text-body",
+                                        "text-fg",
+                                        "transition-colors",
+                                      ],
+                                      "tag": "button",
+                                    },
+                                  ],
+                                  "class": [
+                                    "flex",
+                                    "gap-[8px]",
+                                    "items-center",
+                                  ],
+                                  "tag": "div",
+                                },
+                              ],
+                              "class": [
+                                "flex",
+                                "items-center",
+                                "justify-between",
+                                "min-h-[32px]",
+                                "w-full",
+                              ],
+                              "tag": "div",
+                            },
+                            {
+                              "children": [
+                                {
+                                  "class": [
+                                    "text-fg-muted",
+                                    "text-label",
+                                  ],
+                                  "tag": "p",
+                                  "text": "propertiesPanel.multiKey",
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "class": [
+                                        "active:bg-fill-active",
+                                        "bg-fill",
+                                        "duration-fast",
+                                        "flex",
+                                        "h-[23px]",
+                                        "hover:bg-fill-hover",
+                                        "items-center",
+                                        "justify-center",
+                                        "px-[8px]",
+                                        "rounded-md",
+                                        "text-body",
+                                        "text-fg",
+                                        "transition-colors",
+                                      ],
+                                      "tag": "button",
+                                      "text": "propertiesPanel.configure",
+                                    },
+                                  ],
+                                  "class": [
+                                    "flex",
+                                    "gap-[8px]",
+                                    "items-center",
+                                  ],
+                                  "tag": "div",
+                                },
+                              ],
+                              "class": [
+                                "flex",
+                                "items-center",
+                                "justify-between",
+                                "min-h-[32px]",
+                                "w-full",
+                              ],
+                              "tag": "div",
+                            },
+                          ],
+                          "class": [
+                            "bg-fill-faint",
+                            "flex",
+                            "flex-col",
+                            "px-[10px]",
+                            "py-[4px]",
+                            "rounded-surface",
+                          ],
+                          "tag": "div",
+                        },
                         {
                           "attrs": {
                             "data-dmn-section": "true",

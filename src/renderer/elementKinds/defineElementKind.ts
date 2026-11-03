@@ -115,8 +115,8 @@ export interface ElementKindCode<Values> {
   >;
   // 레이어·메뉴에 보이는 이름 (i18n 키)
   readonly label?: string;
-  // 패널 제목 - 요소 이름이 없을 때 (없으면 종류 이름)
-  readonly title?: (values: Values) => string;
+  // 패널 제목 - 요소 이름이 없을 때 (없으면 종류 이름). 입력에서 이름이 나오는 종류(키)는 요소를 본다
+  readonly title?: (values: Values, element: ElementNode) => string;
   // 그리기 코드 하나 - 편집 화면(미리보기)과 오버레이·OBS(실제 신호)가 같이 쓴다
   readonly render?: ComponentType<ElementRenderProps<Values>>;
   // 편집 화면 얼굴이 사용자 CSS 클래스를 스스로 붙인다 - 옛 그리기에서 클래스가 상태 속성(data-state)과
@@ -207,6 +207,9 @@ export interface PanelFieldControlProps {
 // 하나만 골랐을 때 / 여러 개 골랐을 때만 쓰는 칸·섹션 (없으면 둘 다)
 export type PanelSelectionScope = 'single' | 'batch';
 
+// 속성 패널 탭 - 섹션이 두 탭 이상에 있으면 패널이 탭을 그린다 (섹션에 없으면 스타일)
+export type PanelTab = 'style' | 'note' | 'counter';
+
 export interface PanelRowDecl<Values> {
   readonly field: string;
   // i18n 키
@@ -236,7 +239,7 @@ export type PanelSectionDecl<Values> = (
   | { readonly bundle: BundleName }
   // 섹션 하나 단위 탈출구 - 선언으로 안 되는 편집 화면(스프라이트 자세 목록 등)은 직접 만든 섹션을 끼운다
   | { readonly custom: ComponentType<PanelSectionProps> }
-) & { readonly only?: PanelSelectionScope };
+) & { readonly only?: PanelSelectionScope; readonly tab?: PanelTab };
 
 export type ElementKindDefinition<D extends ElementKindData = ElementKindData> =
   D & ElementKindCode<KindValues<D>>;

@@ -30,10 +30,7 @@ export { default as BatchCounterTabContent } from './batch/BatchCounterTabConten
 export { default as LayerPanel } from './layer/LayerPanel';
 
 // 분리된 서브 패널 컴포넌트
-export {
-  PluginSelectionPanel,
-  SingleKeyStatPanel,
-} from './single/SingleSelectionPanel';
+export { PluginSelectionPanel } from './single/SingleSelectionPanel';
 export {
   BatchKeyLikePanel,
   BatchPluginOnlyPanel,

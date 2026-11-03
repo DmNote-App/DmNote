@@ -282,7 +282,7 @@ const Harness = () => (
       onMultiDragStart={() => {}}
       onMultiDragEnd={() => {}}
     />
-    <PropertiesPanel onKeyMappingChange={() => {}} />
+    <PropertiesPanel />
   </>
 );
 

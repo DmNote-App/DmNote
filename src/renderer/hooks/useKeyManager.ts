@@ -5,16 +5,8 @@ import {
   syncHistoryStatus,
 } from '@stores/data/useHistoryStatusStore';
 import { historyApi } from '@api/modules/editor/historyApi';
-import { rebindKeySlotById } from '@src/renderer/editor/runtime/operations/keySlotOps';
-import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { treeModeArrays } from '@src/renderer/elementKinds/runtime/treeModeArrays';
-import {
-  reportElementOpError,
-  reportElementOpSkipped,
-} from '@src/renderer/editor/runtime/intent/elementIntent';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { setUndoRedoInProgress } from '@api/pluginDisplayElements';
-import type { KeySlot } from '@src/types/key/keys';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import { keysApi } from '@api/modules/editor/keysApi';
 
@@ -23,22 +15,6 @@ export function useKeyManager() {
 
   // undo/redo 로컬 single-flight 가드
   const historyActionInFlightRef = useRef(false);
-
-  const handleKeyMappingChange = (index: number, newSlot: KeySlot) => {
-    // 순번은 패널이 보는 트리 순서(treePanelRecords와 같다) - 그 자리 키의 안정 id로 커밋
-    const positionId = treeModeArrays(
-      getElementDocumentStore()?.getScene(selectedKeyType),
-    ).keyPositions[index]?.id;
-    if (!positionId) {
-      reportElementOpSkipped('missing canonical key position id');
-      return;
-    }
-    void rebindKeySlotById(positionId, newSlot)
-      .then((applied) => {
-        if (!applied) reportElementOpSkipped('key mapping target disappeared');
-      })
-      .catch(reportElementOpError);
-  };
 
   // ────────────────────────────────────────────────────────────────────────
   // 리셋 / undo / redo
@@ -93,7 +69,6 @@ export function useKeyManager() {
   const handleRedo = () => void executeHistoryAction('redo');
 
   return {
-    handleKeyMappingChange,
     handleResetCurrentMode,
     handleUndo,
     handleRedo,

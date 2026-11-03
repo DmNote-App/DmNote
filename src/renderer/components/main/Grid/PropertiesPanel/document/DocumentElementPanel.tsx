@@ -12,6 +12,7 @@ import type { GeometryField } from '@src/renderer/editor/runtime/operations/elem
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import { useTreeElementPosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import type { KeyPosition } from '@src/types/key/keys';
+import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import {
   setDocumentBundle,
@@ -20,14 +21,17 @@ import {
   setDocumentValues,
 } from '../../document/documentEditActions';
 import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
-import { PropertySection } from '../controls/PropertyInputs';
+import { PropertySection, Tabs } from '../controls/PropertyInputs';
 import { PANEL_ROOT_CLASS } from '../navigation/panelChrome';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
 import SingleGeometrySection from '../single/SingleGeometrySection';
 import SinglePanelRenameHeader from '../single/SinglePanelRenameHeader';
 import {
   defaultPanel,
+  isKeyStatKind,
+  panelTabsOf,
   rowState,
+  sectionsOfTab,
   type Translate,
   type Values,
 } from './documentPanelModel';
@@ -39,14 +43,16 @@ import {
 } from './documentPanelRows';
 import { singlePanelWriterFor } from './documentPanelWriter';
 import { LegacyCustomCssSection, LegacySingleStyle } from './legacyBundleRows';
+import { KeyStatGeometry } from './legacyKeyStatSections';
+import type { PanelTab } from '@src/renderer/elementKinds/defineElementKind';
 
 interface DocumentElementPanelProps {
   sceneId: string;
   elementId: string;
   panelElement: HTMLElement | null;
   setPanelElement: (element: HTMLDivElement | null) => void;
-  // 패널 스크롤 (Lenis) - 고른 요소가 바뀌어도 같은 뷰포트를 쓴다 (스크롤 자리를 지킨다)
-  scrollRef?: (node: HTMLDivElement | null) => void;
+  // 탭별 패널 스크롤 (Lenis) - 고른 요소가 바뀌어도 같은 뷰포트를 쓴다 (스크롤 자리를 지킨다)
+  scrollRefFor?: (tab: PanelTab) => (node: HTMLDivElement | null) => void;
   t: Translate;
 }
 
@@ -58,12 +64,18 @@ const geometryKindOf = (kind: string) =>
     ? ('graph' as const)
     : ('knob' as const);
 
-// 제목 칸 너비 - 옛 그래프·노브·스프라이트 패널은 100px
+// 제목 칸 - 옛 그래프·노브·스프라이트 패널은 100px, 옛 키·스탯 패널은 줄 높이 없이 110px
 const TITLE_CLASS_NARROW =
   'text-fg text-label truncate max-w-[100px] cursor-default';
 const TITLE_CLASS = 'text-fg text-label truncate max-w-[110px] cursor-default';
-const narrowTitle = (kind: string) =>
-  kind === 'graph' || kind === 'knob' || kind === 'sprite';
+const TITLE_CLASS_KEY_STAT =
+  'text-fg text-label leading-none cursor-default truncate max-w-[110px]';
+const titleClassOf = (kind: string) =>
+  kind === 'graph' || kind === 'knob' || kind === 'sprite'
+    ? TITLE_CLASS_NARROW
+    : isKeyStatKind(kind)
+    ? TITLE_CLASS_KEY_STAT
+    : TITLE_CLASS;
 
 // 위치·크기 칸 이름 → 트리 틀 칸
 const frameField = (field: GeometryField) =>
@@ -86,7 +98,7 @@ const ElementPanelBody = ({
   element,
   panelElement,
   setPanelElement,
-  scrollRef,
+  scrollRefFor,
   t,
 }: DocumentElementPanelProps & { element: ElementNode }) => {
   // 옛 종류는 옛 단일 패널과 같은 처리기로 쓰고, 옛 패널이 보던 값(트리 값 + 편집 미리보기, 옛 칸 모양)을 읽는다 -
@@ -94,6 +106,12 @@ const ElementPanelBody = ({
   const writer = singlePanelWriterFor(sceneId, element);
   const legacyView = useTreeElementPosition(element, sceneId);
   const useCustomCSS = useSettingsStore((state) => state.useCustomCSS);
+  const activeTab = usePropertiesPanelStore(
+    (state) => state.propertyPanelActiveTab,
+  );
+  const setActiveTab = usePropertiesPanelStore(
+    (state) => state.setPropertyPanelActiveTab,
+  );
   // 이름 바꾸기는 그 요소에서만 - 고른 요소가 바뀌면 끝난다
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const isRenaming = renamingId === element.id;
@@ -105,7 +123,8 @@ const ElementPanelBody = ({
   const kindLabel = definition?.label
     ? t(definition.label) || element.kind
     : t('elementKinds.unknownKind') || element.kind;
-  const defaultTitle = definition?.title?.(values as never) ?? kindLabel;
+  const defaultTitle =
+    definition?.title?.(values as never, element) ?? kindLabel;
   const name = writer
     ? (legacyView.layerName as string | undefined)
     : element.name;
@@ -139,7 +158,14 @@ const ElementPanelBody = ({
     return { [frameField(field)]: value };
   };
 
-  const geometry = writer ? (
+  const geometry = isKeyStatKind(element.kind) ? (
+    // 옛 키·스탯 - 고친 위치·크기를 패널에 먼저 둔다
+    <KeyStatGeometry
+      element={element}
+      position={legacyView as unknown as KeyPosition}
+      t={t}
+    />
+  ) : writer ? (
     // 옛 종류 - 옛 단일 패널과 같은 위치·크기·회전 처리기
     <SingleGeometrySection
       keyPosition={legacyView as unknown as KeyPosition}
@@ -222,6 +248,8 @@ const ElementPanelBody = ({
         return (
           <LegacySingleStyle
             kind={element.kind}
+            element={element}
+            bundles={bundles}
             sceneId={sceneId}
             position={legacyView as unknown as KeyPosition}
             writer={writer}
@@ -265,58 +293,93 @@ const ElementPanelBody = ({
     ),
   };
 
+  const sections = definition
+    ? definition.panel ?? defaultPanel(definition)
+    : [{ common: 'geometry' as const }];
+  // 섹션이 두 탭 이상에 있으면 탭 (옛 키·스탯 패널) - 탭마다 독립 스크롤·편집 세션 경계
+  const tabs = panelTabsOf(sections);
+  const tabBody = (tab: PanelTab) => (
+    <EditSessionBoundary>
+      <PanelSections
+        sections={sectionsOfTab(sections, tab)}
+        items={[values]}
+        renderers={renderers}
+      />
+    </EditSessionBoundary>
+  );
+  const header = (
+    <SinglePanelRenameHeader
+      title={title}
+      titleClassName={titleClassOf(element.kind)}
+      renameButtonTitle={isRenaming ? '' : t('contextMenu.rename') || 'Rename'}
+      isRenaming={isRenaming}
+      renameInputRef={renameInputRef}
+      renameValue={renameValue}
+      setRenameValue={setRenameValue}
+      renameCancelledRef={renameCancelledRef}
+      handleRenameStart={() => {
+        // Escape로 언마운트된 입력은 blur가 오지 않아 취소 플래그가 남는다 - 다음 입력의 커밋이 삼켜지지 않게
+        renameCancelledRef.current = false;
+        setRenameValue(title);
+        setRenamingId(element.id);
+        requestAnimationFrame(() => {
+          renameInputRef.current?.focus();
+          renameInputRef.current?.select();
+        });
+      }}
+      handleRenameCommit={(value) => {
+        setRenamingId(null);
+        const trimmed = value.trim();
+        // 기본 제목과 같거나 비면 이름을 지운다
+        const next = trimmed && trimmed !== defaultTitle ? trimmed : null;
+        if (writer) writer.commitField('layerName', next);
+        else void setDocumentCommon(sceneId, element.id, { name: next });
+      }}
+      handleRenameCancel={() => {
+        renameCancelledRef.current = true;
+        setRenamingId(null);
+      }}
+    />
+  );
+
   return (
     <div ref={setPanelElement} className={PANEL_ROOT_CLASS}>
-      <SinglePanelRenameHeader
-        title={title}
-        titleClassName={
-          narrowTitle(element.kind) ? TITLE_CLASS_NARROW : TITLE_CLASS
-        }
-        renameButtonTitle={
-          isRenaming ? '' : t('contextMenu.rename') || 'Rename'
-        }
-        isRenaming={isRenaming}
-        renameInputRef={renameInputRef}
-        renameValue={renameValue}
-        setRenameValue={setRenameValue}
-        renameCancelledRef={renameCancelledRef}
-        handleRenameStart={() => {
-          // Escape로 언마운트된 입력은 blur가 오지 않아 취소 플래그가 남는다 - 다음 입력의 커밋이 삼켜지지 않게
-          renameCancelledRef.current = false;
-          setRenameValue(title);
-          setRenamingId(element.id);
-          requestAnimationFrame(() => {
-            renameInputRef.current?.focus();
-            renameInputRef.current?.select();
-          });
-        }}
-        handleRenameCommit={(value) => {
-          setRenamingId(null);
-          const trimmed = value.trim();
-          // 기본 제목과 같거나 비면 이름을 지운다
-          const next = trimmed && trimmed !== defaultTitle ? trimmed : null;
-          if (writer) writer.commitField('layerName', next);
-          else void setDocumentCommon(sceneId, element.id, { name: next });
-        }}
-        handleRenameCancel={() => {
-          renameCancelledRef.current = true;
-          setRenamingId(null);
-        }}
-      />
-      <div className="flex-1 properties-panel-overlay-scroll">
-        <div ref={scrollRef} className="properties-panel-overlay-viewport">
-          <EditSessionBoundary>
-            <PanelSections
-              sections={
-                definition
-                  ? definition.panel ?? defaultPanel(definition)
-                  : [{ common: 'geometry' }]
-              }
-              items={[values]}
-              renderers={renderers}
+      {tabs.length > 1 ? (
+        <div className="flex-shrink-0">
+          {header}
+          <div className="px-[12px] pb-[12px]">
+            <Tabs
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              t={t as (key: string) => string}
+              availableTabs={tabs}
             />
-          </EditSessionBoundary>
+          </div>
         </div>
+      ) : (
+        header
+      )}
+      <div className="flex-1 properties-panel-overlay-scroll">
+        {tabs.length > 1 ? (
+          tabs.map((tab) => (
+            <div
+              key={tab}
+              ref={scrollRefFor?.(tab)}
+              className={`properties-panel-overlay-viewport ${
+                activeTab === tab ? '' : 'hidden'
+              }`}
+            >
+              {tabBody(tab)}
+            </div>
+          ))
+        ) : (
+          <div
+            ref={scrollRefFor?.('style')}
+            className="properties-panel-overlay-viewport"
+          >
+            {tabBody('style')}
+          </div>
+        )}
       </div>
     </div>
   );

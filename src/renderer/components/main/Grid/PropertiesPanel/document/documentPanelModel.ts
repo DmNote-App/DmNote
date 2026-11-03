@@ -4,6 +4,7 @@ import type {
   PanelControlDecl,
   PanelRowDecl,
   PanelSectionDecl,
+  PanelTab,
 } from '@src/renderer/elementKinds/defineElementKind';
 import type { JsonValue } from '@src/types/generated/elementDocument';
 import { parseAlphaPercent, toRgbHexColor } from '@utils/color/colorUtils';
@@ -11,6 +12,11 @@ import { aggregateMixedValue } from '../batch/mixedValue';
 
 export type Translate = (key: string) => string | undefined;
 export type Values = Record<string, JsonValue>;
+
+// 옛 키·스탯 패널 배치로 그리는 종류 (탭·위치 입력 중 값·겉모습 한 부품)
+export type KeyStatKind = 'key' | 'stat';
+export const isKeyStatKind = (kind: string): kind is KeyStatKind =>
+  kind === 'key' || kind === 'stat';
 
 // 여러 요소를 골랐을 때 칸 값 - 다르면 첫 값과 함께 섞임 표시.
 // 색은 hex와 알파를 따로 판단한다 (색이 같고 알파만 갈리면 hex는 공통값)
@@ -116,3 +122,25 @@ export const defaultPanel = (
   { common: 'geometry' },
   ...(definition.bundles ?? []).map((bundle) => ({ bundle })),
 ];
+
+// 탭 순서 - 옛 패널과 같다
+const PANEL_TAB_ORDER: readonly PanelTab[] = ['style', 'note', 'counter'];
+
+/** 섹션이 놓인 탭 (하나·여럿 범위에 맞는 섹션만) - 탭 순서대로 */
+export const panelTabsOf = (
+  sections: readonly PanelSectionDecl<Values>[],
+  batch = false,
+): PanelTab[] => {
+  const scoped = sections.filter(
+    (section) => section.only !== (batch ? 'single' : 'batch'),
+  );
+  return PANEL_TAB_ORDER.filter((tab) =>
+    scoped.some((section) => (section.tab ?? 'style') === tab),
+  );
+};
+
+/** 탭 하나의 섹션 */
+export const sectionsOfTab = (
+  sections: readonly PanelSectionDecl<Values>[],
+  tab: PanelTab,
+) => sections.filter((section) => (section.tab ?? 'style') === tab);

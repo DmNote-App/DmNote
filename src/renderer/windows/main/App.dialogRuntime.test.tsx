@@ -68,7 +68,6 @@ vi.mock('@hooks/useKeyManager', () => ({
   useKeyManager: () => ({
     keyMappings: { '4key': [] },
     positions: { '4key': [] },
-    handleKeyMappingChange: vi.fn(),
     handleResetCurrentMode: vi.fn(),
     handleUndo: vi.fn(),
     handleRedo: vi.fn(),
