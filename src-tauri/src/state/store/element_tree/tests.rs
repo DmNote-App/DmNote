@@ -908,6 +908,35 @@ fn 흩어진_그룹은_저장된_z를_그대로_지켜_다시_읽어도_순서�
 }
 
 #[test]
+fn 읽으며_트리_전용_요소의_값을_고치면_손상_복구로_표시한다() {
+    let (dir, store) = open_store();
+    store.flush_and_shutdown().unwrap();
+    drop(store);
+    let path = dir.join(crate::state::store::STORE_FILE_NAME);
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    value[ELEMENT_DOCUMENT_FIELD]["scenes"]["4key"]["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "type": "element", "id": "tracker-broken", "kind": "cursorTracker",
+            "frame": { "x": 5, "y": 5, "width": 120, "height": 120, "rotation": 0 },
+            "values": { "mode": "position", "dotColor": 12 }
+        }));
+    std::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+
+    // 정의에 맞지 않는 값을 기본값으로 바꾼 읽기 - 원본 백업·자산 정리 건너뛰기 대상
+    let loaded = crate::state::migration::load_store_from_path(&path).unwrap();
+    assert!(loaded.repaired);
+    let tracker = loaded.data.element_document().scenes["4key"]
+        .element("tracker-broken")
+        .cloned()
+        .unwrap();
+    assert_ne!(tracker.values["dotColor"], serde_json::json!(12));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn 트리_값_하나가_깨져도_그_요소만_기본_모양으로_바꾸고_나머지는_그대로_읽는다() {
     let (dir, store) = open_store();
     store.flush_and_shutdown().unwrap();

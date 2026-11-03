@@ -231,6 +231,9 @@ pub(crate) struct AttachOutcome {
     pub(crate) changed: bool,
     // 저장된 트리 문서를 읽지 못해 옛 모양에서 다시 만듦 - 손상 복구처럼 백업한다
     pub(crate) unreadable: bool,
+    // 읽으며 정의에 맞지 않는 요소 값·틀을 고침 - 고친 값이 가리키던 파일이 있을 수 있어 손상 복구처럼
+    // 원본을 백업하고 자산 정리를 건너뛴다
+    pub(crate) repaired: bool,
     // 읽을 때 다시 매긴 그룹 id - (장면, 옛 id, 새 id). 아직 트리에 없는 참조(옛 플러그인 버킷)가 따라간다
     pub(crate) reissued_groups: Vec<(String, String, String)>,
 }
@@ -280,6 +283,13 @@ pub(crate) fn attach_parsed_document(
         managed_elsewhere: &is_legacy_kind,
     }
     .load(&mut document, &mut UuidSource);
+    let repaired = !report.repaired.is_empty();
+    if repaired {
+        log::warn!(
+            "[Store] 요소 트리 문서에서 정의에 맞지 않는 요소 {}개를 고쳐 읽습니다",
+            report.repaired.len()
+        );
+    }
     if !report.pending_hooks.is_empty() || !report.locked_kinds.is_empty() {
         log::info!(
             "[Store] 요소 종류 보존: 훅 대기 {:?}, 잠금 {:?}",
@@ -310,6 +320,7 @@ pub(crate) fn attach_parsed_document(
     Ok(AttachOutcome {
         changed,
         unreadable,
+        repaired,
         reissued_groups,
     })
 }

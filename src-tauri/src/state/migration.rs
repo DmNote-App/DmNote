@@ -319,7 +319,7 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     needs_persist |= plugin_id_backfill.changed;
     repaired |= plugin_id_backfill.repaired;
     // 읽지 못한 트리 문서는 손상 복구와 같이 원본을 백업하고 자산 정리를 건너뛴다
-    repaired |= attached.unreadable || projection_failed;
+    repaired |= attached.unreadable || attached.repaired || projection_failed;
     if needs_persist {
         log::info!(
             "[Store] Persisting migrated store file at {}",
