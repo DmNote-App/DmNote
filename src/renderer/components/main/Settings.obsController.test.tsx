@@ -84,18 +84,6 @@ vi.mock('@stores/data/useKeyStore', () => ({
     setState: vi.fn(),
   },
 }));
-vi.mock('@src/renderer/__tests__/legacyStores/useStatItemStore', () => ({
-  useStatItemStore: { getState: () => ({ positions: {} }) },
-}));
-vi.mock('@src/renderer/__tests__/legacyStores/useGraphItemStore', () => ({
-  useGraphItemStore: { getState: () => ({ positions: {} }) },
-}));
-vi.mock('@src/renderer/__tests__/legacyStores/useKnobItemStore', () => ({
-  useKnobItemStore: { getState: () => ({ positions: {} }) },
-}));
-vi.mock('@src/renderer/__tests__/legacyStores/useLayerGroupStore', () => ({
-  useLayerGroupStore: { getState: () => ({ layerGroups: {} }) },
-}));
 vi.mock('@components/main/common/dropdown/Dropdown', () => ({
   default: ({
     options,

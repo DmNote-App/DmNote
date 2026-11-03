@@ -4,15 +4,10 @@
  * 함께 마운트해 선택 전이와 isCanvasPanelOpen을 관찰한다
  */
 import React, { act } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
-import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
-import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
@@ -297,15 +292,6 @@ const Harness = () => (
 
 const seedStores = (target: Target) => {
   useKeyStore.setState({ selectedKeyType: '4key' });
-  useLegacyKeyArrays.setState({
-    keyMappings: { '4key': [] },
-    positions: { '4key': [] },
-    canonicalPositions: { '4key': [] },
-  });
-  useStatItemStore.setState({ positions: {} });
-  useGraphItemStore.setState({ positions: {} });
-  useKnobItemStore.setState({ positions: {} });
-  useLayerGroupStore.setState({ layerGroups: {} });
   usePluginDisplayElementStore.setState({
     elements: [makeElement(target.fullId, target.definition.id)],
     panelElements: [],

@@ -1,12 +1,8 @@
 import React, { act } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
-import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
@@ -16,7 +12,6 @@ import { useGridKeyboard } from './useGridKeyboard';
 import { useGridSelection } from './useGridSelection';
 import { registerPopupLayer } from '@components/main/Modal/popupLayer';
 
-import type { CanonicalKeyPosition } from '@src/types/editor';
 import { flushFocusedEditor } from '@src/renderer/editor/runtime/lifecycle/lifecycleEditorFlush';
 import { resetHistoryEditorFlushLock } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 
@@ -79,15 +74,6 @@ const STABLE_IDS = [
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
 ];
-
-const position = (index = 0): CanonicalKeyPosition =>
-  ({
-    id: STABLE_IDS[index],
-    dx: 0,
-    dy: 0,
-    width: 40,
-    height: 40,
-  } as CanonicalKeyPosition);
 
 interface HarnessProps {
   selectedIndex?: number;
@@ -187,12 +173,6 @@ describe('useGridKeyboard arrow history burst', () => {
       .mockReturnValueOnce(secondGestureId);
 
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useLegacyKeyArrays.setState({
-      canonicalPositions: { '4key': [position(0), position(1)] },
-    });
-    useStatItemStore.setState({ positions: {} });
-    useGraphItemStore.setState({ positions: {} });
-    useKnobItemStore.setState({ positions: {} });
     usePluginDisplayElementStore.setState({
       elements: [pluginAt(0), pluginAt(1)],
     });

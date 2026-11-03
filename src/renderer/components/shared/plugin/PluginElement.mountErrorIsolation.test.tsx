@@ -1,16 +1,11 @@
 import React, { act } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PluginElement } from '@components/shared/plugin/PluginElement';
 import { I18nContext } from '@contexts/I18nContextDef';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
-import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
-import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import type {
   PluginDefinitionInternal,
   PluginDisplayElementInternal,
@@ -34,14 +29,6 @@ const element = {
 
 const seedStores = (onMount: () => void) => {
   useKeyStore.setState({ selectedKeyType: '4key' });
-  useLegacyKeyArrays.setState({
-    positions: { '4key': [] },
-    canonicalPositions: { '4key': [] },
-  });
-  useStatItemStore.setState({ positions: {} });
-  useGraphItemStore.setState({ positions: {} });
-  useKnobItemStore.setState({ positions: {} });
-  useLayerGroupStore.setState({ layerGroups: {} });
   usePluginDisplayElementStore.setState({
     elements: [element],
     definitions: new Map([

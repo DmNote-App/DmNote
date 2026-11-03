@@ -8,17 +8,12 @@
  * (합성 이벤트를 동기로 몰아 보내면 재렌더가 클릭 뒤로 밀려 재현되지 않음)
  */
 import React, { act } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import { I18nContext } from '@contexts/I18nContextDef';
 import { PluginElement } from '@components/shared/plugin/PluginElement';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
-import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
-import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
-import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
@@ -52,14 +47,6 @@ const makeElement = (
 
 const seedStores = (element: PluginDisplayElementInternal) => {
   useKeyStore.setState({ selectedKeyType: '4key' });
-  useLegacyKeyArrays.setState({
-    positions: { '4key': [] },
-    canonicalPositions: { '4key': [] },
-  });
-  useStatItemStore.setState({ positions: {} });
-  useGraphItemStore.setState({ positions: {} });
-  useKnobItemStore.setState({ positions: {} });
-  useLayerGroupStore.setState({ layerGroups: {} });
   usePluginDisplayElementStore.setState({
     elements: [element],
     definitions: new Map([

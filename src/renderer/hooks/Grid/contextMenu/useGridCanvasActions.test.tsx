@@ -1,5 +1,4 @@
 import React, { act, useLayoutEffect } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,17 +14,12 @@ vi.mock('@components/main/Grid/document/documentEditActions', () => ({
   insertLegacyShapedElement: core.insert,
 }));
 
-import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import {
   addCanvasElementAt,
   useGridCanvasActions,
   type CanvasActions,
 } from './useGridCanvasActions';
-import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
-import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
-import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import {
   CENTER_SPRITE_ANCHOR,
   DEFAULT_SPRITE_TRANSITION_EASING,
@@ -49,16 +43,6 @@ describe('useGridCanvasActions create', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    useLegacyKeyArrays.setState({
-      canonicalPositions: {
-        '4key': [{ ...createDefaultKeyPosition(), zIndex: 30 }],
-      },
-      positions: { '4key': [{ ...createDefaultKeyPosition(), zIndex: 30 }] },
-    });
-    useStatItemStore.setState({ positions: { '4key': [] } });
-    useGraphItemStore.setState({ positions: { '4key': [] } });
-    useKnobItemStore.setState({ positions: { '4key': [] } });
-    useSpriteStore.setState({ positions: { '4key': [] } });
     usePluginDisplayElementStore.setState({
       elements: [
         {
