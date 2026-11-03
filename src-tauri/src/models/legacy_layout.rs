@@ -100,12 +100,77 @@ pub(crate) fn locked_legacy_kinds(document: &Document) -> Vec<EditorElementTypeV
         .collect()
 }
 
-/// 잠긴 종류의 요소를 이전 문서의 것으로 둔다 - 옛 모양 다시 만들기가 이 앱의 모양으로 고쳐 쓴 것을 되돌린다
-/// (트리 자리는 다시 만든 그대로)
-pub(crate) fn restore_locked_elements(
+/// 잠긴 종류의 요소를 엔진이 막는 방식으로 바꾸는 옛 모양 쓰기 - 그 요소 id. 엔진 규칙과 같다:
+/// 값·묶음·입력(옛 모양에만 있는 칸 포함)을 바꾸거나 새로 넣으면 위반, 틀·공통 정보·겹침 자리·빼기는 받는다
+pub(crate) fn locked_legacy_violations(
+    previous: LegacyRef<'_>,
+    edit: LegacyRef<'_>,
+    locked: &[EditorElementTypeV1],
+) -> Result<Vec<String>> {
+    let mut violations = Vec::new();
+    for mode in changed_modes(previous, edit) {
+        let before: HashMap<String, Element> = scene_entries(&ModeView::of(previous, &mode))?
+            .into_iter()
+            .filter(|entry| locked.contains(&entry.kind))
+            .map(|entry| (entry.element.id.clone(), entry.element))
+            .collect();
+        for entry in scene_entries(&ModeView::of(edit, &mode))? {
+            if !locked.contains(&entry.kind) {
+                continue;
+            }
+            let kept = before
+                .get(&entry.element.id)
+                .is_some_and(|old| locked_part(old) == locked_part(&entry.element));
+            if !kept {
+                violations.push(entry.element.id);
+            }
+        }
+    }
+    Ok(violations)
+}
+
+// 잠금이 지키는 몫 - 값·묶음·입력과 옛 모양에만 있는 칸
+type LockedPart<'a> = (
+    &'a Map<String, Value>,
+    &'a BTreeMap<String, Value>,
+    &'a Option<InputBinding>,
+    Option<&'a Value>,
+);
+
+fn locked_part(element: &Element) -> LockedPart<'_> {
+    (
+        &element.values,
+        &element.bundles,
+        &element.input,
+        legacy_info(element).and_then(|info| info.get("fields")),
+    )
+}
+
+/// 커밋 - 잠긴 종류의 요소는 저장된 것을 두고 틀·공통 정보·겹침 자리만 다시 만든 요소에서 받는다
+/// (값·묶음·입력은 이 앱의 모양으로 고쳐 쓰지 않는다)
+pub(crate) fn settle_locked_elements(
     previous: &Document,
     next: &mut Document,
     locked: &[EditorElementTypeV1],
+) {
+    restore_locked(previous, next, locked, true);
+}
+
+/// 불러온 뒤 정리 - 잠긴 종류의 요소는 저장된 그대로 둔다 (이 앱의 정리 규칙으로 고치지 않게)
+pub(crate) fn keep_locked_elements(
+    previous: &Document,
+    next: &mut Document,
+    locked: &[EditorElementTypeV1],
+) {
+    restore_locked(previous, next, locked, false);
+}
+
+// 트리 자리는 다시 만든 그대로
+fn restore_locked(
+    previous: &Document,
+    next: &mut Document,
+    locked: &[EditorElementTypeV1],
+    take_layout: bool,
 ) {
     let names: Vec<&str> = locked.iter().map(|kind| kind_name(*kind)).collect();
     for (scene_id, scene) in next.scenes.iter_mut() {
@@ -119,11 +184,34 @@ pub(crate) fn restore_locked_elements(
             if !names.contains(&element.kind.as_str()) {
                 return;
             }
-            if let Some(stored) = old.element(&element.id) {
-                *element = stored.clone();
+            let Some(stored) = old.element(&element.id) else {
+                return;
+            };
+            let mut kept = stored.clone();
+            if take_layout {
+                kept.frame = element.frame;
+                kept.name = element.name.clone();
+                kept.hidden = element.hidden;
+                kept.class_name = element.class_name.clone();
+                kept.use_inline_styles = element.use_inline_styles;
+                take_legacy_placement(&mut kept, element);
             }
+            *element = kept;
         });
     }
+}
+
+// 옛 모양의 겹침 자리(배열 자리·zIndex·끊긴 그룹)는 다시 만든 요소를 따르고, 옛 모양에만 있는 칸은 저장된 것
+fn take_legacy_placement(kept: &mut Element, rebuilt: &Element) {
+    let fields = legacy_info(kept)
+        .and_then(|info| info.get("fields"))
+        .cloned();
+    let mut info = legacy_info(rebuilt).cloned().unwrap_or_default();
+    info.remove("fields");
+    if let Some(fields) = fields {
+        info.insert("fields".into(), fields);
+    }
+    kept.extra.insert(LEGACY.into(), Value::Object(info));
 }
 
 /// 옛 모양 읽기 - store나 편집 문서를 복사하지 않고 빌려 읽는다

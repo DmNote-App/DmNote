@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isCapacityTreeWriteFailure,
   isConflictTreeWriteFailure,
+  isKindLockedTreeWriteFailure,
   isTransientTreeWriteFailure,
 } from './treeWriteFailure';
 import type { CommitFailure } from './elementDocumentStore';
@@ -92,5 +93,33 @@ describe('트리 쓰기 실패 가르기', () => {
     );
     expect(isConflictTreeWriteFailure({ error: new Error('io') })).toBe(false);
     expect(isConflictTreeWriteFailure(null)).toBe(false);
+  });
+
+  it('새 버전 앱이 쓴 종류라 거절된 쓰기는 트리 규칙 위반이든 옛 편집 검증이든 잠금 실패 (영구)', () => {
+    const treeLocked: CommitFailure = {
+      result: {
+        status: 'rejected',
+        revision: 1,
+        code: 'VIOLATION',
+        violations: [{ code: 'KIND_VERSION_LOCKED', path: 'id' }],
+      },
+    };
+    const legacyLocked = rejected(
+      'LEGACY_REJECTED',
+      editorError('VALIDATION_FAILED', 'KIND_VERSION_LOCKED'),
+    );
+    expect(isKindLockedTreeWriteFailure(treeLocked)).toBe(true);
+    expect(isKindLockedTreeWriteFailure(legacyLocked)).toBe(true);
+    expect(isTransientTreeWriteFailure(treeLocked)).toBe(false);
+    expect(isTransientTreeWriteFailure(legacyLocked)).toBe(false);
+    expect(isKindLockedTreeWriteFailure(rejected('VIOLATION'))).toBe(false);
+    expect(
+      isKindLockedTreeWriteFailure(
+        rejected('LEGACY_REJECTED', editorError('VALIDATION_FAILED', 'X')),
+      ),
+    ).toBe(false);
+    expect(isKindLockedTreeWriteFailure({ error: new Error('io') })).toBe(
+      false,
+    );
   });
 });

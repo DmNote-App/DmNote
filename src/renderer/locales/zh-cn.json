@@ -226,7 +226,8 @@
     "retrying": "保存中…",
     "historyCancelled": "保存失败，已中止撤销或重做。\n请确认更改后重试。",
     "permanentFailure": "无法保存，已撤销这次更改。\n请检查刚才更改的值。",
-    "capacityFailure": "超出保存上限，已撤销这次更改。\n请删除部分元素后重试。"
+    "capacityFailure": "超出保存上限，已撤销这次更改。\n请删除部分元素后重试。",
+    "lockedKindFailure": "此元素由较新版本的应用创建，此版本无法修改，已撤销这次更改。\n请将应用更新到最新版本。"
   },
   "common": {
     "actionFailed": "无法完成此操作。",

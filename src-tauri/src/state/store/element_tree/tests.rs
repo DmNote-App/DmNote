@@ -1,6 +1,7 @@
 use super::*;
 use crate::defaults::{default_keys, default_positions, default_stat_positions};
 use crate::models::legacy_layout::project_document;
+use crate::models::EditorField;
 use element_document::document::walk;
 
 fn default_state() -> AppStoreData {
@@ -3053,52 +3054,212 @@ fn 옛_모양이_받던_값은_읽을_때_트리_규칙으로_고치지_않고_�
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-#[test]
-fn 새_버전_앱이_쓴_종류의_요소는_옛_모양_쓰기로_고치지_않고_다른_종류_쓰기에도_그대로_둔다() {
-    let (dir, store) = open_store();
-    // 새 버전 앱이 key 종류를 올려 저장한 문서 - 이 앱에서는 잠금
-    {
-        let mut guard = store.state.write();
-        let mut scratch = guard.data.clone();
-        let mut document = (**scratch.element_document()).clone();
-        document.kind_versions.insert("key".into(), 99);
-        scratch.set_element_document(std::sync::Arc::new(document));
-        store.commit_locked(&mut guard, scratch, ()).unwrap();
-    }
-    let keys_before: Vec<element_document::Element> = store.element_document_snapshot().1.scenes
-        ["4key"]
-        .nodes
-        .iter()
-        .filter_map(|node| match node {
-            Node::Element(element) if element.kind == "key" => Some(element.clone()),
-            _ => None,
-        })
-        .collect();
-    assert!(!keys_before.is_empty());
+// 새 버전 앱이 key 종류를 올려 저장한 문서 - 이 앱에서는 잠금. 첫 키는 이 앱의 모양과 다르게(묶음 없음) 둔다 -
+// 다시 만들면 이 앱의 모양으로 바뀌므로, 잠금이 저장된 요소를 지키는지 드러난다
+fn lock_key_kind(store: &crate::state::AppStore) -> element_document::Element {
+    let id = store.snapshot().legacy().key_positions["4key"][0]
+        .id
+        .clone();
+    let mut guard = store.state.write();
+    let mut scratch = guard.data.clone();
+    let mut document = (**scratch.element_document()).clone();
+    document.kind_versions.insert("key".into(), 99);
+    let element = document
+        .scenes
+        .get_mut("4key")
+        .unwrap()
+        .element_mut(&id)
+        .unwrap();
+    element.bundles.clear();
+    let stored = element.clone();
+    scratch.set_element_document(std::sync::Arc::new(document));
+    store.commit_locked(&mut guard, scratch, ()).unwrap();
+    stored
+}
 
-    // 잠긴 종류를 고치는 옛 모양 쓰기는 거절
-    {
-        let mut guard = store.state.write();
-        let mut scratch = guard.data.clone();
-        scratch.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx += 5.0;
-        assert!(store.commit_locked(&mut guard, scratch, ()).is_err());
-    }
-    // 다른 종류만 고치는 쓰기는 받고, 잠긴 요소는 그대로
-    {
-        let mut guard = store.state.write();
-        let mut scratch = guard.data.clone();
-        scratch.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
-            .position
-            .dx += 5.0;
-        store.commit_locked(&mut guard, scratch, ()).unwrap();
-    }
-    let document = store.element_document_snapshot().1;
-    for key in &keys_before {
-        assert_eq!(document.scenes["4key"].element(&key.id), Some(key));
-    }
-    assert_eq!(document.kind_versions["key"], 99);
+fn legacy_write(
+    store: &crate::state::AppStore,
+    edit: impl FnOnce(&mut AppStoreData),
+) -> anyhow::Result<()> {
+    let mut guard = store.state.write();
+    let mut scratch = guard.data.clone();
+    edit(&mut scratch);
+    store.commit_locked(&mut guard, scratch, ())
+}
+
+fn tree_element(store: &crate::state::AppStore, id: &str) -> Option<element_document::Element> {
+    store.element_document_snapshot().1.scenes["4key"]
+        .element(id)
+        .cloned()
+}
+
+#[test]
+fn 새_버전_앱이_쓴_종류의_값·입력을_바꾸거나_새로_넣는_옛_모양_쓰기는_잠금으로_거절한다() {
+    let (dir, store) = open_store();
+    lock_key_kind(&store);
+    let before = store.element_document_snapshot().1;
+    let locked = |error: anyhow::Error| error.downcast_ref::<KindVersionLocked>().is_some();
+
+    // 값
+    assert!(locked(
+        legacy_write(&store, |data| {
+            data.legacy_mut().key_positions.get_mut("4key").unwrap()[1].display_text =
+                Some("잠김".into());
+        })
+        .unwrap_err()
+    ));
+    // 입력
+    assert!(locked(
+        legacy_write(&store, |data| {
+            data.legacy_mut().keys.get_mut("4key").unwrap()[1] =
+                crate::models::KeySlot::from("LockedKindKey");
+        })
+        .unwrap_err()
+    ));
+    // 새로 넣기
+    assert!(locked(
+        legacy_write(&store, |data| {
+            let legacy = data.legacy_mut();
+            let mut fresh = legacy.key_positions["4key"][0].clone();
+            fresh.id = uuid::Uuid::new_v4().to_string();
+            fresh.group_id = None;
+            legacy.key_positions.get_mut("4key").unwrap().push(fresh);
+            legacy
+                .keys
+                .get_mut("4key")
+                .unwrap()
+                .push(crate::models::KeySlot::from("NewLockedKey"));
+        })
+        .unwrap_err()
+    ));
+    assert_eq!(store.element_document_snapshot().1, before);
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 새_버전_앱이_쓴_종류도_옮기기·다른_종류_쓰기·빼기는_받고_저장된_요소를_이_앱의_모양으로_고쳐_쓰지_않는다(
+) {
+    let (dir, store) = open_store();
+    let stored = lock_key_kind(&store);
+
+    // 옮기기 (편집 창의 트리 쓰기) - 틀만 받는다
+    commit_planned(
+        &store,
+        serde_json::json!([{
+            "op": "setFrame", "scene": "4key", "id": stored.id, "frame": { "x": stored.frame.x + 5.0 }
+        }]),
+    );
+    let moved = tree_element(&store, &stored.id).unwrap();
+    assert_eq!(moved.frame.x, stored.frame.x + 5.0);
+    assert_eq!(moved.bundles, stored.bundles);
+    assert_eq!(moved.values, stored.values);
+    assert_eq!(moved.input, stored.input);
+
+    // 장면 구조를 바꾸는 다른 종류 쓰기 - 장면을 다시 만들어도 잠긴 요소는 저장된 그대로
+    legacy_write(&store, |data| {
+        let positions = data.legacy_mut().stat_positions.get_mut("4key").unwrap();
+        let mut fresh = positions[0].clone();
+        fresh.position.id = uuid::Uuid::new_v4().to_string();
+        positions.push(fresh);
+    })
+    .unwrap();
+    assert_eq!(tree_element(&store, &stored.id), Some(moved));
+
+    // 빼기
+    let last = store.snapshot().legacy().key_positions["4key"]
+        .last()
+        .unwrap()
+        .id
+        .clone();
+    legacy_write(&store, |data| {
+        let legacy = data.legacy_mut();
+        legacy.key_positions.get_mut("4key").unwrap().pop();
+        legacy.keys.get_mut("4key").unwrap().pop();
+    })
+    .unwrap();
+    assert!(tree_element(&store, &last).is_none());
+    assert_eq!(store.element_document_snapshot().1.kind_versions["key"], 99);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 숨긴_그룹에서_다른_멤버만_보이게_해도_잠긴_멤버는_숨김을_지킨다() {
+    let (dir, store) = open_store();
+    // 스탯도 g1에 넣고 g1을 숨긴다 (잠그기 전)
+    legacy_write(&store, |data| {
+        data.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
+            .position
+            .group_id = Some("g1".into());
+    })
+    .unwrap();
+    commit_planned(
+        &store,
+        serde_json::json!([{ "op": "setGroup", "scene": "4key", "id": "g1", "hidden": true }]),
+    );
+    lock_key_kind(&store);
+
+    // 숨긴 그룹에서 스탯만 보이게 - 예전처럼 그 멤버만 보이고 나머지 멤버(잠긴 키)는 숨는다
+    legacy_write(&store, |data| {
+        data.legacy_mut().stat_positions.get_mut("4key").unwrap()[0]
+            .position
+            .hidden = false;
+    })
+    .unwrap();
+    let legacy = store.snapshot().legacy().clone();
+    assert!(!legacy.stat_positions["4key"][0].position.hidden);
+    assert!(legacy.key_positions["4key"][0].hidden);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 잠긴_종류를_고치는_옛_편집_커밋은_다시_보내지_않는_검증_실패로_돌려준다() {
+    let (dir, store) = open_store();
+    lock_key_kind(&store);
+    let error = store
+        .commit_legacy_editor_transaction(
+            crate::models::EditorCommitOrigin::LegacyAdapter("locked-kind-test".into()),
+            &[EditorField::KeyPositions],
+            |data| {
+                data.legacy_mut().key_positions.get_mut("4key").unwrap()[1].display_text =
+                    Some("잠김".into());
+                Ok(())
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        error.error_code,
+        crate::errors::EditorCommitErrorCode::ValidationFailed
+    );
+    assert_eq!(
+        error.details.and_then(|details| details.validation_code),
+        Some(KIND_VERSION_LOCKED.to_string())
+    );
+    assert!(!error.retryable);
+    store.flush_and_shutdown().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 읽을_때_정리가_옛_모양을_바꿔도_잠긴_종류의_요소는_저장된_그대로_붙인다() {
+    let mut state = default_state();
+    attach_loaded_document(&mut state, None).unwrap();
+    let mut stored = (**state.element_document()).clone();
+    stored.kind_versions.insert("key".into(), 99);
+    let projected = project_document(&stored).unwrap();
+    let id = projected.key_positions["4key"][0].id.clone();
+
+    // 읽기 정리가 옛 모양의 첫 키 자리를 고침
+    let mut loaded = state.clone();
+    loaded.set_element_document(std::sync::Arc::new(stored.clone()));
+    loaded.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx += 5.0;
+    attach_parsed_document(&mut loaded, Some((stored.clone(), 0)), Some(&projected)).unwrap();
+    assert_eq!(
+        loaded.element_document().scenes["4key"].element(&id),
+        stored.scenes["4key"].element(&id)
+    );
 }
 
 #[test]
@@ -3118,15 +3279,21 @@ fn 불러온_뒤_정리가_잠긴_종류의_칸을_바꿔도_시작을_막지_�
         before.element_document().scenes["4key"]
     );
 
-    // 커밋 경로는 같은 쓰기를 거부한다
+    // 커밋 경로는 틀을 받고(엔진 규칙), 값을 바꾸는 쓰기는 거부한다
+    let mut moved = state.clone();
+    moved.legacy_mut().key_positions.get_mut("4key").unwrap()[0].dx += 5.0;
+    sync_element_document(&before, &mut moved).unwrap();
     let mut committed = state.clone();
     committed
         .legacy_mut()
         .key_positions
         .get_mut("4key")
         .unwrap()[0]
-        .dx += 5.0;
-    assert!(sync_element_document(&before, &mut committed).is_err());
+        .display_text = Some("잠김".into());
+    assert!(sync_element_document(&before, &mut committed)
+        .unwrap_err()
+        .downcast_ref::<KindVersionLocked>()
+        .is_some());
 }
 
 #[test]

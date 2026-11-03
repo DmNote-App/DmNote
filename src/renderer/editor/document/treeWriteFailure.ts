@@ -24,6 +24,20 @@ export const isTransientTreeWriteFailure = (
 export const isCapacityTreeWriteFailure = (failure: CommitFailure): boolean =>
   'result' in failure && isEditorCapacityFailure(failure.result.editorError);
 
+/** 새 버전 앱이 쓴 요소 종류라 거절된 실패 - 트리 규칙 위반과 옛 편집 검증 실패 두 길 (설계 3.5 잠금) */
+export const isKindLockedTreeWriteFailure = (
+  failure: CommitFailure,
+): boolean => {
+  if (!('result' in failure)) return false;
+  const { violations, editorError } = failure.result;
+  return (
+    violations.some(({ code }) => code === 'KIND_VERSION_LOCKED') ||
+    (isEditorCommitError(editorError) &&
+      editorError.errorCode === 'VALIDATION_FAILED' &&
+      editorError.details?.validationCode === 'KIND_VERSION_LOCKED')
+  );
+};
+
 /** 다른 쓰기와 겹친 실패 (백엔드가 다시 계획해도 겹침) - 편집 충돌 안내 */
 export const isConflictTreeWriteFailure = (
   failure: CommitFailure | null,

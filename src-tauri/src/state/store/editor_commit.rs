@@ -410,7 +410,7 @@ impl AppStore {
         }
 
         self.commit_locked(guard, scratch, ())
-            .map_err(|error| EditorCommitError::io(error.to_string()))?;
+            .map_err(element_tree::editor_commit_failure)?;
         guard.plugin_model_revision = plugin_model_revision;
 
         let plugins = changed_plugins

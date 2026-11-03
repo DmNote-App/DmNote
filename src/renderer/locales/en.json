@@ -226,7 +226,8 @@
     "retrying": "Saving…",
     "historyCancelled": "Undo or redo was cancelled because saving failed.\nCheck your changes and try again.",
     "permanentFailure": "Couldn't save this edit, so it was undone.\nCheck the value you just changed.",
-    "capacityFailure": "This edit exceeded the save limit and was undone.\nRemove some elements and try again."
+    "capacityFailure": "This edit exceeded the save limit and was undone.\nRemove some elements and try again.",
+    "lockedKindFailure": "This element was made by a newer version of the app, so this version can't change it and the edit was undone.\nUpdate the app to the latest version."
   },
   "common": {
     "actionFailed": "The action could not be completed.",

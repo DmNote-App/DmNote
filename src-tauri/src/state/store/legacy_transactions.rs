@@ -175,7 +175,7 @@ impl AppStore {
         let overlap_changed = !current_overlap.matches_store(&scratch);
         if scratch != current_store {
             self.commit_locked(&mut guard, scratch, ())
-                .map_err(|error| EditorCommitError::io(error.to_string()))?;
+                .map_err(element_tree::editor_commit_failure)?;
         }
         let history_status = (overlap_changed && guard.history.invalidate_future())
             .then(|| guard.history.issue_status(self.history_gate.is_closed()));
@@ -595,7 +595,7 @@ impl AppStore {
         let key_counters = scratch.key_counters.clone();
         if has_store_changes || runtime_counters_changed {
             self.commit_locked(&mut guard, scratch, ())
-                .map_err(|error| EditorCommitError::io(error.to_string()))?;
+                .map_err(element_tree::editor_commit_failure)?;
         }
         guard.plugin_model_revision = plugin_model_revision;
         let history_status = if let Some(plan) = history_plan {

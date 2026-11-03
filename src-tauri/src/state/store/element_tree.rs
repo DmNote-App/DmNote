@@ -16,15 +16,16 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::{next_plugin_model_revision, plugin_elements_snapshot, AppStore};
+use crate::errors::EditorCommitError;
 use crate::models::legacy_layout::{
     graft_preset_scene, graft_tree_only, import_document, is_legacy_kind, is_plugin_kind,
-    is_tree_only_group, lift_legacy_kind_fields, locked_legacy_kinds, moved_z_fixes,
-    project_document, reconcile_document, restore_locked_elements, set_tree_z, strip_tree_only,
-    LegacyRef,
+    is_tree_only_group, keep_locked_elements, lift_legacy_kind_fields, locked_legacy_kinds,
+    locked_legacy_violations, moved_z_fixes, project_document, reconcile_document, set_tree_z,
+    settle_locked_elements, strip_tree_only, LegacyRef,
 };
 use crate::models::{
     builtin_kind_registry, AppStoreData, EditorCommitRequest, EditorDocumentV1,
-    EditorElementTypeV1, EditorField, PluginInstancesChangedPayload,
+    PluginInstancesChangedPayload,
 };
 use crate::state::history::ElementTreeHistorySnapshot;
 use crate::state::plugin_tree::{
@@ -268,8 +269,11 @@ pub(crate) fn attach_parsed_document(
     let mut document = match (&stored, projected) {
         (Some(stored), Some(projected)) if *projected == legacy => stored.clone(),
         (Some(stored), projected) => {
-            reconcile_document(stored, projected.map(LegacyRef::from), &legacy)
-                .context("요소 트리 맞추기 실패")?
+            let mut next = reconcile_document(stored, projected.map(LegacyRef::from), &legacy)
+                .context("요소 트리 맞추기 실패")?;
+            // 읽기 정리는 새 버전 앱이 쓴 종류를 고치지 않는다 (3.5 보존·잠금)
+            keep_locked_elements(stored, &mut next, &locked_legacy_kinds(stored));
+            next
         }
         (None, _) => import_document(&legacy).context("요소 트리 가져오기 실패")?,
     };
@@ -329,11 +333,40 @@ pub(crate) fn sync_loaded_element_document(
     sync_with_locked(before, after, LockedWrite::Keep)
 }
 
-// 새 버전 앱이 쓴 종류의 칸을 바꾸는 옛 모양 쓰기 - 커밋은 거부, 불러온 뒤 정리는 저장된 요소를 지킨다
+// 새 버전 앱이 쓴 종류에 대한 옛 모양 쓰기 - 커밋은 엔진 규칙대로(값·입력·새로 넣기는 거부, 틀·공통 정보·자리는
+// 받음), 불러온 뒤 정리는 저장된 요소를 그대로 둔다
 #[derive(Clone, Copy, PartialEq)]
 enum LockedWrite {
     Reject,
     Keep,
+}
+
+pub(crate) const KIND_VERSION_LOCKED: &str = "KIND_VERSION_LOCKED";
+
+/// 새 버전 앱이 쓴 종류의 값·입력을 고치거나 새로 넣는 옛 모양 쓰기 (3.5 잠금) - 편집 커밋은 영구 거절로 돌려준다
+#[derive(Debug)]
+pub(crate) struct KindVersionLocked {
+    pub(crate) ids: Vec<String>,
+}
+
+impl std::fmt::Display for KindVersionLocked {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{KIND_VERSION_LOCKED}: 새 버전 앱이 쓴 요소는 값을 고치거나 새로 넣을 수 없습니다 ({:?})",
+            self.ids
+        )
+    }
+}
+
+impl std::error::Error for KindVersionLocked {}
+
+/// 영속 커밋 실패를 편집 커밋 오류로 - 잠긴 종류 쓰기는 검증 실패(다시 보내지 않음), 나머지는 입출력 오류
+pub(crate) fn editor_commit_failure(error: anyhow::Error) -> EditorCommitError {
+    match error.downcast_ref::<KindVersionLocked>() {
+        Some(locked) => EditorCommitError::validation(KIND_VERSION_LOCKED, locked.to_string()),
+        None => EditorCommitError::io(error.to_string()),
+    }
 }
 
 fn sync_with_locked(
@@ -348,18 +381,14 @@ fn sync_with_locked(
     if edit == *previous {
         return Ok(());
     }
-    // 새 버전 앱이 쓴 종류는 고치지 않는다 (3.5 보존·잠금) - 그 칸을 바꾸는 옛 모양 쓰기는 거부하고,
-    // 다른 칸 쓰기에는 그 요소를 그대로 둔다 (다시 만들기가 이 앱의 모양으로 고쳐 쓰지 않게)
+    // 새 버전 앱이 쓴 종류는 이 앱의 모양으로 고쳐 쓰지 않는다 (3.5 보존·잠금)
     let locked = locked_legacy_kinds(after.element_document());
     if !locked.is_empty() && locked_write == LockedWrite::Reject {
-        let changed = previous.changed_fields(&edit);
-        if locked.iter().any(|kind| {
-            changed.contains(&kind.editor_field())
-                || (*kind == EditorElementTypeV1::Key && changed.contains(&EditorField::Keys))
-        }) {
-            anyhow::bail!(
-                "KIND_VERSION_LOCKED: 새 버전 앱이 쓴 요소 종류는 고칠 수 없습니다 ({locked:?})"
-            );
+        let ids =
+            locked_legacy_violations(LegacyRef::from(previous), LegacyRef::from(&edit), &locked)
+                .context("잠긴 요소 쓰기 확인 실패")?;
+        if !ids.is_empty() {
+            return Err(KindVersionLocked { ids }.into());
         }
     }
     let mut next = reconcile_document(
@@ -369,7 +398,12 @@ fn sync_with_locked(
     )
     .context("요소 트리 맞추기 실패")?;
     if !locked.is_empty() {
-        restore_locked_elements(after.element_document(), &mut next, &locked);
+        match locked_write {
+            LockedWrite::Reject => {
+                settle_locked_elements(after.element_document(), &mut next, &locked)
+            }
+            LockedWrite::Keep => keep_locked_elements(after.element_document(), &mut next, &locked),
+        }
     }
     // 옛 모양에서 빠진 탭의 장면은 버려진다 - 그 탭의 플러그인 인스턴스는 장면 밖에 보존한다
     carry_plugin_buckets(after.element_document(), &mut next);

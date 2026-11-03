@@ -21,6 +21,7 @@ import { loadElementDocumentStore } from '@src/renderer/editor/document/elementD
 import {
   isCapacityTreeWriteFailure,
   isConflictTreeWriteFailure,
+  isKindLockedTreeWriteFailure,
 } from '@src/renderer/editor/document/treeWriteFailure';
 import { panelWindowApi } from '@api/modules/window/panelWindowApi';
 import {
@@ -466,6 +467,12 @@ export function useAppBootstrap() {
                   'editorSave.capacityFailure',
                   '저장 한도를 넘어 변경을 되돌렸습니다.\n일부 요소를 줄이고 다시 시도해 주세요.',
                   'This edit exceeded the save limit and was undone.\nRemove some elements and try again.',
+                )
+              : isKindLockedTreeWriteFailure(failure)
+              ? getEditorCopy(
+                  'editorSave.lockedKindFailure',
+                  '새 버전 앱에서 만든 요소라 이 버전에서는 고칠 수 없어 변경을 되돌렸습니다.\n앱을 최신 버전으로 업데이트해 주세요.',
+                  "This element was made by a newer version of the app, so this version can't change it and the edit was undone.\nUpdate the app to the latest version.",
                 )
               : getEditorCopy(
                   'editorSave.permanentFailure',
