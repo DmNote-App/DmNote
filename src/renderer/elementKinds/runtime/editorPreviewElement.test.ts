@@ -65,16 +65,24 @@ describe('편집 화면 미리보기 요소', () => {
 describe('그라데이션 편집 세션', () => {
   const bundles = { surface: { backgroundColor: '#111111' } };
 
-  it('편집 중인 표면의 대기·입력 칸을 세션 spec으로 덮는다', () => {
+  it('편집 중인 표면은 보이는 상태와 관계없이 세션 spec이다 - 대기·입력 칸을 함께 덮는다', () => {
     expect(withGradientSession(bundles, session('background'))).toEqual({
-      surface: { backgroundColor: '#111111', backgroundGradient: spec },
+      surface: {
+        backgroundColor: '#111111',
+        backgroundGradient: spec,
+        activeBackgroundGradient: spec,
+      },
     });
     expect(withGradientSession(bundles, session('border', 'active'))).toEqual({
-      surface: { backgroundColor: '#111111', activeBorderGradient: spec },
+      surface: {
+        backgroundColor: '#111111',
+        borderGradient: spec,
+        activeBorderGradient: spec,
+      },
     });
     expect(withGradientSession(bundles, session('font'))).toEqual({
       ...bundles,
-      font: { fontGradient: spec },
+      font: { fontGradient: spec, activeFontGradient: spec },
     });
   });
 

@@ -11,9 +11,11 @@ export interface OverlayItemContext {
   keyCounterEnabled?: boolean;
 }
 
-// 앱이 창에 맞게 넣어 주는 입력 - 오버레이·OBS만 실제 신호, 편집 화면은 비어 있다
+// 앱이 창에 맞게 넣어 주는 입력 - 오버레이·OBS는 실제 신호, 편집 화면은 미리보기 상태
 export interface ElementRenderInputs {
   pointer?: PointerInputSource;
+  // 편집 화면 눌림 미리보기 - 상태 색을 고치는 동안 눌린 모습으로 그린다 (오버레이는 종류의 동작이 정한다)
+  pressed?: { readonly value: boolean };
 }
 
 // 기능 묶음 값 - 트리 요소의 묶음 그대로 (편집 화면은 미리보기를 얹은 값)

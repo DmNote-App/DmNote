@@ -81,7 +81,8 @@ const SESSION_FIELDS: Partial<
   font: ['font', 'fontGradient', 'activeFontGradient'],
 };
 
-/** 편집 화면 - 그라데이션 편집 세션이 편집 중인 표면을 세션 spec으로 일시 페인트한다 (저장·기록을 거치지 않는다) */
+/** 편집 화면 - 그라데이션 편집 세션이 편집 중인 표면을 세션 spec으로 일시 페인트한다 (저장·기록을 거치지 않는다).
+ * 보이는 상태와 관계없이 그 표면은 세션 spec이다 - 대기·입력 칸을 함께 덮는다 (보이는 상태는 눌림 미리보기가 정한다) */
 export const withGradientSession = (
   bundles: ElementBundles,
   session: GradientEditSession | null,
@@ -94,7 +95,8 @@ export const withGradientSession = (
     ...bundles,
     [bundle]: {
       ...(current && typeof current === 'object' ? current : {}),
-      [session.stateMode === 'active' ? active : idle]: session.spec,
+      [idle]: session.spec,
+      [active]: session.spec,
     },
   };
 };

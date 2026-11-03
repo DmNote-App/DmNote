@@ -18,6 +18,7 @@ import {
 } from '@src/renderer/elementKinds/runtime/editorPreviewElement';
 import type { SurfaceBundle } from '@src/renderer/elementKinds/runtime/ElementSurface';
 import { useGradientPreviewSession } from '@stores/grid/useGradientEditStore';
+import { useEditStatePreviewActive } from '@stores/grid/useEditStatePreviewStore';
 import type { SurfaceStyledElementType } from '@src/types/elementKinds';
 import { useTranslation } from '@contexts/useTranslation';
 import { isMac } from '@utils/core/platform';
@@ -36,6 +37,7 @@ import { useRenderedPluginKinds } from '@plugins/runtime/displayElement/pluginKi
 import { useInPanelSelection } from './treeEditedSelection';
 
 const EDITOR_INPUTS = {};
+const EDITOR_PRESSED_INPUTS = { pressed: { value: true } };
 const EMPTY_IDS: string[] = [];
 
 interface DocumentGridElementProps {
@@ -76,6 +78,11 @@ const DocumentGridElement = ({
   const previewElement = useEditorPreviewElement(element, sceneId);
   const inPanelSelection = useInPanelSelection(sceneId, element.id);
   const gradientSession = useGradientPreviewSession(
+    element.kind as SurfaceStyledElementType,
+    element.id,
+    inPanelSelection,
+  );
+  const previewPressed = useEditStatePreviewActive(
     element.kind as SurfaceStyledElementType,
     element.id,
     inPanelSelection,
@@ -180,7 +187,9 @@ const DocumentGridElement = ({
           values={(drawn.values ?? {}) as never}
           bundles={bundles}
           live={false}
-          inputs={EDITOR_INPUTS}
+          inputs={
+            treeFace && previewPressed ? EDITOR_PRESSED_INPUTS : EDITOR_INPUTS
+          }
           selected={selected}
         />
       ) : (

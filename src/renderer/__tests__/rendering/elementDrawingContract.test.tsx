@@ -228,13 +228,14 @@ describe('그리기 약속 행렬', () => {
     it('편집 화면 - 대기·눌림 미리보기', () => {
       const Render = elementKindDefinition(kind)?.render;
       expect(Render).toBeDefined();
-      const face = () => (
+      // 편집 화면 감싸는 쪽처럼 - 눌림 미리보기는 스토어 발행과 함께 입력으로 넘긴다
+      const face = (pressed = false) => (
         <Render
           element={element}
           values={(element.values ?? {}) as never}
           bundles={element.bundles as never}
           live={false}
-          inputs={{}}
+          inputs={pressed ? { pressed: { value: true } } : {}}
         />
       );
       act(() => root.render(face()));
@@ -245,7 +246,7 @@ describe('그리기 약속 행렬', () => {
           useEditStatePreviewStore
             .getState()
             .publish(1, { kind: kind as 'key', id: element.id }, 'active');
-          root.render(face());
+          root.render(face(true));
         });
         expect(signature()).toMatchSnapshot('눌림 미리보기');
       }
