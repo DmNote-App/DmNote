@@ -3,28 +3,57 @@
  * 열림 시점 index가 아니라 요소 id로 현재 배열에서 재해석하는지 검증
  */
 import React, { act, useEffect } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
-import { useGridContextMenu } from '@hooks/Grid/contextMenu/useGridContextMenu';
-import { usePluginMenuStore } from '@stores/plugin/usePluginMenuStore';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
-import type { KeyMappings, KeyPosition } from '@src/types/key/keys';
+import type { FakeElementDocumentBackend } from '@src/renderer/__tests__/fakeElementDocumentBackend';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
+import type { Document } from '@src/types/generated/elementDocument';
 import type {
   KeyMenuContext,
   PluginMenuItemInternal,
 } from '@src/types/plugin/api';
 
-// 예측자 맥락은 요소 id로 트리에서 다시 읽는다 - 옛 키 스토어 값으로 트리 장면을 만든다
-vi.mock(
-  '@src/renderer/editor/document/elementDocumentRuntime',
-  async (importOriginal) =>
-    (
-      await import('@src/renderer/__tests__/treeFromLegacyStores')
-    ).treeFromStores(importOriginal as never),
+// 예측자 맥락은 요소 id로 트리에서 다시 읽는다 - IPC 경계만 대역 (트리 스토어·런타임은 실물)
+const ipc = vi.hoisted(() => ({
+  backend: null as FakeElementDocumentBackend | null,
+}));
+vi.mock('@api/modules/editor/elementDocumentApi', () => ({
+  elementDocumentApi: new Proxy(
+    {},
+    {
+      get: (_target, name: string) =>
+        name === 'registerKind' || name === 'unregisterKind'
+          ? async () => undefined
+          : (ipc.backend!.api as Record<string, unknown>)[name],
+    },
+  ),
+}));
+
+const { createFakeElementDocumentBackend } = await import(
+  '@src/renderer/__tests__/fakeElementDocumentBackend'
 );
+const { loadElementDocumentStore } = await import(
+  '@src/renderer/editor/document/elementDocumentRuntime'
+);
+const { fillKindDefaults } = await import(
+  '@src/renderer/elementKinds/runtime/elementKindDefaults'
+);
+const { useGridContextMenu } = await import(
+  '@hooks/Grid/contextMenu/useGridContextMenu'
+);
+const { usePluginMenuStore } = await import(
+  '@stores/plugin/usePluginMenuStore'
+);
+const { useKeyStore } = await import('@stores/data/useKeyStore');
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -33,15 +62,26 @@ vi.mock(
 const ID_1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
 const ID_2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2';
 
-const keyPos = (id: string): KeyPosition => ({
-  ...createDefaultKeyPosition(),
-  id,
-});
+// 키 - 트리 순서가 순번, 입력 슬롯이 키 코드
+const keyNode = (id: string, slot: string, index: number): ElementNode =>
+  fillKindDefaults({
+    type: 'element',
+    id,
+    kind: 'key',
+    frame: { x: index * 70, y: 0, width: 60, height: 60, rotation: 0 },
+    input: { type: 'key', slot },
+    legacy: { index },
+  } as unknown as ElementNode);
 
-interface ProbeProps {
-  positions: Record<string, KeyPosition[]>;
-  keyMappings: KeyMappings;
-}
+const documentOf = (keys: readonly [string, string][]): Document => ({
+  formatVersion: 1,
+  kindVersions: {},
+  scenes: {
+    '4key': {
+      nodes: keys.map(([id, slot], index) => keyNode(id, slot, index)),
+    },
+  },
+});
 
 // 렌더 결과 캡처 - act가 effect까지 flush하므로 호출 시점엔 항상 최신
 const captured: { current: ReturnType<typeof useGridContextMenu> | null } = {
@@ -88,17 +128,19 @@ describe('키 메뉴 예측자 context 재해석', () => {
     });
   };
 
-  const renderProbe = ({ positions, keyMappings }: ProbeProps) => {
+  // 키 [id, 슬롯] - 트리 순서대로
+  const renderProbe = (keys: readonly [string, string][]) => {
     act(() => {
       useKeyStore.setState({ selectedKeyType: '4key' });
-      useLegacyKeyArrays.setState({
-        canonicalPositions: positions as never,
-        positions: positions as never,
-        keyMappings,
-      });
+      ipc.backend!.replace(() => documentOf(keys));
       root.render(<Probe />);
     });
   };
+
+  beforeAll(async () => {
+    ipc.backend = createFakeElementDocumentBackend(documentOf([]));
+    await loadElementDocumentStore();
+  });
 
   beforeEach(() => {
     seedMenuItem();
@@ -118,10 +160,10 @@ describe('키 메뉴 예측자 context 재해석', () => {
   });
 
   it('열림 중 재정렬돼도 예측자 context가 원래 요소를 따라간다', () => {
-    renderProbe({
-      positions: { '4key': [keyPos(ID_1), keyPos(ID_2)] },
-      keyMappings: { '4key': ['A', 'B'] },
-    });
+    renderProbe([
+      [ID_1, 'A'],
+      [ID_2, 'B'],
+    ]);
 
     // 열림 시점: index 0 = ID_1
     const items = latest().getKeyMenuItems(ID_1);
@@ -133,10 +175,10 @@ describe('키 메뉴 예측자 context 재해석', () => {
     });
 
     // 재정렬 리렌더 - 동결된 index 0은 이제 다른 요소를 가리킨다
-    renderProbe({
-      positions: { '4key': [keyPos(ID_2), keyPos(ID_1)] },
-      keyMappings: { '4key': ['B', 'A'] },
-    });
+    renderProbe([
+      [ID_2, 'B'],
+      [ID_1, 'A'],
+    ]);
 
     const reordered = latest().getKeyMenuItems(ID_1);
     const pluginItem = reordered.find(
@@ -152,10 +194,7 @@ describe('키 메뉴 예측자 context 재해석', () => {
   });
 
   it('요소 소실 시 플러그인 항목을 감춰 fail-closed로 동작한다', () => {
-    renderProbe({
-      positions: { '4key': [keyPos(ID_2)] },
-      keyMappings: { '4key': ['B'] },
-    });
+    renderProbe([[ID_2, 'B']]);
 
     const items = latest().getKeyMenuItems(ID_1);
     // 예측자 미평가 + 플러그인 항목 제외, 기본 항목은 유지
@@ -171,10 +210,7 @@ describe('키 메뉴 예측자 context 재해석', () => {
   });
 
   it('안정 id가 없으면(null) 플러그인 항목을 노출하지 않는다', () => {
-    renderProbe({
-      positions: { '4key': [keyPos(ID_1)] },
-      keyMappings: { '4key': ['A'] },
-    });
+    renderProbe([[ID_1, 'A']]);
 
     const items = latest().getKeyMenuItems(null);
     expect(seenContexts).toHaveLength(0);

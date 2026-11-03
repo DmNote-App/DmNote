@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import React, { act } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSettingsStore } from '@stores/useSettingsStore';
@@ -265,16 +264,14 @@ describe('Settings 실패 안내와 상태 보존', () => {
     vi.restoreAllMocks();
   });
 
-  it('전체 초기화가 실패하면 선택과 데이터를 보존하고 안내한다', async () => {
-    const before = useLegacyKeyArrays.getState().keyMappings;
+  it('전체 초기화가 실패하면 선택을 보존하고 안내한다', async () => {
     const selection = [{ type: 'key' as const, id: 'key-a', index: 0 }];
     useDocumentSelectionStore.getState().setSelectedElements(selection);
     mocks.resetAll.mockRejectedValue(new Error('reset failed'));
     act(() => button('settings.resetData').click());
     await confirm();
     expect(mocks.resetAll).toHaveBeenCalledOnce();
-    expect(useLegacyKeyArrays.getState().keyMappings).toBe(before);
-    // 키 선택은 트리 선택이 맡는다
+    // 키 선택은 트리 선택이 맡는다 (데이터는 백엔드가 초기화하므로 실패하면 바뀌지 않는다)
     expect(useDocumentSelectionStore.getState().selectedIds).toEqual(['key-a']);
     expect(showAlert).toHaveBeenCalledWith('common.actionFailed');
   });
