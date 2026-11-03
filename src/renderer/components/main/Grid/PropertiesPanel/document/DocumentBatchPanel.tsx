@@ -15,7 +15,11 @@ import { editDocument } from '../../document/documentEditActions';
 import { aggregateMixedValue } from '../batch/mixedValue';
 import BatchPanelHeader from '../batch/BatchPanelHeader';
 import BatchGeometrySection from '../batch/geometry/BatchGeometrySection';
-import { NumberInput, PropertyRow, PropertySection } from '../index';
+import {
+  NumberInput,
+  PropertyRow,
+  PropertySection,
+} from '../controls/PropertyInputs';
 import { PANEL_ROOT_CLASS } from '../navigation/panelChrome';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
 import {

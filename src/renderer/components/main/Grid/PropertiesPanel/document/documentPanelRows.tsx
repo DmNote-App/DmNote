@@ -15,7 +15,7 @@ import {
   NumberInput,
   PropertyRow,
   PropertySection,
-} from '../index';
+} from '../controls/PropertyInputs';
 
 const MixedLabel = () => (
   <span className="text-fg-faint text-body italic">Mixed</span>

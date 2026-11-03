@@ -10,7 +10,7 @@ import {
   setDocumentValues,
 } from '../../document/documentEditActions';
 import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
-import { PropertySection } from '../index';
+import { PropertySection } from '../controls/PropertyInputs';
 import { PANEL_ROOT_CLASS } from '../navigation/panelChrome';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
 import SingleGeometrySection from '../single/SingleGeometrySection';
