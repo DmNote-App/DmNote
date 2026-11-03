@@ -2985,3 +2985,76 @@ fn 혼자_든_그룹의_플러그인을_빼고_그룹값을_든_자기_항목으
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn 옛_모양이_받던_값은_읽을_때_트리_규칙으로_고치지_않고_다른_칸을_고쳐도_거절하지_않는다() {
+    let mut state = default_state();
+    let knob_id = "00000000-0000-4000-8000-0000000000ab";
+    let graph_id = "00000000-0000-4000-8000-0000000000ac";
+    state.legacy_mut().knob_positions.insert(
+        "4key".into(),
+        vec![crate::models::KnobPosition {
+            axis_id: String::new(),
+            // 옛 모양은 유한한 수면 받는다 (음수 감도)
+            sensitivity: -2.0,
+            reverse: false,
+            position: crate::models::KeyPosition {
+                id: knob_id.into(),
+                width: 60.0,
+                height: 60.0,
+                ..Default::default()
+            },
+        }],
+    );
+    state.legacy_mut().graph_positions.insert(
+        "4key".into(),
+        vec![crate::models::GraphPosition {
+            stat_type: crate::models::GraphStatType::Kps,
+            graph_type: crate::models::GraphType::Line,
+            // 옛 모양은 u32 전체를 받는다 (패널 범위 500~60000 밖)
+            graph_speed: 100,
+            graph_color: "#86EFAC".into(),
+            show_avg_line: true,
+            position: crate::models::KeyPosition {
+                id: graph_id.into(),
+                width: 200.0,
+                height: 100.0,
+                ..Default::default()
+            },
+        }],
+    );
+    attach_loaded_document(&mut state, None).unwrap();
+    let dir = std::env::temp_dir().join(format!("dmn-legacy-range-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(crate::state::store::STORE_FILE_NAME);
+    std::fs::write(&path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
+
+    let loaded = crate::state::migration::load_store_from_path(&path).unwrap();
+    assert_eq!(
+        loaded.data.legacy().knob_positions["4key"][0].sensitivity,
+        -2.0
+    );
+    assert_eq!(
+        loaded.data.legacy().graph_positions["4key"][0].graph_speed,
+        100
+    );
+    let scene = &loaded.data.element_document().scenes["4key"];
+    assert_eq!(
+        scene.element(graph_id).unwrap().values["graphSpeed"],
+        serde_json::json!(100)
+    );
+
+    // 다른 칸 고치기 - 저장돼 있던 값 때문에 거절하지 않는다
+    let mut document = (**loaded.data.element_document()).clone();
+    let engine = element_document::ops::Engine {
+        kinds: crate::models::builtin_kind_registry(),
+        bundles: &element_document::bundles::BuiltinBundles,
+    };
+    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
+        { "op": "setValues", "scene": "4key", "id": graph_id, "values": { "showAvgLine": false } },
+        { "op": "setValues", "scene": "4key", "id": knob_id, "values": { "reverse": true } }
+    ]))
+    .unwrap();
+    engine.apply(&mut document, &ops).unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

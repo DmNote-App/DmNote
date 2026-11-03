@@ -123,8 +123,8 @@
         "name": "graphSpeed",
         "value": {
           "type": "number",
-          "min": 500,
-          "max": 60000,
+          "min": 0,
+          "max": 4294967295,
           "integer": true
         },
         "default": 1000
@@ -172,8 +172,7 @@
       {
         "name": "sensitivity",
         "value": {
-          "type": "number",
-          "min": 0
+          "type": "number"
         },
         "default": 1
       },

@@ -8,7 +8,8 @@ export const knobKind = defineElementKind(
     kind: 'knob',
     version: 1,
     fields: [
-      { name: 'sensitivity', value: { type: 'number', min: 0 }, default: 1 },
+      // 옛 모양이 받던 범위(유한한 수 - 음수 포함)
+      { name: 'sensitivity', value: { type: 'number' }, default: 1 },
       { name: 'reverse', value: { type: 'bool' }, default: false },
     ],
     // 이미지 묶음 - 전에 저장한 노브의 이미지 칸은 읽을 때 옛 칸에서 올린다

@@ -20,7 +20,8 @@ export const graphKind = defineElementKind(
       },
       {
         name: 'graphSpeed',
-        value: { type: 'number', min: 500, max: 60000, integer: true },
+        // 옛 모양이 받던 범위(u32) - 패널은 500~60000으로 맞춘다
+        value: { type: 'number', min: 0, max: 4294967295, integer: true },
         default: 1000,
       },
       { name: 'graphColor', value: { type: 'color' }, default: '#86EFAC' },
