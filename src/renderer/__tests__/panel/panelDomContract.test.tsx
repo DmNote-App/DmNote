@@ -157,6 +157,29 @@ const boundKnob = element(ID(7), 'knob', 6, {
     image: { idleTransparent: true },
   },
 } as Partial<ElementNode>);
+const IMAGE =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+const sprite = element(ID(8), 'sprite', 7, {
+  frame: { x: 900, y: 20, width: 80, height: 80, rotation: 0 },
+});
+const posedSprite = element(ID(9), 'sprite', 8, {
+  frame: { x: 1000, y: 20, width: 120, height: 90, rotation: 0 },
+  name: 'My Sprite',
+  values: {
+    baseImage: IMAGE,
+    referenceNaturalSize: { source: IMAGE, width: 1, height: 1 },
+    activation: 'onPress',
+    pressDurationMs: 450,
+    poses: [
+      {
+        poseId: '70000000-0000-4000-8000-000000000001',
+        name: 'Hit',
+        triggers: [ID(3)],
+        transform: { x: 4, y: -2, rotation: 15, scale: 1.2 },
+      },
+    ],
+  },
+} as Partial<ElementNode>);
 const tracker = element(ID(4), 'cursorTracker', 3, {
   frame: { x: 400, y: 20, width: 120, height: 120, rotation: 0 },
 });
@@ -210,6 +233,19 @@ const CASES: Record<string, Case> = {
   '노브와 그래프': {
     nodes: [lineGraph, knob],
     selected: [ID(1), ID(6)],
+  },
+  '스프라이트 하나 - 기본값': { nodes: [sprite], selected: [ID(8)] },
+  '스프라이트 하나 - 이미지·자세·단발 재생': {
+    nodes: [key, posedSprite],
+    selected: [ID(9)],
+  },
+  '스프라이트 여럿': {
+    nodes: [sprite, posedSprite, key],
+    selected: [ID(8), ID(9)],
+  },
+  '스프라이트와 그래프': {
+    nodes: [lineGraph, sprite],
+    selected: [ID(1), ID(8)],
   },
   // 트리에만 있는 종류
   '커서 트래커 하나': { nodes: [tracker], selected: [ID(4)] },
