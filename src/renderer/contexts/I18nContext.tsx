@@ -19,7 +19,8 @@ function isSupportedLocale(value: unknown): value is SupportedLocale {
     value === 'en' ||
     value === 'zh-cn' ||
     value === 'zh-Hant' ||
-    value === 'ru'
+    value === 'ru' ||
+    value === 'ja'
   );
 }
 
@@ -110,6 +111,11 @@ function detectBrowserLocale(): SupportedLocale {
     (value) => value === 'ru' || value.startsWith('ru-'),
   );
   if (isRussian) return 'ru';
+
+  const isJapanese = normalized.some(
+    (value) => value === 'ja' || value.startsWith('ja-'),
+  );
+  if (isJapanese) return 'ja';
 
   return 'en';
 }
