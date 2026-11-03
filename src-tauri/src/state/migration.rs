@@ -164,7 +164,7 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     let mut projection_failed = false;
     // 트리에서 만든 옛 모양 - 읽기 정리가 바꾸지 않았으면 붙일 때 트리를 그대로 쓴다
     let mut projected_legacy: Option<crate::models::EditorDocumentV1> = None;
-    // 새 버전 앱이 쓴 종류(잠금)가 있는 트리 - 읽기 정리 전 요소 밖 저장소 칸
+    // 새 버전 앱이 쓴 종류(잠금)가 있는 트리 - 읽기 정리 전(파일 그대로) 요소 밖 저장소 칸
     let mut locked_store_baseline: Option<Value> = None;
     let (state, needs_persist, repaired, seed_active_css_history, explicit_invalid_element_id) =
         match serde_json::from_slice::<Value>(&content) {
@@ -179,6 +179,13 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
                 if let Some((document, dropped)) = parsed_element_document.as_ref() {
                     (projection_failed, projected_legacy) =
                         fill_legacy_fields_from_tree(&mut value, document, *dropped);
+                    // 잠긴 종류가 있으면 읽기 정리 전 파일 그대로의 저장소 칸을 둔다 (값 단계 옮기기도 정리다)
+                    if !crate::models::legacy_layout::locked_legacy_kinds(document).is_empty() {
+                        locked_store_baseline =
+                            serde_json::from_value::<AppStoreData>(value.clone())
+                                .ok()
+                                .map(|data| store_fields_value(&data));
+                    }
                 }
                 let seed_active_css_history = value.get("customCssHistory").is_none();
                 let explicit_invalid_element_id = has_explicit_invalid_element_id(&value);
@@ -192,15 +199,6 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
                     default_store_note_gradient_multipliers(&mut value);
                 match serde_json::from_value::<AppStoreData>(value.clone()) {
                     Ok(mut data) => {
-                        if parsed_element_document
-                            .as_ref()
-                            .is_some_and(|(document, _)| {
-                                !crate::models::legacy_layout::locked_legacy_kinds(document)
-                                    .is_empty()
-                            })
-                        {
-                            locked_store_baseline = Some(store_fields_value(&data));
-                        }
                         let mut needs_persist = text_outline_scrubbed
                             || sprite_wire_migrated
                             || sound_library_migrated

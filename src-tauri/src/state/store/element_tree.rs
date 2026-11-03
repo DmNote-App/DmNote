@@ -277,13 +277,27 @@ pub(crate) fn attach_parsed_document(
         }
         (None, _) => import_document(&legacy).context("요소 트리 가져오기 실패")?,
     };
+    let before_load = document.clone();
     let report = Loader {
         kinds: builtin_kind_registry(),
         bundles: &BuiltinBundles,
         managed_elsewhere: &is_legacy_kind,
     }
     .load(&mut document, &mut UuidSource);
-    let repaired = !report.repaired.is_empty();
+    // 저장 모양(빈 칸을 뺀 압축)으로도 바뀐 요소만 고친 것이다 - 저장 때 뺀 빈 칸을 읽으며 다시 채우는 것은 아니다
+    let repaired = !report.repaired.is_empty() && {
+        let (before, after) = (compact_document(&before_load), compact_document(&document));
+        report.repaired.iter().any(|(scene, id)| {
+            let element = |document: &Document| {
+                document
+                    .scenes
+                    .get(scene)
+                    .and_then(|scene| scene.element(id))
+                    .cloned()
+            };
+            element(&before) != element(&after)
+        })
+    };
     if repaired {
         log::warn!(
             "[Store] 요소 트리 문서에서 정의에 맞지 않는 요소 {}개를 고쳐 읽습니다",
@@ -341,8 +355,8 @@ pub(crate) fn sync_loaded_element_document(
     sync_with_locked(before, after, LockedWrite::Keep)
 }
 
-// 새 버전 앱이 쓴 종류에 대한 옛 모양 쓰기 - 커밋은 새로 넣기·지우기를 거부하고 틀·공통 정보·자리만 받는다
-// (값·묶음·입력은 저장된 것), 불러온 뒤 정리는 저장된 요소를 그대로 둔다
+// 새 버전 앱이 쓴 종류에 대한 옛 모양 쓰기 - 커밋은 값·묶음·입력 바꾸기와 새로 넣기·지우기를 거부하고
+// 틀·공통 정보·자리만 받는다, 불러온 뒤 정리는 저장된 요소를 그대로 둔다
 #[derive(Clone, Copy, PartialEq)]
 enum LockedWrite {
     Reject,
@@ -351,7 +365,7 @@ enum LockedWrite {
 
 pub(crate) const KIND_VERSION_LOCKED: &str = "KIND_VERSION_LOCKED";
 
-/// 새 버전 앱이 쓴 종류의 요소를 새로 넣거나 지우는 옛 모양 쓰기 (3.5 잠금) - 편집 커밋은 영구 거절로 돌려준다
+/// 새 버전 앱이 쓴 종류의 요소 값을 고치거나 새로 넣거나 지우는 옛 모양 쓰기 (3.5 잠금) - 편집 커밋은 영구 거절로 돌려준다
 #[derive(Debug)]
 pub(crate) struct KindVersionLocked {
     pub(crate) ids: Vec<String>,
@@ -361,7 +375,7 @@ impl std::fmt::Display for KindVersionLocked {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{KIND_VERSION_LOCKED}: 새 버전 앱이 쓴 종류의 요소는 새로 넣거나 지울 수 없습니다 ({:?})",
+            "{KIND_VERSION_LOCKED}: 새 버전 앱이 쓴 종류의 요소는 고치거나 새로 넣거나 지울 수 없습니다 ({:?})",
             self.ids
         )
     }
@@ -392,9 +406,18 @@ fn sync_with_locked(
     // 새 버전 앱이 쓴 종류는 이 앱의 모양으로 고쳐 쓰지 않는다 (3.5 보존·잠금)
     let locked = locked_legacy_kinds(after.element_document());
     if !locked.is_empty() && locked_write == LockedWrite::Reject {
-        let ids =
-            locked_legacy_violations(LegacyRef::from(previous), LegacyRef::from(&edit), &locked)
-                .context("잠긴 요소 쓰기 확인 실패")?;
+        // 편집 커밋은 문서 전체를 정리한다(그라데이션 짝·이미지 모드·스프라이트 트리거) - 정리만 거친 차이는 쓰기가 아니다
+        let mut canonical = before.clone();
+        crate::state::migration::canonicalize_gradient_pairs(&mut canonical);
+        crate::state::migration::canonicalize_image_modes(&mut canonical);
+        crate::state::migration::normalize_sprite_triggers(&mut canonical);
+        let ids = locked_legacy_violations(
+            LegacyRef::from(previous),
+            LegacyRef::from(canonical.legacy()),
+            LegacyRef::from(&edit),
+            &locked,
+        )
+        .context("잠긴 요소 쓰기 확인 실패")?;
         if !ids.is_empty() {
             return Err(KindVersionLocked { ids }.into());
         }

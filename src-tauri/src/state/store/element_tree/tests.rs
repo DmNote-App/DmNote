@@ -3123,8 +3123,7 @@ fn 새_버전_앱이_쓴_종류의_요소를_새로_넣거나_지우는_옛_모�
 }
 
 #[test]
-fn 새_버전_앱이_쓴_종류도_옮기기·다른_종류_쓰기는_받고_값·입력_쓰기에는_저장된_요소를_그대로_둔다()
-{
+fn 새_버전_앱이_쓴_종류도_옮기기·다른_종류_쓰기는_받고_값·입력_쓰기는_거절한다() {
     let (dir, store) = open_store();
     let stored = lock_key_kind(&store);
 
@@ -3151,13 +3150,26 @@ fn 새_버전_앱이_쓴_종류도_옮기기·다른_종류_쓰기는_받고_값
     .unwrap();
     assert_eq!(tree_element(&store, &stored.id), Some(moved.clone()));
 
-    // 값·입력을 바꾼 옛 모양 쓰기 - 옛 모양 쓰기는 배열 전체를 다시 쓰므로 잠긴 요소는 저장된 것을 둔다
-    legacy_write(&store, |data| {
-        let legacy = data.legacy_mut();
-        legacy.key_positions.get_mut("4key").unwrap()[0].display_text = Some("잠김".into());
-        legacy.keys.get_mut("4key").unwrap()[0] = crate::models::KeySlot::from("LockedKindKey");
-    })
-    .unwrap();
+    // 값·입력을 바꾸는 옛 모양 쓰기는 거절한다 - 받고 버리면 그 쓰기로 계산한 기록·카운터·자산 정리가 어긋난다
+    for edit in [
+        (|data: &mut AppStoreData| {
+            data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].display_text =
+                Some("잠김".into());
+        }) as fn(&mut AppStoreData),
+        |data: &mut AppStoreData| {
+            data.legacy_mut().keys.get_mut("4key").unwrap()[0] =
+                crate::models::KeySlot::from("LockedKindKey");
+        },
+        |data: &mut AppStoreData| {
+            data.legacy_mut().key_positions.get_mut("4key").unwrap()[0].sound_path =
+                Some("sounds/locked.wav".into());
+        },
+    ] {
+        assert!(legacy_write(&store, edit)
+            .unwrap_err()
+            .downcast_ref::<KindVersionLocked>()
+            .is_some());
+    }
     assert_eq!(tree_element(&store, &stored.id), Some(moved));
     assert_eq!(store.element_document_snapshot().1.kind_versions["key"], 99);
     store.flush_and_shutdown().unwrap();
@@ -3318,6 +3330,49 @@ fn 잠긴_종류가_있어도_다른_종류를_고친_읽기는_다시_저장하
     )
     .unwrap();
     assert!(loaded.repaired);
+    assert!(loaded.needs_persist);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 저장한_트리_전용_요소를_다시_읽어도_손상_복구로_세지_않는다() {
+    let (dir, store) = open_store();
+    // 기본값(빈 칸 포함)을 든 정상 트래커 - 저장은 빈 칸을 빼고, 읽을 때 엔진 정리가 다시 채운다
+    assert!(matches!(
+        commit(
+            &store,
+            serde_json::json!([{ "op": "insert", "scene": "4key", "parent": null, "index": null,
+                                 "node": tracker_json("tracker-saved") }]),
+        ),
+        ElementDocumentCommitResult::Committed { .. }
+    ));
+    store.flush_and_shutdown().unwrap();
+    drop(store);
+    let path = dir.join(crate::state::store::STORE_FILE_NAME);
+    for _ in 0..2 {
+        let loaded = crate::state::migration::load_store_from_path(&path).unwrap();
+        assert!(!loaded.repaired);
+        assert!(loaded.data.element_document().scenes["4key"]
+            .element("tracker-saved")
+            .is_some());
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 잠긴_종류가_있어도_저장소_칸_옮기기는_다시_저장한다() {
+    let (dir, store) = open_store();
+    lock_key_kind(&store);
+    store.flush_and_shutdown().unwrap();
+    drop(store);
+    let path = dir.join(crate::state::store::STORE_FILE_NAME);
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    // 옛 사운드 라이브러리 칸(enabled) - 읽을 때 hidden으로 옮긴다
+    value["soundLibrary"] = serde_json::json!({ "sounds/old.wav": { "enabled": false } });
+    std::fs::write(&path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+
+    let loaded = crate::state::migration::load_store_from_path(&path).unwrap();
     assert!(loaded.needs_persist);
     let _ = std::fs::remove_dir_all(&dir);
 }
