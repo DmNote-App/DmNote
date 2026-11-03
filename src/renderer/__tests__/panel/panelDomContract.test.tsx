@@ -234,7 +234,7 @@ const customKey = element(ID(10), 'key', 9, {
     },
     sound: { soundEnabled: true, soundPath: null, soundVolume: 40 },
   },
-} as Partial<ElementNode>);
+} as unknown as Partial<ElementNode>);
 const stat = element(ID(11), 'stat', 10, {
   frame: { x: 1300, y: 20, width: 60, height: 60, rotation: 0 },
 });
