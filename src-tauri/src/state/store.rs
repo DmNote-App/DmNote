@@ -15,8 +15,7 @@ use crate::models::{
     CustomCssPatch, CustomJsPatch, EditorCommitOrigin, EditorCommitRequest, EditorCommitResult,
     EditorCommittedV1, EditorDocumentV1, EditorField, EditorGetResult, EditorOpResultStatusV1,
     EditorOpResultV1, EditorTransactionResult, HistoryStatus, KeyCounters, KeyMappings,
-    NoteSettingsPatch, PluginInstancesChangedPayload, PluginInstancesCommitRequest,
-    PluginInstancesReconcileRequest, SavedPluginInstance, SettingsDiff, SettingsPatchInput,
+    NoteSettingsPatch, PluginInstancesChangedPayload, SettingsDiff, SettingsPatchInput,
     SettingsState, EDITOR_SCHEMA_VERSION,
 };
 use anyhow::{anyhow, Context, Result};
@@ -52,9 +51,8 @@ use super::plugin::{
     encode_plugin_instance_entries, encode_plugin_instances, is_plugin_instances_storage_key,
     normalize_plugin_instance_tab_id, plugin_id_from_instances_storage_key,
     plugin_instance_bucket_ids, plugin_instances_storage_key, read_plugin_instance_bucket,
-    validate_plugin_id, validate_plugin_instances_reconcile_request,
-    validate_plugin_instances_request, validate_plugin_instances_transition,
-    write_plugin_instance_bucket, StoredPluginInstanceEntry, PLUGIN_DATA_KEY_PREFIX,
+    validate_plugin_id, write_plugin_instance_bucket, StoredPluginInstanceEntry,
+    PLUGIN_DATA_KEY_PREFIX,
 };
 
 mod asset_references;
@@ -171,20 +169,6 @@ pub(crate) enum HistoryAuxChange {
 }
 
 #[derive(Debug)]
-pub(crate) struct PluginInstancesCommitOutcome {
-    pub(crate) plugin_id: String,
-    pub(crate) model_revision: u64,
-    pub(crate) changed: bool,
-    pub(crate) history_status: Option<HistoryStatus>,
-}
-
-#[derive(Debug)]
-pub(crate) struct AdmittedPluginInstancesCommit {
-    pub(crate) outcome: PluginInstancesCommitOutcome,
-    _admission: HistoryAdmissionLease,
-}
-
-#[derive(Debug)]
 pub(crate) struct AdmittedPluginStorageMutation<T> {
     pub(crate) value: T,
     pub(crate) history_status: Option<HistoryStatus>,
@@ -217,12 +201,6 @@ struct MutationAck {
     id: String,
     fingerprint: RequestFingerprint,
     result: EditorCommitResult,
-}
-
-struct PluginInstancesMutationInput {
-    plugin_id: String,
-    instances: Vec<SavedPluginInstance>,
-    gesture_id: Option<String>,
 }
 
 struct EditorPatchCommitOptions {
@@ -546,6 +524,7 @@ impl AppStore {
         self.runtime_publication_generation.load(Ordering::Acquire)
     }
 
+    #[cfg(test)]
     pub(crate) fn plugin_model_revision(&self) -> u64 {
         self.state.read().plugin_model_revision
     }

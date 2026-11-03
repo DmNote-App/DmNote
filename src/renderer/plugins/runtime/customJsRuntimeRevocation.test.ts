@@ -14,23 +14,21 @@ import type { CustomJsRuntime } from './customJsRuntime';
 import { usePluginHealthStore } from '@stores/plugin/usePluginHealthStore';
 import { usePluginMenuStore } from '@stores/plugin/usePluginMenuStore';
 
-const { jsGetMock, jsGetUseMock, onUseMock, onStateMock, authorityResetMock } =
-  vi.hoisted(() => ({
-    jsGetMock: vi.fn(),
-    jsGetUseMock: vi.fn(),
-    onUseMock: vi.fn(
-      (_listener: (payload: { enabled: boolean }) => void) => () => {},
-    ),
-    onStateMock: vi.fn(
-      (
-          _listener: (
-            payload: import('@src/types/plugin/js').JsStatePayload,
-          ) => void,
-        ) =>
-        () => {},
-    ),
-    authorityResetMock: vi.fn(),
-  }));
+const { jsGetMock, jsGetUseMock, onUseMock, onStateMock } = vi.hoisted(() => ({
+  jsGetMock: vi.fn(),
+  jsGetUseMock: vi.fn(),
+  onUseMock: vi.fn(
+    (_listener: (payload: { enabled: boolean }) => void) => () => {},
+  ),
+  onStateMock: vi.fn(
+    (
+        _listener: (
+          payload: import('@src/types/plugin/js').JsStatePayload,
+        ) => void,
+      ) =>
+      () => {},
+  ),
+}));
 
 const gateway = vi.hoisted(() => ({
   pluginKeysUpdate: vi.fn(async () => ({})),
@@ -49,10 +47,6 @@ vi.mock('@api/internalApi', () => ({
     },
     plugin: { storage: {} },
   },
-}));
-
-vi.mock('@api/modules/plugin/pluginAuthorityApi', () => ({
-  pluginAuthorityApi: { reset: authorityResetMock },
 }));
 
 vi.mock('@utils/plugin/bridgeMessages', () => ({
@@ -117,9 +111,6 @@ describe('customJsRuntime 세대 회수', () => {
     onUseMock.mockClear();
     onStateMock.mockClear();
     gateway.pluginKeysUpdate.mockClear();
-    authorityResetMock
-      .mockReset()
-      .mockResolvedValue({ authorityGeneration: 1, modelRevision: 1 });
     usePluginHealthStore.setState({
       health: {},
       outcome: 'skipped',

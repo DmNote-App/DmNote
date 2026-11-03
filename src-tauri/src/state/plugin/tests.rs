@@ -1,9 +1,5 @@
-use std::collections::BTreeMap;
-
 use super::*;
-use crate::models::{
-    PluginInstancesCommitRequest, PluginInstancesReconcileRequest, PluginPoint, PluginSettingValue,
-};
+use crate::models::PluginPoint;
 use crate::state::editor::MAX_GROUP_ID_BYTES;
 
 fn saved_instance() -> SavedPluginInstance {
@@ -19,70 +15,7 @@ fn saved_instance() -> SavedPluginInstance {
     }
 }
 
-#[test]
-fn authority_generation_advances_and_rejects_stale_leases() {
-    let authority = PluginRuntimeAuthority::default();
-    assert_eq!(
-        authority.admit(0).unwrap_err(),
-        "AUTHORITY_UNAVAILABLE".to_string()
-    );
-    let generation = authority.reset().unwrap().generation();
-    assert_eq!(generation, 1);
-    assert!(authority.admit(1).is_ok());
-    assert_eq!(
-        authority.admit(0).unwrap_err(),
-        "AUTHORITY_GENERATION_CHANGED".to_string()
-    );
-    authority.mark_unavailable();
-    assert_eq!(
-        authority.admit(1).unwrap_err(),
-        "AUTHORITY_UNAVAILABLE".to_string()
-    );
-}
-
 // lease가 잠금을 들면 번호표 turn 대기 중 reset·다른 admit이 막혀 교착한다
-#[test]
-fn admission_does_not_hold_authority_lock() {
-    let authority = std::sync::Arc::new(PluginRuntimeAuthority::default());
-    authority.reset().unwrap();
-    let lease = authority.admit(1).unwrap();
-
-    let (done_tx, done_rx) = std::sync::mpsc::channel();
-    let worker_authority = std::sync::Arc::clone(&authority);
-    let worker = std::thread::spawn(move || {
-        let reset = worker_authority.reset().unwrap();
-        let other = worker_authority.admit(reset.generation());
-        done_tx.send(other.is_ok()).unwrap();
-    });
-
-    assert!(done_rx
-        .recv_timeout(std::time::Duration::from_secs(2))
-        .expect("lease 보유 중에도 reset·admit이 진행돼야 한다"));
-    worker.join().unwrap();
-    assert_eq!(lease.generation(), 1);
-}
-
-#[test]
-fn revalidate_rejects_after_reset_and_after_unavailable() {
-    let authority = PluginRuntimeAuthority::default();
-    authority.reset().unwrap();
-    let lease = authority.admit(1).unwrap();
-    assert!(authority.revalidate(lease).is_ok());
-
-    authority.reset().unwrap();
-    assert_eq!(
-        authority.revalidate(lease).unwrap_err(),
-        "AUTHORITY_GENERATION_CHANGED".to_string()
-    );
-
-    let fresh = authority.admit(2).unwrap();
-    authority.mark_unavailable();
-    assert_eq!(
-        authority.revalidate(fresh).unwrap_err(),
-        "AUTHORITY_UNAVAILABLE".to_string()
-    );
-}
-
 #[test]
 fn saved_instance_wire_rejects_unknown_fields() {
     let error = serde_json::from_value::<SavedPluginInstance>(serde_json::json!({
@@ -93,7 +26,7 @@ fn saved_instance_wire_rejects_unknown_fields() {
     .unwrap_err();
     assert!(error.to_string().contains("unknown field"));
 
-    validate_saved_plugin_instances(&[saved_instance()]).unwrap();
+    validate_saved_plugin_instances_envelope(&[saved_instance()]).unwrap();
 }
 
 #[test]
@@ -117,7 +50,7 @@ fn saved_instance_wire_rejects_invalid_z_indexes() {
         };
 
         assert_eq!(
-            validate_saved_plugin_instances(&[instance]).unwrap_err(),
+            validate_saved_plugin_instances_envelope(&[instance]).unwrap_err(),
             "INVALID_PLUGIN_INSTANCE_Z_INDEX:0"
         );
     }
@@ -164,7 +97,7 @@ fn saved_instance_wire_rejects_invalid_instance_ids() {
         };
 
         assert_eq!(
-            validate_saved_plugin_instances(&[instance]).unwrap_err(),
+            validate_saved_plugin_instances_envelope(&[instance]).unwrap_err(),
             "INVALID_PLUGIN_INSTANCE_ID:0"
         );
     }
@@ -194,7 +127,7 @@ fn saved_instance_wire_rejects_invalid_group_ids() {
         };
 
         assert_eq!(
-            validate_saved_plugin_instances(&[instance]).unwrap_err(),
+            validate_saved_plugin_instances_envelope(&[instance]).unwrap_err(),
             "INVALID_PLUGIN_INSTANCE_GROUP_ID:0"
         );
     }
@@ -204,7 +137,7 @@ fn saved_instance_wire_rejects_invalid_group_ids() {
         group_id: Some("x".repeat(MAX_GROUP_ID_BYTES)),
         ..saved_instance()
     };
-    validate_saved_plugin_instances(&[boundary]).unwrap();
+    validate_saved_plugin_instances_envelope(&[boundary]).unwrap();
 }
 
 #[test]
@@ -275,67 +208,9 @@ fn saved_instance_wire_rejects_duplicate_instance_ids_within_plugin() {
     ];
 
     assert_eq!(
-        validate_saved_plugin_instances(&instances).unwrap_err(),
+        validate_saved_plugin_instances_envelope(&instances).unwrap_err(),
         "DUPLICATE_PLUGIN_INSTANCE_ID:1"
     );
-}
-
-#[test]
-fn plugin_instances_request_enforces_compact_size_limit() {
-    let mut settings = BTreeMap::new();
-    settings.insert(
-        "label".to_string(),
-        PluginSettingValue::String("x".repeat(MAX_SETTING_STRING_BYTES)),
-    );
-    // ID 중복 거절에 먼저 걸리지 않게 인스턴스별 고유 ID 부여
-    let instances = (0..129)
-        .map(|index| SavedPluginInstance {
-            instance_id: Some(format!("00000000-0000-4000-8000-{index:012x}")),
-            settings: Some(settings.clone()),
-            ..saved_instance()
-        })
-        .collect::<Vec<_>>();
-    let request = PluginInstancesCommitRequest {
-        plugin_id: "demo".to_string(),
-        instances,
-        mutation_id: uuid::Uuid::new_v4().to_string(),
-        gesture_id: None,
-        observed_history_epoch: None,
-        expected_model_revision: None,
-        authority_generation: 1,
-    };
-
-    assert_eq!(
-        validate_plugin_instances_request(&request).unwrap_err(),
-        "PLUGIN_INSTANCES_REQUEST_TOO_LARGE"
-    );
-}
-
-#[test]
-fn plugin_instances_request_shares_editor_gesture_id_rules() {
-    let mut request = PluginInstancesCommitRequest {
-        plugin_id: "demo".to_string(),
-        instances: vec![saved_instance()],
-        mutation_id: uuid::Uuid::new_v4().to_string(),
-        gesture_id: None,
-        observed_history_epoch: None,
-        expected_model_revision: None,
-        authority_generation: 1,
-    };
-
-    // 프론트 crypto.randomUUID() 발급분은 통과
-    request.gesture_id = Some(uuid::Uuid::new_v4().to_string());
-    validate_plugin_instances_request(&request).unwrap();
-
-    // 비UUID 형식 거절 - editor 경로와 동일 규칙 (길이 상한은 UUID 파싱이
-    // 먼저 걸러 독립 관측 불가, 방어층으로만 존재)
-    for invalid_gesture_id in ["not-a-uuid".to_string(), "가".repeat(22)] {
-        request.gesture_id = Some(invalid_gesture_id);
-        assert_eq!(
-            validate_plugin_instances_request(&request).unwrap_err(),
-            "INVALID_PLUGIN_GESTURE_ID"
-        );
-    }
 }
 
 #[test]
@@ -413,104 +288,12 @@ fn lenient_decode_keeps_valid_entries_and_skips_invalid_siblings() {
 }
 
 #[test]
-fn legacy_finite_metrics_are_readable_and_only_improving_commits_are_allowed() {
+fn legacy_finite_metrics_are_readable() {
     let mut legacy = saved_instance();
     legacy.position.x = 40_000.0;
     let stored = serde_json::to_value(vec![legacy.clone()]).unwrap();
     assert_eq!(
         decode_plugin_instances(Some(&stored)).unwrap().unwrap(),
-        vec![legacy.clone()]
+        vec![legacy]
     );
-    assert_eq!(
-        validate_saved_plugin_instances(&[legacy.clone()]).unwrap_err(),
-        "INVALID_PLUGIN_INSTANCE_POSITION:0"
-    );
-
-    validate_plugin_instances_transition(&[legacy.clone()], &[legacy.clone()]).unwrap();
-    let mut improving = legacy.clone();
-    improving.position.x = 39_000.0;
-    validate_plugin_instances_transition(&[legacy.clone()], &[improving]).unwrap();
-
-    let mut worsening = legacy.clone();
-    worsening.position.x = 41_000.0;
-    assert_eq!(
-        validate_plugin_instances_transition(&[legacy], &[worsening]).unwrap_err(),
-        "INVALID_PLUGIN_INSTANCE_POSITION:0"
-    );
-    let new_outlier = SavedPluginInstance {
-        position: PluginPoint {
-            x: 40_000.0,
-            y: 2.0,
-        },
-        ..saved_instance()
-    };
-    assert_eq!(
-        validate_plugin_instances_transition(&[], &[new_outlier]).unwrap_err(),
-        "INVALID_PLUGIN_INSTANCE_POSITION:0"
-    );
-}
-
-#[test]
-fn plugin_instances_request_rejects_missing_instance_id() {
-    let request = PluginInstancesCommitRequest {
-        plugin_id: "demo".to_string(),
-        instances: vec![SavedPluginInstance {
-            instance_id: None,
-            ..saved_instance()
-        }],
-        mutation_id: uuid::Uuid::new_v4().to_string(),
-        gesture_id: None,
-        observed_history_epoch: None,
-        expected_model_revision: None,
-        authority_generation: 1,
-    };
-
-    assert_eq!(
-        validate_plugin_instances_request(&request).unwrap_err(),
-        "MISSING_PLUGIN_INSTANCE_ID:0"
-    );
-}
-
-#[test]
-fn plugin_instances_reconcile_request_validates_tabs_and_wire_shape() {
-    let base = PluginInstancesReconcileRequest {
-        plugin_id: "demo".to_string(),
-        valid_tab_ids: vec!["4key".to_string()],
-        mutation_id: uuid::Uuid::new_v4().to_string(),
-        observed_history_epoch: None,
-        authority_generation: 1,
-    };
-    validate_plugin_instances_reconcile_request(&base).unwrap();
-
-    let mut invalid_epoch = base.clone();
-    invalid_epoch.observed_history_epoch = Some(MAX_SAFE_WIRE_REVISION + 1);
-    assert_eq!(
-        validate_plugin_instances_reconcile_request(&invalid_epoch).unwrap_err(),
-        "PLUGIN_REVISION_OUT_OF_RANGE"
-    );
-
-    let mut too_many = base.clone();
-    too_many.valid_tab_ids = vec!["4key".to_string(); MAX_PLUGIN_RECONCILE_TAB_IDS + 1];
-    assert_eq!(
-        validate_plugin_instances_reconcile_request(&too_many).unwrap_err(),
-        "TOO_MANY_PLUGIN_RECONCILE_TAB_IDS"
-    );
-
-    for invalid_tab_id in [String::new(), "x".repeat(MAX_TAB_ID_BYTES + 1)] {
-        let mut invalid = base.clone();
-        invalid.valid_tab_ids = vec![invalid_tab_id];
-        assert_eq!(
-            validate_plugin_instances_reconcile_request(&invalid).unwrap_err(),
-            "INVALID_PLUGIN_RECONCILE_TAB_ID:0"
-        );
-    }
-
-    let unknown = serde_json::json!({
-        "pluginId": "demo",
-        "validTabIds": ["4key"],
-        "mutationId": uuid::Uuid::new_v4().to_string(),
-        "authorityGeneration": 1,
-        "unexpected": true,
-    });
-    assert!(serde_json::from_value::<PluginInstancesReconcileRequest>(unknown).is_err());
 }

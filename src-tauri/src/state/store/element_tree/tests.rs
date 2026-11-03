@@ -2339,18 +2339,8 @@ fn 트리를_만든_뒤_플러그인_목록이_바뀌면_옛_편집_커밋은_�
     else {
         panic!("옛 편집 커밋이어야 한다");
     };
-    // 계획과 커밋 사이에 플러그인이 목록을 바꿈
-    store
-        .commit_plugin_instances(crate::models::PluginInstancesCommitRequest {
-            plugin_id: "demo".into(),
-            instances: Vec::new(),
-            mutation_id: uuid::Uuid::new_v4().to_string(),
-            gesture_id: None,
-            observed_history_epoch: None,
-            expected_model_revision: None,
-            authority_generation: 0,
-        })
-        .unwrap();
+    // 계획과 커밋 사이에 플러그인이 목록을 바꿈 (스토리지 전체 지우기)
+    store.clear_all_plugin_data().unwrap();
     let error = store.commit_editor_document(*request).unwrap_err();
     assert_eq!(
         error.error_code,
@@ -2405,7 +2395,11 @@ fn 붙은_정수_사이로_옮긴_플러그인_노드도_정수_겹침값을_받
         .clone();
     move_demo(&store, &id, Some(root_index_of(&store, &key0) + 1), None);
     assert_eq!(demo_entry(&store)["zIndex"], serde_json::json!(100));
-    let (instances, _) = store.plugin_instances_get("demo").unwrap();
+    let instances = crate::state::plugin::decode_plugin_instances_lenient(
+        crate::state::plugin::read_plugin_instance_bucket(&store.snapshot(), "demo").as_ref(),
+        "plugin_data_demo/instances",
+    )
+    .unwrap_or_default();
     assert_eq!(instances.len(), 1);
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);

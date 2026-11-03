@@ -46,50 +46,6 @@ pub struct SavedPluginInstance {
     pub group_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct PluginInstancesCommitRequest {
-    pub plugin_id: String,
-    pub instances: Vec<SavedPluginInstance>,
-    pub mutation_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub gesture_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub observed_history_epoch: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub expected_model_revision: Option<u64>,
-    pub authority_generation: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct PluginInstancesReconcileRequest {
-    pub plugin_id: String,
-    pub valid_tab_ids: Vec<String>,
-    pub mutation_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub observed_history_epoch: Option<u64>,
-    pub authority_generation: u64,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct PluginInstancesSnapshot {
-    pub plugin_id: String,
-    pub instances: Vec<SavedPluginInstance>,
-    pub model_revision: u64,
-    pub authority_generation: u64,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct PluginInstancesCommitResult {
-    pub plugin_id: String,
-    pub model_revision: u64,
-    pub authority_generation: u64,
-    pub changed: bool,
-}
-
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginInstancesChangedPayload {
@@ -98,11 +54,4 @@ pub struct PluginInstancesChangedPayload {
     // commit 발신 mutation id - undo/redo 복원 이벤트는 None (self-echo 구분용)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin_mutation_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct PluginAuthoritySnapshot {
-    pub authority_generation: u64,
-    pub model_revision: u64,
 }

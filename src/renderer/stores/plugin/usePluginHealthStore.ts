@@ -12,9 +12,8 @@ export type PluginHealthMap = Record<string, PluginHealthEntry>;
 /**
  * settled - 주입이 실제로 돌았고 health가 판정 결과다
  * skipped - 전역 JS가 꺼져 주입 대상이 아니었다 (오류 아님)
- * aborted - 주입해야 했지만 authority reset 실패로 못 했다
  */
-export type PluginInjectionOutcome = 'settled' | 'skipped' | 'aborted';
+export type PluginInjectionOutcome = 'settled' | 'skipped';
 
 export interface PluginInjectionResult {
   outcome: PluginInjectionOutcome | 'timeout';

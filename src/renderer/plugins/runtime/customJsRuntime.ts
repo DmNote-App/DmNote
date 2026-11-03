@@ -12,7 +12,6 @@
  * - api/: defineElement, defineSettings 등 플러그인 API
  */
 
-import { pluginAuthorityApi } from '@api/modules/plugin/pluginAuthorityApi';
 import { internalApi } from '@api/internalApi';
 import { usePluginMenuStore } from '@stores/plugin/usePluginMenuStore';
 import {
@@ -398,33 +397,13 @@ ${plugin.content}
     }
   };
 
-  // main = 플러그인 단일 authority - 재주입 경계마다 generation 전진
-  // reset 완료(새 generation 설치) 후에만 주입해 이전 generation 요청이
-  // 새 runtime에 수용되거나 낡은 generation 스냅샷이 공개되지 않게 함
-  const resetPluginAuthorityForRuntime = async (): Promise<boolean> => {
-    if (window.__dmn_window_type !== 'main' || window.__dmn_runtime === 'obs') {
-      return true;
-    }
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        await pluginAuthorityApi.reset();
-        return true;
-      } catch (error) {
-        console.error('Failed to reset plugin authority', error);
-        await new Promise((resolve) => setTimeout(resolve, 250));
-      }
-    }
-    return false;
-  };
-
-  // 재주입 세대 - reset 대기 중 다음 injectAll이 시작되면 이전 세대 주입을 중단
+  // 재주입 세대 - 주입 대기 중 다음 injectAll이 시작되면 이전 세대 주입을 중단
   let injectGeneration = 0;
 
   // 전역 OFF - 켜져 있던 동안의 오류 상태를 그대로 두면 지금도 실패 중으로 보인다
   const disableRuntime = () => {
     removeAll();
     publishHealth('skipped');
-    void resetPluginAuthorityForRuntime();
   };
 
   const injectAll = () => {
@@ -436,17 +415,9 @@ ${plugin.content}
     injectGeneration += 1;
     const generation = injectGeneration;
 
-    void resetPluginAuthorityForRuntime()
-      .then((resetOk) => {
+    void Promise.resolve()
+      .then(() => {
         if (disposed || generation !== injectGeneration) {
-          endInjectionWork();
-          return;
-        }
-        if (!resetOk) {
-          // fail-closed - 이전 세대 요청·세션이 새 runtime에 유효로 남지 않게 주입 중단
-          console.error('Skipping plugin injection: authority reset failed');
-          // 주입이 아예 일어나지 않았다. 빈 결과를 성공으로 읽히게 두면 안 된다
-          publishHealth('aborted');
           endInjectionWork();
           return;
         }
@@ -463,7 +434,7 @@ ${plugin.content}
             health[plugin.id] = injectPlugin(plugin);
           });
         publishHealth('settled', health);
-        // 주입이 실제 실행된 시점에만 기록 - reset 실패로 중단된 뒤 같은
+        // 주입이 실제 실행된 시점에만 기록 - 다음 세대에 밀려 중단된 뒤 같은
         // 내용이 다시 오면 재시도가 가능해야 한다
         appliedSignature = pluginsSignature(currentPlugins);
 

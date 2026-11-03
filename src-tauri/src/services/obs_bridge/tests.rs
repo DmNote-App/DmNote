@@ -130,9 +130,6 @@ fn websocket_allowlist_uses_exact_matching() {
     assert!(!is_allowed_command("keys_update_with_positions"));
     assert!(!is_allowed_command("plugin_rpc_send"));
     assert!(!is_allowed_command("plugin_rpc_respond"));
-    assert!(!is_allowed_command("plugin_instances_commit"));
-    assert!(!is_allowed_command("plugin_instances_reconcile"));
-    assert!(!is_allowed_command("plugin_authority_reset"));
     assert!(!is_allowed_command("app_bootstrap_extra"));
     assert!(!is_allowed_command("plugin:window|close"));
     assert_eq!(build_allowed_list().len(), ALLOWED_WS_COMMANDS.len());

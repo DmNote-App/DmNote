@@ -14,23 +14,21 @@ import {
 } from '@stores/plugin/usePluginHealthStore';
 import { usePluginMenuStore } from '@stores/plugin/usePluginMenuStore';
 
-const { jsGetMock, jsGetUseMock, onUseMock, onStateMock, authorityResetMock } =
-  vi.hoisted(() => ({
-    jsGetMock: vi.fn(),
-    jsGetUseMock: vi.fn(),
-    onUseMock: vi.fn(
-      (_listener: (payload: { enabled: boolean }) => void) => () => {},
-    ),
-    onStateMock: vi.fn(
-      (
-          _listener: (
-            payload: import('@src/types/plugin/js').JsStatePayload,
-          ) => void,
-        ) =>
-        () => {},
-    ),
-    authorityResetMock: vi.fn(),
-  }));
+const { jsGetMock, jsGetUseMock, onUseMock, onStateMock } = vi.hoisted(() => ({
+  jsGetMock: vi.fn(),
+  jsGetUseMock: vi.fn(),
+  onUseMock: vi.fn(
+    (_listener: (payload: { enabled: boolean }) => void) => () => {},
+  ),
+  onStateMock: vi.fn(
+    (
+        _listener: (
+          payload: import('@src/types/plugin/js').JsStatePayload,
+        ) => void,
+      ) =>
+      () => {},
+  ),
+}));
 
 vi.mock('@api/internalApi', () => ({
   internalApi: {
@@ -42,10 +40,6 @@ vi.mock('@api/internalApi', () => ({
     },
     plugin: { storage: {} },
   },
-}));
-
-vi.mock('@api/modules/plugin/pluginAuthorityApi', () => ({
-  pluginAuthorityApi: { reset: authorityResetMock },
 }));
 
 vi.mock('@utils/plugin/bridgeMessages', () => ({
@@ -100,9 +94,6 @@ describe('customJsRuntime 실행 상태 판정', () => {
     jsGetUseMock.mockReset().mockResolvedValue(true);
     onUseMock.mockClear();
     onStateMock.mockClear();
-    authorityResetMock
-      .mockReset()
-      .mockResolvedValue({ authorityGeneration: 1, modelRevision: 1 });
     usePluginHealthStore.setState({
       health: {},
       outcome: 'skipped',
@@ -311,15 +302,5 @@ describe('customJsRuntime 실행 상태 판정', () => {
       outcome: 'settled',
       health: { other: { status: 'ok' } },
     });
-  });
-
-  it('주입이 중단되면 aborted로 정산한다', async () => {
-    authorityResetMock.mockRejectedValue(new Error('reset failed'));
-    await startRuntime([makePlugin('never')]);
-    // reset은 250ms 간격으로 2회 재시도한다
-    await vi.advanceTimersByTimeAsync(1000);
-
-    expect(usePluginHealthStore.getState().outcome).toBe('aborted');
-    expect(healthOf('never')).toBeUndefined();
   });
 });

@@ -13,30 +13,23 @@ import {
   resetPluginRuntimeReadiness,
 } from './pluginRuntimeReadiness';
 
-const {
-  jsGetMock,
-  jsGetUseMock,
-  onUseMock,
-  onStateMock,
-  authorityResetMock,
-  sendBridgeMock,
-} = vi.hoisted(() => ({
-  jsGetMock: vi.fn(),
-  jsGetUseMock: vi.fn(),
-  onUseMock: vi.fn(
-    (_listener: (payload: { enabled: boolean }) => void) => () => {},
-  ),
-  onStateMock: vi.fn(
-    (
-        _listener: (
-          payload: import('@src/types/plugin/js').JsStatePayload,
-        ) => void,
-      ) =>
-      () => {},
-  ),
-  authorityResetMock: vi.fn(),
-  sendBridgeMock: vi.fn(),
-}));
+const { jsGetMock, jsGetUseMock, onUseMock, onStateMock, sendBridgeMock } =
+  vi.hoisted(() => ({
+    jsGetMock: vi.fn(),
+    jsGetUseMock: vi.fn(),
+    onUseMock: vi.fn(
+      (_listener: (payload: { enabled: boolean }) => void) => () => {},
+    ),
+    onStateMock: vi.fn(
+      (
+          _listener: (
+            payload: import('@src/types/plugin/js').JsStatePayload,
+          ) => void,
+        ) =>
+        () => {},
+    ),
+    sendBridgeMock: vi.fn(),
+  }));
 
 vi.mock('@api/internalApi', () => ({
   internalApi: {
@@ -48,10 +41,6 @@ vi.mock('@api/internalApi', () => ({
     },
     plugin: { storage: {} },
   },
-}));
-
-vi.mock('@api/modules/plugin/pluginAuthorityApi', () => ({
-  pluginAuthorityApi: { reset: authorityResetMock },
 }));
 
 vi.mock('@utils/plugin/bridgeMessages', () => ({
@@ -110,9 +99,6 @@ describe('customJsRuntime 재주입 가드', () => {
     onUseMock.mockClear();
     onStateMock.mockClear();
     sendBridgeMock.mockClear();
-    authorityResetMock
-      .mockReset()
-      .mockResolvedValue({ authorityGeneration: 1, modelRevision: 1 });
     delete (window as { __dmn_window_type?: string }).__dmn_window_type;
   });
 
@@ -179,23 +165,6 @@ describe('customJsRuntime 재주입 가드', () => {
     expect(scripts()).toHaveLength(1);
     expect(scripts()[0]).not.toBe(injected);
   });
-
-  it('authority reset 실패 후 동일 내용 재발행이면 재시도한다', async () => {
-    (window as { __dmn_window_type?: string }).__dmn_window_type = 'main';
-    authorityResetMock.mockReset().mockRejectedValue(new Error('offline'));
-
-    await startRuntime();
-    await flush(600);
-    expect(scripts()).toHaveLength(0);
-
-    authorityResetMock
-      .mockReset()
-      .mockResolvedValue({ authorityGeneration: 2, modelRevision: 1 });
-    stateListener()({ plugins: [{ ...pluginA }] });
-    await flush(600);
-
-    expect(scripts()).toHaveLength(1);
-  });
 });
 
 describe('customJsRuntime 준비 신호', () => {
@@ -216,9 +185,6 @@ describe('customJsRuntime 준비 신호', () => {
     onUseMock.mockClear();
     onStateMock.mockClear();
     sendBridgeMock.mockClear();
-    authorityResetMock
-      .mockReset()
-      .mockResolvedValue({ authorityGeneration: 1, modelRevision: 1 });
     delete (window as { __dmn_window_type?: string }).__dmn_window_type;
   });
 
@@ -288,17 +254,6 @@ describe('customJsRuntime 준비 신호', () => {
     expect(isLocalPluginRuntimeReady()).toBe(true);
     expect(hasEnabledPlugins()).toBe(false);
   });
-
-  it('authority reset 실패로 주입이 중단돼도 준비 완료로 전환한다', async () => {
-    (window as { __dmn_window_type?: string }).__dmn_window_type = 'main';
-    authorityResetMock.mockReset().mockRejectedValue(new Error('offline'));
-
-    await startRuntime();
-    await flush(600);
-
-    expect(scripts()).toHaveLength(0);
-    expect(isLocalPluginRuntimeReady()).toBe(true);
-  });
 });
 
 describe('customJsRuntime 재주입 중 sync 페이로드', () => {
@@ -312,9 +267,6 @@ describe('customJsRuntime 재주입 중 sync 페이로드', () => {
     onUseMock.mockClear();
     onStateMock.mockClear();
     sendBridgeMock.mockClear();
-    authorityResetMock
-      .mockReset()
-      .mockResolvedValue({ authorityGeneration: 1, modelRevision: 1 });
     (window as { __dmn_window_type?: string }).__dmn_window_type = 'main';
 
     const { createCustomJsRuntime } = await import('./customJsRuntime');

@@ -16,23 +16,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CustomJsRuntime } from './customJsRuntime';
 import type { JsPlugin } from '@src/types/plugin/js';
 
-const { jsGetMock, jsGetUseMock, onUseMock, onStateMock, authorityResetMock } =
-  vi.hoisted(() => ({
-    jsGetMock: vi.fn(),
-    jsGetUseMock: vi.fn(),
-    onUseMock: vi.fn(
-      (_listener: (payload: { enabled: boolean }) => void) => () => {},
-    ),
-    onStateMock: vi.fn(
-      (
-          _listener: (
-            payload: import('@src/types/plugin/js').JsStatePayload,
-          ) => void,
-        ) =>
-        () => {},
-    ),
-    authorityResetMock: vi.fn(),
-  }));
+const { jsGetMock, jsGetUseMock, onUseMock, onStateMock } = vi.hoisted(() => ({
+  jsGetMock: vi.fn(),
+  jsGetUseMock: vi.fn(),
+  onUseMock: vi.fn(
+    (_listener: (payload: { enabled: boolean }) => void) => () => {},
+  ),
+  onStateMock: vi.fn(
+    (
+        _listener: (
+          payload: import('@src/types/plugin/js').JsStatePayload,
+        ) => void,
+      ) =>
+      () => {},
+  ),
+}));
 
 vi.mock('@api/internalApi', () => ({
   internalApi: {
@@ -44,10 +42,6 @@ vi.mock('@api/internalApi', () => ({
     },
     plugin: { storage: {} },
   },
-}));
-
-vi.mock('@api/modules/plugin/pluginAuthorityApi', () => ({
-  pluginAuthorityApi: { reset: authorityResetMock },
 }));
 
 vi.mock('@utils/plugin/bridgeMessages', () => ({
@@ -81,9 +75,6 @@ describe('플러그인 주입 계약', () => {
     jsGetUseMock.mockReset().mockResolvedValue(true);
     onUseMock.mockClear();
     onStateMock.mockClear();
-    authorityResetMock
-      .mockReset()
-      .mockResolvedValue({ authorityGeneration: 1, modelRevision: 1 });
     (window as { __dmn_window_type?: string }).__dmn_window_type = 'main';
     vi.spyOn(console, 'error').mockImplementation(() => {});
 

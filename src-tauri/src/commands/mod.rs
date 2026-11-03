@@ -75,15 +75,6 @@ where
     .await
 }
 
-pub(crate) async fn run_mutation_task<T, F>(app: AppHandle, task: F) -> CmdResult<T>
-where
-    T: Send + 'static,
-    F: FnOnce(&AppHandle, &AppState, MutationPublicationTicket) -> CmdResult<T> + Send + 'static,
-{
-    let ticket = issue_mutation_ticket(&app)?;
-    run_mutation_task_with_ticket(app, ticket, task).await
-}
-
 pub(crate) fn issue_mutation_ticket(app: &AppHandle) -> CmdResult<MutationPublicationTicket> {
     app.state::<AppState>()
         .issue_mutation_publication()

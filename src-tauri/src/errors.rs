@@ -304,14 +304,6 @@ mod tests {
         ("GROUP_ID_TOO_LONG", "길이 한도"),
         ("GROUP_NAME_TOO_LONG", "길이 한도"),
         (
-            "PLUGIN_INSTANCES_RECONCILE_REQUEST_TOO_LARGE",
-            "reconcile 경로 - editor 커밋 오류로 승격되지 않음",
-        ),
-        (
-            "STORED_PLUGIN_INSTANCES_TOO_LARGE",
-            "저장 데이터 읽기 - INVALID_GESTURE_PLUGIN으로 덮임",
-        ),
-        (
             "PLUGIN_RPC_REQUEST_TOO_LARGE",
             "plugin RPC - CommandError로만 나감",
         ),

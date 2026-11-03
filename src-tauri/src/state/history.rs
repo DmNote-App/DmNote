@@ -525,27 +525,6 @@ impl HistoryService {
         self.apply_record_plan(plan);
     }
 
-    pub(crate) fn apply_plugin_elements_record_plan(
-        &mut self,
-        mut plan: HistoryRecordPlan,
-        canonical: &PluginElementsHistorySnapshot,
-    ) {
-        let remove_entry = match &mut plan {
-            HistoryRecordPlan::Merge { entry, .. } => {
-                remove_net_zero_plugin_snapshot(entry, canonical)
-            }
-            _ => false,
-        };
-        if remove_entry {
-            self.clear_future();
-            self.remove_merge_target(&plan);
-            self.advance_revision();
-            self.enforce_budget();
-            return;
-        }
-        self.apply_record_plan(plan);
-    }
-
     pub(crate) fn invalidate_future(&mut self) -> bool {
         if !self.clear_future() {
             return false;

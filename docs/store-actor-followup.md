@@ -23,14 +23,11 @@
 
 1. **`ticket.run` 전에 Mutex/RwLock guard를 들지 말 것.** 뒤 번호표가 guard를 든 채 turn을
    기다리면 앞 번호표가 그 guard에서 막혀 순환한다. 카운터형 lease(`HistoryAdmissionLease`)만 허용.
-   플러그인 authority는 이 이유로 값 타입 lease + turn 안 `revalidate`로 바꿨고, `plugin_authority_reset`은
-   번호표를 타서 FIFO가 reset과 커밋을 직렬화한다.
 2. **prepare 단계에 I/O를 두지 말 것.** `run_prepared_mutation`은 번호표를 prepare **전에** 발급하므로
    prepare의 파일·장치·네트워크 대기도 뒤 번호표의 대기 구간이다. 파일 읽기·복사·장치 열기는
    번호표 발급 전 `run_blocking`에서 끝내고 `issue_mutation_ticket` → `ticket.run(persist)` 순으로
    (선례: `js_load`, `js_reload`, `sound_load`, `sound_list`, `key_sound_set_output_backend`).
 3. **잠금 순서**
-   - 번호표 turn → plugin authority
    - 번호표 turn → `PROCESSED_WAV_TRANSACTION_LOCK` (sound)
    - 번호표 turn → CSS 잠금 (`css_load_from_path`)
    - `key_sound_output_persistence_lock` → 번호표 (유일한 예외: 번호표 보유자는 이 잠금을 잡지 않고

@@ -377,7 +377,12 @@ fn delayed_net_zero_merge_removes_only_its_original_entry() {
     let back_to_original = history
         .prepare_plugin_elements_entry(original.clone(), Some(gesture_id))
         .unwrap();
-    history.apply_plugin_elements_record_plan(back_to_original, &original);
+    // 트리 커밋이 플러그인 목록만 바꾼 기록을 반영하는 길
+    history.apply_element_tree_record_plan(
+        back_to_original,
+        &element_document::Document::default(),
+        std::slice::from_ref(&original),
+    );
 
     assert_eq!(history.past.len(), 1);
     assert!(matches!(

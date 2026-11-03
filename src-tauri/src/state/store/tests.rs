@@ -21,12 +21,11 @@ use crate::{
         EditorOpResultStatusV1, EditorOpResultV1, EditorOpV1, EditorPatchV1, EditorTargetGroupV1,
         EditorZUpdateV1, FontSettings, FontType, GraphPosition, GraphStatType, GraphType, JsPlugin,
         KeyCounters, KeyPosition, KeySlot, KnobPosition, LayerGroupDef, NoteColor, OverlayBounds,
-        PanelBounds, PendingProcessedWavReplacement, PluginInstancesCommitRequest,
-        PluginInstancesReconcileRequest, PluginPoint, ReactiveSpritePosition, SavedPluginInstance,
-        SettingsPatchInput, SlotMatch, SoundLibraryEntry, SoundSource, SpriteActivation,
-        SpriteAnchor, SpriteImageMetrics, SpritePose, SpriteReferenceNaturalSize, SpriteTransform,
-        StatPosition, StatType, TabCss, TabNoteSettings, UiTheme, EDITOR_COMMIT_SCHEMA_VERSION_V2,
-        EDITOR_OPS_VERSION, EDITOR_SCHEMA_VERSION,
+        PanelBounds, PendingProcessedWavReplacement, PluginPoint, ReactiveSpritePosition,
+        SavedPluginInstance, SettingsPatchInput, SlotMatch, SoundLibraryEntry, SoundSource,
+        SpriteActivation, SpriteAnchor, SpriteImageMetrics, SpritePose, SpriteReferenceNaturalSize,
+        SpriteTransform, StatPosition, StatType, TabCss, TabNoteSettings, UiTheme,
+        EDITOR_COMMIT_SCHEMA_VERSION_V2, EDITOR_OPS_VERSION, EDITOR_SCHEMA_VERSION,
     },
     services::{css_watcher::commit_css_reload, settings::apply_patch_to_store},
     state::{
@@ -34,7 +33,6 @@ use crate::{
         assets::local_asset_path::path_identity_key,
         history::{
             HistoryDirection, HistoryScope, PresetFullHistorySnapshot, HISTORY_ENTRY_TOO_LARGE,
-            HISTORY_IN_PROGRESS,
         },
         AppState,
     },
@@ -538,39 +536,153 @@ fn saved_plugin_instance(x: f64) -> SavedPluginInstance {
     }
 }
 
-fn plugin_instances_request(
-    plugin_id: &str,
-    instances: Vec<SavedPluginInstance>,
-    mutation_id: String,
-    gesture_id: Option<String>,
-    expected_model_revision: Option<u64>,
-) -> PluginInstancesCommitRequest {
-    PluginInstancesCommitRequest {
-        plugin_id: plugin_id.to_string(),
-        instances,
-        mutation_id,
-        gesture_id,
-        observed_history_epoch: None,
-        expected_model_revision,
-        authority_generation: 1,
-    }
+/// 플러그인 인스턴스 목록 바로 쓰기 - 기록·revision 없이 (트리로 옮긴 버킷, 없는 탭의 항목은 남는 몫으로)
+fn put_plugin_instances(store: &AppStore, plugin_id: &str, instances: &[SavedPluginInstance]) {
+    let mut guard = store.state.write();
+    let mut scratch = guard.data.clone();
+    super::write_plugin_instance_bucket(
+        &mut scratch,
+        plugin_id,
+        (!instances.is_empty()).then(|| serde_json::to_value(instances).unwrap()),
+    );
+    store.commit_locked(&mut guard, scratch, ()).unwrap();
 }
 
-fn plugin_instances_reconcile_request(
+fn plugin_instances_of(store: &AppStore, plugin_id: &str) -> Vec<SavedPluginInstance> {
+    super::decode_plugin_instances_lenient(
+        super::read_plugin_instance_bucket(&store.snapshot(), plugin_id).as_ref(),
+        &super::plugin_instances_storage_key(plugin_id),
+    )
+    .unwrap_or_default()
+}
+
+#[derive(Debug)]
+struct PluginInstancesWrite {
+    changed: bool,
+    model_revision: u64,
+    history_status: Option<crate::models::HistoryStatus>,
+}
+
+/// 플러그인 인스턴스 목록 쓰기 - 편집기처럼 트리 연산으로 (그 플러그인 노드를 빼고 목록 자리에 다시 넣는다).
+/// 계획·커밋은 element_document_commit 커맨드와 같은 길. 목록이 그대로면 아무것도 보내지 않는다
+fn write_plugin_instances(
+    store: &AppStore,
     plugin_id: &str,
-    valid_tab_ids: &[&str],
-    mutation_id: String,
-) -> PluginInstancesReconcileRequest {
-    PluginInstancesReconcileRequest {
-        plugin_id: plugin_id.to_string(),
-        valid_tab_ids: valid_tab_ids
-            .iter()
-            .map(|tab_id| (*tab_id).to_string())
-            .collect(),
-        mutation_id,
-        observed_history_epoch: None,
-        authority_generation: 1,
+    instances: Vec<SavedPluginInstance>,
+    gesture_id: Option<String>,
+) -> std::result::Result<PluginInstancesWrite, String> {
+    use super::element_tree::{ElementDocumentCommitPlan, ElementDocumentCommitResult};
+    use crate::state::plugin_tree::{apply_plugin_bucket, plugin_kind, project_plugin_bucket};
+    use element_document::{Node, Op};
+
+    let kind = plugin_kind(plugin_id);
+    if store.kind_registry().get(&kind).is_none() {
+        store
+            .register_external_kind(
+                serde_json::from_value(json!({
+                    "kind": kind,
+                    "version": 1,
+                    "fields": [],
+                    "defaultSize": { "width": 200, "height": 150 },
+                    "fallbackSize": { "width": 200, "height": 150 }
+                }))
+                .unwrap(),
+            )
+            .unwrap();
     }
+    let (_, current) = store.element_document_snapshot();
+    let mut target = (*current).clone();
+    let bucket = (!instances.is_empty()).then(|| serde_json::to_value(&instances).unwrap());
+    apply_plugin_bucket(&mut target, plugin_id, bucket.as_ref());
+    assert_eq!(
+        target
+            .extra
+            .get("pluginInstanceRest")
+            .and_then(|rest| rest.get(plugin_id)),
+        current
+            .extra
+            .get("pluginInstanceRest")
+            .and_then(|rest| rest.get(plugin_id)),
+        "트리 연산으로 만들 수 없는 목록(없는 탭 등)은 put_plugin_instances로"
+    );
+    if project_plugin_bucket(&current, plugin_id) == project_plugin_bucket(&target, plugin_id) {
+        return Ok(PluginInstancesWrite {
+            changed: false,
+            model_revision: store.plugin_model_revision(),
+            history_status: None,
+        });
+    }
+
+    fn walk(
+        nodes: &[Node],
+        kind: &str,
+        parent: Option<&str>,
+        out: &mut Vec<(Option<String>, usize, Node)>,
+    ) {
+        for (index, node) in nodes.iter().enumerate() {
+            match node {
+                Node::Group(group) => walk(&group.children, kind, Some(&group.id), out),
+                Node::Element(element) if element.kind == kind => {
+                    out.push((parent.map(str::to_string), index, node.clone()))
+                }
+                Node::Element(_) => {}
+            }
+        }
+    }
+    let mut ops = Vec::new();
+    for (scene_id, scene) in &current.scenes {
+        let mut found = Vec::new();
+        walk(&scene.nodes, &kind, None, &mut found);
+        if !found.is_empty() {
+            ops.push(Op::Remove {
+                scene: scene_id.clone(),
+                ids: found
+                    .into_iter()
+                    .map(|(_, _, node)| node.id().to_string())
+                    .collect(),
+            });
+        }
+    }
+    for (scene_id, scene) in &target.scenes {
+        let mut found = Vec::new();
+        walk(&scene.nodes, &kind, None, &mut found);
+        for (parent, index, node) in found {
+            ops.push(Op::Insert {
+                scene: scene_id.clone(),
+                parent,
+                index: Some(index),
+                node,
+            });
+        }
+    }
+
+    let revision = store.plugin_model_revision();
+    match store
+        .plan_element_document_commit(&ops, gesture_id.clone())
+        .map_err(|error| error.to_string())?
+    {
+        ElementDocumentCommitPlan::Rejected(result) => return Err(format!("{result:?}")),
+        plan @ (ElementDocumentCommitPlan::TreeOnly | ElementDocumentCommitPlan::TreeOrderOnly) => {
+            let check_legacy = matches!(plan, ElementDocumentCommitPlan::TreeOnly);
+            let (result, _) = store
+                .commit_element_document_tree(&ops, check_legacy, gesture_id)
+                .map_err(|error| error.to_string())?;
+            if !matches!(result, ElementDocumentCommitResult::Committed { .. }) {
+                return Err(format!("{result:?}"));
+            }
+        }
+        ElementDocumentCommitPlan::Legacy { request, .. } => {
+            store
+                .commit_editor_document(*request)
+                .map_err(|error| format!("{error:?}"))?;
+        }
+    }
+    let changed = store.plugin_model_revision() != revision;
+    Ok(PluginInstancesWrite {
+        changed,
+        model_revision: store.plugin_model_revision(),
+        history_status: changed.then(|| store.history_status()),
+    })
 }
 
 #[test]
@@ -578,15 +690,7 @@ fn editor_reset_all_atomically_clears_only_plugin_instances() {
     let dir = test_directory("editor-reset-all-plugin-instances-test");
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
-    store
-        .commit_plugin_instances(plugin_instances_request(
-            "plugin-a",
-            vec![saved_plugin_instance(1.0)],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
+    write_plugin_instances(&store, "plugin-a", vec![saved_plugin_instance(1.0)], None).unwrap();
     store
         .set_plugin_data("plugin_data_plugin-a/settings", json!({ "theme": "dark" }))
         .unwrap();
@@ -607,7 +711,7 @@ fn editor_reset_all_atomically_clears_only_plugin_instances() {
         )
         .unwrap();
 
-    assert!(store.plugin_instances_get("plugin-a").unwrap().0.is_empty());
+    assert!(plugin_instances_of(&store, "plugin-a").is_empty());
     assert_eq!(
         store
             .get_plugin_data("plugin_data_plugin-a/settings")
@@ -653,15 +757,7 @@ fn editor_reset_mode_filters_loaded_and_unloaded_plugin_instances_once() {
         ("plugin-a", vec![four_key, five_key.clone()]),
         ("plugin-b", vec![saved_plugin_instance(3.0)]),
     ] {
-        store
-            .commit_plugin_instances(plugin_instances_request(
-                plugin_id,
-                instances,
-                uuid::Uuid::new_v4().to_string(),
-                None,
-                Some(store.plugin_model_revision()),
-            ))
-            .unwrap();
+        write_plugin_instances(&store, plugin_id, instances, None).unwrap();
     }
     let before_revision = store.plugin_model_revision();
     let before_epoch = store.history_status().history_epoch;
@@ -688,11 +784,8 @@ fn editor_reset_mode_filters_loaded_and_unloaded_plugin_instances_once() {
         )
         .unwrap();
 
-    assert_eq!(
-        store.plugin_instances_get("plugin-a").unwrap().0,
-        vec![five_key]
-    );
-    assert!(store.plugin_instances_get("plugin-b").unwrap().0.is_empty());
+    assert_eq!(plugin_instances_of(&store, "plugin-a"), vec![five_key]);
+    assert!(plugin_instances_of(&store, "plugin-b").is_empty());
     assert_eq!(store.plugin_model_revision(), before_revision + 1);
     assert_eq!(store.history_status().history_epoch, before_epoch + 1);
     assert!(!store.history_status().can_undo);
@@ -755,10 +848,7 @@ fn editor_reset_mode_preserves_malformed_entries_and_skips_non_array_buckets() {
         store.get_plugin_data(&non_array_key).unwrap(),
         Some(non_array.clone())
     );
-    assert_eq!(
-        store.plugin_instances_get("plugin-a").unwrap().0,
-        vec![retained]
-    );
+    assert_eq!(plugin_instances_of(&store, "plugin-a"), vec![retained]);
     assert_eq!(
         transaction
             .change
@@ -791,15 +881,7 @@ fn editor_reset_missing_mode_does_not_touch_plugin_instances() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let mut ghost = saved_plugin_instance(1.0);
     ghost.tab_id = Some("ghost".to_string());
-    store
-        .commit_plugin_instances(plugin_instances_request(
-            "plugin-a",
-            vec![ghost.clone()],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
+    put_plugin_instances(&store, "plugin-a", &[ghost.clone()]);
     let before_revision = store.plugin_model_revision();
     let before_epoch = store.history_status().history_epoch;
 
@@ -815,10 +897,7 @@ fn editor_reset_missing_mode_does_not_touch_plugin_instances() {
         .unwrap();
 
     assert_eq!(transaction.value, None);
-    assert_eq!(
-        store.plugin_instances_get("plugin-a").unwrap().0,
-        vec![ghost]
-    );
+    assert_eq!(plugin_instances_of(&store, "plugin-a"), vec![ghost]);
     assert_eq!(store.plugin_model_revision(), before_revision);
     assert_eq!(store.history_status().history_epoch, before_epoch);
     assert!(transaction.change.plugin_instances_changes.is_empty());
@@ -835,15 +914,7 @@ fn editor_reset_noop_advances_epoch_without_erasing_unrelated_history() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let mut five_key = saved_plugin_instance(1.0);
     five_key.tab_id = Some("5key".to_string());
-    store
-        .commit_plugin_instances(plugin_instances_request(
-            "plugin-a",
-            vec![five_key.clone()],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
+    write_plugin_instances(&store, "plugin-a", vec![five_key.clone()], None).unwrap();
     let before = store.history_status();
     assert!(before.can_undo);
 
@@ -871,56 +942,7 @@ fn editor_reset_noop_advances_epoch_without_erasing_unrelated_history() {
     let after = transaction.change.history_status.unwrap();
     assert!(after.can_undo);
     assert_eq!(after.history_epoch, before.history_epoch + 1);
-    assert_eq!(
-        store.plugin_instances_get("plugin-a").unwrap().0,
-        vec![five_key]
-    );
-
-    store.flush_and_shutdown().unwrap();
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn editor_reset_rejects_an_instance_save_captured_before_the_reset() {
-    let dir = test_directory("editor-reset-stale-plugin-save-test");
-    std::fs::create_dir_all(&dir).unwrap();
-    let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let instance = saved_plugin_instance(1.0);
-    store
-        .commit_plugin_instances(plugin_instances_request(
-            "plugin-a",
-            vec![instance.clone()],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
-    let stale_epoch = store.history_status().history_epoch;
-    let mut stale_request = plugin_instances_request(
-        "plugin-a",
-        vec![instance],
-        uuid::Uuid::new_v4().to_string(),
-        None,
-        None,
-    );
-    stale_request.observed_history_epoch = Some(stale_epoch);
-
-    let admission = store.admit_editor_mutation().unwrap();
-    store
-        .commit_legacy_editor_reset_transaction_with_admission(
-            EditorCommitOrigin::LegacyAdapter("reset-race-test".to_string()),
-            &[],
-            PluginInstancesResetScope::All,
-            admission,
-            |_| Ok(()),
-        )
-        .unwrap();
-
-    assert_eq!(
-        store.commit_plugin_instances(stale_request).unwrap_err(),
-        "HISTORY_EPOCH_CONFLICT"
-    );
-    assert!(store.plugin_instances_get("plugin-a").unwrap().0.is_empty());
+    assert_eq!(plugin_instances_of(&store, "plugin-a"), vec![five_key]);
 
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(dir);
@@ -930,48 +952,27 @@ fn editor_reset_rejects_an_instance_save_captured_before_the_reset() {
 fn canonical_plugin_bucket_preserves_legacy_outlier_while_editing_sibling() {
     let dir = test_directory("legacy-plugin-outlier-canonical-test");
     std::fs::create_dir_all(&dir).unwrap();
-    let mut data = initialize_default_state();
-    let mut legacy = saved_plugin_instance(40_000.0);
+    let store = AppStore::initialize_in_dir(&dir).unwrap();
+    let legacy = saved_plugin_instance(40_000.0);
     let sibling = saved_plugin_instance(10.0);
-    super::write_plugin_instance_bucket(
-        &mut data,
-        "plugin-a",
-        Some(serde_json::to_value(vec![legacy.clone(), sibling.clone()]).unwrap()),
-    );
-    let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
+    put_plugin_instances(&store, "plugin-a", &[legacy.clone(), sibling.clone()]);
 
     assert_eq!(
-        store.plugin_instances_get("plugin-a").unwrap().0,
+        plugin_instances_of(&store, "plugin-a"),
         vec![legacy.clone(), sibling.clone()]
     );
     let mut edited_sibling = sibling;
     edited_sibling.hidden = true;
-    store
-        .commit_plugin_instances(plugin_instances_request(
-            "plugin-a",
-            vec![legacy.clone(), edited_sibling.clone()],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
+    write_plugin_instances(
+        &store,
+        "plugin-a",
+        vec![legacy.clone(), edited_sibling.clone()],
+        None,
+    )
+    .unwrap();
     assert_eq!(
-        store.plugin_instances_get("plugin-a").unwrap().0,
-        vec![legacy.clone(), edited_sibling]
-    );
-
-    legacy.position.x = 41_000.0;
-    assert_eq!(
-        store
-            .commit_plugin_instances(plugin_instances_request(
-                "plugin-a",
-                vec![legacy],
-                uuid::Uuid::new_v4().to_string(),
-                None,
-                Some(store.plugin_model_revision()),
-            ))
-            .unwrap_err(),
-        "INVALID_PLUGIN_INSTANCE_POSITION:0"
+        plugin_instances_of(&store, "plugin-a"),
+        vec![legacy, edited_sibling]
     );
 
     store.flush_and_shutdown().unwrap();
@@ -994,10 +995,7 @@ fn canonical_get_keeps_valid_instances_next_to_malformed_storage_entries() {
     );
     let store = AppStore::new(dir.join("store-v2.json"), data, false).unwrap();
 
-    assert_eq!(
-        store.plugin_instances_get("plugin-a").unwrap().0,
-        vec![valid]
-    );
+    assert_eq!(plugin_instances_of(&store, "plugin-a"), vec![valid]);
 
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(dir);
@@ -1092,66 +1090,46 @@ fn plugin_instances_commit_records_merges_and_skips_noop() {
     let dir = test_directory("plugin-instances-commit-test");
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let initial_revision = store.plugin_model_revision();
     let gesture_id = uuid::Uuid::new_v4().to_string();
 
-    let first_request = plugin_instances_request(
+    let first = write_plugin_instances(
+        &store,
         "demo-plugin",
         vec![saved_plugin_instance(10.0)],
-        uuid::Uuid::new_v4().to_string(),
         Some(gesture_id.clone()),
-        Some(initial_revision),
-    );
-    let first = store.commit_plugin_instances(first_request).unwrap();
-    let first_revision = first.outcome.model_revision;
-    assert!(first.outcome.changed);
-    assert_eq!(
-        first
-            .outcome
-            .history_status
-            .as_ref()
-            .unwrap()
-            .history_revision,
-        1
-    );
+    )
+    .unwrap();
+    assert!(first.changed);
+    assert_eq!(first.history_status.as_ref().unwrap().history_revision, 1);
     drop(first);
 
-    let second_request = plugin_instances_request(
+    let second = write_plugin_instances(
+        &store,
         "demo-plugin",
         vec![saved_plugin_instance(30.0)],
-        uuid::Uuid::new_v4().to_string(),
         Some(gesture_id),
-        Some(first_revision),
-    );
-    let second = store.commit_plugin_instances(second_request).unwrap();
-    let second_revision = second.outcome.model_revision;
-    assert_eq!(
-        second
-            .outcome
-            .history_status
-            .as_ref()
-            .unwrap()
-            .history_revision,
-        1
-    );
+    )
+    .unwrap();
+    let second_revision = second.model_revision;
+    assert_eq!(second.history_status.as_ref().unwrap().history_revision, 1);
     drop(second);
 
-    let noop = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(30.0)],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(second_revision),
-        ))
-        .unwrap();
-    assert!(!noop.outcome.changed);
-    assert!(noop.outcome.history_status.is_none());
+    let noop = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(30.0)],
+        None,
+    )
+    .unwrap();
+    assert!(!noop.changed);
+    assert!(noop.history_status.is_none());
     drop(noop);
 
-    let (instances, revision) = store.plugin_instances_get("demo-plugin").unwrap();
-    assert_eq!(instances, vec![saved_plugin_instance(30.0)]);
-    assert_eq!(revision, second_revision);
+    assert_eq!(
+        plugin_instances_of(&store, "demo-plugin"),
+        vec![saved_plugin_instance(30.0)]
+    );
+    assert_eq!(store.plugin_model_revision(), second_revision);
     assert_eq!(store.history_status().history_revision, 1);
 
     let gate = store.history_gate();
@@ -1161,11 +1139,7 @@ fn plugin_instances_commit_records_merges_and_skips_noop() {
     let undo = store
         .apply_history_operation(HistoryDirection::Undo, &undo_id, &counters, || {})
         .unwrap();
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
+    assert!(plugin_instances_of(&store, "demo-plugin").is_empty());
     assert!(undo.status.can_redo);
     drop(undo_barrier);
 
@@ -1175,7 +1149,7 @@ fn plugin_instances_commit_records_merges_and_skips_noop() {
         .apply_history_operation(HistoryDirection::Redo, &redo_id, &counters, || {})
         .unwrap();
     assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
+        plugin_instances_of(&store, "demo-plugin"),
         vec![saved_plugin_instance(30.0)]
     );
     assert!(redo.status.can_undo);
@@ -1193,22 +1167,15 @@ fn plugin_instance_visibility_and_z_index_survive_restart() {
     let mut expected = saved_plugin_instance(15.0);
     expected.hidden = true;
     expected.z_index = Some(-12.0);
-    let committed = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![expected.clone()],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
+    let committed =
+        write_plugin_instances(&store, "demo-plugin", vec![expected.clone()], None).unwrap();
     drop(committed);
     store.flush_and_shutdown().unwrap();
     drop(store);
 
     let restored = AppStore::initialize_in_dir(&dir).unwrap();
     assert_eq!(
-        restored.plugin_instances_get("demo-plugin").unwrap().0,
+        plugin_instances_of(&restored, "demo-plugin"),
         vec![expected]
     );
 
@@ -1224,18 +1191,9 @@ fn plugin_instance_identity_fields_survive_commit_and_restart() {
     let mut expected = saved_plugin_instance(15.0);
     expected.instance_id = Some(uuid::Uuid::new_v4().to_string());
     expected.group_id = Some("layer-group".to_string());
-    let committed = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![expected.clone()],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
-    drop(committed);
+    put_plugin_instances(&store, "demo-plugin", &[expected.clone()]);
     assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
+        plugin_instances_of(&store, "demo-plugin"),
         vec![expected.clone()]
     );
     store.flush_and_shutdown().unwrap();
@@ -1243,7 +1201,7 @@ fn plugin_instance_identity_fields_survive_commit_and_restart() {
 
     let restored = AppStore::initialize_in_dir(&dir).unwrap();
     assert_eq!(
-        restored.plugin_instances_get("demo-plugin").unwrap().0,
+        plugin_instances_of(&restored, "demo-plugin"),
         vec![expected]
     );
 
@@ -1262,19 +1220,12 @@ fn plugin_instances_allow_same_instance_id_across_plugins() {
     instance.instance_id = Some(uuid::Uuid::new_v4().to_string());
 
     for plugin_id in ["demo-plugin", "other-plugin"] {
-        let committed = store
-            .commit_plugin_instances(plugin_instances_request(
-                plugin_id,
-                vec![instance.clone()],
-                uuid::Uuid::new_v4().to_string(),
-                None,
-                Some(store.plugin_model_revision()),
-            ))
-            .unwrap();
-        assert!(committed.outcome.changed);
+        let committed =
+            write_plugin_instances(&store, plugin_id, vec![instance.clone()], None).unwrap();
+        assert!(committed.changed);
         drop(committed);
         assert_eq!(
-            store.plugin_instances_get(plugin_id).unwrap().0,
+            plugin_instances_of(&store, plugin_id),
             vec![instance.clone()]
         );
     }
@@ -1293,19 +1244,16 @@ fn plugin_instances_history_budget_truncates_after_successful_commit() {
         .write()
         .history
         .set_limits_for_test(1, 32 * 1024 * 1024, 50);
-    let expected_revision = store.plugin_model_revision();
 
-    let committed = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(10.0)],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(expected_revision),
-        ))
-        .unwrap();
-    let status = committed.outcome.history_status.as_ref().unwrap();
-    assert!(committed.outcome.changed);
+    let committed = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(10.0)],
+        None,
+    )
+    .unwrap();
+    let status = committed.history_status.as_ref().unwrap();
+    assert!(committed.changed);
     assert!(!status.can_undo);
     assert!(!status.can_redo);
     assert_eq!(
@@ -1314,7 +1262,7 @@ fn plugin_instances_history_budget_truncates_after_successful_commit() {
     );
     drop(committed);
     assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
+        plugin_instances_of(&store, "demo-plugin"),
         vec![saved_plugin_instance(10.0)]
     );
 
@@ -1327,16 +1275,13 @@ fn plugin_instances_undo_redo_restore_backend_without_runtime_projection() {
     let dir = test_directory("plugin-instances-history-restore-test");
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let expected_revision = store.plugin_model_revision();
-    let committed = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(42.0)],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(expected_revision),
-        ))
-        .unwrap();
+    let committed = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(42.0)],
+        None,
+    )
+    .unwrap();
     drop(committed);
 
     let gate = store.history_gate();
@@ -1355,11 +1300,7 @@ fn plugin_instances_undo_redo_restore_backend_without_runtime_projection() {
     };
     assert_eq!(plugin_id, "demo-plugin");
     assert_eq!(undo_revision, store.plugin_model_revision());
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
+    assert!(plugin_instances_of(&store, "demo-plugin").is_empty());
     assert!(undo.status.can_redo);
     drop(undo_barrier);
 
@@ -1369,7 +1310,7 @@ fn plugin_instances_undo_redo_restore_backend_without_runtime_projection() {
         .apply_history_operation(HistoryDirection::Redo, &redo_id, &counters, || {})
         .unwrap();
     assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
+        plugin_instances_of(&store, "demo-plugin"),
         vec![saved_plugin_instance(42.0)]
     );
     assert!(redo.status.can_undo);
@@ -1394,38 +1335,24 @@ fn mixed_editor_plugin_gesture_undoes_and_redoes_atomically() {
     );
     editor.gesture_id = Some(gesture_id.clone());
     store.commit_editor_document(editor).unwrap();
-    let plugin = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(42.0)],
-            uuid::Uuid::new_v4().to_string(),
-            Some(gesture_id.clone()),
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
-    let first_plugin_revision = plugin.outcome.model_revision;
-    assert_eq!(
-        plugin
-            .outcome
-            .history_status
-            .as_ref()
-            .unwrap()
-            .history_revision,
-        1
-    );
+    let plugin = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(42.0)],
+        Some(gesture_id.clone()),
+    )
+    .unwrap();
+    assert_eq!(plugin.history_status.as_ref().unwrap().history_revision, 1);
     drop(plugin);
-    let second_plugin = store
-        .commit_plugin_instances(plugin_instances_request(
-            "second-plugin",
-            vec![saved_plugin_instance(84.0)],
-            uuid::Uuid::new_v4().to_string(),
-            Some(gesture_id),
-            Some(first_plugin_revision),
-        ))
-        .unwrap();
+    let second_plugin = write_plugin_instances(
+        &store,
+        "second-plugin",
+        vec![saved_plugin_instance(84.0)],
+        Some(gesture_id),
+    )
+    .unwrap();
     assert_eq!(
         second_plugin
-            .outcome
             .history_status
             .as_ref()
             .unwrap()
@@ -1445,16 +1372,8 @@ fn mixed_editor_plugin_gesture_undoes_and_redoes_atomically() {
         store.editor_get().document.key_positions["4key"][0].dx,
         initial_x
     );
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
-    assert!(store
-        .plugin_instances_get("second-plugin")
-        .unwrap()
-        .0
-        .is_empty());
+    assert!(plugin_instances_of(&store, "demo-plugin").is_empty());
+    assert!(plugin_instances_of(&store, "second-plugin").is_empty());
     assert!(!undo.status.can_undo);
     assert!(undo.status.can_redo);
     assert!(undo.change.is_some());
@@ -1475,11 +1394,11 @@ fn mixed_editor_plugin_gesture_undoes_and_redoes_atomically() {
         initial_x + 40.0
     );
     assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
+        plugin_instances_of(&store, "demo-plugin"),
         vec![saved_plugin_instance(42.0)]
     );
     assert_eq!(
-        store.plugin_instances_get("second-plugin").unwrap().0,
+        plugin_instances_of(&store, "second-plugin"),
         vec![saved_plugin_instance(84.0)]
     );
     assert!(redo.status.can_undo);
@@ -1523,15 +1442,13 @@ fn compound_history_projects_live_and_historical_key_counters() {
         )
         .unwrap();
     drop(admission);
-    let plugin = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(42.0)],
-            uuid::Uuid::new_v4().to_string(),
-            Some(gesture_id),
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
+    let plugin = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(42.0)],
+        Some(gesture_id),
+    )
+    .unwrap();
     drop(plugin);
 
     let gate = store.history_gate();
@@ -1554,11 +1471,7 @@ fn compound_history_projects_live_and_historical_key_counters() {
     assert_eq!(restored.key_counters["4key"][&old_key], 12);
     assert_eq!(restored.key_counters["4key"][&preserved_key], 7);
     assert!(!restored.key_counters["4key"].contains_key(&new_key));
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
+    assert!(plugin_instances_of(&store, "demo-plugin").is_empty());
     assert!(undo
         .change
         .as_ref()
@@ -1589,7 +1502,7 @@ fn compound_history_projects_live_and_historical_key_counters() {
     assert_eq!(redone.key_counters["4key"][&preserved_key], 8);
     assert!(!redone.key_counters["4key"].contains_key(&old_key));
     assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
+        plugin_instances_of(&store, "demo-plugin"),
         vec![saved_plugin_instance(42.0)]
     );
     drop(redo_barrier);
@@ -1606,45 +1519,24 @@ fn plugin_only_cross_plugin_gesture_merges_into_one_undo_step() {
     let gesture_id = uuid::Uuid::new_v4().to_string();
 
     // editor 선행 커밋 없이 plugin 커밋 2건만 같은 gestureId로 순차 도착
-    let first = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(42.0)],
-            uuid::Uuid::new_v4().to_string(),
-            Some(gesture_id.clone()),
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
-    let first_revision = first.outcome.model_revision;
-    assert_eq!(
-        first
-            .outcome
-            .history_status
-            .as_ref()
-            .unwrap()
-            .history_revision,
-        1
-    );
+    let first = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(42.0)],
+        Some(gesture_id.clone()),
+    )
+    .unwrap();
+    assert_eq!(first.history_status.as_ref().unwrap().history_revision, 1);
     drop(first);
-    let second = store
-        .commit_plugin_instances(plugin_instances_request(
-            "second-plugin",
-            vec![saved_plugin_instance(84.0)],
-            uuid::Uuid::new_v4().to_string(),
-            Some(gesture_id),
-            Some(first_revision),
-        ))
-        .unwrap();
+    let second = write_plugin_instances(
+        &store,
+        "second-plugin",
+        vec![saved_plugin_instance(84.0)],
+        Some(gesture_id),
+    )
+    .unwrap();
     // 크로스 플러그인 병합 - 히스토리 엔트리는 한 줄 유지
-    assert_eq!(
-        second
-            .outcome
-            .history_status
-            .as_ref()
-            .unwrap()
-            .history_revision,
-        1
-    );
+    assert_eq!(second.history_status.as_ref().unwrap().history_revision, 1);
     drop(second);
 
     let gate = store.history_gate();
@@ -1654,16 +1546,8 @@ fn plugin_only_cross_plugin_gesture_merges_into_one_undo_step() {
     let undo = store
         .apply_history_operation(HistoryDirection::Undo, &undo_id, &counters, || {})
         .unwrap();
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
-    assert!(store
-        .plugin_instances_get("second-plugin")
-        .unwrap()
-        .0
-        .is_empty());
+    assert!(plugin_instances_of(&store, "demo-plugin").is_empty());
+    assert!(plugin_instances_of(&store, "second-plugin").is_empty());
     assert!(!undo.status.can_undo);
     assert!(undo.status.can_redo);
     assert!(matches!(
@@ -1679,11 +1563,11 @@ fn plugin_only_cross_plugin_gesture_merges_into_one_undo_step() {
         .apply_history_operation(HistoryDirection::Redo, &redo_id, &counters, || {})
         .unwrap();
     assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
+        plugin_instances_of(&store, "demo-plugin"),
         vec![saved_plugin_instance(42.0)]
     );
     assert_eq!(
-        store.plugin_instances_get("second-plugin").unwrap().0,
+        plugin_instances_of(&store, "second-plugin"),
         vec![saved_plugin_instance(84.0)]
     );
     assert!(redo.status.can_undo);
@@ -1702,16 +1586,7 @@ fn dangling_plugin_group_id_neither_blocks_commits_nor_resurrects_groups() {
     // def 없는 group_id 저장 수용 (그룹 존재 검증은 도메인 결합 회피로 미수행)
     let mut dangling = saved_plugin_instance(10.0);
     dangling.group_id = Some("missing-group".to_string());
-    let committed = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![dangling.clone()],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
-    drop(committed);
+    put_plugin_instances(&store, "demo-plugin", &[dangling.clone()]);
 
     // normalize 경유 editor 커밋이 막히지 않고, 없는 def를 만들지도 않는다
     let victim_id = store.editor_get().document.key_positions["4key"][0]
@@ -1734,10 +1609,7 @@ fn dangling_plugin_group_id_neither_blocks_commits_nor_resurrects_groups() {
         .get("4key")
         .is_none_or(|groups| groups.is_empty()));
     // dangling group_id는 읽기 가드가 무해화 - 저장 값은 보존
-    assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
-        vec![dangling]
-    );
+    assert_eq!(plugin_instances_of(&store, "demo-plugin"), vec![dangling]);
 
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(dir);
@@ -2244,15 +2116,13 @@ fn merged_editor_gesture_aliases_only_join_the_top_plugin_entry() {
         ("plugin-a", 41.0, first_gesture.clone()),
         ("plugin-b", 82.0, second_gesture.clone()),
     ] {
-        let plugin = store
-            .commit_plugin_instances(plugin_instances_request(
-                plugin_id,
-                vec![saved_plugin_instance(x)],
-                uuid::Uuid::new_v4().to_string(),
-                Some(gesture_id),
-                Some(store.plugin_model_revision()),
-            ))
-            .unwrap();
+        let plugin = write_plugin_instances(
+            &store,
+            plugin_id,
+            vec![saved_plugin_instance(x)],
+            Some(gesture_id),
+        )
+        .unwrap();
         drop(plugin);
     }
 
@@ -2277,10 +2147,10 @@ fn merged_editor_gesture_aliases_only_join_the_top_plugin_entry() {
         initial_x
     );
     assert_eq!(
-        store.plugin_instances_get("plugin-a").unwrap().0,
+        plugin_instances_of(&store, "plugin-a"),
         vec![saved_plugin_instance(41.0)]
     );
-    assert!(store.plugin_instances_get("plugin-b").unwrap().0.is_empty());
+    assert!(plugin_instances_of(&store, "plugin-b").is_empty());
     assert!(first_undo.status.can_undo);
     assert!(first_undo.status.can_redo);
     drop(first_barrier);
@@ -2290,8 +2160,8 @@ fn merged_editor_gesture_aliases_only_join_the_top_plugin_entry() {
     let second_undo = store
         .apply_history_operation(HistoryDirection::Undo, &second_undo_id, &counters, || {})
         .unwrap();
-    assert!(store.plugin_instances_get("plugin-a").unwrap().0.is_empty());
-    assert!(store.plugin_instances_get("plugin-b").unwrap().0.is_empty());
+    assert!(plugin_instances_of(&store, "plugin-a").is_empty());
+    assert!(plugin_instances_of(&store, "plugin-b").is_empty());
     assert!(!second_undo.status.can_undo);
     assert!(second_undo.status.can_redo);
     drop(second_barrier);
@@ -2302,10 +2172,10 @@ fn merged_editor_gesture_aliases_only_join_the_top_plugin_entry() {
         .apply_history_operation(HistoryDirection::Redo, &first_redo_id, &counters, || {})
         .unwrap();
     assert_eq!(
-        store.plugin_instances_get("plugin-a").unwrap().0,
+        plugin_instances_of(&store, "plugin-a"),
         vec![saved_plugin_instance(41.0)]
     );
-    assert!(store.plugin_instances_get("plugin-b").unwrap().0.is_empty());
+    assert!(plugin_instances_of(&store, "plugin-b").is_empty());
     assert_eq!(
         store.editor_get().document.key_positions["4key"][0].dx,
         initial_x
@@ -2318,11 +2188,11 @@ fn merged_editor_gesture_aliases_only_join_the_top_plugin_entry() {
         .apply_history_operation(HistoryDirection::Redo, &second_redo_id, &counters, || {})
         .unwrap();
     assert_eq!(
-        store.plugin_instances_get("plugin-a").unwrap().0,
+        plugin_instances_of(&store, "plugin-a"),
         vec![saved_plugin_instance(41.0)]
     );
     assert_eq!(
-        store.plugin_instances_get("plugin-b").unwrap().0,
+        plugin_instances_of(&store, "plugin-b"),
         vec![saved_plugin_instance(82.0)]
     );
     assert_eq!(
@@ -2350,15 +2220,13 @@ fn multi_alias_editor_commit_stays_above_a_later_editor_commit() {
         ("plugin-a", 41.0, first_gesture.clone()),
         ("plugin-b", 82.0, second_gesture.clone()),
     ] {
-        let plugin = store
-            .commit_plugin_instances(plugin_instances_request(
-                plugin_id,
-                vec![saved_plugin_instance(x)],
-                uuid::Uuid::new_v4().to_string(),
-                Some(gesture_id),
-                Some(store.plugin_model_revision()),
-            ))
-            .unwrap();
+        let plugin = write_plugin_instances(
+            &store,
+            plugin_id,
+            vec![saved_plugin_instance(x)],
+            Some(gesture_id),
+        )
+        .unwrap();
         drop(plugin);
     }
 
@@ -2397,13 +2265,13 @@ fn multi_alias_editor_commit_stays_above_a_later_editor_commit() {
             expected_x
         );
         assert_eq!(
-            store.plugin_instances_get("plugin-a").unwrap().0,
+            plugin_instances_of(&store, "plugin-a"),
             expected_a
                 .map(|x| vec![saved_plugin_instance(x)])
                 .unwrap_or_default()
         );
         assert_eq!(
-            store.plugin_instances_get("plugin-b").unwrap().0,
+            plugin_instances_of(&store, "plugin-b"),
             expected_b
                 .map(|x| vec![saved_plugin_instance(x)])
                 .unwrap_or_default()
@@ -2428,13 +2296,13 @@ fn multi_alias_editor_commit_stays_above_a_later_editor_commit() {
             expected_x
         );
         assert_eq!(
-            store.plugin_instances_get("plugin-a").unwrap().0,
+            plugin_instances_of(&store, "plugin-a"),
             expected_a
                 .map(|x| vec![saved_plugin_instance(x)])
                 .unwrap_or_default()
         );
         assert_eq!(
-            store.plugin_instances_get("plugin-b").unwrap().0,
+            plugin_instances_of(&store, "plugin-b"),
             expected_b
                 .map(|x| vec![saved_plugin_instance(x)])
                 .unwrap_or_default()
@@ -2462,15 +2330,13 @@ fn merged_aliases_do_not_cross_an_intervening_same_plugin_edit() {
         (20.0, intervening_gesture),
         (30.0, last_gesture.clone()),
     ] {
-        let plugin = store
-            .commit_plugin_instances(plugin_instances_request(
-                "demo-plugin",
-                vec![saved_plugin_instance(x)],
-                uuid::Uuid::new_v4().to_string(),
-                Some(gesture_id),
-                Some(store.plugin_model_revision()),
-            ))
-            .unwrap();
+        let plugin = write_plugin_instances(
+            &store,
+            "demo-plugin",
+            vec![saved_plugin_instance(x)],
+            Some(gesture_id),
+        )
+        .unwrap();
         drop(plugin);
     }
 
@@ -2494,10 +2360,7 @@ fn merged_aliases_do_not_cross_an_intervening_same_plugin_edit() {
         let expected = expected_plugin_x
             .map(|x| vec![saved_plugin_instance(x)])
             .unwrap_or_default();
-        assert_eq!(
-            store.plugin_instances_get("demo-plugin").unwrap().0,
-            expected
-        );
+        assert_eq!(plugin_instances_of(&store, "demo-plugin"), expected);
         drop(barrier);
     }
     assert_eq!(
@@ -2513,7 +2376,7 @@ fn merged_aliases_do_not_cross_an_intervening_same_plugin_edit() {
             .apply_history_operation(HistoryDirection::Redo, &redo_id, &counters, || {})
             .unwrap();
         assert_eq!(
-            store.plugin_instances_get("demo-plugin").unwrap().0,
+            plugin_instances_of(&store, "demo-plugin"),
             vec![saved_plugin_instance(expected_plugin_x)]
         );
         drop(barrier);
@@ -2551,15 +2414,13 @@ fn delayed_plugin_commit_preserves_later_editor_undo_order() {
     );
     store.commit_editor_document(later_editor).unwrap();
 
-    let plugin = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(42.0)],
-            uuid::Uuid::new_v4().to_string(),
-            Some(gesture_id),
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
+    let plugin = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(42.0)],
+        Some(gesture_id),
+    )
+    .unwrap();
     drop(plugin);
 
     let gate = store.history_gate();
@@ -2574,7 +2435,7 @@ fn delayed_plugin_commit_preserves_later_editor_undo_order() {
         initial_x + 40.0
     );
     assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
+        plugin_instances_of(&store, "demo-plugin"),
         vec![saved_plugin_instance(42.0)]
     );
     drop(first_barrier);
@@ -2588,11 +2449,7 @@ fn delayed_plugin_commit_preserves_later_editor_undo_order() {
         store.editor_get().document.key_positions["4key"][0].dx,
         initial_x
     );
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
+    assert!(plugin_instances_of(&store, "demo-plugin").is_empty());
     drop(second_barrier);
 
     store.flush_and_shutdown().unwrap();
@@ -2614,15 +2471,13 @@ fn repeated_editor_gesture_keeps_an_intervening_plugin_undo_in_order() {
     );
     first_editor.gesture_id = Some(gesture_id.clone());
     store.commit_editor_document(first_editor).unwrap();
-    let plugin = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(42.0)],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
+    let plugin = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(42.0)],
+        None,
+    )
+    .unwrap();
     drop(plugin);
     let mut repeated_editor = editor_request(
         store.editor_get().revision,
@@ -2644,7 +2499,7 @@ fn repeated_editor_gesture_keeps_an_intervening_plugin_undo_in_order() {
         initial_x + 40.0
     );
     assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
+        plugin_instances_of(&store, "demo-plugin"),
         vec![saved_plugin_instance(42.0)]
     );
     drop(first_barrier);
@@ -2658,11 +2513,7 @@ fn repeated_editor_gesture_keeps_an_intervening_plugin_undo_in_order() {
         store.editor_get().document.key_positions["4key"][0].dx,
         initial_x + 40.0
     );
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
+    assert!(plugin_instances_of(&store, "demo-plugin").is_empty());
     drop(second_barrier);
 
     let third_undo_id = uuid::Uuid::new_v4().to_string();
@@ -2688,15 +2539,13 @@ fn plugin_first_compound_undo_restores_both_scopes() {
     let initial_x = store.editor_get().document.key_positions["4key"][0].dx;
     let gesture_id = uuid::Uuid::new_v4().to_string();
 
-    let plugin = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(91.0)],
-            uuid::Uuid::new_v4().to_string(),
-            Some(gesture_id.clone()),
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
+    let plugin = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(91.0)],
+        Some(gesture_id.clone()),
+    )
+    .unwrap();
     drop(plugin);
     let mut editor = editor_request(
         store.editor_get().revision,
@@ -2717,11 +2566,7 @@ fn plugin_first_compound_undo_restores_both_scopes() {
         store.editor_get().document.key_positions["4key"][0].dx,
         initial_x
     );
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
+    assert!(plugin_instances_of(&store, "demo-plugin").is_empty());
     drop(undo_barrier);
 
     store.flush_and_shutdown().unwrap();
@@ -2744,15 +2589,13 @@ fn compound_history_persist_failure_changes_neither_scope() {
     );
     editor.gesture_id = Some(gesture_id.clone());
     store.commit_editor_document(editor).unwrap();
-    let plugin = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(66.0)],
-            uuid::Uuid::new_v4().to_string(),
-            Some(gesture_id),
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
+    let plugin = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(66.0)],
+        Some(gesture_id),
+    )
+    .unwrap();
     drop(plugin);
 
     let gate = store.history_gate();
@@ -2768,70 +2611,11 @@ fn compound_history_persist_failure_changes_neither_scope() {
         changed_x
     );
     assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
+        plugin_instances_of(&store, "demo-plugin"),
         vec![saved_plugin_instance(66.0)]
     );
     assert!(store.history_status().can_undo);
     drop(undo_barrier);
-
-    store.flush_and_shutdown().unwrap();
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn plugin_instances_commit_revalidates_admission_after_store_lock_wait() {
-    let dir = test_directory("plugin-instances-admission-test");
-    std::fs::create_dir_all(&dir).unwrap();
-    let store = Arc::new(AppStore::initialize_in_dir(&dir).unwrap());
-    let expected_revision = store.plugin_model_revision();
-    let request = plugin_instances_request(
-        "demo-plugin",
-        vec![saved_plugin_instance(10.0)],
-        uuid::Uuid::new_v4().to_string(),
-        None,
-        Some(expected_revision),
-    );
-    let store_guard = store.state.write();
-    let commit_store = Arc::clone(&store);
-    let commit = thread::spawn(move || commit_store.commit_plugin_instances(request));
-    let gate = store.history_gate();
-    let deadline = Instant::now() + Duration::from_secs(2);
-    while gate.active_mutations() == 0 {
-        assert!(
-            Instant::now() < deadline,
-            "plugin mutation was not admitted"
-        );
-        thread::yield_now();
-    }
-
-    let barrier_gate = Arc::clone(&gate);
-    let operation_id = uuid::Uuid::new_v4().to_string();
-    let (barrier_ready_tx, barrier_ready_rx) = mpsc::channel();
-    let (release_barrier_tx, release_barrier_rx) = mpsc::channel();
-    let barrier = thread::spawn(move || {
-        let lease = barrier_gate.close(&operation_id).unwrap();
-        barrier_ready_tx.send(()).unwrap();
-        release_barrier_rx.recv().unwrap();
-        drop(lease);
-    });
-    let deadline = Instant::now() + Duration::from_secs(2);
-    while !gate.is_closed() {
-        assert!(Instant::now() < deadline, "history gate did not close");
-        thread::yield_now();
-    }
-
-    drop(store_guard);
-    assert_eq!(commit.join().unwrap().unwrap_err(), HISTORY_IN_PROGRESS);
-    barrier_ready_rx
-        .recv_timeout(Duration::from_secs(2))
-        .unwrap();
-    release_barrier_tx.send(()).unwrap();
-    barrier.join().unwrap();
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
 
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(dir);
@@ -2843,35 +2627,20 @@ fn plugin_instances_net_zero_gesture_removes_merged_entry() {
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
     let gesture_id = uuid::Uuid::new_v4().to_string();
-    let expected_revision = store.plugin_model_revision();
-    let first = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(10.0)],
-            uuid::Uuid::new_v4().to_string(),
-            Some(gesture_id.clone()),
-            Some(expected_revision),
-        ))
-        .unwrap();
-    let next_revision = first.outcome.model_revision;
+    let first = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(10.0)],
+        Some(gesture_id.clone()),
+    )
+    .unwrap();
     drop(first);
 
-    let second = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            Vec::new(),
-            uuid::Uuid::new_v4().to_string(),
-            Some(gesture_id),
-            Some(next_revision),
-        ))
-        .unwrap();
-    assert!(!second.outcome.history_status.as_ref().unwrap().can_undo);
+    let second =
+        write_plugin_instances(&store, "demo-plugin", Vec::new(), Some(gesture_id)).unwrap();
+    assert!(!second.history_status.as_ref().unwrap().can_undo);
     drop(second);
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
+    assert!(plugin_instances_of(&store, "demo-plugin").is_empty());
 
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(dir);
@@ -2892,15 +2661,13 @@ fn mixed_net_zero_gesture_removes_compound_entry() {
     );
     editor_out.gesture_id = Some(gesture_id.clone());
     store.commit_editor_document(editor_out).unwrap();
-    let plugin_out = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(25.0)],
-            uuid::Uuid::new_v4().to_string(),
-            Some(gesture_id.clone()),
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
+    let plugin_out = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(25.0)],
+        Some(gesture_id.clone()),
+    )
+    .unwrap();
     drop(plugin_out);
 
     let mut editor_back = editor_request(
@@ -2910,269 +2677,16 @@ fn mixed_net_zero_gesture_removes_compound_entry() {
     );
     editor_back.gesture_id = Some(gesture_id.clone());
     store.commit_editor_document(editor_back).unwrap();
-    let plugin_back = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            Vec::new(),
-            uuid::Uuid::new_v4().to_string(),
-            Some(gesture_id),
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
-    assert!(
-        !plugin_back
-            .outcome
-            .history_status
-            .as_ref()
-            .unwrap()
-            .can_undo
-    );
+    let plugin_back =
+        write_plugin_instances(&store, "demo-plugin", Vec::new(), Some(gesture_id)).unwrap();
+    assert!(!plugin_back.history_status.as_ref().unwrap().can_undo);
     drop(plugin_back);
 
     assert_eq!(
         store.editor_get().document.key_positions["4key"][0].dx,
         initial_x
     );
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
-
-    store.flush_and_shutdown().unwrap();
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn plugin_instances_reconcile_is_noop_when_canonical_tabs_are_valid() {
-    let dir = test_directory("plugin-instances-reconcile-noop-test");
-    std::fs::create_dir_all(&dir).unwrap();
-    let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let committed = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(10.0)],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
-    drop(committed);
-    let revision = store.plugin_model_revision();
-    let history_revision = store.history_status().history_revision;
-
-    let reconciled = store
-        .reconcile_plugin_instances(plugin_instances_reconcile_request(
-            "demo-plugin",
-            &["4key", "5key"],
-            uuid::Uuid::new_v4().to_string(),
-        ))
-        .unwrap();
-
-    assert!(!reconciled.outcome.changed);
-    assert!(reconciled.outcome.history_status.is_none());
-    assert_eq!(reconciled.outcome.model_revision, revision);
-    drop(reconciled);
-    assert_eq!(store.history_status().history_revision, history_revision);
-
-    store.flush_and_shutdown().unwrap();
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn plugin_instances_reconcile_records_and_round_trips_history() {
-    let dir = test_directory("plugin-instances-reconcile-history-test");
-    std::fs::create_dir_all(&dir).unwrap();
-    let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let mut default_tab = saved_plugin_instance(10.0);
-    default_tab.tab_id = None;
-    default_tab.hidden = true;
-    default_tab.z_index = Some(17.0);
-    let mut stale_tab = saved_plugin_instance(30.0);
-    stale_tab.tab_id = Some("deleted-tab".to_string());
-    let before = vec![default_tab, stale_tab];
-    let committed = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            before.clone(),
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
-    drop(committed);
-
-    let request = plugin_instances_reconcile_request(
-        "demo-plugin",
-        &["4key"],
-        uuid::Uuid::new_v4().to_string(),
-    );
-    let reconciled = store.reconcile_plugin_instances(request).unwrap();
-    assert!(reconciled.outcome.changed);
-    assert!(reconciled.outcome.history_status.is_some());
-    drop(reconciled);
-    let mut normalized = saved_plugin_instance(10.0);
-    normalized.tab_id = Some("4key".to_string());
-    normalized.hidden = true;
-    normalized.z_index = Some(17.0);
-    assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
-        vec![normalized.clone()]
-    );
-
-    let gate = store.history_gate();
-    let counters = store.snapshot().key_counters;
-    let undo_id = uuid::Uuid::new_v4().to_string();
-    let undo_barrier = gate.close(&undo_id).unwrap();
-    store
-        .apply_history_operation(HistoryDirection::Undo, &undo_id, &counters, || {})
-        .unwrap();
-    drop(undo_barrier);
-    assert_eq!(store.plugin_instances_get("demo-plugin").unwrap().0, before);
-
-    let redo_id = uuid::Uuid::new_v4().to_string();
-    let redo_barrier = gate.close(&redo_id).unwrap();
-    store
-        .apply_history_operation(HistoryDirection::Redo, &redo_id, &counters, || {})
-        .unwrap();
-    drop(redo_barrier);
-    assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
-        vec![normalized]
-    );
-
-    store.flush_and_shutdown().unwrap();
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn plugin_instances_reconcile_rejects_stale_history_epoch_after_undo() {
-    let dir = test_directory("plugin-instances-reconcile-history-epoch-test");
-    std::fs::create_dir_all(&dir).unwrap();
-    let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let restored_instances = vec![saved_plugin_instance(10.0)];
-    let first = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            restored_instances.clone(),
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
-    drop(first);
-
-    let mut replacement = saved_plugin_instance(30.0);
-    replacement.tab_id = Some("5key".to_string());
-    let second = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![replacement],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
-    drop(second);
-    let stale_epoch = store.history_status().history_epoch;
-
-    let operation_id = uuid::Uuid::new_v4().to_string();
-    let gate = store.history_gate();
-    let barrier = gate.close(&operation_id).unwrap();
-    let counters = store.snapshot().key_counters;
-    let undo = store
-        .apply_history_operation(HistoryDirection::Undo, &operation_id, &counters, || {})
-        .unwrap();
-    drop(barrier);
-    assert_ne!(undo.status.history_epoch, stale_epoch);
-    assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
-        restored_instances
-    );
-
-    let before_revision = store.plugin_model_revision();
-    let before_status = store.history_status();
-    let mutation_id = uuid::Uuid::new_v4().to_string();
-    let mut request = plugin_instances_reconcile_request("demo-plugin", &["5key"], mutation_id);
-    request.observed_history_epoch = Some(stale_epoch);
-    assert_eq!(
-        store.reconcile_plugin_instances(request).unwrap_err(),
-        "HISTORY_EPOCH_CONFLICT"
-    );
-    assert_eq!(store.plugin_model_revision(), before_revision);
-    let after_status = store.history_status();
-    assert_eq!(
-        after_status.history_revision,
-        before_status.history_revision
-    );
-    assert_eq!(after_status.history_epoch, before_status.history_epoch);
-    assert_eq!(after_status.can_undo, before_status.can_undo);
-    assert_eq!(after_status.can_redo, before_status.can_redo);
-    assert_eq!(after_status.busy, before_status.busy);
-    assert_eq!(after_status.truncated, before_status.truncated);
-    assert!(after_status.status_seq > before_status.status_seq);
-    assert_eq!(
-        store.plugin_instances_get("demo-plugin").unwrap().0,
-        restored_instances
-    );
-
-    store.flush_and_shutdown().unwrap();
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-#[test]
-fn plugin_instances_reconcile_cannot_resurrect_after_bulk_clear() {
-    let dir = test_directory("plugin-instances-reconcile-clear-race-test");
-    std::fs::create_dir_all(&dir).unwrap();
-    let store = Arc::new(AppStore::initialize_in_dir(&dir).unwrap());
-    let committed = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(10.0)],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
-    drop(committed);
-    let stale_snapshot = store.plugin_instances_get("demo-plugin").unwrap().0;
-    assert!(!stale_snapshot.is_empty());
-
-    let store_guard = store.state.write();
-    let reconcile_store = Arc::clone(&store);
-    let reconcile = thread::spawn(move || {
-        let result =
-            reconcile_store.reconcile_plugin_instances(plugin_instances_reconcile_request(
-                "demo-plugin",
-                &["4key"],
-                uuid::Uuid::new_v4().to_string(),
-            ));
-        result.map(|outcome| outcome.outcome.changed)
-    });
-    let clear_store = Arc::clone(&store);
-    let clear = thread::spawn(move || {
-        let result = clear_store.remove_plugin_data_by_prefix("plugin_data_demo-plugin/");
-        result.map(|outcome| outcome.value)
-    });
-
-    let gate = store.history_gate();
-    let deadline = Instant::now() + Duration::from_secs(2);
-    while gate.active_mutations() < 2 {
-        assert!(
-            Instant::now() < deadline,
-            "plugin mutations were not admitted"
-        );
-        thread::yield_now();
-    }
-    drop(store_guard);
-
-    reconcile.join().unwrap().unwrap();
-    assert_eq!(clear.join().unwrap().unwrap(), 1);
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
+    assert!(plugin_instances_of(&store, "demo-plugin").is_empty());
 
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(dir);
@@ -3183,15 +2697,13 @@ fn generic_instance_storage_set_and_remove_are_reserved() {
     let dir = test_directory("plugin-instances-reserved-key-test");
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
-    let committed = store
-        .commit_plugin_instances(plugin_instances_request(
-            "demo-plugin",
-            vec![saved_plugin_instance(10.0)],
-            uuid::Uuid::new_v4().to_string(),
-            None,
-            Some(store.plugin_model_revision()),
-        ))
-        .unwrap();
+    let committed = write_plugin_instances(
+        &store,
+        "demo-plugin",
+        vec![saved_plugin_instance(10.0)],
+        None,
+    )
+    .unwrap();
     drop(committed);
 
     let gate = store.history_gate();
@@ -3219,11 +2731,7 @@ fn generic_instance_storage_set_and_remove_are_reserved() {
     assert_eq!(remove_error.to_string(), "PLUGIN_INSTANCES_KEY_RESERVED");
     assert_eq!(store.plugin_model_revision(), revision);
     assert!(store.history_status().can_redo);
-    assert!(store
-        .plugin_instances_get("demo-plugin")
-        .unwrap()
-        .0
-        .is_empty());
+    assert!(plugin_instances_of(&store, "demo-plugin").is_empty());
 
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(dir);
@@ -3237,29 +2745,12 @@ fn plugin_namespace_clear_invalidates_history_after_instances_are_already_empty(
 
     for plugin_id in ["alpha", "beta"] {
         drop(
-            store
-                .commit_plugin_instances(plugin_instances_request(
-                    plugin_id,
-                    vec![saved_plugin_instance(10.0)],
-                    uuid::Uuid::new_v4().to_string(),
-                    None,
-                    Some(store.plugin_model_revision()),
-                ))
+            write_plugin_instances(&store, plugin_id, vec![saved_plugin_instance(10.0)], None)
                 .unwrap(),
         );
-        drop(
-            store
-                .commit_plugin_instances(plugin_instances_request(
-                    plugin_id,
-                    Vec::new(),
-                    uuid::Uuid::new_v4().to_string(),
-                    None,
-                    Some(store.plugin_model_revision()),
-                ))
-                .unwrap(),
-        );
+        drop(write_plugin_instances(&store, plugin_id, Vec::new(), None).unwrap());
         assert!(store.history_status().can_undo);
-        assert!(store.plugin_instances_get(plugin_id).unwrap().0.is_empty());
+        assert!(plugin_instances_of(&store, plugin_id).is_empty());
 
         if plugin_id == "alpha" {
             drop(
@@ -3306,15 +2797,9 @@ fn bulk_plugin_storage_deletion_reports_each_instance_revision() {
     let store = AppStore::initialize_in_dir(&dir).unwrap();
 
     for plugin_id in ["alpha", "beta"] {
-        let committed = store
-            .commit_plugin_instances(plugin_instances_request(
-                plugin_id,
-                vec![saved_plugin_instance(10.0)],
-                uuid::Uuid::new_v4().to_string(),
-                None,
-                Some(store.plugin_model_revision()),
-            ))
-            .unwrap();
+        let committed =
+            write_plugin_instances(&store, plugin_id, vec![saved_plugin_instance(10.0)], None)
+                .unwrap();
         drop(committed);
     }
     drop(
@@ -3348,19 +2833,13 @@ fn bulk_plugin_storage_deletion_reports_each_instance_revision() {
         }]
     );
     drop(prefix_delete);
-    assert!(store.plugin_instances_get("alpha").unwrap().0.is_empty());
-    assert!(store.plugin_instances_get("beta").unwrap().0.is_empty());
+    assert!(plugin_instances_of(&store, "alpha").is_empty());
+    assert!(plugin_instances_of(&store, "beta").is_empty());
 
     for plugin_id in ["beta", "gamma"] {
-        let committed = store
-            .commit_plugin_instances(plugin_instances_request(
-                plugin_id,
-                vec![saved_plugin_instance(20.0)],
-                uuid::Uuid::new_v4().to_string(),
-                None,
-                Some(store.plugin_model_revision()),
-            ))
-            .unwrap();
+        let committed =
+            write_plugin_instances(&store, plugin_id, vec![saved_plugin_instance(20.0)], None)
+                .unwrap();
         drop(committed);
     }
 
@@ -3383,8 +2862,8 @@ fn bulk_plugin_storage_deletion_reports_each_instance_revision() {
     );
     drop(clear);
     assert_eq!(store.plugin_model_revision(), clear_revision);
-    assert!(store.plugin_instances_get("beta").unwrap().0.is_empty());
-    assert!(store.plugin_instances_get("gamma").unwrap().0.is_empty());
+    assert!(plugin_instances_of(&store, "beta").is_empty());
+    assert!(plugin_instances_of(&store, "gamma").is_empty());
 
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(dir);
@@ -13253,21 +12732,6 @@ fn custom_tab_delete_history_restores_plugin_instances_atomically() {
         serde_json::json!([{ "broken": true }, retained])
     );
     assert!(super::read_plugin_instance_bucket(&after_delete, "plugin-b").is_none());
-    let mut stale_instance = saved_plugin_instance(44.0);
-    stale_instance.tab_id = Some("history-plugin-tab".to_string());
-    let mut stale_request = plugin_instances_request(
-        "plugin-b",
-        vec![stale_instance],
-        uuid::Uuid::new_v4().to_string(),
-        None,
-        Some(store.plugin_model_revision()),
-    );
-    stale_request.observed_history_epoch = Some(before_epoch);
-    assert_eq!(
-        store.commit_plugin_instances(stale_request).unwrap_err(),
-        "HISTORY_EPOCH_CONFLICT"
-    );
-    assert!(super::read_plugin_instance_bucket(&store.snapshot(), "plugin-b").is_none());
     drop(delete);
 
     let gate = store.history_gate();

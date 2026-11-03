@@ -384,10 +384,6 @@ pub fn run() {
             // 플러그인
             commands::plugin::bridge::plugin_bridge_send,
             commands::plugin::bridge::plugin_bridge_send_to,
-            commands::plugin::rpc::plugin_authority_reset,
-            commands::plugin::instances::plugin_instances_commit,
-            commands::plugin::instances::plugin_instances_get,
-            commands::plugin::instances::plugin_instances_reconcile,
             commands::plugin::storage::plugin_storage_get,
             commands::plugin::storage::plugin_storage_set,
             commands::plugin::storage::plugin_storage_remove,
@@ -405,11 +401,6 @@ pub fn run() {
             event: tauri::WindowEvent::Destroyed,
             ..
         } => {
-            if label == "main" {
-                if let Some(state) = app_handle.try_state::<AppState>() {
-                    state.mark_plugin_authority_unavailable();
-                }
-            }
             if label == PANEL_LABEL {
                 if let Some(state) = app_handle.try_state::<AppState>() {
                     state.handle_panel_window_destroyed(app_handle);

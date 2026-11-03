@@ -107,7 +107,6 @@ pub use window_geometry::{LogicalPoint, LogicalRect, PanelDragContext};
 
 use super::{
     history::HistoryAdmissionLease,
-    plugin::{PluginAuthorityLease, PluginRuntimeAuthority},
     store::{AdmittedEditorTransaction, AppStore, PluginInstancesResetScope},
     window::panel_drag::PanelDragController,
 };
@@ -654,7 +653,6 @@ pub struct AppState {
     /// reconcile 경로에서 store.update를 호출하면 이 불변식이 깨진다
     overlay_hit: OverlayHitService,
     overlay_bounds_generation: Arc<AtomicU64>,
-    plugin_authority: PluginRuntimeAuthority,
     panel_bounds_persistence: Arc<PanelBoundsPersistenceController>,
     panel_visible: AtomicBool,
     /// 트레이 숨김에 동행해 우리가 감춘 분리 패널 표식
@@ -877,7 +875,6 @@ impl AppState {
                 snapshot.always_on_top,
             ),
             overlay_bounds_generation: Arc::new(AtomicU64::new(0)),
-            plugin_authority: PluginRuntimeAuthority::default(),
             panel_bounds_persistence,
             panel_visible: AtomicBool::new(false),
             panel_hidden_with_main: AtomicBool::new(false),
@@ -1121,18 +1118,6 @@ impl AppState {
             tab_css_overrides: state.tab_css_overrides.clone(),
             editor_revision: state.editor_revision,
         }
-    }
-
-    pub(crate) fn plugin_authority(&self) -> &PluginRuntimeAuthority {
-        &self.plugin_authority
-    }
-
-    pub(crate) fn reset_plugin_authority(&self) -> Result<PluginAuthorityLease, String> {
-        self.plugin_authority.reset()
-    }
-
-    pub fn mark_plugin_authority_unavailable(&self) {
-        self.plugin_authority.mark_unavailable();
     }
 }
 
