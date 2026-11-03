@@ -7,7 +7,8 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import OverlayKnobItem from '@components/overlay/counters/OverlayKnobItem';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
+import KnobElementFace from '@src/renderer/elementKinds/definitions/knob/KnobElementFace';
 import { resetAllAxisSignals } from '@stores/signals/axisSignals';
 import {
   DEFAULT_ELEMENT_BORDER,
@@ -15,7 +16,19 @@ import {
   DEFAULT_ELEMENT_FONT,
 } from '@utils/element/elementDefaults';
 
-describe('노브 인디케이터 색', () => {
+const element = {
+  type: 'element',
+  id: 'knob-1',
+  kind: 'knob',
+  frame: { x: 0, y: 0, width: 60, height: 60, rotation: 0 },
+  input: { type: 'axis', axisId: 'axis-indicator-test' },
+} as ElementNode;
+
+// 편집 화면과 오버레이가 같은 그리기를 쓴다
+describe.each([
+  ['오버레이', true],
+  ['편집 화면', false],
+] as const)('노브 인디케이터 색 (%s)', (_, live) => {
   let host: HTMLDivElement;
   let root: Root;
 
@@ -31,20 +44,16 @@ describe('노브 인디케이터 색', () => {
     resetAllAxisSignals();
   });
 
-  const indicatorColorFor = (
-    border: Parameters<typeof OverlayKnobItem>[0]['position'],
-  ) => {
+  const indicatorColorFor = (border: Record<string, unknown>) => {
     act(() => {
       root.render(
-        <OverlayKnobItem
-          position={{
-            dx: 0,
-            dy: 0,
-            width: 60,
-            height: 60,
-            axisId: 'axis-indicator-test',
-            ...border,
-          }}
+        <KnobElementFace
+          element={element}
+          values={{ sensitivity: 1, reverse: false }}
+          bundles={{ surface: border }}
+          live={live}
+          inputs={{}}
+          placement={live ? { x: 0, y: 0, zIndex: 0 } : undefined}
         />,
       );
     });

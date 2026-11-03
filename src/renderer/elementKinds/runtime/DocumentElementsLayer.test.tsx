@@ -58,9 +58,9 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 }));
 
 const knobProps = vi.fn();
-vi.mock('@components/overlay/counters/OverlayKnobItem', () => ({
-  default: (props: { position: Record<string, unknown> }) => {
-    knobProps(props.position);
+vi.mock('@src/renderer/elementKinds/definitions/knob/KnobElementFace', () => ({
+  default: (props: Record<string, unknown>) => {
+    knobProps(props);
     return <div data-knob-element="" />;
   },
 }));
@@ -154,17 +154,15 @@ describe('오버레이가 트리에서 그리는 옛 종류', () => {
     expect(container.querySelectorAll('[data-knob-element]')).toHaveLength(1);
     expect(knobProps).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        id: 'n1',
-        dx: 15,
-        dy: 27,
-        width: 80,
-        height: 70,
-        rotation: 15,
-        sensitivity: 2,
-        reverse: true,
-        borderRadius: 12,
-        axisId: 'axis-1',
-        zIndex: 1,
+        element: expect.objectContaining({
+          id: 'n1',
+          frame: { x: 10, y: 20, width: 80, height: 70, rotation: 15 },
+          input: { type: 'axis', axisId: 'axis-1' },
+        }),
+        values: { sensitivity: 2, reverse: true },
+        bundles: { surface: { borderRadius: 12 } },
+        live: true,
+        placement: { x: 15, y: 27, zIndex: 1 },
       }),
     );
     // 그리기를 한 벌로 옮긴 종류 - 트리 값 그대로, 감싸는 상자 없이 받은 자리에 스스로 놓인다

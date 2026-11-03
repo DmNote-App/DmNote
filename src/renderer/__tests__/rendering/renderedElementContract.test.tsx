@@ -8,7 +8,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Key } from '@components/shared/key/LiveKey';
 import StatItem from '@components/overlay/counters/StatItem';
-import OverlayKnobItem from '@components/overlay/counters/OverlayKnobItem';
+import KnobElementFace from '@src/renderer/elementKinds/definitions/knob/KnobElementFace';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import OverlaySpriteItem from '@components/overlay/counters/OverlaySpriteItem';
 import OutsideCounter from '@components/overlay/counters/OutsideCounter';
 import GraphPanel from '@components/shared/graph/GraphPanel';
@@ -346,12 +347,25 @@ describe('렌더 DOM 계약', () => {
     });
   });
 
-  describe('오버레이 KnobItem', () => {
+  describe('오버레이 노브', () => {
     it('data 속성·노브 변수를 싣고 회전 입력이 active로 전환한다', () => {
       act(() => {
         root.render(
-          <OverlayKnobItem
-            position={{ ...basePosition, axisId: 'axis-render-test' }}
+          <KnobElementFace
+            element={
+              {
+                type: 'element',
+                id: 'knob-render-test',
+                kind: 'knob',
+                frame: { x: 4, y: 8, width: 60, height: 60, rotation: 0 },
+                input: { type: 'axis', axisId: 'axis-render-test' },
+              } as ElementNode
+            }
+            values={{ sensitivity: 1, reverse: false }}
+            bundles={{}}
+            live
+            inputs={{}}
+            placement={{ x: 4, y: 8, zIndex: 0 }}
           />,
         );
       });
