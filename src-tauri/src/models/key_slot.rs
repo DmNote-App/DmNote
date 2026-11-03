@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
-pub const MAX_SLOT_KEYS: usize = 8;
+// 한 슬롯에 묶는 키 수 상한 - 문서 엔진의 입력 검사와 같은 값 하나
+pub const MAX_SLOT_KEYS: usize = element_document::document::MAX_SLOT_KEYS;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

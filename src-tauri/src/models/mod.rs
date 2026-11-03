@@ -77,8 +77,10 @@ use uuid::Uuid;
 
 pub type KeyCounters = HashMap<String, HashMap<String, u32>>;
 
-const DEFAULT_GRADIENT_ANGLE: f64 = 90.0;
-const MAX_GRADIENT_STOPS: usize = 8;
+// 그라데이션 기본 각도·색 칸 상한 - 문서 엔진의 값 검사와 같은 값 하나
+const DEFAULT_GRADIENT_ANGLE: f64 = element_document::value::DEFAULT_GRADIENT_ANGLE;
+const MAX_GRADIENT_STOPS: usize = element_document::value::MAX_GRADIENT_STOPS;
+const MIN_GRADIENT_STOPS: usize = element_document::value::MIN_GRADIENT_STOPS;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -154,7 +156,7 @@ impl Serialize for GradientSpec {
     where
         S: Serializer,
     {
-        if self.stops.len() < 2 {
+        if self.stops.len() < MIN_GRADIENT_STOPS {
             return Err(S::Error::custom("gradient must contain at least two stops"));
         }
         if !self.angle.is_finite() || self.stops.iter().any(|stop| !stop.pos.is_finite()) {
@@ -192,7 +194,7 @@ impl<'de> Deserialize<'de> for GradientSpec {
                 serde_json::from_value::<Vec<GradientStop>>(value)
                     .map_err(|error| D::Error::custom(format!("invalid gradient stops: {error}")))
             })?;
-        if stops.len() < 2 {
+        if stops.len() < MIN_GRADIENT_STOPS {
             return Err(D::Error::custom("gradient must contain at least two stops"));
         }
         if !angle.is_finite() || stops.iter().any(|stop| !stop.pos.is_finite()) {

@@ -80,7 +80,8 @@ export const TREE_EDITED_KINDS: ReadonlySet<string> = new Set([
   'key',
 ]);
 
-const PLUGIN_KIND_PREFIX = 'plugin:';
+// 플러그인 외부 종류 이름 앞부분 - 백엔드 EXTERNAL_KIND_PREFIX와 같다
+export const PLUGIN_KIND_PREFIX = 'plugin:';
 
 /** 플러그인 인스턴스 요소(`plugin:{id}`, 요소 id는 `{id}::{인스턴스}`) - 저장 원본은 트리, 공개 목록은 백엔드가
  * 투영한다. 그리기는 플러그인 렌더러, 고르기·끌기·크기 조절은 트리 편집기가 맡는다 */

@@ -3,9 +3,8 @@
 // 인스턴스 수 제한(maxInstances)은 메뉴의 막기로 남긴다 - 정의 제한은 이미 넘은 장면의 편집까지 막는다
 import type { PluginSettingSchema } from '@src/types/plugin/api';
 import type { KindSchema } from '@src/types/generated/elementDocument';
+import { PLUGIN_KIND_PREFIX } from '@src/types/elementKinds';
 import { isValueSetting } from '../settingsSections';
-
-export const PLUGIN_KIND_PREFIX = 'plugin:';
 
 export const pluginKindName = (pluginId: string) =>
   `${PLUGIN_KIND_PREFIX}${pluginId}`;

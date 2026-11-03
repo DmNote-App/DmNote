@@ -11,6 +11,7 @@ import {
   PLUGIN_KIND_OUTPUT_PATH,
 } from '../scripts/extract-element-kinds.mjs';
 import { PLUGIN_FALLBACK_SIZE } from '../src/renderer/plugins/runtime/api/pluginKindSchema';
+import { PLUGIN_KIND_PREFIX } from '../src/types/elementKinds';
 import { BUILTIN_ELEMENT_KINDS } from '../src/renderer/elementKinds/builtinKinds';
 import { elementKindData } from '../src/renderer/elementKinds/defineElementKind';
 import { EDITOR_ELEMENT_TYPES, isEditorElementType } from '../src/types/editor';
@@ -31,6 +32,16 @@ describe('요소 종류 정의 추출', () => {
     expect(JSON.parse(extractPluginKind())).toEqual({
       fallbackSize: PLUGIN_FALLBACK_SIZE,
     });
+  });
+
+  it('플러그인 외부 종류 이름 앞부분이 백엔드 엔진과 같다', () => {
+    const schema = readFileSync(
+      join(__dirname, '../src-tauri/crates/element-document/src/schema.rs'),
+      'utf8',
+    );
+    expect(schema).toContain(
+      `pub const EXTERNAL_KIND_PREFIX: &str = "${PLUGIN_KIND_PREFIX}";`,
+    );
   });
 
   it('구문 트리로 읽은 데이터가 실행 시 정의와 같다', () => {

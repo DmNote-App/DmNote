@@ -45,8 +45,9 @@ pub const IMAGE_TRANSFORM_ROTATION_MAX: f64 = 180.0;
 pub const IMAGE_TRANSFORM_SCALE_MIN: f64 = 0.1;
 pub const IMAGE_TRANSFORM_SCALE_MAX: f64 = 10.0;
 
-pub const ELEMENT_ROTATION_MIN: f64 = -180.0;
-pub const ELEMENT_ROTATION_MAX: f64 = 180.0;
+// 요소 회전 범위 - 문서 엔진의 틀 검사와 같은 값 하나 (트리 요소와 옛 위치가 같은 범위를 쓴다)
+pub const ELEMENT_ROTATION_MIN: f64 = element_document::ops::ROTATION_MIN;
+pub const ELEMENT_ROTATION_MAX: f64 = element_document::ops::ROTATION_MAX;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
