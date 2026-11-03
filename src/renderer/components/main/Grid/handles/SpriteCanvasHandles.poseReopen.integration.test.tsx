@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { act, createRef, useSyncExternalStore } from 'react';
+import React, { act, useSyncExternalStore } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -120,7 +120,7 @@ const loadHarness = async () => {
     import('@src/renderer/__tests__/fakeElementDocumentBackend'),
     import('@src/renderer/editor/document/elementDocumentRuntime'),
     import('../overlays/GridSelectionOverlays'),
-    import('@components/main/Grid/PropertiesPanel/single/SingleSpritePanel'),
+    import('@src/renderer/elementKinds/definitions/sprite/SpritePanelSection'),
     import('@src/renderer/editor/runtime/gesture/previewOverlay'),
     import('@src/renderer/elementKinds/runtime/treePanelRecords'),
     import('@stores/grid/useDocumentSelectionStore'),
@@ -134,7 +134,7 @@ const loadHarness = async () => {
     loadStore: runtime.loadElementDocumentStore,
     useScene: runtime.useElementDocumentScene,
     GridSelectionOverlays: overlays.default,
-    SingleSpritePanel: panel.SingleSpritePanel,
+    SpritePanelSection: panel.default,
     SpriteFaceView: spriteFace.default,
     useSpriteEditPreviewStore: editPreview.useSpriteEditPreviewStore,
     subscribePreviewOverlay: overlay.subscribePreviewOverlay,
@@ -183,21 +183,11 @@ describe('자세 손잡이 저장 후 실제 팝업 닫기와 다시 열기 (트
           isSelected={isSelected}
         />
         {isSelected ? (
-          <harness.SingleSpritePanel
-            setPanelElement={vi.fn()}
+          <harness.SpritePanelSection
+            sceneId="4key"
+            elementIds={[SPRITE_ID]}
             panelElement={container}
-            singleSpritePosition={position}
-            selectedKeyType="4key"
-            isRenaming={false}
-            renameInputRef={createRef<HTMLInputElement>() as never}
-            renameValue=""
-            setRenameValue={vi.fn()}
-            renameCancelledRef={{ current: false }}
-            handleRenameCommit={vi.fn()}
-            handleRenameCancel={vi.fn()}
-            handleRenameStart={vi.fn()}
-            singleScrollRefFor={() => vi.fn()}
-            t={((key: string) => key) as never}
+            t={(key) => key}
           />
         ) : null}
         <harness.GridSelectionOverlays

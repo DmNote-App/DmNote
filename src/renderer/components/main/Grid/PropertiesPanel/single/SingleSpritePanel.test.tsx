@@ -1,9 +1,11 @@
-import React, { act, createRef, useEffect } from 'react';
+import React, { act, useEffect } from 'react';
 import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SingleSpritePanel } from './SingleSpritePanel';
+import SpritePanelSection from '@src/renderer/elementKinds/definitions/sprite/SpritePanelSection';
+import { previewOverlay } from '@src/renderer/editor/runtime/gesture/previewOverlay';
+import { stableStringify } from '@utils/core/stableStringify';
 import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useSpriteEditPreviewStore } from '@stores/grid/useSpriteEditPreviewStore';
@@ -168,28 +170,50 @@ const spritePosition = (
   ...overrides,
 });
 
+// 스프라이트 패널은 스프라이트 정의의 패널 본문 섹션 - 트리(옛 스토어로 꾸민 장면) 값에 편집 미리보기를 얹어
+// 읽는다. 옛 패널에 넘기던 표시 값이 저장 값과 다르면 그 차이를 편집 미리보기로 얹는다
+const showDisplay = (position: CanonicalReactiveSpritePosition) => {
+  previewOverlay.clearAll();
+  const stored = useSpriteStore
+    .getState()
+    .positions['4key']?.find((candidate) => candidate.id === position.id);
+  if (stored && stableStringify(stored) !== stableStringify(position)) {
+    previewOverlay.applyLocalPatchByIds(
+      'sprite-display',
+      '4key',
+      [position.id],
+      position as unknown as Record<string, unknown>,
+      'spritePosition',
+    );
+  }
+};
+
+const SingleSpritePanel = ({
+  singleSpritePosition,
+  panelElement,
+}: {
+  singleSpritePosition: CanonicalReactiveSpritePosition;
+  panelElement: HTMLElement | null;
+}) => (
+  <SpritePanelSection
+    sceneId="4key"
+    elementIds={[singleSpritePosition.id]}
+    panelElement={panelElement}
+    t={(key) => key}
+  />
+);
+
 describe('SingleSpritePanel 자세 편집', () => {
   let container: HTMLDivElement;
   let root: Root;
 
   const render = (position: CanonicalReactiveSpritePosition) => {
     act(() => {
+      showDisplay(position);
       root.render(
         <SingleSpritePanel
-          setPanelElement={vi.fn()}
           panelElement={container}
           singleSpritePosition={position}
-          selectedKeyType="4key"
-          isRenaming={false}
-          renameInputRef={createRef<HTMLInputElement>() as never}
-          renameValue=""
-          setRenameValue={vi.fn()}
-          renameCancelledRef={{ current: false }}
-          handleRenameCommit={vi.fn()}
-          handleRenameCancel={vi.fn()}
-          handleRenameStart={vi.fn()}
-          singleScrollRefFor={() => vi.fn()}
-          t={((key: string) => key) as never}
         />,
       );
     });
@@ -306,6 +330,7 @@ describe('SingleSpritePanel 자세 편집', () => {
     container.remove();
     useSpriteStore.setState({ positions: {} });
     useSpriteEditPreviewStore.setState({ preview: null });
+    previewOverlay.clearAll();
   });
 
   it('자세 추가는 담당 키가 비어 커밋하지 않고 요약 행과 편집 팝업만 연다', () => {
@@ -1586,25 +1611,14 @@ describe('SingleSpritePanel 자세 편집', () => {
       tick: number,
     ) => {
       act(() => {
+        if (pos) showDisplay(pos);
         root.render(
           <>
             <CancelOnTick tick={tick} />
             {pos ? (
               <SingleSpritePanel
-                setPanelElement={vi.fn()}
                 panelElement={container}
                 singleSpritePosition={pos}
-                selectedKeyType="4key"
-                isRenaming={false}
-                renameInputRef={createRef<HTMLInputElement>() as never}
-                renameValue=""
-                setRenameValue={vi.fn()}
-                renameCancelledRef={{ current: false }}
-                handleRenameCommit={vi.fn()}
-                handleRenameCancel={vi.fn()}
-                handleRenameStart={vi.fn()}
-                singleScrollRefFor={() => vi.fn()}
-                t={((key: string) => key) as never}
               />
             ) : null}
           </>,

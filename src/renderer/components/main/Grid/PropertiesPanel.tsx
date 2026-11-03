@@ -18,7 +18,6 @@ import {
   TABS,
   LayerPanel,
   PluginSelectionPanel,
-  SingleSpritePanel,
   SingleKeyStatPanel,
   BatchKeyLikePanel,
   BatchPluginOnlyPanel,
@@ -649,6 +648,32 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
     // 플러그인 단독 다중 선택 - 정렬·분배·간격만 있는 경량 기하 배치
     if (route.kind === 'pluginBatch') {
+      // 스프라이트가 있으면(플러그인 요소와 함께도) 스프라이트 정의의 패널 선언 - 정렬·분배·간격
+      if (selectedSpriteElements.length > 0) {
+        return (
+          <DocumentBatchPanel
+            sceneId={selectedKeyType}
+            elementIds={selectedSpriteElements.map(({ id }) => id)}
+            panelElement={panelElement}
+            setPanelElement={setPanelElement}
+            scrollRef={batchScrollRefFor(TABS.STYLE)}
+            legacyHost={{
+              totalCount: selectionTotalCount,
+              groupInfo: selectedGroupInfo,
+              geometry: {
+                handleBatchAlign,
+                handleBatchDistribute,
+                handleBatchSpacing,
+                handleBatchSpacingCommit,
+                getBatchSpacingValue,
+                handleBatchResize,
+                handleBatchResizePreview,
+              },
+            }}
+            t={t}
+          />
+        );
+      }
       return (
         <BatchPluginOnlyPanel
           setPanelElement={setPanelElement}
@@ -705,23 +730,15 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    // 단일 스프라이트 요소 선택인 경우 - 전용 필드 커밋·프리뷰는 패널이 소유
-    if (route.kind === 'singleSprite' && singleSpritePosition) {
+    // 단일 스프라이트 요소 선택인 경우 - 스프라이트 정의의 패널 선언(옛 스프라이트 패널 본문 섹션)
+    if (route.kind === 'singleSprite' && selectedSpriteElements[0]) {
       return (
-        <SingleSpritePanel
-          setPanelElement={setPanelElement}
+        <DocumentElementPanel
+          sceneId={selectedKeyType}
+          elementId={selectedSpriteElements[0].id}
           panelElement={panelElement}
-          singleSpritePosition={singleSpritePosition}
-          selectedKeyType={selectedKeyType}
-          isRenaming={isRenaming}
-          renameInputRef={renameInputRef}
-          renameValue={renameValue}
-          setRenameValue={setRenameValue}
-          renameCancelledRef={renameCancelledRef}
-          handleRenameCommit={handleRenameCommit}
-          handleRenameCancel={handleRenameCancel}
-          handleRenameStart={handleRenameStart}
-          singleScrollRefFor={singleScrollRefFor}
+          setPanelElement={setPanelElement}
+          scrollRef={singleScrollRefFor(TABS.STYLE)}
           t={t}
         />
       );

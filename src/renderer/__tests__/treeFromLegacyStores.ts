@@ -188,5 +188,7 @@ export const treeFromStores = async (
       } as never),
     useElementDocumentScene: (sceneId: string) =>
       useSyncExternalStore(subscribeAll, () => sceneFor(sceneId)),
+    useDocumentElement: (sceneId: string, id: string) =>
+      useSyncExternalStore(subscribeAll, () => elementIn(sceneId, id)),
   };
 };

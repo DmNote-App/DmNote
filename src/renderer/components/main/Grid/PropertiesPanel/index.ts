@@ -34,7 +34,6 @@ export {
   PluginSelectionPanel,
   SingleKeyStatPanel,
 } from './single/SingleSelectionPanel';
-export { SingleSpritePanel } from './single/SingleSpritePanel';
 export {
   BatchKeyLikePanel,
   BatchPluginOnlyPanel,

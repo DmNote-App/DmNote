@@ -5,7 +5,7 @@ import type { SpritePlacement } from '@utils/sprite/spritePlacement';
 /**
  * 온캔버스 자세 핸들 세션 - 자세 팝업이 열려 있는 동안 그리드 오버레이가
  * 어느 스프라이트의 어떤 자세를 편집 중인지 공유한다.
- * 발행자는 SingleSpritePanel 하나, 소비자는 SpriteCanvasHandles 하나
+ * 발행자는 스프라이트 패널 본문(SpritePanelSection) 하나, 소비자는 SpriteCanvasHandles 하나
  */
 
 export interface SpritePoseHandleSession {

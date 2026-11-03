@@ -3,8 +3,8 @@ import { flushSync } from 'react-dom';
 import { sendTreeEditedFrame } from '@src/renderer/editor/runtime/operations/editorSemanticOps';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
-import { treeModeArrays } from '@src/renderer/elementKinds/runtime/treeModeArrays';
+import { currentTreePosition } from '../../runtime/treeElementPosition';
+import { treeModeArrays } from '../../runtime/treeModeArrays';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { commitSingleElementBoundsById } from '@src/renderer/editor/runtime/operations/elementOps';
 import { spriteItemsApi } from '@api/modules/editor/itemsApi';
@@ -57,15 +57,12 @@ import {
 } from '@src/types/key/sprites';
 import type { EditorBoundsV1 } from '@src/types/editor';
 import type { CanonicalReactiveSpritePosition } from '@src/types/editor';
-import { PANEL_ROOT_CLASS } from '../navigation/panelChrome';
 import {
+  NumberInput,
   PropertyRow,
   PropertySection,
-  NumberInput,
-  TABS,
-  TabType,
-} from '../index';
-import RotationInputRow from '../controls/RotationInputRow';
+} from '@components/main/Grid/PropertiesPanel/controls/PropertyInputs';
+import RotationInputRow from '@components/main/Grid/PropertiesPanel/controls/RotationInputRow';
 import Dropdown from '@components/main/common/dropdown/Dropdown';
 import ListAddRow from '@components/main/common/ListAddRow';
 import PopupExit from '@components/main/Modal/PopupExit';
@@ -80,10 +77,12 @@ import {
 } from '@components/main/Modal/content/pickers/pickerRowClass';
 import MoreVerticalIcon from '@components/main/Modal/content/pickers/MoreVerticalIcon';
 import { usePickerItemMenu } from '@hooks/usePickerItemMenu';
-import EditSessionBoundary from '../selection/EditSessionBoundary';
-import SpritePoseEditorPopup from './SpritePoseEditorPopup';
-import SpriteImagePreviewCard from './SpriteImagePreviewCard';
-import SinglePanelRenameHeader from './SinglePanelRenameHeader';
+import SpritePoseEditorPopup from '@components/main/Grid/PropertiesPanel/single/SpritePoseEditorPopup';
+import SpriteImagePreviewCard from '@components/main/Grid/PropertiesPanel/single/SpriteImagePreviewCard';
+import { useDocumentElement } from '@src/renderer/editor/document/elementDocumentRuntime';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
+import { useTreeElementPosition } from '../../runtime/treeElementPosition';
+import type { PanelSectionProps } from '../../defineElementKind';
 
 // 계약과 동일한 cubic-bezier 문자열만 저장 (transitionEasing은 문자열 그대로 CSS로 간다)
 const SPRITE_EASING_PRESETS: ReadonlyArray<{ label: string; value: string }> = [
@@ -173,39 +172,44 @@ const committedPoseReferencePatch = (
   );
 };
 
-interface SingleSpritePanelProps {
-  setPanelElement: (el: HTMLDivElement | null) => void;
-  panelElement: HTMLDivElement | null;
-  singleSpritePosition: CanonicalReactiveSpritePosition;
-  selectedKeyType: string;
-  isRenaming: boolean;
-  renameInputRef: React.RefObject<HTMLInputElement | null>;
-  renameValue: string;
-  setRenameValue: (value: string) => void;
-  renameCancelledRef: React.MutableRefObject<boolean>;
-  handleRenameCommit: (value: string) => void;
-  handleRenameCancel: () => void;
-  handleRenameStart: () => void;
-  singleScrollRefFor: (tab: TabType) => (node: HTMLDivElement | null) => void;
+/** 스프라이트 패널 본문 - 기본 이미지·요소 상자와 기준점·자세 목록·반응 방식 (옛 스프라이트 패널 그대로).
+ * 편집 화면 전용 섹션이라 정의가 지연 로딩한다. 고른 스프라이트가 바뀌면 패널 편집 영역째 새로 그린다 */
+const SpritePanelSection = ({
+  sceneId,
+  elementIds,
+  panelElement,
+  t,
+}: PanelSectionProps) => {
+  const element = useDocumentElement(sceneId, elementIds[0] ?? '');
+  if (!element || element.kind !== 'sprite') return null;
+  return (
+    <SpritePanelBody
+      sceneId={sceneId}
+      element={element}
+      panelElement={panelElement}
+      t={(key) => t(key) ?? ''}
+    />
+  );
+};
+
+interface SpritePanelBodyProps {
+  sceneId: string;
+  element: ElementNode;
+  panelElement: HTMLElement | null;
   t: (key: string) => string;
 }
 
-export const SingleSpritePanel: React.FC<SingleSpritePanelProps> = ({
-  setPanelElement,
+const SpritePanelBody = ({
+  sceneId: selectedKeyType,
+  element,
   panelElement,
-  singleSpritePosition,
-  selectedKeyType,
-  isRenaming,
-  renameInputRef,
-  renameValue,
-  setRenameValue,
-  renameCancelledRef,
-  handleRenameCommit,
-  handleRenameCancel,
-  handleRenameStart,
-  singleScrollRefFor,
   t,
-}) => {
+}: SpritePanelBodyProps) => {
+  // 옛 스프라이트 패널이 보던 값 - 트리 값 + 편집 미리보기 (옛 칸 모양)
+  const singleSpritePosition = useTreeElementPosition(
+    element,
+    selectedKeyType,
+  ) as unknown as CanonicalReactiveSpritePosition;
   const position = singleSpritePosition;
   // 담당 키 후보·지금 값은 트리에서 (슬롯 바꾸기·크기 조절이 트리 낙관 적용)
   const scene = useElementDocumentScene(selectedKeyType);
@@ -1240,7 +1244,6 @@ export const SingleSpritePanel: React.FC<SingleSpritePanelProps> = ({
     );
   };
 
-  const spriteTitle = position.layerName || 'Sprite';
   const { anchor, transitionMs, pressDurationMs } = SPRITE_CONSTRAINTS;
   const easingValue =
     position.transitionEasing || DEFAULT_SPRITE_TRANSITION_EASING;
@@ -1258,404 +1261,344 @@ export const SingleSpritePanel: React.FC<SingleSpritePanelProps> = ({
   const pivotLabel = t('propertiesPanel.spritePivot') || '기준점';
 
   return (
-    <div ref={setPanelElement} className={PANEL_ROOT_CLASS}>
-      <SinglePanelRenameHeader
-        title={spriteTitle}
-        titleClassName="text-fg text-label truncate max-w-[100px] cursor-default"
-        renameButtonTitle={
-          isRenaming ? '' : t('contextMenu.rename') || 'Rename'
-        }
-        isRenaming={isRenaming}
-        renameInputRef={renameInputRef}
-        renameValue={renameValue}
-        setRenameValue={setRenameValue}
-        renameCancelledRef={renameCancelledRef}
-        handleRenameCommit={handleRenameCommit}
-        handleRenameCancel={handleRenameCancel}
-        handleRenameStart={handleRenameStart}
+    <>
+      {/* 기본 이미지 - 카드 클릭이 곧 선택, 호버 초기화 */}
+      <SpriteImagePreviewCard
+        source={position.baseImage}
+        onPick={() => void handleBaseImageSelect()}
+        onReset={handleBaseImageReset}
+        t={t}
       />
 
-      <div className="flex-1 properties-panel-overlay-scroll">
-        <div
-          ref={singleScrollRefFor(TABS.STYLE)}
-          className="properties-panel-overlay-viewport"
-        >
-          <EditSessionBoundary>
-            {/* 기본 이미지 - 카드 클릭이 곧 선택, 호버 초기화 */}
-            <SpriteImagePreviewCard
-              source={position.baseImage}
-              onPick={() => void handleBaseImageSelect()}
-              onReset={handleBaseImageReset}
-              t={t}
-            />
+      {/* 요소 상자와 기준점 - 다른 요소의 위치·크기 행과 같은 문법 */}
+      <PropertySection>
+        <PropertyRow label={t('propertiesPanel.position') || '위치'}>
+          <NumberInput
+            value={position.dx}
+            onChange={(value) => commitBounds(boundsWith({ dx: value }))}
+            onPreview={(value) => previewBounds(boundsWith({ dx: value }))}
+            onCancel={() => editGestureController.cancel()}
+            prefix="X"
+            ariaLabel={`${t('propertiesPanel.position') || '위치'} X`}
+            width={AXIS_FIELD_WIDTH}
+            min={BOUNDS_EDIT_LIMITS.coordMin}
+            max={BOUNDS_EDIT_LIMITS.coordMax}
+            allowDecimal
+            decimalScale={1}
+          />
+          <NumberInput
+            value={position.dy}
+            onChange={(value) => commitBounds(boundsWith({ dy: value }))}
+            onPreview={(value) => previewBounds(boundsWith({ dy: value }))}
+            onCancel={() => editGestureController.cancel()}
+            prefix="Y"
+            ariaLabel={`${t('propertiesPanel.position') || '위치'} Y`}
+            width={AXIS_FIELD_WIDTH}
+            min={BOUNDS_EDIT_LIMITS.coordMin}
+            max={BOUNDS_EDIT_LIMITS.coordMax}
+            allowDecimal
+            decimalScale={1}
+          />
+        </PropertyRow>
+        <PropertyRow label={t('propertiesPanel.size') || '크기'}>
+          <NumberInput
+            value={position.width}
+            onChange={(value) => commitBounds(aspectBounds('width', value))}
+            onPreview={(value) => previewBounds(aspectBounds('width', value))}
+            onCancel={() => editGestureController.cancel()}
+            prefix="W"
+            ariaLabel={`${t('propertiesPanel.size') || '크기'} W`}
+            width={AXIS_FIELD_WIDTH}
+            min={BOUNDS_EDIT_LIMITS.dimensionMin}
+            max={BOUNDS_EDIT_LIMITS.dimensionMax}
+            allowDecimal
+            decimalScale={1}
+          />
+          <NumberInput
+            value={position.height}
+            onChange={(value) => commitBounds(aspectBounds('height', value))}
+            onPreview={(value) => previewBounds(aspectBounds('height', value))}
+            onCancel={() => editGestureController.cancel()}
+            prefix="H"
+            ariaLabel={`${t('propertiesPanel.size') || '크기'} H`}
+            width={AXIS_FIELD_WIDTH}
+            min={BOUNDS_EDIT_LIMITS.dimensionMin}
+            max={BOUNDS_EDIT_LIMITS.dimensionMax}
+            allowDecimal
+            decimalScale={1}
+          />
+        </PropertyRow>
 
-            {/* 요소 상자와 기준점 - 다른 요소의 위치·크기 행과 같은 문법 */}
-            <PropertySection>
-              <PropertyRow label={t('propertiesPanel.position') || '위치'}>
-                <NumberInput
-                  value={position.dx}
-                  onChange={(value) => commitBounds(boundsWith({ dx: value }))}
-                  onPreview={(value) =>
-                    previewBounds(boundsWith({ dx: value }))
-                  }
-                  onCancel={() => editGestureController.cancel()}
-                  prefix="X"
-                  ariaLabel={`${t('propertiesPanel.position') || '위치'} X`}
-                  width={AXIS_FIELD_WIDTH}
-                  min={BOUNDS_EDIT_LIMITS.coordMin}
-                  max={BOUNDS_EDIT_LIMITS.coordMax}
-                  allowDecimal
-                  decimalScale={1}
-                />
-                <NumberInput
-                  value={position.dy}
-                  onChange={(value) => commitBounds(boundsWith({ dy: value }))}
-                  onPreview={(value) =>
-                    previewBounds(boundsWith({ dy: value }))
-                  }
-                  onCancel={() => editGestureController.cancel()}
-                  prefix="Y"
-                  ariaLabel={`${t('propertiesPanel.position') || '위치'} Y`}
-                  width={AXIS_FIELD_WIDTH}
-                  min={BOUNDS_EDIT_LIMITS.coordMin}
-                  max={BOUNDS_EDIT_LIMITS.coordMax}
-                  allowDecimal
-                  decimalScale={1}
-                />
-              </PropertyRow>
-              <PropertyRow label={t('propertiesPanel.size') || '크기'}>
-                <NumberInput
-                  value={position.width}
-                  onChange={(value) =>
-                    commitBounds(aspectBounds('width', value))
-                  }
-                  onPreview={(value) =>
-                    previewBounds(aspectBounds('width', value))
-                  }
-                  onCancel={() => editGestureController.cancel()}
-                  prefix="W"
-                  ariaLabel={`${t('propertiesPanel.size') || '크기'} W`}
-                  width={AXIS_FIELD_WIDTH}
-                  min={BOUNDS_EDIT_LIMITS.dimensionMin}
-                  max={BOUNDS_EDIT_LIMITS.dimensionMax}
-                  allowDecimal
-                  decimalScale={1}
-                />
-                <NumberInput
-                  value={position.height}
-                  onChange={(value) =>
-                    commitBounds(aspectBounds('height', value))
-                  }
-                  onPreview={(value) =>
-                    previewBounds(aspectBounds('height', value))
-                  }
-                  onCancel={() => editGestureController.cancel()}
-                  prefix="H"
-                  ariaLabel={`${t('propertiesPanel.size') || '크기'} H`}
-                  width={AXIS_FIELD_WIDTH}
-                  min={BOUNDS_EDIT_LIMITS.dimensionMin}
-                  max={BOUNDS_EDIT_LIMITS.dimensionMax}
-                  allowDecimal
-                  decimalScale={1}
-                />
-              </PropertyRow>
+        <RotationInputRow
+          label={t('propertiesPanel.rotation') || '회전'}
+          value={position.rotation ?? 0}
+          onPreview={(rotation) => previewFields({ rotation })}
+          onChange={(rotation) => commitRotation(rotation)}
+          onCancel={() => editGestureController.cancel()}
+        />
 
-              <RotationInputRow
-                label={t('propertiesPanel.rotation') || '회전'}
-                value={position.rotation ?? 0}
-                onPreview={(rotation) => previewFields({ rotation })}
-                onChange={(rotation) => commitRotation(rotation)}
-                onCancel={() => editGestureController.cancel()}
-              />
-
-              {/* 기준점 - 회전·배율 축이자 자세 이미지의 고정점. 위치·크기와 같은 한 줄 행.
+        {/* 기준점 - 회전·배율 축이자 자세 이미지의 고정점. 위치·크기와 같은 한 줄 행.
                   9점 프리셋은 캔버스 표식 드래그의 자석 스냅이 맡는다 */}
-              <PropertyRow label={pivotLabel}>
-                <NumberInput
-                  value={anchorToPercent(position.pivot.x)}
-                  onChange={(value) =>
-                    commitPivot({ x: percentToAnchor(value) })
-                  }
-                  onPreview={(value) =>
-                    previewPivot({
-                      ...canonicalPosition.pivot,
-                      x: percentToAnchor(value),
-                    })
-                  }
-                  onCancel={() => editGestureController.cancel()}
-                  prefix="X"
-                  suffix="%"
-                  ariaLabel={`${pivotLabel} X`}
-                  width={AXIS_FIELD_WIDTH}
-                  min={anchor.min * 100}
-                  max={anchor.max * 100}
-                  allowDecimal
-                  decimalScale={1}
-                />
-                <NumberInput
-                  value={anchorToPercent(position.pivot.y)}
-                  onChange={(value) =>
-                    commitPivot({ y: percentToAnchor(value) })
-                  }
-                  onPreview={(value) =>
-                    previewPivot({
-                      ...canonicalPosition.pivot,
-                      y: percentToAnchor(value),
-                    })
-                  }
-                  onCancel={() => editGestureController.cancel()}
-                  prefix="Y"
-                  suffix="%"
-                  ariaLabel={`${pivotLabel} Y`}
-                  width={AXIS_FIELD_WIDTH}
-                  min={anchor.min * 100}
-                  max={anchor.max * 100}
-                  allowDecimal
-                  decimalScale={1}
-                />
-              </PropertyRow>
-            </PropertySection>
+        <PropertyRow label={pivotLabel}>
+          <NumberInput
+            value={anchorToPercent(position.pivot.x)}
+            onChange={(value) => commitPivot({ x: percentToAnchor(value) })}
+            onPreview={(value) =>
+              previewPivot({
+                ...canonicalPosition.pivot,
+                x: percentToAnchor(value),
+              })
+            }
+            onCancel={() => editGestureController.cancel()}
+            prefix="X"
+            suffix="%"
+            ariaLabel={`${pivotLabel} X`}
+            width={AXIS_FIELD_WIDTH}
+            min={anchor.min * 100}
+            max={anchor.max * 100}
+            allowDecimal
+            decimalScale={1}
+          />
+          <NumberInput
+            value={anchorToPercent(position.pivot.y)}
+            onChange={(value) => commitPivot({ y: percentToAnchor(value) })}
+            onPreview={(value) =>
+              previewPivot({
+                ...canonicalPosition.pivot,
+                y: percentToAnchor(value),
+              })
+            }
+            onCancel={() => editGestureController.cancel()}
+            prefix="Y"
+            suffix="%"
+            ariaLabel={`${pivotLabel} Y`}
+            width={AXIS_FIELD_WIDTH}
+            min={anchor.min * 100}
+            max={anchor.max * 100}
+            allowDecimal
+            decimalScale={1}
+          />
+        </PropertyRow>
+      </PropertySection>
 
-            {/* 상태 목록 - 피커 행 문법(이름 + 호버 ⋮ 메뉴), 편집은 팝업으로.
+      {/* 상태 목록 - 피커 행 문법(이름 + 호버 ⋮ 메뉴), 편집은 팝업으로.
                 이름 없는 상태는 '상태 N'으로 표시하고, 미지정·중복은 이름 톤으로 알린다 */}
+      <div
+        ref={poseListRef}
+        // 분리 창 피커가 폭·좌우 정렬을 맞추는 섹션 앵커 - 자세 행이 팝업 트리거라
+        // 표식이 없으면 카드 고정 폭으로 떨어져 폭이 갈린다
+        data-dmn-section="true"
+        className="bg-fill-faint rounded-surface p-[4px] flex flex-col gap-[4px]"
+      >
+        {displayPoses.map((pose, poseIndex) => {
+          const isDuplicate = duplicatePose?.poseId === pose.poseId;
+          const isEmpty = pose.triggers.length === 0;
+          const isEditing = activeEditorTarget?.poseId === pose.poseId;
+          const displayName = pose.name || resolvedNames[poseIndex];
+          const isRenamingPose = renamingPoseId === pose.poseId;
+          const openPose = (anchor: HTMLElement) =>
+            openEditorPopup(
+              { positionId: position.id, poseId: pose.poseId },
+              anchor,
+            );
+          return (
             <div
-              ref={poseListRef}
-              // 분리 창 피커가 폭·좌우 정렬을 맞추는 섹션 앵커 - 자세 행이 팝업 트리거라
-              // 표식이 없으면 카드 고정 폭으로 떨어져 폭이 갈린다
-              data-dmn-section="true"
-              className="bg-fill-faint rounded-surface p-[4px] flex flex-col gap-[4px]"
+              key={pose.poseId}
+              role="button"
+              tabIndex={0}
+              onClick={(event) => {
+                if (isRenamingPose) return;
+                openPose(event.currentTarget);
+              }}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                // 이름 변경 중에는 클릭과 동일하게 열기 차단
+                if (isRenamingPose) return;
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  openPose(event.currentTarget);
+                }
+              }}
+              onContextMenu={(event) => {
+                // 목록 영역은 바깥닫힘 예외라 메뉴를 열 때 직접 닫는다
+                setEditorTarget(null);
+                poseMenu.openFromContextMenu(event, pose.poseId);
+              }}
+              className={`${pickerRowClass} ${
+                isEditing || isRenamingPose
+                  ? 'bg-fill-hover text-fg cursor-pointer'
+                  : 'text-fg hover:bg-fill cursor-pointer'
+              }`}
+              title={displayName}
             >
-              {displayPoses.map((pose, poseIndex) => {
-                const isDuplicate = duplicatePose?.poseId === pose.poseId;
-                const isEmpty = pose.triggers.length === 0;
-                const isEditing = activeEditorTarget?.poseId === pose.poseId;
-                const displayName = pose.name || resolvedNames[poseIndex];
-                const isRenamingPose = renamingPoseId === pose.poseId;
-                const openPose = (anchor: HTMLElement) =>
-                  openEditorPopup(
-                    { positionId: position.id, poseId: pose.poseId },
-                    anchor,
-                  );
-                return (
-                  <div
-                    key={pose.poseId}
-                    role="button"
-                    tabIndex={0}
-                    onClick={(event) => {
-                      if (isRenamingPose) return;
-                      openPose(event.currentTarget);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.target !== event.currentTarget) return;
-                      // 이름 변경 중에는 클릭과 동일하게 열기 차단
-                      if (isRenamingPose) return;
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        openPose(event.currentTarget);
-                      }
-                    }}
-                    onContextMenu={(event) => {
-                      // 목록 영역은 바깥닫힘 예외라 메뉴를 열 때 직접 닫는다
-                      setEditorTarget(null);
-                      poseMenu.openFromContextMenu(event, pose.poseId);
-                    }}
-                    className={`${pickerRowClass} ${
-                      isEditing || isRenamingPose
-                        ? 'bg-fill-hover text-fg cursor-pointer'
-                        : 'text-fg hover:bg-fill cursor-pointer'
-                    }`}
-                    title={displayName}
-                  >
-                    {isRenamingPose ? (
-                      <input
-                        ref={poseRenameInputRef}
-                        type="text"
-                        className="min-w-0 flex-1 bg-transparent border-none p-0 outline-none text-label text-fg caret-accent"
-                        value={poseRenameValue}
-                        onChange={(event) =>
-                          setPoseRenameValue(event.target.value)
-                        }
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onClick={(event) => event.stopPropagation()}
-                        onBlur={() => {
-                          if (!poseRenameCancelledRef.current) {
-                            commitPoseRename(pose.poseId, poseRenameValue);
-                          }
-                          poseRenameCancelledRef.current = false;
-                        }}
-                        onKeyDown={(event) => {
-                          // 피커 행 규약 - 행·전역 단축키로 전파하지 않는다
-                          event.stopPropagation();
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            (event.target as HTMLInputElement).blur();
-                          } else if (event.key === 'Escape') {
-                            event.preventDefault();
-                            poseRenameCancelledRef.current = true;
-                            setRenamingPoseId(null);
-                          }
-                        }}
-                        spellCheck={false}
-                      />
-                    ) : (
-                      <span
-                        className={`min-w-0 flex-1 truncate text-left ${
-                          isDuplicate
-                            ? 'text-danger-fg'
-                            : isEmpty
-                            ? 'text-fg-faint'
-                            : ''
-                        }`}
-                      >
-                        {displayName}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      className={`${pickerMoreButtonClass} ${
-                        isEditing || poseMenu.menuKey === pose.poseId
-                          ? pickerMoreButtonVisibleClass
-                          : pickerMoreButtonHiddenClass
-                      } ${
-                        isEditing
-                          ? 'text-fg hover:text-fg'
-                          : 'text-fg-muted hover:text-fg'
-                      }`}
-                      title={t('common.more') || '더보기'}
-                      aria-label={t('common.more') || '더보기'}
-                      onPointerDown={(event) => {
-                        event.stopPropagation();
-                        poseMenu.capturePressState(pose.poseId);
-                      }}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        // 목록 영역은 바깥닫힘 예외라 메뉴를 열 때 직접 닫는다
-                        setEditorTarget(null);
-                        poseMenu.openFromButton(event, pose.poseId);
-                      }}
-                    >
-                      <MoreVerticalIcon />
-                    </button>
-                  </div>
-                );
-              })}
-              {displayPoses.length < SPRITE_CONSTRAINTS.maxPoses ? (
-                <ListAddRow
-                  label={t('propertiesPanel.spriteAddPose') || '상태 추가'}
-                  onClick={(event) => addPose(event.currentTarget)}
-                />
-              ) : null}
-            </div>
-
-            {/* 전환·반응 */}
-            <PropertySection>
-              <PropertyRow
-                label={t('propertiesPanel.spriteActivation') || '반응 방식'}
-              >
-                <Dropdown
-                  options={[
-                    {
-                      label:
-                        t('propertiesPanel.spriteActivationHold') ||
-                        '누름 유지',
-                      value: 'whileHeld',
-                    },
-                    {
-                      label:
-                        t('propertiesPanel.spriteActivationPress') ||
-                        '단발 재생',
-                      value: 'onPress',
-                    },
-                  ]}
-                  value={position.activation}
-                  onChange={(value) =>
-                    commitFields({ activation: value as SpriteActivation })
-                  }
-                  align="right"
-                />
-              </PropertyRow>
-              {position.activation === 'onPress' ? (
-                <PropertyRow
-                  label={
-                    t('propertiesPanel.spritePressDuration') || '재생 시간'
-                  }
-                >
-                  <NumberInput
-                    value={position.pressDurationMs}
-                    onChange={(value) =>
-                      commitFields({
-                        // Rust u32 계약 - 스크럽 소수값을 정수로 고정
-                        pressDurationMs: Math.round(
-                          clamp(
-                            value,
-                            pressDurationMs.min,
-                            pressDurationMs.max,
-                          ),
-                        ),
-                      })
+              {isRenamingPose ? (
+                <input
+                  ref={poseRenameInputRef}
+                  type="text"
+                  className="min-w-0 flex-1 bg-transparent border-none p-0 outline-none text-label text-fg caret-accent"
+                  value={poseRenameValue}
+                  onChange={(event) => setPoseRenameValue(event.target.value)}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                  onBlur={() => {
+                    if (!poseRenameCancelledRef.current) {
+                      commitPoseRename(pose.poseId, poseRenameValue);
                     }
-                    onPreview={(value) =>
-                      previewFields({
-                        pressDurationMs: Math.round(
-                          clamp(
-                            value,
-                            pressDurationMs.min,
-                            pressDurationMs.max,
-                          ),
-                        ),
-                      })
+                    poseRenameCancelledRef.current = false;
+                  }}
+                  onKeyDown={(event) => {
+                    // 피커 행 규약 - 행·전역 단축키로 전파하지 않는다
+                    event.stopPropagation();
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      (event.target as HTMLInputElement).blur();
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault();
+                      poseRenameCancelledRef.current = true;
+                      setRenamingPoseId(null);
                     }
-                    onCancel={() => editGestureController.cancel()}
-                    suffix="ms"
-                    min={pressDurationMs.min}
-                    max={pressDurationMs.max}
-                  />
-                </PropertyRow>
+                  }}
+                  spellCheck={false}
+                />
               ) : (
-                <PropertyRow
-                  label={t('propertiesPanel.spriteTransition') || '전환 시간'}
+                <span
+                  className={`min-w-0 flex-1 truncate text-left ${
+                    isDuplicate
+                      ? 'text-danger-fg'
+                      : isEmpty
+                      ? 'text-fg-faint'
+                      : ''
+                  }`}
                 >
-                  <NumberInput
-                    value={position.transitionMs}
-                    onChange={(value) =>
-                      commitFields({
-                        // Rust u32 계약 - 스크럽 소수값을 정수로 고정
-                        transitionMs: Math.round(
-                          clamp(value, transitionMs.min, transitionMs.max),
-                        ),
-                      })
-                    }
-                    onPreview={(value) =>
-                      previewFields({
-                        transitionMs: Math.round(
-                          clamp(value, transitionMs.min, transitionMs.max),
-                        ),
-                      })
-                    }
-                    onCancel={() => editGestureController.cancel()}
-                    suffix="ms"
-                    min={transitionMs.min}
-                    max={transitionMs.max}
-                  />
-                </PropertyRow>
+                  {displayName}
+                </span>
               )}
-
-              <PropertyRow
-                label={t('propertiesPanel.spriteEasing') || '가속 곡선'}
+              <button
+                type="button"
+                className={`${pickerMoreButtonClass} ${
+                  isEditing || poseMenu.menuKey === pose.poseId
+                    ? pickerMoreButtonVisibleClass
+                    : pickerMoreButtonHiddenClass
+                } ${
+                  isEditing
+                    ? 'text-fg hover:text-fg'
+                    : 'text-fg-muted hover:text-fg'
+                }`}
+                title={t('common.more') || '더보기'}
+                aria-label={t('common.more') || '더보기'}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  poseMenu.capturePressState(pose.poseId);
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  // 목록 영역은 바깥닫힘 예외라 메뉴를 열 때 직접 닫는다
+                  setEditorTarget(null);
+                  poseMenu.openFromButton(event, pose.poseId);
+                }}
               >
-                <Dropdown
-                  options={easingOptions}
-                  value={easingValue}
-                  onChange={(value) =>
-                    commitFields({ transitionEasing: value })
-                  }
-                  align="right"
-                />
-              </PropertyRow>
-            </PropertySection>
-          </EditSessionBoundary>
-        </div>
+                <MoreVerticalIcon />
+              </button>
+            </div>
+          );
+        })}
+        {displayPoses.length < SPRITE_CONSTRAINTS.maxPoses ? (
+          <ListAddRow
+            label={t('propertiesPanel.spriteAddPose') || '상태 추가'}
+            onClick={(event) => addPose(event.currentTarget)}
+          />
+        ) : null}
       </div>
+
+      {/* 전환·반응 */}
+      <PropertySection>
+        <PropertyRow
+          label={t('propertiesPanel.spriteActivation') || '반응 방식'}
+        >
+          <Dropdown
+            options={[
+              {
+                label: t('propertiesPanel.spriteActivationHold') || '누름 유지',
+                value: 'whileHeld',
+              },
+              {
+                label:
+                  t('propertiesPanel.spriteActivationPress') || '단발 재생',
+                value: 'onPress',
+              },
+            ]}
+            value={position.activation}
+            onChange={(value) =>
+              commitFields({ activation: value as SpriteActivation })
+            }
+            align="right"
+          />
+        </PropertyRow>
+        {position.activation === 'onPress' ? (
+          <PropertyRow
+            label={t('propertiesPanel.spritePressDuration') || '재생 시간'}
+          >
+            <NumberInput
+              value={position.pressDurationMs}
+              onChange={(value) =>
+                commitFields({
+                  // Rust u32 계약 - 스크럽 소수값을 정수로 고정
+                  pressDurationMs: Math.round(
+                    clamp(value, pressDurationMs.min, pressDurationMs.max),
+                  ),
+                })
+              }
+              onPreview={(value) =>
+                previewFields({
+                  pressDurationMs: Math.round(
+                    clamp(value, pressDurationMs.min, pressDurationMs.max),
+                  ),
+                })
+              }
+              onCancel={() => editGestureController.cancel()}
+              suffix="ms"
+              min={pressDurationMs.min}
+              max={pressDurationMs.max}
+            />
+          </PropertyRow>
+        ) : (
+          <PropertyRow
+            label={t('propertiesPanel.spriteTransition') || '전환 시간'}
+          >
+            <NumberInput
+              value={position.transitionMs}
+              onChange={(value) =>
+                commitFields({
+                  // Rust u32 계약 - 스크럽 소수값을 정수로 고정
+                  transitionMs: Math.round(
+                    clamp(value, transitionMs.min, transitionMs.max),
+                  ),
+                })
+              }
+              onPreview={(value) =>
+                previewFields({
+                  transitionMs: Math.round(
+                    clamp(value, transitionMs.min, transitionMs.max),
+                  ),
+                })
+              }
+              onCancel={() => editGestureController.cancel()}
+              suffix="ms"
+              min={transitionMs.min}
+              max={transitionMs.max}
+            />
+          </PropertyRow>
+        )}
+
+        <PropertyRow label={t('propertiesPanel.spriteEasing') || '가속 곡선'}>
+          <Dropdown
+            options={easingOptions}
+            value={easingValue}
+            onChange={(value) => commitFields({ transitionEasing: value })}
+            align="right"
+          />
+        </PropertyRow>
+      </PropertySection>
 
       {/* 상태 편집 팝업 */}
       <PopupExit open={editingPose !== null}>
@@ -1715,6 +1658,8 @@ export const SingleSpritePanel: React.FC<SingleSpritePanelProps> = ({
           offsetY={0}
         />
       )}
-    </div>
+    </>
   );
 };
+
+export default SpritePanelSection;

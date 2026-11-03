@@ -21,7 +21,7 @@ const compile = (relativePath: string): string => {
 };
 
 const COMPILED = [
-  'src/renderer/components/main/Grid/PropertiesPanel/single/SingleSpritePanel.tsx',
+  'src/renderer/elementKinds/definitions/sprite/SpritePanelSection.tsx',
   'src/renderer/components/main/Modal/content/pickers/ImagePicker.tsx',
 ];
 

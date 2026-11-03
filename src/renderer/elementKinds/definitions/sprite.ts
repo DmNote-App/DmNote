@@ -1,9 +1,15 @@
 import { defineElementKind, type FieldDecl } from '../defineElementKind';
+import { lazyPanelControl } from '../runtime/lazyPanelControl';
 import SpriteElementFace from './sprite/SpriteElementFace';
 import { spriteOccupiedResizeHandle } from './sprite/spriteOccupiedResizeHandle';
 import { spriteResizeValues } from './sprite/spriteResizeValues';
 
 // 반응형 스프라이트 - 담당 키를 누르는 동안 자세가 바뀌는 이미지 레이어
+
+// 편집 화면 전용 패널 본문 - 오버레이 번들에 넣지 않게 나중에 읽는다
+const SpritePanelSection = lazyPanelControl(
+  () => import('./sprite/SpritePanelSection'),
+);
 
 const transformFields = [
   { name: 'x', value: { type: 'number', min: -2000, max: 2000 }, default: 0 },
@@ -168,5 +174,11 @@ export const spriteKind = defineElementKind(
     // 기준점 표식이 앉은 크기 조절 자리는 비우고, 크기를 바꾸면 이동값을 비례로
     occupiedResizeHandle: spriteOccupiedResizeHandle,
     resizeValues: spriteResizeValues,
+    title: () => 'Sprite',
+    // 하나는 옛 스프라이트 패널 본문(기본 이미지·상자·기준점·자세 목록·반응 방식), 여럿은 위치·크기
+    panel: [
+      { custom: SpritePanelSection, only: 'single' },
+      { common: 'geometry', only: 'batch' },
+    ],
   },
 );
