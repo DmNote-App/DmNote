@@ -3260,6 +3260,69 @@ fn 잠긴_종류를_고치는_옛_편집_커밋은_다시_보내지_않는_검�
 }
 
 #[test]
+fn 읽기_정리가_잠긴_요소만_고쳤다_되돌아가면_다시_저장하거나_손상_복구로_세지_않는다() {
+    let (dir, store) = open_store();
+    // 이 앱의 범위를 벗어난 값(이미지 위치)을 든 키 - 새 버전 앱이 쓴 것
+    legacy_write(&store, |data| {
+        data.legacy_mut().key_positions.get_mut("4key").unwrap()[1].idle_image_transform =
+            Some(crate::models::ImageTransform {
+                offset_x: 900.0,
+                ..Default::default()
+            });
+    })
+    .unwrap();
+    lock_key_kind(&store);
+    let key = store.snapshot().legacy().key_positions["4key"][1]
+        .id
+        .clone();
+    let stored = tree_element(&store, &key).unwrap();
+    store.flush_and_shutdown().unwrap();
+    drop(store);
+
+    let path = dir.join(crate::state::store::STORE_FILE_NAME);
+    for _ in 0..2 {
+        let loaded = crate::state::migration::load_store_from_path(&path).unwrap();
+        // 읽기 정리가 고친 것은 붙일 때 저장된 그대로 돌아가 남지 않는다 - 시작마다 백업·자산 정리 건너뛰기 없음
+        assert!(!loaded.repaired);
+        assert!(!loaded.needs_persist);
+        assert_eq!(
+            loaded.data.element_document().scenes["4key"].element(&key),
+            Some(&stored)
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn 잠긴_종류가_있어도_다른_종류를_고친_읽기는_다시_저장하고_손상_복구로_센다() {
+    let (dir, store) = open_store();
+    legacy_write(&store, |data| {
+        let legacy = data.legacy_mut();
+        legacy.key_positions.get_mut("4key").unwrap()[1].idle_image_transform =
+            Some(crate::models::ImageTransform {
+                offset_x: 900.0,
+                ..Default::default()
+            });
+        // 잠기지 않은 스탯 - 범위를 벗어난 회전
+        legacy.stat_positions.get_mut("4key").unwrap()[0]
+            .position
+            .rotation = 9_999.0;
+    })
+    .unwrap();
+    lock_key_kind(&store);
+    store.flush_and_shutdown().unwrap();
+    drop(store);
+
+    let loaded = crate::state::migration::load_store_from_path(
+        &dir.join(crate::state::store::STORE_FILE_NAME),
+    )
+    .unwrap();
+    assert!(loaded.repaired);
+    assert!(loaded.needs_persist);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn 읽을_때_정리가_옛_모양을_바꿔도_잠긴_종류의_요소는_저장된_그대로_붙인다() {
     let mut state = default_state();
     attach_loaded_document(&mut state, None).unwrap();

@@ -92,6 +92,18 @@ pub(crate) struct LoadedStore {
     pub(crate) element_document_missing: bool,
 }
 
+// 요소(옛 종류 칸·트리 문서) 밖의 저장소 칸
+fn store_fields_value(data: &AppStoreData) -> Value {
+    let mut value = serde_json::to_value(data).unwrap_or(Value::Null);
+    if let Some(object) = value.as_object_mut() {
+        for field in super::store::LEGACY_ELEMENT_FIELDS {
+            object.remove(field);
+        }
+        object.remove(super::store::ELEMENT_DOCUMENT_FIELD);
+    }
+    value
+}
+
 // 옛 종류 칸이 하나도 없고 트리만 있으면 트리에서 옛 모양을 만든다 (옛 칸이 있는 파일은 그대로).
 // 만들지 못하거나 일부를 빼거나 대체했으면 true - 손상 복구처럼 원본을 백업하고 자산 정리를 건너뛴다
 fn fill_legacy_fields_from_tree(
@@ -152,6 +164,8 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
     let mut projection_failed = false;
     // 트리에서 만든 옛 모양 - 읽기 정리가 바꾸지 않았으면 붙일 때 트리를 그대로 쓴다
     let mut projected_legacy: Option<crate::models::EditorDocumentV1> = None;
+    // 새 버전 앱이 쓴 종류(잠금)가 있는 트리 - 읽기 정리 전 요소 밖 저장소 칸
+    let mut locked_store_baseline: Option<Value> = None;
     let (state, needs_persist, repaired, seed_active_css_history, explicit_invalid_element_id) =
         match serde_json::from_slice::<Value>(&content) {
             Ok(mut value) => {
@@ -178,6 +192,15 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
                     default_store_note_gradient_multipliers(&mut value);
                 match serde_json::from_value::<AppStoreData>(value.clone()) {
                     Ok(mut data) => {
+                        if parsed_element_document
+                            .as_ref()
+                            .is_some_and(|(document, _)| {
+                                !crate::models::legacy_layout::locked_legacy_kinds(document)
+                                    .is_empty()
+                            })
+                        {
+                            locked_store_baseline = Some(store_fields_value(&data));
+                        }
                         let mut needs_persist = text_outline_scrubbed
                             || sprite_wire_migrated
                             || sound_library_migrated
@@ -310,6 +333,15 @@ pub(crate) fn load_store_from_path(path: &Path) -> Result<LoadedStore> {
         parsed_element_document,
         projected_legacy.as_ref(),
     )?;
+    // 잠긴 종류의 요소는 붙일 때 저장된 그대로 돌아간다 - 트리도 저장소 칸도 그대로면 읽기 정리가 고친 것이
+    // 남지 않았으므로 다시 저장하거나 손상 복구로 세지 않는다 (시작마다 백업·자산 정리 건너뛰기를 되풀이하지 않게)
+    if locked_store_baseline
+        .as_ref()
+        .is_some_and(|baseline| !attached.changed && *baseline == store_fields_value(&state))
+    {
+        needs_persist = false;
+        repaired = false;
+    }
     needs_persist |= attached.changed;
     // 플러그인 인스턴스는 트리에 둔다 - 처음 한 번 옮긴다 (트리를 붙인 뒤)
     needs_persist |=
