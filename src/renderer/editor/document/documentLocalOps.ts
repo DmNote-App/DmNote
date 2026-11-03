@@ -335,26 +335,40 @@ const pruneEmptyTreeGroups = (nodes: Node[]): Node[] => {
   return changed ? next : nodes;
 };
 
+/** 연산 하나 - 빈 그룹 정리 없이 (편집 묶음 중간 상태) */
+export const applyLocalOp = (document: Document, op: Op): Document => {
+  const scene: Scene | undefined = document.scenes[op.scene];
+  if (!scene) return document;
+  const nodes = applyToNodes(scene.nodes, op);
+  if (nodes === scene.nodes) return document;
+  return {
+    ...document,
+    scenes: { ...document.scenes, [op.scene]: { ...scene, nodes } },
+  };
+};
+
+/** 편집 묶음 하나 - 백엔드 커밋 하나와 같다 */
 export const applyLocalOps = (document: Document, ops: readonly Op[]) => {
-  let scenes = document.scenes;
+  let next = document;
   const changed = new Set<string>();
   for (const op of ops) {
-    const scene: Scene | undefined = scenes[op.scene];
-    if (!scene) continue;
-    const nodes = applyToNodes(scene.nodes, op);
-    if (nodes === scene.nodes) continue;
+    const applied = applyLocalOp(next, op);
+    if (applied === next) continue;
     changed.add(op.scene);
-    scenes = { ...scenes, [op.scene]: { ...scene, nodes } };
+    next = applied;
   }
   // 빈 그룹 정리는 묶음 끝에서 바뀐 장면마다 한 번 - 묶음 중간에 비었다가 다시 채워진 그룹은 남는다
   for (const sceneId of changed) {
-    const scene = scenes[sceneId]!;
+    const scene = next.scenes[sceneId]!;
     const nodes = pruneEmptyTreeGroups(scene.nodes);
     if (nodes !== scene.nodes) {
-      scenes = { ...scenes, [sceneId]: { ...scene, nodes } };
+      next = {
+        ...next,
+        scenes: { ...next.scenes, [sceneId]: { ...scene, nodes } },
+      };
     }
   }
-  return scenes === document.scenes ? document : { ...document, scenes };
+  return next;
 };
 
 // 편집이 건드리는 요소 - 알림용 (구조가 바뀌는 연산은 structure)

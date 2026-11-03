@@ -401,6 +401,53 @@ describe('백엔드가 자리를 정하는 다시 넣기', () => {
     ]);
   });
 
+  it('다시 넣기 묶음 중간에 빈 그룹은 정리하지 않는다 - 화면도 묶음 끝에서 한 번 정리한다', () => {
+    // 옛 그룹 표시가 아직 없는 그룹 G의 유일한 자식 x와 그 위 y를 함께 다시 넣는다
+    const grouped = view({
+      '4key': [
+        {
+          type: 'group',
+          id: 'G',
+          name: 'G',
+          children: [
+            plugin('x', box, {
+              legacy: {
+                pluginEntry: { instanceId: 'x', tabId: '4key', zIndex: 1 },
+                order: 0,
+              },
+            }),
+          ],
+        },
+        plugin('y', box, {
+          legacy: {
+            pluginEntry: { instanceId: 'y', tabId: '4key', zIndex: 2 },
+            order: 1,
+          },
+        }),
+      ],
+    });
+    const ops = pluginInstanceOps(
+      grouped,
+      'demo',
+      new Map([
+        saved('x', { zIndex: 1, groupId: 'G' }),
+        saved('y', { zIndex: 2 }),
+      ]),
+      new Map([
+        saved('x', { zIndex: 3, groupId: 'G' }),
+        saved('y', { zIndex: 4 }),
+      ]),
+    );
+    expect(
+      splitBackendPlacedOps(grouped, 'demo', ops).placedLocal.flatMap((op) =>
+        op.op === 'insert' ? [[op.node.id, op.parent, op.index]] : [],
+      ),
+    ).toEqual([
+      ['demo::x', 'G', 0],
+      ['demo::y', null, 1],
+    ]);
+  });
+
   it('겹침값을 실은 다시 넣기가 없으면 그대로 돌려준다', () => {
     const ops = pluginInstanceOps(
       scenes,
