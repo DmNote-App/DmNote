@@ -71,3 +71,12 @@ export const BUILTIN_BUNDLE_FIELDS = {
   counter: ['counter'],
   sound: ['soundEnabled', 'soundPath', 'soundVolume'],
 } as const;
+
+export const BUILTIN_BUNDLE_DEFAULTS: { [key in string]?: { [key in string]?: JsonValue } } = {
+  surface: {"activeBackgroundColor":null,"activeBackgroundGradient":null,"activeBorderColor":null,"activeBorderGradient":null,"activeShadow":null,"backgroundColor":null,"backgroundGradient":null,"borderColor":null,"borderGradient":null,"borderRadius":null,"borderWidth":null,"shadow":null},
+  font: {"activeFontColor":null,"activeFontGradient":null,"fontBold":null,"fontColor":null,"fontFamily":null,"fontGradient":null,"fontItalic":null,"fontSize":null,"fontStrikethrough":null,"fontUnderline":null,"fontWeight":null},
+  image: {"activeImage":null,"activeImageFit":null,"activeImageTransform":null,"activeTransparent":false,"idleImageFit":null,"idleImageTransform":null,"idleTransparent":false,"imageFit":null,"imageMode":null,"inactiveImage":null},
+  note: {"noteAlignment":"center","noteAutoYCorrection":true,"noteBorderColor":null,"noteBorderGradient":null,"noteBorderOpacity":100,"noteBorderRadius":null,"noteBorderSide":null,"noteBorderWidth":null,"noteColor":"#FFFFFF","noteEffectEnabled":true,"noteGlowColor":null,"noteGlowEnabled":false,"noteGlowGradient":null,"noteGlowOpacity":70,"noteGlowOpacityBottom":null,"noteGlowOpacityTop":null,"noteGlowSize":10,"noteGlowSyncPaint":false,"noteGradient":null,"noteOffsetX":null,"noteOffsetY":null,"noteOpacity":90,"noteOpacityBottom":null,"noteOpacityTop":null,"noteWidth":null},
+  counter: {"counter":{}},
+  sound: {"soundEnabled":null,"soundPath":null,"soundVolume":null},
+};

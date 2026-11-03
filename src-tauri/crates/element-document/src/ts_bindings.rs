@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use ts_rs::TS;
 
+use crate::bundles::{BuiltinBundles, BundleCatalog};
 use crate::condition::{
     AllCondition, AnyCondition, Condition, EqualsCondition, NotCondition, OneOfCondition,
 };
@@ -65,14 +66,26 @@ fn generate() -> String {
     // 기능 묶음 칸 이름 - 옛 위치 칸과 같은 이름이라 프론트가 칸이 어느 묶음인지 고를 때 쓴다
     out.push_str("export const BUILTIN_BUNDLE_FIELDS = {\n");
     for name in crate::bundles::BUILTIN_BUNDLE_NAMES {
-        let fields = crate::bundles::BuiltinBundles::fields(name).unwrap_or_default();
+        let fields = BuiltinBundles::fields(name).unwrap_or_default();
         let names: Vec<String> = fields
             .iter()
             .map(|rule| format!("'{}'", rule.name))
             .collect();
         out.push_str(&format!("  {name}: [{}],\n", names.join(", ")));
     }
-    out.push_str("} as const;\n");
+    out.push_str("} as const;\n\n");
+    // 기능 묶음 기본값 - 없던 묶음에 쓰기(setBundle)와 새 요소 채우기가 여기서 시작한다 (엔진과 같다)
+    out.push_str(
+        "export const BUILTIN_BUNDLE_DEFAULTS: { [key in string]?: { [key in string]?: JsonValue } } = {\n",
+    );
+    for name in crate::bundles::BUILTIN_BUNDLE_NAMES {
+        let value = BuiltinBundles.default_value(name);
+        out.push_str(&format!(
+            "  {name}: {},\n",
+            serde_json::to_string(&value).expect("묶음 기본값")
+        ));
+    }
+    out.push_str("};\n");
     out.truncate(out.trim_end().len());
     out.push('\n');
     out
