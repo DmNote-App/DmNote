@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-// 그리기 약속 행렬 - 종류 × 편집 화면/오버레이 × 상태로 그린 DOM의 클래스·data 속성·CSS 변수(변수를 읽는
-// 인라인 스타일 포함)를 지금 그리기로 고정한다. 7단계에서 종류마다 그리기를 한 벌로 합칠 때 사용자 CSS가
-// 기대는 모양이 그대로인지 이 기준값으로 확인한다 (설계 3.6·3.10)
+// 그리기 약속 행렬 - 종류 × 편집 화면/오버레이 × 상태로 그린 DOM의 클래스·data 속성·인라인 스타일(CSS 변수
+// 포함)을 고정한다. 기준값은 7단계에서 종류마다 그리기를 한 벌로 합치기 전 그리기로 만들었다 - 사용자 CSS가
+// 기대는 모양과 자리가 그대로인지 확인한다 (설계 3.6·3.10)
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -150,7 +150,7 @@ const signatureOf = (element: Element): NodeSignature => {
   for (let index = 0; index < (style?.length ?? 0); index += 1) {
     const name = style[index];
     const value = style.getPropertyValue(name);
-    if (name.startsWith('--') || value.includes('var(--')) vars[name] = value;
+    vars[name] = value;
   }
   const children = [...element.children].map(signatureOf);
   return {
