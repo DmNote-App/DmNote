@@ -13,7 +13,13 @@ import {
   useSpritePoseHandleStore,
   type SpritePoseHandleSession,
 } from '@stores/grid/useSpritePoseHandleStore';
-import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
+import {
+  createFakeElementDocumentBackend,
+  type FakeElementDocumentBackend,
+} from '@src/renderer/__tests__/fakeElementDocumentBackend';
+import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import type { CanonicalReactiveSpritePosition } from '@src/types/editor';
+import type { Document } from '@src/types/generated/elementDocument';
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import { releaseDragSession } from '@hooks/Grid/drag/dragSession';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
@@ -25,6 +31,7 @@ import {
 import SpriteCanvasHandles from './SpriteCanvasHandles';
 
 const mocks = vi.hoisted(() => ({
+  backend: null as FakeElementDocumentBackend | null,
   patchPosition: vi.fn(
     (_mode: string, _id: string, _patch: unknown, _gestureId?: string) =>
       Promise.resolve(undefined),
@@ -33,14 +40,16 @@ const mocks = vi.hoisted(() => ({
   settleCommit: vi.fn(),
 }));
 
-// 스프라이트 손잡이는 지금 값을 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
-vi.mock(
-  '@src/renderer/editor/document/elementDocumentRuntime',
-  async (importOriginal) =>
-    (
-      await import('@src/renderer/__tests__/treeFromLegacyStores')
-    ).treeFromStores(importOriginal as never),
-);
+// 스프라이트 손잡이는 지금 값을 트리에서 읽는다 - 실제 트리 스토어 아래에 가짜 백엔드를 붙인다
+vi.mock('@api/modules/editor/elementDocumentApi', () => ({
+  elementDocumentApi: new Proxy(
+    {},
+    {
+      get: (_target, name: string) =>
+        (mocks.backend!.api as Record<string, unknown>)[name],
+    },
+  ),
+}));
 vi.mock('@contexts/useTranslation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -82,6 +91,51 @@ const sprite = () =>
       }),
     ],
   });
+
+// 스프라이트 하나를 둔 트리 문서 - 고유 값은 배치 모양에서 상자·공통 칸을 뺀 나머지
+const documentOf = (position: CanonicalReactiveSpritePosition): Document => {
+  const {
+    id,
+    dx,
+    dy,
+    width,
+    height,
+    rotation,
+    hidden: _hidden,
+    zIndex: _zIndex,
+    layerName: _layerName,
+    groupId: _groupId,
+    className: _className,
+    useInlineStyles: _useInlineStyles,
+    ...values
+  } = position;
+  return {
+    formatVersion: 1,
+    kindVersions: { sprite: 1 },
+    scenes: {
+      '4key': {
+        nodes: [
+          {
+            type: 'element',
+            id,
+            kind: 'sprite',
+            frame: { x: dx, y: dy, width, height, rotation: rotation ?? 0 },
+            values,
+          },
+        ],
+      },
+    },
+  } as unknown as Document;
+};
+
+mocks.backend = createFakeElementDocumentBackend(documentOf(sprite()));
+
+// 손잡이가 받는 위치 목록과 트리 문서를 함께 바꾼다 (리사이즈 착지·다른 창 편집처럼 확정 문서가 바뀐다)
+let currentSprite = sprite();
+const setSprite = (position: CanonicalReactiveSpritePosition) => {
+  currentSprite = position;
+  mocks.backend!.replace(() => documentOf(position));
+};
 
 const makeSession = (
   overrides: Partial<SpritePoseHandleSession> = {},
@@ -164,7 +218,7 @@ describe('SpriteCanvasHandles', () => {
     act(() => {
       root.render(
         <SpriteCanvasHandles
-          spritePositions={useSpriteStore.getState().positions}
+          spritePositions={{ '4key': [currentSprite] }}
           selectedElements={selected}
           selectedKeyType="4key"
           zoom={view.zoom ?? 1}
@@ -175,15 +229,18 @@ describe('SpriteCanvasHandles', () => {
     });
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    await act(async () => {
+      await loadElementDocumentStore();
+    });
+    setSprite(sprite());
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
       window.setTimeout(() => callback(performance.now()), 0),
     );
     vi.stubGlobal('cancelAnimationFrame', (id: number) => {
       window.clearTimeout(id);
     });
-    useSpriteStore.setState({ positions: { '4key': [sprite()] } });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -193,7 +250,6 @@ describe('SpriteCanvasHandles', () => {
     act(() => root.unmount());
     container.remove();
     act(() => useSpritePoseHandleStore.getState().setSession(null));
-    useSpriteStore.setState({ positions: {} });
     releaseDragSession();
     vi.unstubAllGlobals();
   });
@@ -224,9 +280,7 @@ describe('SpriteCanvasHandles', () => {
   });
 
   it('배치가 90도 돌아도 기준점 포인터를 상자 로컬 축으로 해석한다', async () => {
-    useSpriteStore.setState({
-      positions: { '4key': [{ ...sprite(), rotation: 90 }] },
-    });
+    setSprite({ ...sprite(), rotation: 90 });
     render();
     pointer('pointerdown', pivotHandle()!, { clientX: 110, clientY: 70 });
     pointer('pointermove', window, {
@@ -257,9 +311,7 @@ describe('SpriteCanvasHandles', () => {
   });
 
   it('상자 핸들이 보이는 동안 표식은 선택 테두리 프레임에 앉고 자세 편집 중엔 상자 그대로다', () => {
-    useSpriteStore.setState({
-      positions: { '4key': [{ ...sprite(), pivot: { x: 1, y: 0 } }] },
-    });
+    setSprite({ ...sprite(), pivot: { x: 1, y: 0 } });
     render();
     // 로컬 (200, 0) → 화면 (210, 20), 테두리 선 중심은 모서리 밖 0.5px → (210.5, 19.5), 히트 26 중심
     expect(pivotHandle()!.style.left).toBe('197.5px');
@@ -416,9 +468,7 @@ describe('SpriteCanvasHandles', () => {
     expect(parseFloat(pivotHandle()!.style.left) + 13).not.toBeCloseTo(110, 6);
 
     // 리사이즈 착지·다른 창 편집 - 스토어 객체가 교체된다
-    useSpriteStore.setState({
-      positions: { '4key': [{ ...sprite(), width: 400 }] },
-    });
+    setSprite({ ...sprite(), width: 400 });
     pointer('pointerup', window, { clientX: 14, clientY: 117 });
 
     expect(mocks.patchPosition).not.toHaveBeenCalled();
@@ -430,9 +480,7 @@ describe('SpriteCanvasHandles', () => {
     pointer('pointermove', window, { clientX: 150, clientY: 70 });
     await flushFrame();
 
-    useSpriteStore.setState({
-      positions: { '4key': [{ ...sprite(), dx: 40, dy: 60 }] },
-    });
+    setSprite({ ...sprite(), dx: 40, dy: 60 });
     pointer('pointerup', window, { clientX: 150, clientY: 70 });
 
     expect(mocks.patchPosition).not.toHaveBeenCalled();

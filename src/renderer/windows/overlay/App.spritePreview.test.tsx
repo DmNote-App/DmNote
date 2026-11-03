@@ -2,20 +2,24 @@
 // 오버레이는 방송 화면이라 스크럽 프리뷰 봉투를 반영하지 않고
 // 커밋 정산된 canonical만 레이아웃·씬 입력으로 쓴다
 import React, { act } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import { resetAllKeySignals } from '@stores/signals/keySignals';
 import { previewOverlay } from '@src/renderer/editor/runtime/gesture/previewOverlay';
+import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import {
+  createFakeElementDocumentBackend,
+  type FakeElementDocumentBackend,
+} from '@src/renderer/__tests__/fakeElementDocumentBackend';
 
-import type { CanonicalReactiveSpritePosition } from '@src/types/editor';
+import type { Document } from '@src/types/generated/elementDocument';
 import type { PreviewEnvelope } from '@src/types/preview';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const mocks = vi.hoisted(() => ({
+  backend: null as FakeElementDocumentBackend | null,
   bootstrap: vi.fn(),
   layoutInputs: [] as Array<{
     currentItemArrays: {
@@ -27,14 +31,16 @@ const mocks = vi.hoisted(() => ({
   >,
 }));
 
-// 오버레이는 키·아이템 위치를 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
-vi.mock(
-  '@src/renderer/editor/document/elementDocumentRuntime',
-  async (importOriginal) =>
-    (
-      await import('@src/renderer/__tests__/treeFromLegacyStores')
-    ).treeFromStores(importOriginal as never),
-);
+// 오버레이는 키·아이템 위치를 트리에서 읽는다 - 실제 트리 스토어 아래에 가짜 백엔드를 붙인다
+vi.mock('@api/modules/editor/elementDocumentApi', () => ({
+  elementDocumentApi: new Proxy(
+    {},
+    {
+      get: (_target, name: string) =>
+        (mocks.backend!.api as Record<string, unknown>)[name],
+    },
+  ),
+}));
 vi.mock('@tauri-apps/api/window', () => ({
   currentMonitor: vi.fn(),
   getCurrentWindow: () => ({
@@ -130,29 +136,37 @@ import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayEle
 const SPRITE_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const SESSION_ID = '00000000-0000-4000-8000-0000000000aa';
 
-const spritePosition = (dx: number): CanonicalReactiveSpritePosition => ({
-  activation: 'whileHeld',
-  pressDurationMs: 300,
-  rotation: 0,
-  id: SPRITE_ID,
-  dx,
-  dy: 25,
-  width: 200,
-  height: 120,
-  hidden: false,
-  zIndex: null,
-  layerName: null,
-  groupId: null,
-  className: null,
-  useInlineStyles: null,
-  baseImage: null,
-  pivot: { x: 0.5, y: 0.5 },
-  idleTransform: { x: 0, y: 0, rotation: 0, scale: 1 },
-  poses: [],
-  transitionMs: 90,
-  transitionEasing: 'linear',
-  referenceNaturalSize: null,
-});
+// 4key 장면에 스프라이트 하나 - x가 오버레이 위치(dx)
+const documentWithSpriteAt = (x: number): Document =>
+  ({
+    formatVersion: 1,
+    kindVersions: { sprite: 1 },
+    scenes: {
+      '4key': {
+        nodes: [
+          {
+            type: 'element',
+            id: SPRITE_ID,
+            kind: 'sprite',
+            frame: { x, y: 25, width: 200, height: 120, rotation: 0 },
+            values: {
+              activation: 'whileHeld',
+              pressDurationMs: 300,
+              baseImage: null,
+              pivot: { x: 0.5, y: 0.5 },
+              idleTransform: { x: 0, y: 0, rotation: 0, scale: 1 },
+              poses: [],
+              transitionMs: 90,
+              transitionEasing: 'linear',
+              referenceNaturalSize: null,
+            },
+          },
+        ],
+      },
+    },
+  } as unknown as Document);
+
+mocks.backend = createFakeElementDocumentBackend(documentWithSpriteAt(15));
 
 const remoteEnvelope = (
   overrides: Partial<PreviewEnvelope> = {},
@@ -204,12 +218,11 @@ describe('overlay sprite preview composition', () => {
       isBootstrapped: true,
       isLocalUpdateInProgress: false,
     });
-    useLegacyKeyArrays.setState({
-      keyMappings: { '4key': ['KeyK'] },
-      positions: { '4key': [] },
-      canonicalPositions: { '4key': [] },
+    // 트리 스토어는 부트스트랩(목)이 아니라 여기서 불러온다. 앞 테스트가 바꾼 문서는 처음 모양으로
+    await act(async () => {
+      await loadElementDocumentStore();
+      mocks.backend!.replace(() => documentWithSpriteAt(15));
     });
-    useSpriteStore.setState({ positions: { '4key': [spritePosition(15)] } });
     resetAllKeySignals();
     container = document.createElement('div');
     document.body.append(container);
@@ -251,10 +264,9 @@ describe('overlay sprite preview composition', () => {
       previewOverlay.applyRemoteEnvelope(remoteEnvelope());
     });
 
-    // 커밋 정산: canonical 확정 반영 + 세션 종료
-    const committed = { '4key': [spritePosition(99)] };
+    // 커밋 정산: 확정 문서 반영 + 세션 종료
     await act(async () => {
-      useSpriteStore.setState({ positions: committed });
+      mocks.backend!.replace(() => documentWithSpriteAt(99));
       previewOverlay.endSession(SESSION_ID);
     });
 
