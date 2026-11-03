@@ -6,6 +6,7 @@ import { trackEditorWrite } from '@src/renderer/editor/runtime/lifecycle/editorW
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import { elementKindData } from '@src/renderer/elementKinds/defineElementKind';
+import { fillKindDefaults } from '@src/renderer/elementKinds/runtime/elementKindDefaults';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
 import { legacyPatchOps } from '@src/renderer/elementKinds/runtime/legacyPosition';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
@@ -69,35 +70,23 @@ export const insertDocumentElement = (
 ) => {
   const definition = elementKindDefinition(kind);
   if (!definition) return Promise.resolve(null);
-  const { defaultSize, fields } = elementKindData(definition);
+  const { defaultSize } = elementKindData(definition);
   const id = newId();
-  // 백엔드도 기본값을 채우지만, 응답 전 화면(낙관 적용)에서도 제대로 그리도록 함께 보낸다
-  const values = Object.fromEntries(
-    (fields ?? []).map((field) => [
-      field.name,
-      (field.default ?? null) as JsonValue,
-    ]),
-  );
-  const sent = editDocument([
-    {
-      op: 'insert',
-      scene: sceneId,
-      parent: null,
-      index: null,
-      node: {
-        type: 'element',
-        id,
-        kind,
-        frame: {
-          x: Math.round(at.x),
-          y: Math.round(at.y),
-          width: defaultSize.width,
-          height: defaultSize.height,
-          rotation: 0,
-        },
-        values,
-      },
+  // 백엔드도 기본값을 채우지만, 응답 전 화면(낙관 적용)도 같은 문서가 되도록 채워 보낸다
+  const node = fillKindDefaults({
+    type: 'element',
+    id,
+    kind,
+    frame: {
+      x: Math.round(at.x),
+      y: Math.round(at.y),
+      width: defaultSize.width,
+      height: defaultSize.height,
+      rotation: 0,
     },
+  });
+  const sent = editDocument([
+    { op: 'insert', scene: sceneId, parent: null, index: null, node },
   ]);
   useDocumentSelectionStore.getState().select(sceneId, id);
   return sent.then((result) => {
@@ -117,8 +106,8 @@ export const insertDocumentElement = (
   });
 };
 
-/** 옛 위치 모양의 새 요소(키·스탯 등의 생성 기본값) - 넣기와 같은 커밋에 옛 칸 → 트리 연산
- * 대응(legacyPatchOps)으로 값·묶음·공통 정보를 싣는다. 키는 입력 슬롯도 */
+/** 옛 위치 모양의 새 요소(키·스탯 등의 생성 기본값) - 종류 기본값을 채운 노드를 넣고, 같은 커밋에 옛 칸 →
+ * 트리 연산 대응(legacyPatchOps)으로 값·묶음·공통 정보를 싣는다. 키는 입력 슬롯도 */
 export const insertLegacyShapedElement = (
   sceneId: string,
   kind: string,
@@ -127,7 +116,7 @@ export const insertLegacyShapedElement = (
 ) => {
   const id =
     typeof position.id === 'string' && position.id ? position.id : newId();
-  const node: ElementNode = {
+  const node: ElementNode = fillKindDefaults({
     type: 'element',
     id,
     kind,
@@ -138,7 +127,7 @@ export const insertLegacyShapedElement = (
       height: Number(position.height ?? 60),
       rotation: Number(position.rotation ?? 0),
     },
-  };
+  });
   const {
     id: _id,
     dx: _dx,

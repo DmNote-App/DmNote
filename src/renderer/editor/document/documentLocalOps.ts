@@ -1,11 +1,14 @@
 // 편집 창 낙관 적용 - 백엔드 응답 전에 화면에 먼저 반영할 편집만 JS로 적용한다
 // 검사·정리는 백엔드 엔진(element_document::ops)이 맡고, 그 결과 패치가 오면 이 계산을 대신한다.
+// 맞는 편집의 결과는 백엔드 트리 편집 적용과 같아야 한다 - 엔진 fixture로 고정
+// (tests/element-document-local-ops-parity.test.ts). 넣기는 완성된 노드를 받는다(elementKindDefaults).
 // 장면 연산은 여기서 다루지 않는다 (패치를 기다린다)
-import type {
-  Document,
-  Node,
-  Op,
-  Scene,
+import {
+  BUILTIN_BUNDLE_DEFAULTS,
+  type Document,
+  type Node,
+  type Op,
+  type Scene,
 } from '@src/types/generated/elementDocument';
 import { isTreeOnlyGroup, walkNodes, type ElementNode } from './documentPatch';
 
@@ -155,9 +158,10 @@ const applyToNodes = (nodes: Node[], op: Op): Node[] => {
     case 'setCommon':
       return mapElement(nodes, op.id, (element) => {
         const next = { ...element };
-        // null은 지우기, 적지 않은 칸은 그대로
+        // null은 지우기, 적지 않은 칸은 그대로. 숨김 false는 칸을 뺀다 (백엔드 문서 모양과 같게)
         if (op.name !== undefined) next.name = op.name ?? undefined;
-        if (typeof op.hidden === 'boolean') next.hidden = op.hidden;
+        if (op.hidden === true) next.hidden = true;
+        else if (op.hidden === false) delete next.hidden;
         if (op.className !== undefined) {
           next.className = op.className ?? undefined;
         }
@@ -174,8 +178,13 @@ const applyToNodes = (nodes: Node[], op: Op): Node[] => {
     case 'setBundle':
       return mapElement(nodes, op.id, (element) => {
         const previous = element.bundles?.[op.bundle];
+        // 없던 묶음은 묶음 기본값에서 시작한다 (엔진과 같다)
         const base =
-          previous && typeof previous === 'object' && !Array.isArray(previous)
+          previous === undefined
+            ? BUILTIN_BUNDLE_DEFAULTS[op.bundle] ?? {}
+            : previous &&
+              typeof previous === 'object' &&
+              !Array.isArray(previous)
             ? previous
             : {};
         return {
@@ -283,24 +292,26 @@ const applyToNodes = (nodes: Node[], op: Op): Node[] => {
     case 'setInput':
       return mapElement(nodes, op.id, (element) => ({
         ...element,
-        input: op.input,
+        input: op.input ?? undefined,
       }));
     case 'ungroup':
       return mapGroup(nodes, op.id, (group) => group.children);
     case 'setGroup':
-      return mapGroup(nodes, op.id, (group) => [
-        {
+      return mapGroup(nodes, op.id, (group) => {
+        const next = {
           ...group,
           ...(op.name != null ? { name: op.name } : {}),
-          ...(typeof op.hidden === 'boolean' ? { hidden: op.hidden } : {}),
-        },
-      ]);
+        };
+        if (op.hidden === true) next.hidden = true;
+        else if (op.hidden === false) delete next.hidden;
+        return [next];
+      });
     default:
       return nodes;
   }
 };
 
-// 빼기·옮기기로 비게 된 트리 전용 그룹은 함께 지운다 (백엔드 커밋과 같다)
+// 비게 된 트리 전용 그룹 지우기 (백엔드 커밋과 같다)
 const pruneEmptyTreeGroups = (nodes: Node[]): Node[] => {
   let changed = false;
   const next: Node[] = [];
@@ -326,16 +337,22 @@ const pruneEmptyTreeGroups = (nodes: Node[]): Node[] => {
 
 export const applyLocalOps = (document: Document, ops: readonly Op[]) => {
   let scenes = document.scenes;
+  const changed = new Set<string>();
   for (const op of ops) {
     const scene: Scene | undefined = scenes[op.scene];
     if (!scene) continue;
-    const applied = applyToNodes(scene.nodes, op);
-    const nodes =
-      op.op === 'remove' || op.op === 'move' || op.op === 'group'
-        ? pruneEmptyTreeGroups(applied)
-        : applied;
+    const nodes = applyToNodes(scene.nodes, op);
     if (nodes === scene.nodes) continue;
+    changed.add(op.scene);
     scenes = { ...scenes, [op.scene]: { ...scene, nodes } };
+  }
+  // 빈 그룹 정리는 묶음 끝에서 바뀐 장면마다 한 번 - 묶음 중간에 비었다가 다시 채워진 그룹은 남는다
+  for (const sceneId of changed) {
+    const scene = scenes[sceneId]!;
+    const nodes = pruneEmptyTreeGroups(scene.nodes);
+    if (nodes !== scene.nodes) {
+      scenes = { ...scenes, [sceneId]: { ...scene, nodes } };
+    }
   }
   return scenes === document.scenes ? document : { ...document, scenes };
 };

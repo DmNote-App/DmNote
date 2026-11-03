@@ -1,0 +1,4378 @@
+{
+  "bases": {
+    "공통 정보를 쓴 뒤": {
+      "formatVersion": 1,
+      "kindVersions": {},
+      "scenes": {
+        "other": {
+          "nodes": [
+            {
+              "frame": {
+                "height": 120.0,
+                "rotation": 0.0,
+                "width": 120.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "x",
+              "kind": "cursorTracker",
+              "type": "element"
+            }
+          ]
+        },
+        "tab": {
+          "nodes": [
+            {
+              "frame": {
+                "height": 120.0,
+                "rotation": 0.0,
+                "width": 120.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "a",
+              "kind": "cursorTracker",
+              "type": "element"
+            },
+            {
+              "children": [
+                {
+                  "className": "glow",
+                  "frame": {
+                    "height": 120.0,
+                    "rotation": 0.0,
+                    "width": 120.0,
+                    "x": 10.0,
+                    "y": 0.0
+                  },
+                  "hidden": true,
+                  "id": "b",
+                  "kind": "cursorTracker",
+                  "name": "B",
+                  "type": "element",
+                  "useInlineStyles": false
+                },
+                {
+                  "frame": {
+                    "height": 120.0,
+                    "rotation": 0.0,
+                    "width": 120.0,
+                    "x": 20.0,
+                    "y": 0.0
+                  },
+                  "id": "c",
+                  "kind": "cursorTracker",
+                  "type": "element"
+                }
+              ],
+              "id": "g1",
+              "name": "g1",
+              "type": "group"
+            },
+            {
+              "frame": {
+                "height": 120.0,
+                "rotation": 0.0,
+                "width": 120.0,
+                "x": 30.0,
+                "y": 0.0
+              },
+              "id": "d",
+              "kind": "cursorTracker",
+              "type": "element"
+            },
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 120.0,
+                    "rotation": 0.0,
+                    "width": 120.0,
+                    "x": 40.0,
+                    "y": 0.0
+                  },
+                  "id": "e",
+                  "kind": "cursorTracker",
+                  "type": "element"
+                }
+              ],
+              "id": "lg",
+              "legacy": {},
+              "name": "lg",
+              "type": "group"
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "frame": {
+                        "height": 120.0,
+                        "rotation": 0.0,
+                        "width": 120.0,
+                        "x": 50.0,
+                        "y": 0.0
+                      },
+                      "id": "f",
+                      "kind": "cursorTracker",
+                      "type": "element"
+                    }
+                  ],
+                  "id": "g3",
+                  "name": "g3",
+                  "type": "group"
+                }
+              ],
+              "id": "g2",
+              "name": "g2",
+              "type": "group"
+            }
+          ]
+        }
+      }
+    },
+    "그룹 정보를 쓴 뒤": {
+      "formatVersion": 1,
+      "kindVersions": {},
+      "scenes": {
+        "other": {
+          "nodes": [
+            {
+              "frame": {
+                "height": 120.0,
+                "rotation": 0.0,
+                "width": 120.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "x",
+              "kind": "cursorTracker",
+              "type": "element"
+            }
+          ]
+        },
+        "tab": {
+          "nodes": [
+            {
+              "frame": {
+                "height": 120.0,
+                "rotation": 0.0,
+                "width": 120.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "a",
+              "kind": "cursorTracker",
+              "type": "element"
+            },
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 120.0,
+                    "rotation": 0.0,
+                    "width": 120.0,
+                    "x": 10.0,
+                    "y": 0.0
+                  },
+                  "id": "b",
+                  "kind": "cursorTracker",
+                  "type": "element"
+                },
+                {
+                  "frame": {
+                    "height": 120.0,
+                    "rotation": 0.0,
+                    "width": 120.0,
+                    "x": 20.0,
+                    "y": 0.0
+                  },
+                  "id": "c",
+                  "kind": "cursorTracker",
+                  "type": "element"
+                }
+              ],
+              "hidden": true,
+              "id": "g1",
+              "name": "Renamed",
+              "type": "group"
+            },
+            {
+              "frame": {
+                "height": 120.0,
+                "rotation": 0.0,
+                "width": 120.0,
+                "x": 30.0,
+                "y": 0.0
+              },
+              "id": "d",
+              "kind": "cursorTracker",
+              "type": "element"
+            },
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 120.0,
+                    "rotation": 0.0,
+                    "width": 120.0,
+                    "x": 40.0,
+                    "y": 0.0
+                  },
+                  "id": "e",
+                  "kind": "cursorTracker",
+                  "type": "element"
+                }
+              ],
+              "id": "lg",
+              "legacy": {},
+              "name": "lg",
+              "type": "group"
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "frame": {
+                        "height": 120.0,
+                        "rotation": 0.0,
+                        "width": 120.0,
+                        "x": 50.0,
+                        "y": 0.0
+                      },
+                      "id": "f",
+                      "kind": "cursorTracker",
+                      "type": "element"
+                    }
+                  ],
+                  "id": "g3",
+                  "name": "g3",
+                  "type": "group"
+                }
+              ],
+              "id": "g2",
+              "name": "g2",
+              "type": "group"
+            }
+          ]
+        }
+      }
+    },
+    "기본": {
+      "formatVersion": 1,
+      "kindVersions": {},
+      "scenes": {
+        "other": {
+          "nodes": [
+            {
+              "frame": {
+                "height": 120.0,
+                "rotation": 0.0,
+                "width": 120.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "x",
+              "kind": "cursorTracker",
+              "type": "element"
+            }
+          ]
+        },
+        "tab": {
+          "nodes": [
+            {
+              "frame": {
+                "height": 120.0,
+                "rotation": 0.0,
+                "width": 120.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "a",
+              "kind": "cursorTracker",
+              "type": "element"
+            },
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 120.0,
+                    "rotation": 0.0,
+                    "width": 120.0,
+                    "x": 10.0,
+                    "y": 0.0
+                  },
+                  "id": "b",
+                  "kind": "cursorTracker",
+                  "type": "element"
+                },
+                {
+                  "frame": {
+                    "height": 120.0,
+                    "rotation": 0.0,
+                    "width": 120.0,
+                    "x": 20.0,
+                    "y": 0.0
+                  },
+                  "id": "c",
+                  "kind": "cursorTracker",
+                  "type": "element"
+                }
+              ],
+              "id": "g1",
+              "name": "g1",
+              "type": "group"
+            },
+            {
+              "frame": {
+                "height": 120.0,
+                "rotation": 0.0,
+                "width": 120.0,
+                "x": 30.0,
+                "y": 0.0
+              },
+              "id": "d",
+              "kind": "cursorTracker",
+              "type": "element"
+            },
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 120.0,
+                    "rotation": 0.0,
+                    "width": 120.0,
+                    "x": 40.0,
+                    "y": 0.0
+                  },
+                  "id": "e",
+                  "kind": "cursorTracker",
+                  "type": "element"
+                }
+              ],
+              "id": "lg",
+              "legacy": {},
+              "name": "lg",
+              "type": "group"
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "frame": {
+                        "height": 120.0,
+                        "rotation": 0.0,
+                        "width": 120.0,
+                        "x": 50.0,
+                        "y": 0.0
+                      },
+                      "id": "f",
+                      "kind": "cursorTracker",
+                      "type": "element"
+                    }
+                  ],
+                  "id": "g3",
+                  "name": "g3",
+                  "type": "group"
+                }
+              ],
+              "id": "g2",
+              "name": "g2",
+              "type": "group"
+            }
+          ]
+        }
+      }
+    },
+    "입력을 쓴 뒤": {
+      "formatVersion": 1,
+      "kindVersions": {},
+      "scenes": {
+        "other": {
+          "nodes": [
+            {
+              "frame": {
+                "height": 120.0,
+                "rotation": 0.0,
+                "width": 120.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "x",
+              "kind": "cursorTracker",
+              "type": "element"
+            }
+          ]
+        },
+        "tab": {
+          "nodes": [
+            {
+              "frame": {
+                "height": 120.0,
+                "rotation": 0.0,
+                "width": 120.0,
+                "x": 0.0,
+                "y": 0.0
+              },
+              "id": "a",
+              "input": {
+                "type": "pointer"
+              },
+              "kind": "cursorTracker",
+              "type": "element"
+            },
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 120.0,
+                    "rotation": 0.0,
+                    "width": 120.0,
+                    "x": 10.0,
+                    "y": 0.0
+                  },
+                  "id": "b",
+                  "kind": "cursorTracker",
+                  "type": "element"
+                },
+                {
+                  "frame": {
+                    "height": 120.0,
+                    "rotation": 0.0,
+                    "width": 120.0,
+                    "x": 20.0,
+                    "y": 0.0
+                  },
+                  "id": "c",
+                  "kind": "cursorTracker",
+                  "type": "element"
+                }
+              ],
+              "id": "g1",
+              "name": "g1",
+              "type": "group"
+            },
+            {
+              "frame": {
+                "height": 120.0,
+                "rotation": 0.0,
+                "width": 120.0,
+                "x": 30.0,
+                "y": 0.0
+              },
+              "id": "d",
+              "kind": "cursorTracker",
+              "type": "element"
+            },
+            {
+              "children": [
+                {
+                  "frame": {
+                    "height": 120.0,
+                    "rotation": 0.0,
+                    "width": 120.0,
+                    "x": 40.0,
+                    "y": 0.0
+                  },
+                  "id": "e",
+                  "kind": "cursorTracker",
+                  "type": "element"
+                }
+              ],
+              "id": "lg",
+              "legacy": {},
+              "name": "lg",
+              "type": "group"
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "frame": {
+                        "height": 120.0,
+                        "rotation": 0.0,
+                        "width": 120.0,
+                        "x": 50.0,
+                        "y": 0.0
+                      },
+                      "id": "f",
+                      "kind": "cursorTracker",
+                      "type": "element"
+                    }
+                  ],
+                  "id": "g3",
+                  "name": "g3",
+                  "type": "group"
+                }
+              ],
+              "id": "g2",
+              "name": "g2",
+              "type": "group"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "fills": [
+    {
+      "filled": {
+        "bundles": {
+          "surface": {
+            "activeBackgroundColor": null,
+            "activeBackgroundGradient": null,
+            "activeBorderColor": null,
+            "activeBorderGradient": null,
+            "activeShadow": null,
+            "backgroundColor": null,
+            "backgroundGradient": null,
+            "borderColor": null,
+            "borderGradient": null,
+            "borderRadius": null,
+            "borderWidth": null,
+            "shadow": null
+          }
+        },
+        "frame": {
+          "height": 60.0,
+          "rotation": 0.0,
+          "width": 60.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "n",
+        "kind": "cursorTracker",
+        "type": "element",
+        "values": {
+          "aspect": "locked",
+          "dotColor": "#FFFFFF",
+          "dotSize": 10,
+          "mode": "motion",
+          "monitor": null,
+          "returnMs": 150,
+          "sensitivity": 1,
+          "trailColor": "rgba(255, 255, 255, 0.5)",
+          "trailMs": 250,
+          "trailWidth": 3
+        }
+      },
+      "kind": "cursorTracker",
+      "node": {
+        "frame": {
+          "height": 60.0,
+          "rotation": 0.0,
+          "width": 60.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "n",
+        "kind": "cursorTracker",
+        "type": "element"
+      }
+    },
+    {
+      "filled": {
+        "bundles": {
+          "image": {
+            "activeImage": null,
+            "activeImageFit": null,
+            "activeImageTransform": null,
+            "activeTransparent": false,
+            "idleImageFit": null,
+            "idleImageTransform": null,
+            "idleTransparent": false,
+            "imageFit": null,
+            "imageMode": null,
+            "inactiveImage": null
+          },
+          "surface": {
+            "activeBackgroundColor": null,
+            "activeBackgroundGradient": null,
+            "activeBorderColor": null,
+            "activeBorderGradient": null,
+            "activeShadow": null,
+            "backgroundColor": null,
+            "backgroundGradient": null,
+            "borderColor": null,
+            "borderGradient": null,
+            "borderRadius": null,
+            "borderWidth": null,
+            "shadow": null
+          }
+        },
+        "frame": {
+          "height": 60.0,
+          "rotation": 0.0,
+          "width": 60.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "n",
+        "kind": "graph",
+        "type": "element",
+        "values": {
+          "graphAnimationEnabled": null,
+          "graphColor": "#86EFAC",
+          "graphSpeed": 1000,
+          "graphType": "line",
+          "showAvgLine": true,
+          "statType": "kps"
+        }
+      },
+      "kind": "graph",
+      "node": {
+        "frame": {
+          "height": 60.0,
+          "rotation": 0.0,
+          "width": 60.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "n",
+        "kind": "graph",
+        "type": "element"
+      }
+    },
+    {
+      "filled": {
+        "bundles": {
+          "counter": {
+            "counter": {}
+          },
+          "font": {
+            "activeFontColor": null,
+            "activeFontGradient": null,
+            "fontBold": null,
+            "fontColor": null,
+            "fontFamily": null,
+            "fontGradient": null,
+            "fontItalic": null,
+            "fontSize": null,
+            "fontStrikethrough": null,
+            "fontUnderline": null,
+            "fontWeight": null
+          },
+          "image": {
+            "activeImage": null,
+            "activeImageFit": null,
+            "activeImageTransform": null,
+            "activeTransparent": false,
+            "idleImageFit": null,
+            "idleImageTransform": null,
+            "idleTransparent": false,
+            "imageFit": null,
+            "imageMode": null,
+            "inactiveImage": null
+          },
+          "note": {
+            "noteAlignment": "center",
+            "noteAutoYCorrection": true,
+            "noteBorderColor": null,
+            "noteBorderGradient": null,
+            "noteBorderOpacity": 100,
+            "noteBorderRadius": null,
+            "noteBorderSide": null,
+            "noteBorderWidth": null,
+            "noteColor": "#FFFFFF",
+            "noteEffectEnabled": true,
+            "noteGlowColor": null,
+            "noteGlowEnabled": false,
+            "noteGlowGradient": null,
+            "noteGlowOpacity": 70,
+            "noteGlowOpacityBottom": null,
+            "noteGlowOpacityTop": null,
+            "noteGlowSize": 10,
+            "noteGlowSyncPaint": false,
+            "noteGradient": null,
+            "noteOffsetX": null,
+            "noteOffsetY": null,
+            "noteOpacity": 90,
+            "noteOpacityBottom": null,
+            "noteOpacityTop": null,
+            "noteWidth": null
+          },
+          "sound": {
+            "soundEnabled": null,
+            "soundPath": null,
+            "soundVolume": null
+          },
+          "surface": {
+            "activeBackgroundColor": null,
+            "activeBackgroundGradient": null,
+            "activeBorderColor": null,
+            "activeBorderGradient": null,
+            "activeShadow": null,
+            "backgroundColor": null,
+            "backgroundGradient": null,
+            "borderColor": null,
+            "borderGradient": null,
+            "borderRadius": null,
+            "borderWidth": null,
+            "shadow": null
+          }
+        },
+        "frame": {
+          "height": 60.0,
+          "rotation": 0.0,
+          "width": 60.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "n",
+        "kind": "key",
+        "type": "element",
+        "values": {
+          "count": 0,
+          "displayText": null
+        }
+      },
+      "kind": "key",
+      "node": {
+        "frame": {
+          "height": 60.0,
+          "rotation": 0.0,
+          "width": 60.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "n",
+        "kind": "key",
+        "type": "element"
+      }
+    },
+    {
+      "filled": {
+        "bundles": {
+          "image": {
+            "activeImage": null,
+            "activeImageFit": null,
+            "activeImageTransform": null,
+            "activeTransparent": false,
+            "idleImageFit": null,
+            "idleImageTransform": null,
+            "idleTransparent": false,
+            "imageFit": null,
+            "imageMode": null,
+            "inactiveImage": null
+          },
+          "surface": {
+            "activeBackgroundColor": null,
+            "activeBackgroundGradient": null,
+            "activeBorderColor": null,
+            "activeBorderGradient": null,
+            "activeShadow": null,
+            "backgroundColor": null,
+            "backgroundGradient": null,
+            "borderColor": null,
+            "borderGradient": null,
+            "borderRadius": null,
+            "borderWidth": null,
+            "shadow": null
+          }
+        },
+        "frame": {
+          "height": 60.0,
+          "rotation": 0.0,
+          "width": 60.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "n",
+        "kind": "knob",
+        "type": "element",
+        "values": {
+          "reverse": false,
+          "sensitivity": 1
+        }
+      },
+      "kind": "knob",
+      "node": {
+        "frame": {
+          "height": 60.0,
+          "rotation": 0.0,
+          "width": 60.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "n",
+        "kind": "knob",
+        "type": "element"
+      }
+    },
+    {
+      "filled": {
+        "frame": {
+          "height": 60.0,
+          "rotation": 0.0,
+          "width": 60.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "n",
+        "kind": "sprite",
+        "type": "element",
+        "values": {
+          "activation": "whileHeld",
+          "baseImage": null,
+          "idleTransform": {
+            "rotation": 0,
+            "scale": 1,
+            "x": 0,
+            "y": 0
+          },
+          "pivot": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "poses": [],
+          "pressDurationMs": 300,
+          "referenceNaturalSize": null,
+          "transitionEasing": "cubic-bezier(0.4, 0, 0.2, 1)",
+          "transitionMs": 0
+        }
+      },
+      "kind": "sprite",
+      "node": {
+        "frame": {
+          "height": 60.0,
+          "rotation": 0.0,
+          "width": 60.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "n",
+        "kind": "sprite",
+        "type": "element"
+      }
+    },
+    {
+      "filled": {
+        "bundles": {
+          "counter": {
+            "counter": {}
+          },
+          "font": {
+            "activeFontColor": null,
+            "activeFontGradient": null,
+            "fontBold": null,
+            "fontColor": null,
+            "fontFamily": null,
+            "fontGradient": null,
+            "fontItalic": null,
+            "fontSize": null,
+            "fontStrikethrough": null,
+            "fontUnderline": null,
+            "fontWeight": null
+          },
+          "image": {
+            "activeImage": null,
+            "activeImageFit": null,
+            "activeImageTransform": null,
+            "activeTransparent": false,
+            "idleImageFit": null,
+            "idleImageTransform": null,
+            "idleTransparent": false,
+            "imageFit": null,
+            "imageMode": null,
+            "inactiveImage": null
+          },
+          "surface": {
+            "activeBackgroundColor": null,
+            "activeBackgroundGradient": null,
+            "activeBorderColor": null,
+            "activeBorderGradient": null,
+            "activeShadow": null,
+            "backgroundColor": null,
+            "backgroundGradient": null,
+            "borderColor": null,
+            "borderGradient": null,
+            "borderRadius": null,
+            "borderWidth": null,
+            "shadow": null
+          }
+        },
+        "frame": {
+          "height": 60.0,
+          "rotation": 0.0,
+          "width": 60.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "n",
+        "kind": "stat",
+        "type": "element",
+        "values": {
+          "count": 0,
+          "displayText": null,
+          "statType": "kps"
+        }
+      },
+      "kind": "stat",
+      "node": {
+        "frame": {
+          "height": 60.0,
+          "rotation": 0.0,
+          "width": 60.0,
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "n",
+        "kind": "stat",
+        "type": "element"
+      }
+    }
+  ],
+  "ops": [
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 45.0,
+                  "width": 120.0,
+                  "x": 5.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "위치 일부 칸",
+      "ops": [
+        {
+          "frame": {
+            "rotation": 45.0,
+            "x": 5.0
+          },
+          "id": "a",
+          "op": "setFrame",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "className": "glow",
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "hidden": true,
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "name": "B",
+                    "type": "element",
+                    "useInlineStyles": false
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "공통 정보 쓰기",
+      "ops": [
+        {
+          "className": "glow",
+          "hidden": true,
+          "id": "b",
+          "name": "B",
+          "op": "setCommon",
+          "scene": "tab",
+          "useInlineStyles": false
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "공통 정보를 쓴 뒤",
+      "name": "공통 정보 지우기",
+      "ops": [
+        {
+          "className": null,
+          "hidden": false,
+          "id": "b",
+          "name": null,
+          "op": "setCommon",
+          "scene": "tab",
+          "useInlineStyles": null
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element",
+                    "values": {
+                      "monitor": "primary",
+                      "sensitivity": 2.5
+                    }
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "고유 값 일부 칸",
+      "ops": [
+        {
+          "id": "c",
+          "op": "setValues",
+          "scene": "tab",
+          "values": {
+            "monitor": "primary",
+            "sensitivity": 2.5
+          }
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "bundles": {
+                  "surface": {
+                    "activeBackgroundColor": null,
+                    "activeBackgroundGradient": null,
+                    "activeBorderColor": null,
+                    "activeBorderGradient": null,
+                    "activeShadow": null,
+                    "backgroundColor": "#FF0000",
+                    "backgroundGradient": null,
+                    "borderColor": null,
+                    "borderGradient": null,
+                    "borderRadius": null,
+                    "borderWidth": 4,
+                    "shadow": null
+                  }
+                },
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "기능 묶음 일부 칸 - 없던 묶음은 묶음 기본값에서",
+      "ops": [
+        {
+          "bundle": "surface",
+          "fields": {
+            "backgroundColor": "#FF0000",
+            "borderWidth": 2
+          },
+          "id": "d",
+          "op": "setBundle",
+          "scene": "tab"
+        },
+        {
+          "bundle": "surface",
+          "fields": {
+            "borderWidth": 4
+          },
+          "id": "d",
+          "op": "setBundle",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "input": {
+                  "type": "pointer"
+                },
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "입력 쓰기",
+      "ops": [
+        {
+          "id": "a",
+          "input": {
+            "type": "pointer"
+          },
+          "op": "setInput",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "입력을 쓴 뒤",
+      "name": "입력 지우기",
+      "ops": [
+        {
+          "id": "a",
+          "input": null,
+          "op": "setInput",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "children": [
+                  {
+                    "bundles": {
+                      "surface": {
+                        "activeBackgroundColor": null,
+                        "activeBackgroundGradient": null,
+                        "activeBorderColor": null,
+                        "activeBorderGradient": null,
+                        "activeShadow": null,
+                        "backgroundColor": null,
+                        "backgroundGradient": null,
+                        "borderColor": null,
+                        "borderGradient": null,
+                        "borderRadius": null,
+                        "borderWidth": null,
+                        "shadow": null
+                      }
+                    },
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 70.0,
+                      "y": 0.0
+                    },
+                    "id": "n4",
+                    "kind": "cursorTracker",
+                    "type": "element",
+                    "values": {
+                      "aspect": "locked",
+                      "dotColor": "#FFFFFF",
+                      "dotSize": 10,
+                      "mode": "motion",
+                      "monitor": null,
+                      "returnMs": 150,
+                      "sensitivity": 1,
+                      "trailColor": "rgba(255, 255, 255, 0.5)",
+                      "trailMs": 250,
+                      "trailWidth": 3
+                    }
+                  }
+                ],
+                "id": "pg",
+                "name": "붙인 그룹",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "bundles": {
+                  "surface": {
+                    "activeBackgroundColor": null,
+                    "activeBackgroundGradient": null,
+                    "activeBorderColor": null,
+                    "activeBorderGradient": null,
+                    "activeShadow": null,
+                    "backgroundColor": null,
+                    "backgroundGradient": null,
+                    "borderColor": null,
+                    "borderGradient": null,
+                    "borderRadius": null,
+                    "borderWidth": null,
+                    "shadow": null
+                  }
+                },
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 70.0,
+                  "y": 0.0
+                },
+                "id": "n1",
+                "kind": "cursorTracker",
+                "type": "element",
+                "values": {
+                  "aspect": "locked",
+                  "dotColor": "#FFFFFF",
+                  "dotSize": 10,
+                  "mode": "motion",
+                  "monitor": null,
+                  "returnMs": 150,
+                  "sensitivity": 1,
+                  "trailColor": "rgba(255, 255, 255, 0.5)",
+                  "trailMs": 250,
+                  "trailWidth": 3
+                }
+              },
+              {
+                "children": [
+                  {
+                    "bundles": {
+                      "surface": {
+                        "activeBackgroundColor": null,
+                        "activeBackgroundGradient": null,
+                        "activeBorderColor": null,
+                        "activeBorderGradient": null,
+                        "activeShadow": null,
+                        "backgroundColor": null,
+                        "backgroundGradient": null,
+                        "borderColor": null,
+                        "borderGradient": null,
+                        "borderRadius": null,
+                        "borderWidth": null,
+                        "shadow": null
+                      }
+                    },
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 70.0,
+                      "y": 0.0
+                    },
+                    "id": "n2",
+                    "kind": "cursorTracker",
+                    "type": "element",
+                    "values": {
+                      "aspect": "locked",
+                      "dotColor": "#FFFFFF",
+                      "dotSize": 10,
+                      "mode": "motion",
+                      "monitor": null,
+                      "returnMs": 150,
+                      "sensitivity": 1,
+                      "trailColor": "rgba(255, 255, 255, 0.5)",
+                      "trailMs": 250,
+                      "trailWidth": 3
+                    }
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              },
+              {
+                "bundles": {
+                  "surface": {
+                    "activeBackgroundColor": null,
+                    "activeBackgroundGradient": null,
+                    "activeBorderColor": null,
+                    "activeBorderGradient": null,
+                    "activeShadow": null,
+                    "backgroundColor": null,
+                    "backgroundGradient": null,
+                    "borderColor": null,
+                    "borderGradient": null,
+                    "borderRadius": null,
+                    "borderWidth": null,
+                    "shadow": null
+                  }
+                },
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 70.0,
+                  "y": 0.0
+                },
+                "id": "n3",
+                "kind": "cursorTracker",
+                "type": "element",
+                "values": {
+                  "aspect": "locked",
+                  "dotColor": "#FFFFFF",
+                  "dotSize": 10,
+                  "mode": "motion",
+                  "monitor": null,
+                  "returnMs": 150,
+                  "sensitivity": 1,
+                  "trailColor": "rgba(255, 255, 255, 0.5)",
+                  "trailMs": 250,
+                  "trailWidth": 3
+                }
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "넣기 - 자리, 그룹 안, 맨 위, 그룹째",
+      "ops": [
+        {
+          "index": 1,
+          "node": {
+            "bundles": {
+              "surface": {
+                "activeBackgroundColor": null,
+                "activeBackgroundGradient": null,
+                "activeBorderColor": null,
+                "activeBorderGradient": null,
+                "activeShadow": null,
+                "backgroundColor": null,
+                "backgroundGradient": null,
+                "borderColor": null,
+                "borderGradient": null,
+                "borderRadius": null,
+                "borderWidth": null,
+                "shadow": null
+              }
+            },
+            "frame": {
+              "height": 120.0,
+              "rotation": 0.0,
+              "width": 120.0,
+              "x": 70.0,
+              "y": 0.0
+            },
+            "id": "n1",
+            "kind": "cursorTracker",
+            "type": "element",
+            "values": {
+              "aspect": "locked",
+              "dotColor": "#FFFFFF",
+              "dotSize": 10,
+              "mode": "motion",
+              "monitor": null,
+              "returnMs": 150,
+              "sensitivity": 1,
+              "trailColor": "rgba(255, 255, 255, 0.5)",
+              "trailMs": 250,
+              "trailWidth": 3
+            }
+          },
+          "op": "insert",
+          "parent": null,
+          "scene": "tab"
+        },
+        {
+          "index": 0,
+          "node": {
+            "bundles": {
+              "surface": {
+                "activeBackgroundColor": null,
+                "activeBackgroundGradient": null,
+                "activeBorderColor": null,
+                "activeBorderGradient": null,
+                "activeShadow": null,
+                "backgroundColor": null,
+                "backgroundGradient": null,
+                "borderColor": null,
+                "borderGradient": null,
+                "borderRadius": null,
+                "borderWidth": null,
+                "shadow": null
+              }
+            },
+            "frame": {
+              "height": 120.0,
+              "rotation": 0.0,
+              "width": 120.0,
+              "x": 70.0,
+              "y": 0.0
+            },
+            "id": "n2",
+            "kind": "cursorTracker",
+            "type": "element",
+            "values": {
+              "aspect": "locked",
+              "dotColor": "#FFFFFF",
+              "dotSize": 10,
+              "mode": "motion",
+              "monitor": null,
+              "returnMs": 150,
+              "sensitivity": 1,
+              "trailColor": "rgba(255, 255, 255, 0.5)",
+              "trailMs": 250,
+              "trailWidth": 3
+            }
+          },
+          "op": "insert",
+          "parent": "g1",
+          "scene": "tab"
+        },
+        {
+          "index": null,
+          "node": {
+            "bundles": {
+              "surface": {
+                "activeBackgroundColor": null,
+                "activeBackgroundGradient": null,
+                "activeBorderColor": null,
+                "activeBorderGradient": null,
+                "activeShadow": null,
+                "backgroundColor": null,
+                "backgroundGradient": null,
+                "borderColor": null,
+                "borderGradient": null,
+                "borderRadius": null,
+                "borderWidth": null,
+                "shadow": null
+              }
+            },
+            "frame": {
+              "height": 120.0,
+              "rotation": 0.0,
+              "width": 120.0,
+              "x": 70.0,
+              "y": 0.0
+            },
+            "id": "n3",
+            "kind": "cursorTracker",
+            "type": "element",
+            "values": {
+              "aspect": "locked",
+              "dotColor": "#FFFFFF",
+              "dotSize": 10,
+              "mode": "motion",
+              "monitor": null,
+              "returnMs": 150,
+              "sensitivity": 1,
+              "trailColor": "rgba(255, 255, 255, 0.5)",
+              "trailMs": 250,
+              "trailWidth": 3
+            }
+          },
+          "op": "insert",
+          "parent": null,
+          "scene": "tab"
+        },
+        {
+          "index": 0,
+          "node": {
+            "children": [
+              {
+                "bundles": {
+                  "surface": {
+                    "activeBackgroundColor": null,
+                    "activeBackgroundGradient": null,
+                    "activeBorderColor": null,
+                    "activeBorderGradient": null,
+                    "activeShadow": null,
+                    "backgroundColor": null,
+                    "backgroundGradient": null,
+                    "borderColor": null,
+                    "borderGradient": null,
+                    "borderRadius": null,
+                    "borderWidth": null,
+                    "shadow": null
+                  }
+                },
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 70.0,
+                  "y": 0.0
+                },
+                "id": "n4",
+                "kind": "cursorTracker",
+                "type": "element",
+                "values": {
+                  "aspect": "locked",
+                  "dotColor": "#FFFFFF",
+                  "dotSize": 10,
+                  "mode": "motion",
+                  "monitor": null,
+                  "returnMs": 150,
+                  "sensitivity": 1,
+                  "trailColor": "rgba(255, 255, 255, 0.5)",
+                  "trailMs": 250,
+                  "trailWidth": 3
+                }
+              }
+            ],
+            "id": "pg",
+            "name": "붙인 그룹",
+            "type": "group"
+          },
+          "op": "insert",
+          "parent": null,
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "빼기 - 비게 된 트리 전용 그룹은 함께 지우고 옛 그룹은 남긴다",
+      "ops": [
+        {
+          "ids": [
+            "b",
+            "c"
+          ],
+          "op": "remove",
+          "scene": "tab"
+        },
+        {
+          "ids": [
+            "e"
+          ],
+          "op": "remove",
+          "scene": "tab"
+        },
+        {
+          "ids": [
+            "f"
+          ],
+          "op": "remove",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 0.0,
+                      "y": 0.0
+                    },
+                    "id": "a",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 30.0,
+                      "y": 0.0
+                    },
+                    "id": "d",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "옮기기 - 지금 순서를 지켜 옮기기 전 목록 기준 자리에",
+      "ops": [
+        {
+          "ids": [
+            "d",
+            "a"
+          ],
+          "index": 1,
+          "op": "move",
+          "parent": "g1",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "옮기기 - 그룹과 그 자손을 함께 고르면 그룹째",
+      "ops": [
+        {
+          "ids": [
+            "b",
+            "g1"
+          ],
+          "index": null,
+          "op": "move",
+          "parent": null,
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 50.0,
+                  "y": 0.0
+                },
+                "id": "f",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "옮기기 - 비게 된 트리 전용 그룹은 함께 지운다",
+      "ops": [
+        {
+          "ids": [
+            "f"
+          ],
+          "index": 0,
+          "op": "move",
+          "parent": null,
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 0.0,
+                      "y": 0.0
+                    },
+                    "id": "a",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 30.0,
+                      "y": 0.0
+                    },
+                    "id": "d",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "ng",
+                "name": "새 그룹",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "묶기 - 같은 부모",
+      "ops": [
+        {
+          "id": "ng",
+          "ids": [
+            "d",
+            "a"
+          ],
+          "name": "새 그룹",
+          "op": "group",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "frame": {
+                              "height": 120.0,
+                              "rotation": 0.0,
+                              "width": 120.0,
+                              "x": 50.0,
+                              "y": 0.0
+                            },
+                            "id": "f",
+                            "kind": "cursorTracker",
+                            "type": "element"
+                          }
+                        ],
+                        "id": "g3",
+                        "name": "g3",
+                        "type": "group"
+                      }
+                    ],
+                    "id": "g2",
+                    "name": "g2",
+                    "type": "group"
+                  }
+                ],
+                "id": "ng",
+                "name": "새 그룹",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "묶기 - 다른 부모, 그룹 멤버의 자손은 그룹과 함께",
+      "ops": [
+        {
+          "id": "ng",
+          "ids": [
+            "b",
+            "g2",
+            "f"
+          ],
+          "name": "새 그룹",
+          "op": "group",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 30.0,
+                      "y": 0.0
+                    },
+                    "id": "d",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "ng",
+                "name": "새 그룹",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "묶기 - 비게 된 트리 전용 그룹은 함께 지운다",
+      "ops": [
+        {
+          "id": "ng",
+          "ids": [
+            "b",
+            "c",
+            "d"
+          ],
+          "name": "새 그룹",
+          "op": "group",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 10.0,
+                  "y": 0.0
+                },
+                "id": "b",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 20.0,
+                  "y": 0.0
+                },
+                "id": "c",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "풀기",
+      "ops": [
+        {
+          "id": "g1",
+          "op": "ungroup",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "hidden": true,
+                "id": "g1",
+                "name": "Renamed",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "그룹 정보 쓰기",
+      "ops": [
+        {
+          "hidden": true,
+          "id": "g1",
+          "name": "Renamed",
+          "op": "setGroup",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "Renamed",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "그룹 정보를 쓴 뒤",
+      "name": "그룹 정보 - 숨김 풀기",
+      "ops": [
+        {
+          "hidden": false,
+          "id": "g1",
+          "op": "setGroup",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "bundles": {
+                      "surface": {
+                        "activeBackgroundColor": null,
+                        "activeBackgroundGradient": null,
+                        "activeBorderColor": null,
+                        "activeBorderGradient": null,
+                        "activeShadow": null,
+                        "backgroundColor": null,
+                        "backgroundGradient": null,
+                        "borderColor": null,
+                        "borderGradient": null,
+                        "borderRadius": null,
+                        "borderWidth": null,
+                        "shadow": null
+                      }
+                    },
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 70.0,
+                      "y": 0.0
+                    },
+                    "id": "n1",
+                    "kind": "cursorTracker",
+                    "type": "element",
+                    "values": {
+                      "aspect": "locked",
+                      "dotColor": "#FFFFFF",
+                      "dotSize": 10,
+                      "mode": "motion",
+                      "monitor": null,
+                      "returnMs": 150,
+                      "sensitivity": 1,
+                      "trailColor": "rgba(255, 255, 255, 0.5)",
+                      "trailMs": 250,
+                      "trailWidth": 3
+                    }
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "빈 그룹 정리는 묶음 끝에서 한 번 - 비운 그룹에 다시 넣으면 남는다",
+      "ops": [
+        {
+          "ids": [
+            "b",
+            "c"
+          ],
+          "op": "remove",
+          "scene": "tab"
+        },
+        {
+          "index": null,
+          "node": {
+            "bundles": {
+              "surface": {
+                "activeBackgroundColor": null,
+                "activeBackgroundGradient": null,
+                "activeBorderColor": null,
+                "activeBorderGradient": null,
+                "activeShadow": null,
+                "backgroundColor": null,
+                "backgroundGradient": null,
+                "borderColor": null,
+                "borderGradient": null,
+                "borderRadius": null,
+                "borderWidth": null,
+                "shadow": null
+              }
+            },
+            "frame": {
+              "height": 120.0,
+              "rotation": 0.0,
+              "width": 120.0,
+              "x": 70.0,
+              "y": 0.0
+            },
+            "id": "n1",
+            "kind": "cursorTracker",
+            "type": "element",
+            "values": {
+              "aspect": "locked",
+              "dotColor": "#FFFFFF",
+              "dotSize": 10,
+              "mode": "motion",
+              "monitor": null,
+              "returnMs": 150,
+              "sensitivity": 1,
+              "trailColor": "rgba(255, 255, 255, 0.5)",
+              "trailMs": 250,
+              "trailWidth": 3
+            }
+          },
+          "op": "insert",
+          "parent": "g1",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 50.0,
+                  "y": 0.0
+                },
+                "id": "f",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 10.0,
+                      "y": 0.0
+                    },
+                    "id": "b",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  },
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 20.0,
+                      "y": 0.0
+                    },
+                    "id": "c",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "g1",
+                "name": "g1",
+                "type": "group"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 0.0,
+                          "y": 0.0
+                        },
+                        "id": "a",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "빈 그룹 정리는 묶음 끝에서 한 번 - 옮겨 비운 그룹에 다시 옮겨 넣으면 남는다",
+      "ops": [
+        {
+          "ids": [
+            "f"
+          ],
+          "index": 0,
+          "op": "move",
+          "parent": null,
+          "scene": "tab"
+        },
+        {
+          "ids": [
+            "a"
+          ],
+          "index": 0,
+          "op": "move",
+          "parent": "g3",
+          "scene": "tab"
+        }
+      ]
+    },
+    {
+      "after": {
+        "formatVersion": 1,
+        "kindVersions": {},
+        "scenes": {
+          "other": {
+            "nodes": [
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "x",
+                "kind": "cursorTracker",
+                "type": "element"
+              }
+            ]
+          },
+          "tab": {
+            "nodes": [
+              {
+                "bundles": {
+                  "surface": {
+                    "activeBackgroundColor": null,
+                    "activeBackgroundGradient": null,
+                    "activeBorderColor": null,
+                    "activeBorderGradient": null,
+                    "activeShadow": null,
+                    "backgroundColor": null,
+                    "backgroundGradient": null,
+                    "borderColor": null,
+                    "borderGradient": null,
+                    "borderRadius": null,
+                    "borderWidth": null,
+                    "shadow": null
+                  }
+                },
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 99.0,
+                  "y": 0.0
+                },
+                "id": "n1",
+                "kind": "cursorTracker",
+                "type": "element",
+                "values": {
+                  "aspect": "locked",
+                  "dotColor": "#FFFFFF",
+                  "dotSize": 20,
+                  "mode": "motion",
+                  "monitor": null,
+                  "returnMs": 150,
+                  "sensitivity": 1,
+                  "trailColor": "rgba(255, 255, 255, 0.5)",
+                  "trailMs": 250,
+                  "trailWidth": 3
+                }
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "a",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "frame": {
+                  "height": 120.0,
+                  "rotation": 0.0,
+                  "width": 120.0,
+                  "x": 30.0,
+                  "y": 0.0
+                },
+                "id": "d",
+                "kind": "cursorTracker",
+                "type": "element"
+              },
+              {
+                "children": [
+                  {
+                    "frame": {
+                      "height": 120.0,
+                      "rotation": 0.0,
+                      "width": 120.0,
+                      "x": 40.0,
+                      "y": 0.0
+                    },
+                    "id": "e",
+                    "kind": "cursorTracker",
+                    "type": "element"
+                  }
+                ],
+                "id": "lg",
+                "legacy": {},
+                "name": "lg",
+                "type": "group"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "frame": {
+                          "height": 120.0,
+                          "rotation": 0.0,
+                          "width": 120.0,
+                          "x": 50.0,
+                          "y": 0.0
+                        },
+                        "id": "f",
+                        "kind": "cursorTracker",
+                        "type": "element"
+                      }
+                    ],
+                    "id": "g3",
+                    "name": "g3",
+                    "type": "group"
+                  }
+                ],
+                "id": "g2",
+                "name": "g2",
+                "type": "group"
+              }
+            ]
+          }
+        }
+      },
+      "before": "기본",
+      "name": "여러 연산 묶음",
+      "ops": [
+        {
+          "index": 0,
+          "node": {
+            "bundles": {
+              "surface": {
+                "activeBackgroundColor": null,
+                "activeBackgroundGradient": null,
+                "activeBorderColor": null,
+                "activeBorderGradient": null,
+                "activeShadow": null,
+                "backgroundColor": null,
+                "backgroundGradient": null,
+                "borderColor": null,
+                "borderGradient": null,
+                "borderRadius": null,
+                "borderWidth": null,
+                "shadow": null
+              }
+            },
+            "frame": {
+              "height": 120.0,
+              "rotation": 0.0,
+              "width": 120.0,
+              "x": 70.0,
+              "y": 0.0
+            },
+            "id": "n1",
+            "kind": "cursorTracker",
+            "type": "element",
+            "values": {
+              "aspect": "locked",
+              "dotColor": "#FFFFFF",
+              "dotSize": 10,
+              "mode": "motion",
+              "monitor": null,
+              "returnMs": 150,
+              "sensitivity": 1,
+              "trailColor": "rgba(255, 255, 255, 0.5)",
+              "trailMs": 250,
+              "trailWidth": 3
+            }
+          },
+          "op": "insert",
+          "parent": "g1",
+          "scene": "tab"
+        },
+        {
+          "frame": {
+            "x": 99.0
+          },
+          "id": "n1",
+          "op": "setFrame",
+          "scene": "tab"
+        },
+        {
+          "id": "n1",
+          "op": "setValues",
+          "scene": "tab",
+          "values": {
+            "dotSize": 20
+          }
+        },
+        {
+          "ids": [
+            "n1"
+          ],
+          "index": 0,
+          "op": "move",
+          "parent": null,
+          "scene": "tab"
+        },
+        {
+          "ids": [
+            "b",
+            "c"
+          ],
+          "op": "remove",
+          "scene": "tab"
+        }
+      ]
+    }
+  ]
+}
