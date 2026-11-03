@@ -18012,6 +18012,78 @@ exports[`속성 패널 DOM 약속 > 커서 트래커 여럿 - 섞인 모드 1`] 
                                   "text": "elementKinds.cursorTracker.monitor",
                                 },
                                 {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "attrs": {
+                                            "aria-expanded": "false",
+                                            "aria-haspopup": "listbox",
+                                            "type": "button",
+                                          },
+                                          "children": [
+                                            {
+                                              "class": [
+                                                "truncate",
+                                              ],
+                                              "tag": "span",
+                                              "text": "elementKinds.cursorTracker.monitorPrimary",
+                                            },
+                                            {
+                                              "attrs": {
+                                                "fill": "none",
+                                                "height": "5",
+                                                "viewBox": "0 0 14 8",
+                                                "width": "8",
+                                              },
+                                              "children": [
+                                                {
+                                                  "attrs": {
+                                                    "d": "M1 1L7 7L13 1",
+                                                    "stroke": "currentColor",
+                                                    "stroke-linecap": "round",
+                                                    "stroke-linejoin": "round",
+                                                    "stroke-width": "2.1",
+                                                  },
+                                                  "tag": "path",
+                                                },
+                                              ],
+                                              "class": [
+                                                "duration-base",
+                                                "ease-out-expo",
+                                                "ml-[5px]",
+                                                "rotate-0",
+                                                "shrink-0",
+                                                "text-fg-muted",
+                                                "transition-transform",
+                                              ],
+                                              "tag": "svg",
+                                            },
+                                          ],
+                                          "class": [
+                                            "bg-fill",
+                                            "box-border",
+                                            "duration-fast",
+                                            "flex",
+                                            "h-[23px]",
+                                            "hover:bg-fill-hover",
+                                            "items-center",
+                                            "justify-between",
+                                            "px-[8px]",
+                                            "rounded-md",
+                                            "text-body",
+                                            "text-fg",
+                                            "transition-colors",
+                                          ],
+                                          "tag": "button",
+                                        },
+                                      ],
+                                      "class": [
+                                        "relative",
+                                      ],
+                                      "tag": "div",
+                                    },
+                                  ],
                                   "class": [
                                     "flex",
                                     "gap-[8px]",

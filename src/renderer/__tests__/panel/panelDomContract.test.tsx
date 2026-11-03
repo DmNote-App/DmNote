@@ -42,6 +42,27 @@ vi.mock('@contexts/useTranslation', () => ({
 vi.mock('@hooks/useLenis', () => ({
   useLenis: () => ({ scrollContainerRef: () => undefined }),
 }));
+// 커서 트래커 모니터 목록 - 앱 API 대신 고정 목록
+vi.mock(
+  '@src/renderer/elementKinds/runtime/pointerInput',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@src/renderer/elementKinds/runtime/pointerInput')
+    >()),
+    loadPointerMonitors: () =>
+      Promise.resolve([
+        {
+          id: 'main',
+          name: 'Main',
+          x: 0,
+          y: 0,
+          width: 1920,
+          height: 1080,
+          primary: true,
+        },
+      ]),
+  }),
+);
 
 const { createFakeElementDocumentBackend } = await import(
   '@src/renderer/__tests__/fakeElementDocumentBackend'
@@ -287,6 +308,10 @@ describe('속성 패널 DOM 약속', () => {
     });
     await act(async () => {
       root.render(<PropertiesPanel />);
+    });
+    // 편집 화면 전용 입력(지연 로딩)이 올라올 때까지
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
     const frame = host.querySelector('[data-dmn-panel-frame]');
     expect(frame).not.toBeNull();

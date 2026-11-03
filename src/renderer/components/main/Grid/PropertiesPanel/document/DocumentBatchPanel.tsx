@@ -12,13 +12,14 @@ import {
   getPreviewOverlayVersion,
   subscribePreviewOverlay,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
-import { editorPreviewElementOf } from '@src/renderer/elementKinds/runtime/editorPreviewElement';
 import type {
   ElementKindDefinition,
   PanelRowDecl,
 } from '@src/renderer/elementKinds/defineElementKind';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
+import { treeElementPositionOf } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import type { Op, Scene } from '@src/types/generated/elementDocument';
+import type { KeyPosition } from '@src/types/key/keys';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { AXIS_FIELD_WIDTH } from '@utils/cardRecipes';
 import { documentBatchGeometry } from '../../document/documentBatchGeometry';
@@ -54,11 +55,9 @@ import {
 import { batchPanelWriterFor, type PanelWriter } from './documentPanelWriter';
 import {
   LegacyBatchCustomCssSection,
-  LegacyBatchImageRow,
-  LegacyBatchSurfaceRows,
+  LegacyBatchStyle,
+  type LegacyBatchItem,
 } from './legacyBundleRows';
-
-const valuesOf = (element: ElementNode) => (element.values ?? {}) as Values;
 
 type AlignDirection =
   | 'left'
@@ -106,11 +105,20 @@ interface DocumentBatchPanelProps {
   t: Translate;
 }
 
-// 고른 요소들 - 보이는 값은 편집 미리보기를 얹은 값 (미리보기가 바뀌면 다시 읽는다)
-const usePreviewElements = (
+interface PanelElements {
+  scene: Scene | undefined;
+  elements: ElementNode[];
+  // 옛 종류만 고른 선택의 옛 일괄 처리기 (아니면 없음 - 트리 연산)
+  writer: PanelWriter | null;
+  // 칸 값 - 옛 종류는 옛 패널이 보던 옛 칸 모양 보기(트리 값 + 편집 미리보기), 트리에만 있는 종류는 고유 값
+  items: Values[];
+}
+
+// 고른 요소들 - 편집 미리보기가 바뀌면 다시 읽는다
+const usePanelElements = (
   sceneId: string,
   elementIds: readonly string[],
-): { scene: Scene | undefined; elements: ElementNode[] } => {
+): PanelElements => {
   const scene = useElementDocumentScene(sceneId);
   useSyncExternalStore(
     subscribePreviewOverlay,
@@ -118,18 +126,28 @@ const usePreviewElements = (
     getPreviewOverlayVersion,
   );
   const all = scene ? sceneElements(scene) : [];
+  const elements = elementIds.flatMap((id) => {
+    const element = all.find((node) => node.id === id);
+    return element ? [element] : [];
+  });
+  const writer = batchPanelWriterFor(sceneId, elements);
   return {
     scene,
-    elements: elementIds.flatMap((id) => {
-      const element = all.find((node) => node.id === id);
-      return element ? [editorPreviewElementOf(element, sceneId)] : [];
-    }),
+    elements,
+    writer,
+    items: elements.map(
+      (element) =>
+        (writer
+          ? treeElementPositionOf(element, sceneId)
+          : element.values ?? {}) as Values,
+    ),
   };
 };
 
 interface BatchRowContext {
   sceneId: string;
   elements: readonly ElementNode[];
+  items: readonly Values[];
   definition: ElementKindDefinition | undefined;
   writer: PanelWriter | null;
   panelElement: HTMLElement | null;
@@ -141,6 +159,7 @@ const batchRowRenderer =
   ({
     sceneId,
     elements,
+    items,
     definition,
     writer,
     panelElement,
@@ -150,7 +169,7 @@ const batchRowRenderer =
     const commitValues = (next: Values) => {
       void Promise.all(
         elements.map(async (element) => {
-          const merged = { ...valuesOf(element), ...next };
+          const merged = { ...(element.values ?? {}), ...next };
           const frame = await definition?.adjustFrame?.(
             merged as never,
             element.frame,
@@ -168,7 +187,7 @@ const batchRowRenderer =
     return (
       <FieldRow
         row={row}
-        state={rowState(definition, row, elements.map(valuesOf))}
+        state={rowState(definition, row, items)}
         batch
         onCommit={(value, options) =>
           writer
@@ -180,6 +199,7 @@ const batchRowRenderer =
         }
         onCancelPreview={writer?.cancelPreview}
         colorId={`${elements[0]?.kind}-${row.field}-batch-${sceneId}`}
+        elementIds={elements.map(({ id }) => id)}
         panelElement={panelElement}
         t={t}
       />
@@ -201,21 +221,21 @@ export const KindBatchRows = ({
   panelElement,
   t,
 }: KindBatchRowsProps) => {
-  const { elements } = usePreviewElements(sceneId, elementIds);
+  const { elements, writer, items } = usePanelElements(sceneId, elementIds);
   if (elements.length === 0) return null;
   const definition = elementKindDefinition(elements[0].kind);
-  const items = elements.map(valuesOf);
   const render = batchRowRenderer({
     sceneId,
     elements,
+    items,
     definition,
-    writer: batchPanelWriterFor(sceneId, elements),
+    writer,
     panelElement,
     t,
   });
   return (definition?.panel ?? []).flatMap((section) =>
     'rows' in section
-      ? visibleRows(section.rows, items).map((row) => (
+      ? visibleRows(section.rows, items, true).map((row) => (
           <Fragment key={row.field}>{render(row)}</Fragment>
         ))
       : [],
@@ -232,7 +252,10 @@ const DocumentBatchPanel = ({
   legacyHost,
   t,
 }: DocumentBatchPanelProps) => {
-  const { scene, elements } = usePreviewElements(sceneId, elementIds);
+  const { scene, elements, writer, items } = usePanelElements(
+    sceneId,
+    elementIds,
+  );
   const useCustomCSS = useSettingsStore((state) => state.useCustomCSS);
   // 이름 바꾸기는 그 선택에서만 - 선택이 바뀌면 끝난다
   const selectionKey = `${sceneId}:${[...elementIds].sort().join(',')}`;
@@ -242,7 +265,6 @@ const DocumentBatchPanel = ({
   const renameCancelledRef = useRef(false);
   if (elements.length === 0) return null;
 
-  const writer = batchPanelWriterFor(sceneId, elements);
   const groupInfo = legacyHost
     ? legacyHost.groupInfo
     : wholeGroupOf(scene, elementIds);
@@ -253,10 +275,14 @@ const DocumentBatchPanel = ({
   const kinds = new Set(elements.map((node) => node.kind));
   const definition =
     kinds.size === 1 ? elementKindDefinition(elements[0].kind) : undefined;
-  const items = elements.map(valuesOf);
   const usesSurface = elements.every((element) =>
     elementKindDefinition(element.kind)?.bundles?.includes('surface'),
   );
+  // 옛 종류의 겉모습 칸 - 종류와 옛 패널이 보던 값
+  const legacyItems: LegacyBatchItem[] = elements.map((element, index) => ({
+    kind: element.kind,
+    position: items[index] as unknown as KeyPosition,
+  }));
 
   // 정렬·분배·간격·크기 - 옛 종류는 옛 일괄 처리기, 트리에만 있는 종류는 트리 틀 연산
   const treeGeometry = documentBatchGeometry(sceneId, elements);
@@ -280,8 +306,11 @@ const DocumentBatchPanel = ({
   const cancelResizePreview = legacyHost
     ? () => editGestureController.cancel()
     : treeGeometry.clearPreview;
+  // 크기 표시 - 옛 종류는 옛 패널이 보던 값(편집 미리보기 포함)
   const size = (dimension: 'width' | 'height') =>
-    aggregateMixedValue(elements, (node) => node.frame[dimension], 60);
+    writer
+      ? aggregateMixedValue(items, (item) => item[dimension] as number, 60)
+      : aggregateMixedValue(elements, (node) => node.frame[dimension], 60);
 
   const renderers: PanelSectionRenderers = {
     geometry: () => (
@@ -328,53 +357,50 @@ const DocumentBatchPanel = ({
     customCss: () =>
       useCustomCSS && writer ? (
         <LegacyBatchCustomCssSection
-          elements={elements}
+          items={legacyItems}
           writer={writer}
           t={t}
         />
       ) : null,
-    bundle: (bundle) => {
+    bundles: (bundles) => {
       if (writer) {
-        return bundle === 'surface' ? (
-          <LegacyBatchSurfaceRows
-            elements={elements}
+        return (
+          <LegacyBatchStyle
+            items={legacyItems}
             writer={writer}
             selectionKey={selectionKey}
             panelElement={panelElement}
             t={t}
           />
-        ) : bundle === 'image' ? (
-          <LegacyBatchImageRow
-            elements={elements}
+        );
+      }
+      return bundles.includes('surface') && usesSurface ? (
+        <PropertySection>
+          <SurfaceRows
+            surfaces={elements.map(
+              (element) => (element.bundles?.surface ?? {}) as Values,
+            )}
             panelElement={panelElement}
             t={t}
+            onCommit={(fields) =>
+              void editDocument(
+                elements.map((element) => ({
+                  op: 'setBundle' as const,
+                  scene: sceneId,
+                  id: element.id,
+                  bundle: 'surface',
+                  fields,
+                })),
+              )
+            }
           />
-        ) : null;
-      }
-      return bundle === 'surface' && usesSurface ? (
-        <SurfaceRows
-          surfaces={elements.map(
-            (element) => (element.bundles?.surface ?? {}) as Values,
-          )}
-          panelElement={panelElement}
-          t={t}
-          onCommit={(fields) =>
-            void editDocument(
-              elements.map((element) => ({
-                op: 'setBundle' as const,
-                scene: sceneId,
-                id: element.id,
-                bundle: 'surface',
-                fields,
-              })),
-            )
-          }
-        />
+        </PropertySection>
       ) : null;
     },
     row: batchRowRenderer({
       sceneId,
       elements,
+      items,
       definition,
       writer,
       panelElement,
@@ -439,6 +465,7 @@ const DocumentBatchPanel = ({
                   : [{ common: 'geometry' }]
               }
               items={items}
+              batch
               renderers={renderers}
             />
           </EditSessionBoundary>

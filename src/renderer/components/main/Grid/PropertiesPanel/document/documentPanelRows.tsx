@@ -1,4 +1,4 @@
-import React, { Fragment, Suspense, type ReactNode } from 'react';
+import React, { Fragment, Suspense, useState, type ReactNode } from 'react';
 
 import Checkbox from '@components/main/common/checkbox/Checkbox';
 import Dropdown from '@components/main/common/dropdown/Dropdown';
@@ -7,6 +7,8 @@ import type {
   PanelRowDecl,
   PanelSectionDecl,
 } from '@src/renderer/elementKinds/defineElementKind';
+import { BUILTIN_ELEMENT_KINDS } from '@src/renderer/elementKinds/builtinKinds';
+import { preloadPanelControls } from '@src/renderer/elementKinds/runtime/lazyPanelControl';
 import type { JsonValue } from '@src/types/generated/elementDocument';
 import {
   fieldState,
@@ -21,6 +23,10 @@ import {
   PropertyRow,
   PropertySection,
 } from '../controls/PropertyInputs';
+
+// 편집 창이 패널 부품을 불러올 때 종류 패널의 지연 로딩 입력도 미리 불러 둔다 - 처음 여는 패널이 빈 칸으로
+// 한 번 그려지지 않게
+preloadPanelControls(BUILTIN_ELEMENT_KINDS as never);
 
 const MixedLabel = () => (
   <span className="text-fg-faint text-body italic">Mixed</span>
@@ -38,6 +44,8 @@ interface FieldRowProps {
   onPreview?: (value: JsonValue) => void;
   onCancelPreview?: () => void;
   colorId?: string;
+  // 고른 요소들 - 직접 만든 입력이 받는다
+  elementIds: readonly string[];
   panelElement: HTMLElement | null;
   t: Translate;
 }
@@ -51,13 +59,23 @@ export const FieldRow = ({
   onPreview,
   onCancelPreview,
   colorId,
+  elementIds,
   panelElement,
   t,
 }: FieldRowProps) => {
   const { value, isMixed } = state;
+  // 입력 중 값(draft 칸) - 그 요소의 저장 값이 바뀌면(커밋 착지·다른 창) 걷는다. 먼저 비우면 착지 전 한 프레임
+  // 옛 값이 비친다. 다른 요소로 바뀐 첫 렌더부터 앞 요소의 입력 중 값이 비치지 않게 요소 id도 함께 묶는다
+  const draftSource = `${elementIds.join(',')}\n${JSON.stringify(value)}`;
+  const [draft, setDraft] = useState<{
+    value: number;
+    source: string;
+  } | null>(null);
+  const draftValue = draft && draft.source === draftSource ? draft.value : null;
   const label = t(row.label) || row.label;
   const control = row.control;
   const mixedLabel = isMixed ? <MixedLabel /> : null;
+  const usesDraft = control.type === 'number' && control.draft && !batch;
   if (control.type === 'toggle') {
     const checked = value === true;
     const checkbox = (
@@ -87,9 +105,10 @@ export const FieldRow = ({
       {control.type === 'custom' ? null : mixedLabel}
       {control.type === 'number' ? (
         <NumberInput
-          value={typeof value === 'number' ? value : 0}
+          value={draftValue ?? (typeof value === 'number' ? value : 0)}
           width={control.width}
           onChange={(next) => {
+            if (usesDraft) setDraft({ value: next, source: draftSource });
             if (control.snap === undefined) {
               onCommit(next);
               return;
@@ -101,6 +120,13 @@ export const FieldRow = ({
             );
             onCommit(Math.round(clamped / control.snap) * control.snap);
           }}
+          {...(usesDraft
+            ? {
+                onPreview: (next: number) =>
+                  setDraft({ value: next, source: draftSource }),
+                onCancel: () => setDraft(null),
+              }
+            : {})}
           min={control.min}
           max={control.max}
           suffix={control.suffix}
@@ -144,7 +170,11 @@ export const FieldRow = ({
         // 직접 만든 입력은 편집 화면 전용이라 지연 로딩일 수 있다
         <Suspense fallback={null}>
           {mixedLabel}
-          <control.component value={value} onCommit={onCommit} />
+          <control.component
+            value={value}
+            onCommit={onCommit}
+            elementIds={elementIds}
+          />
         </Suspense>
       )}
     </PropertyRow>
@@ -228,8 +258,8 @@ export const SurfaceRows = ({
 export interface PanelSectionRenderers {
   geometry: () => ReactNode;
   customCss: () => ReactNode;
-  // 그리지 않는 묶음은 null
-  bundle: (bundle: BundleName) => ReactNode;
+  // 이어진 기능 묶음 - 섹션 상자도 그리는 쪽이 정한다 (옛 종류는 옛 패널의 섹션 배치 그대로)
+  bundles: (bundles: readonly BundleName[]) => ReactNode;
   row: (row: PanelRowDecl<Values>) => ReactNode;
 }
 
@@ -237,7 +267,7 @@ type SectionGroup =
   | { kind: 'single'; section: PanelSectionDecl<Values> }
   | { kind: 'bundles'; bundles: BundleName[] };
 
-// 이어진 기능 묶음 섹션은 한 섹션 상자에 그린다 (옛 패널의 스타일 섹션과 같은 모양)
+// 이어진 기능 묶음 섹션은 함께 그린다 (옛 패널의 스타일 섹션과 같은 모양)
 const groupSections = (
   sections: readonly PanelSectionDecl<Values>[],
 ): SectionGroup[] => {
@@ -256,8 +286,10 @@ const groupSections = (
 
 interface PanelSectionsProps {
   sections: readonly PanelSectionDecl<Values>[];
-  // 고른 요소들의 고유 값 - 칸 보이기 판단
+  // 고른 요소들의 칸 값 - 칸 보이기 판단
   items: readonly Values[];
+  // 여러 개를 고른 패널 - 하나에만 쓰는 칸은 뺀다
+  batch?: boolean;
   renderers: PanelSectionRenderers;
 }
 
@@ -265,20 +297,15 @@ interface PanelSectionsProps {
 export const PanelSections = ({
   sections,
   items,
+  batch = false,
   renderers,
 }: PanelSectionsProps) =>
   groupSections(sections).map((group, index) => {
     if (group.kind === 'bundles') {
-      const rows = group.bundles.map(
-        (bundle) => [bundle, renderers.bundle(bundle)] as const,
-      );
-      if (rows.every(([, node]) => node == null)) return null;
       return (
-        <PropertySection key={`bundles-${index}`}>
-          {rows.map(([bundle, node]) => (
-            <Fragment key={bundle}>{node}</Fragment>
-          ))}
-        </PropertySection>
+        <Fragment key={`bundles-${index}`}>
+          {renderers.bundles(group.bundles)}
+        </Fragment>
       );
     }
     const { section } = group;
@@ -292,7 +319,7 @@ export const PanelSections = ({
         </Fragment>
       );
     }
-    const rows = visibleRows(section.rows, items);
+    const rows = visibleRows(section.rows, items, batch);
     if (rows.length === 0) return null;
     return (
       <PropertySection key={`rows-${index}`}>

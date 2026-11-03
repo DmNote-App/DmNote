@@ -97,13 +97,16 @@ export const rowState = (
   };
 };
 
-/** 보일 칸 - 여러 개를 고르면 하나라도 보이는 칸 */
+/** 보일 칸 - 여러 개를 고르면 하나라도 보이는 칸 (하나에만 쓰는 칸은 빼고) */
 export const visibleRows = (
   rows: readonly PanelRowDecl<Values>[],
   items: readonly Values[],
+  batch = false,
 ) =>
   rows.filter(
-    (row) => !row.visible || items.some((values) => row.visible?.(values)),
+    (row) =>
+      (!batch || row.batch !== false) &&
+      (!row.visible || items.some((values) => row.visible?.(values))),
   );
 
 /** 패널 선언이 없는 종류 - 위치·크기 뒤에 쓰는 기능 묶음 섹션 */

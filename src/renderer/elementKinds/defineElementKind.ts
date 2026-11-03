@@ -172,6 +172,8 @@ export type PanelControlDecl =
       readonly snap?: number;
       // 값이 없거나 0일 때 보일 값
       readonly fallback?: number;
+      // 입력 중 값은 패널 칸에만 보이고 Enter·포커스 떠날 때 쓴다 (화면 미리보기가 없는 값, 하나를 골랐을 때)
+      readonly draft?: boolean;
     }
   | {
       readonly type: 'select';
@@ -198,6 +200,8 @@ export type PanelControlDecl =
 export interface PanelFieldControlProps {
   value: JsonValue | undefined;
   onCommit: (value: JsonValue) => void;
+  // 고른 요소들 - 커밋을 시작 시점 요소에 묶어야 하는 입력(노브 축 감지 등)이 쓴다
+  elementIds: readonly string[];
 }
 
 export interface PanelRowDecl<Values> {
@@ -207,6 +211,8 @@ export interface PanelRowDecl<Values> {
   readonly control: PanelControlDecl;
   // 여러 개를 고르면 하나라도 보이는 칸을 보인다 (고친 값은 고른 요소 모두에 쓴다)
   readonly visible?: (values: Values) => boolean;
+  // 여러 개를 골랐을 때도 보일지 (기본 보인다 - 노브 축 매핑처럼 하나에만 쓰는 칸은 false)
+  readonly batch?: boolean;
 }
 
 export type PanelSectionDecl<Values> =

@@ -6,9 +6,8 @@ import type { KeyPosition } from '@src/types/key/keys';
 import type { ElementShadowSpec } from '@src/types/key/shadows';
 import ActualBatchStyleTabContent from '@components/main/Grid/PropertiesPanel/batch/style/BatchStyleTabContent';
 import { PanelNavProvider } from '@components/main/Grid/PropertiesPanel/navigation/PanelNavContext';
-import { LegacyBatchSurfaceRows } from '@components/main/Grid/PropertiesPanel/document/legacyBundleRows';
+import { LegacyBatchStyle } from '@components/main/Grid/PropertiesPanel/document/legacyBundleRows';
 import type { PanelWriter } from '@components/main/Grid/PropertiesPanel/document/documentPanelWriter';
-import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 
 interface CapturedShadowProps {
@@ -315,14 +314,10 @@ describe('그래프 전용 배치 패널 배선', () => {
   });
 
   it('그래프 패널 색상 피커는 실제 배선으로 입력 탭이 꺼진다', () => {
-    const graph = (id: string) =>
-      ({
-        type: 'element',
-        id,
-        kind: 'graph',
-        frame: { x: 0, y: 0, width: 200, height: 100, rotation: 0 },
-        bundles: { surface: {} },
-      } as ElementNode);
+    const graph = (id: string) => ({
+      kind: 'graph',
+      position: { id, dx: 0, dy: 0, width: 200, height: 100 } as KeyPosition,
+    });
     const writer = {
       previewStyle: vi.fn(),
       commitStyle: vi.fn(),
@@ -332,8 +327,8 @@ describe('그래프 전용 배치 패널 배선', () => {
 
     act(() => {
       root.render(
-        <LegacyBatchSurfaceRows
-          elements={[graph('graph-0'), graph('graph-1')]}
+        <LegacyBatchStyle
+          items={[graph('graph-0'), graph('graph-1')]}
           writer={writer}
           selectionKey="4key:graph-0,graph-1"
           panelElement={null}

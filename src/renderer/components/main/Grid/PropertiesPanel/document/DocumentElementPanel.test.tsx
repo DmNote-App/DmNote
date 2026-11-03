@@ -43,6 +43,10 @@ vi.mock('@hooks/useLenis', () => ({
   useLenis: () => ({ scrollContainerRef: vi.fn() }),
 }));
 
+vi.mock('@contexts/useTranslation', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
 const tracker = (values: Record<string, unknown>) => ({
   type: 'element',
   id: 'tracker-1',

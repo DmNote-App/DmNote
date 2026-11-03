@@ -1,12 +1,13 @@
-import { lazy } from 'react';
-
 import CursorTrackerFace from '../cursorTracker/CursorTrackerFace';
 import { resolveMonitor } from '../cursorTracker/cursorTrackerMotion';
 import { defineElementKind } from '../defineElementKind';
+import { lazyPanelControl } from '../runtime/lazyPanelControl';
 import { loadPointerMonitors } from '../runtime/pointerInput';
 
 // 편집 화면 전용 입력 - 오버레이 번들에 넣지 않게 나중에 읽는다
-const MonitorSelect = lazy(() => import('../cursorTracker/MonitorSelect'));
+const MonitorSelect = lazyPanelControl(
+  () => import('../cursorTracker/MonitorSelect'),
+);
 
 const motion = (values: { mode: string }) => values.mode === 'motion';
 const position = (values: { mode: string }) => values.mode === 'position';

@@ -3,8 +3,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import { useDocumentElement } from '@src/renderer/editor/document/elementDocumentRuntime';
 import type { GeometryField } from '@src/renderer/editor/runtime/operations/elementOps';
-import { useEditorPreviewElement } from '@src/renderer/elementKinds/runtime/editorPreviewElement';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
+import { useTreeElementPosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import type { KeyPosition } from '@src/types/key/keys';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import {
@@ -14,6 +14,7 @@ import {
   setDocumentValues,
 } from '../../document/documentEditActions';
 import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
+import { PropertySection } from '../controls/PropertyInputs';
 import { PANEL_ROOT_CLASS } from '../navigation/panelChrome';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
 import SingleGeometrySection from '../single/SingleGeometrySection';
@@ -31,11 +32,7 @@ import {
   type PanelSectionRenderers,
 } from './documentPanelRows';
 import { singlePanelWriterFor } from './documentPanelWriter';
-import {
-  LegacyCustomCssSection,
-  LegacyImageRow,
-  LegacySurfaceRows,
-} from './legacyBundleRows';
+import { LegacyCustomCssSection, LegacySingleStyle } from './legacyBundleRows';
 
 interface DocumentElementPanelProps {
   sceneId: string;
@@ -75,35 +72,38 @@ const DocumentElementPanel = (props: DocumentElementPanelProps) => {
     [props.elementId],
   );
   if (!stored) return null;
-  return <ElementPanelBody {...props} stored={stored} />;
+  return <ElementPanelBody {...props} element={stored} />;
 };
 
 const ElementPanelBody = ({
   sceneId,
-  stored,
+  element,
   panelElement,
   setPanelElement,
   scrollRef,
   t,
-}: DocumentElementPanelProps & { stored: ElementNode }) => {
-  // 보이는 값은 편집 미리보기를 얹은 값 - 고르는 중인 값이 다른 칸에도 보인다 (옛 패널과 같다)
-  const element = useEditorPreviewElement(stored, sceneId);
+}: DocumentElementPanelProps & { element: ElementNode }) => {
+  // 옛 종류는 옛 단일 패널과 같은 처리기로 쓰고, 옛 패널이 보던 값(트리 값 + 편집 미리보기, 옛 칸 모양)을 읽는다 -
+  // 고르는 중인 값이 다른 칸에도 보인다
+  const writer = singlePanelWriterFor(sceneId, element);
+  const legacyView = useTreeElementPosition(element, sceneId);
   const useCustomCSS = useSettingsStore((state) => state.useCustomCSS);
   // 이름 바꾸기는 그 요소에서만 - 고른 요소가 바뀌면 끝난다
   const [renamingId, setRenamingId] = useState<string | null>(null);
-  const isRenaming = renamingId === stored.id;
+  const isRenaming = renamingId === element.id;
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
   const renameCancelledRef = useRef(false);
   const definition = elementKindDefinition(element.kind);
-  // 옛 종류는 옛 단일 패널과 같은 처리기로 쓴다
-  const writer = singlePanelWriterFor(sceneId, element);
-  const values = (element.values ?? {}) as Values;
+  const values = (writer ? legacyView : element.values ?? {}) as Values;
   const kindLabel = definition?.label
     ? t(definition.label) || element.kind
     : t('elementKinds.unknownKind') || element.kind;
   const defaultTitle = definition?.title?.(values as never) ?? kindLabel;
-  const title = element.name || defaultTitle;
+  const name = writer
+    ? (legacyView.layerName as string | undefined)
+    : element.name;
+  const title = name || defaultTitle;
   const aspectLocked = definition?.lockAspect?.(values as never) === true;
 
   const commitValues = (next: Values) => {
@@ -133,7 +133,25 @@ const ElementPanelBody = ({
     return { [frameField(field)]: value };
   };
 
-  const geometry = (
+  const geometry = writer ? (
+    // 옛 종류 - 옛 단일 패널과 같은 위치·크기·회전 처리기
+    <SingleGeometrySection
+      keyPosition={legacyView as unknown as KeyPosition}
+      kind={geometryKindOf(element.kind)}
+      onGeometryPreview={writer.previewGeometry}
+      onGeometryCommit={writer.commitGeometry}
+      // 회전 줄은 쓸 수 있는 요소만 (옛 모양 id가 아니면 처리기가 없다)
+      {...(writer.commitGeometry
+        ? {
+            onRotationPreview: (value: number) =>
+              writer.previewStyle({ property: 'rotation', value }),
+            onRotationCommit: (value: number) =>
+              writer.commitStyle({ property: 'rotation', value }),
+          }
+        : {})}
+      t={t}
+    />
+  ) : (
     <SingleGeometrySection
       keyPosition={
         {
@@ -145,41 +163,28 @@ const ElementPanelBody = ({
         } as unknown as KeyPosition
       }
       kind={geometryKindOf(element.kind)}
-      {...(writer
-        ? {
-            // 옛 종류 - 옛 단일 패널과 같은 위치·크기·회전 처리기
-            onGeometryPreview: writer.previewGeometry,
-            onGeometryCommit: writer.commitGeometry,
-            onRotationPreview: (value: number) =>
-              writer.previewStyle({ property: 'rotation', value }),
-            onRotationCommit: (value: number) =>
-              writer.commitStyle({ property: 'rotation', value }),
-          }
-        : {
-            onGeometryPreview: (field: GeometryField, value: number) =>
-              useDocumentFramePreviewStore.getState().set(element.id, {
-                ...element.frame,
-                ...lockedFrame(field, value),
-              }),
-            onPreviewCancel: () =>
-              useDocumentFramePreviewStore.getState().clear(element.id),
-            onGeometryCommit: (field: GeometryField, value: number) => {
-              useDocumentFramePreviewStore.getState().clear(element.id);
-              void setDocumentFrame(
-                sceneId,
-                element.id,
-                lockedFrame(field, value),
-              );
-            },
-            onRotationPreview: (value: number) =>
-              useDocumentFramePreviewStore
-                .getState()
-                .set(element.id, { ...element.frame, rotation: value }),
-            onRotationCommit: (value: number) => {
-              useDocumentFramePreviewStore.getState().clear(element.id);
-              void setDocumentFrame(sceneId, element.id, { rotation: value });
-            },
-          })}
+      onGeometryPreview={(field, value) =>
+        useDocumentFramePreviewStore.getState().set(element.id, {
+          ...element.frame,
+          ...lockedFrame(field, value),
+        })
+      }
+      onPreviewCancel={() =>
+        useDocumentFramePreviewStore.getState().clear(element.id)
+      }
+      onGeometryCommit={(field, value) => {
+        useDocumentFramePreviewStore.getState().clear(element.id);
+        void setDocumentFrame(sceneId, element.id, lockedFrame(field, value));
+      }}
+      onRotationPreview={(value) =>
+        useDocumentFramePreviewStore
+          .getState()
+          .set(element.id, { ...element.frame, rotation: value })
+      }
+      onRotationCommit={(value) => {
+        useDocumentFramePreviewStore.getState().clear(element.id);
+        void setDocumentFrame(sceneId, element.id, { rotation: value });
+      }}
       t={t}
     />
   );
@@ -188,26 +193,38 @@ const ElementPanelBody = ({
     geometry: () => geometry,
     customCss: () =>
       useCustomCSS && writer ? (
-        <LegacyCustomCssSection element={element} writer={writer} t={t} />
-      ) : null,
-    bundle: (bundle) => {
-      if (writer) {
-        const rowProps = { sceneId, element, writer, panelElement, t };
-        return bundle === 'surface' ? (
-          <LegacySurfaceRows {...rowProps} />
-        ) : bundle === 'image' ? (
-          <LegacyImageRow {...rowProps} />
-        ) : null;
-      }
-      return bundle === 'surface' ? (
-        <SurfaceRows
-          surfaces={[(element.bundles?.surface ?? {}) as Values]}
-          panelElement={panelElement}
+        <LegacyCustomCssSection
+          kind={element.kind}
+          position={legacyView as unknown as KeyPosition}
+          writer={writer}
           t={t}
-          onCommit={(fields) =>
-            void setDocumentBundle(sceneId, element.id, 'surface', fields)
-          }
         />
+      ) : null,
+    bundles: (bundles) => {
+      if (writer) {
+        return (
+          <LegacySingleStyle
+            kind={element.kind}
+            sceneId={sceneId}
+            position={legacyView as unknown as KeyPosition}
+            writer={writer}
+            panelElement={panelElement}
+            useCustomCSS={useCustomCSS}
+            t={t}
+          />
+        );
+      }
+      return bundles.includes('surface') ? (
+        <PropertySection>
+          <SurfaceRows
+            surfaces={[(element.bundles?.surface ?? {}) as Values]}
+            panelElement={panelElement}
+            t={t}
+            onCommit={(fields) =>
+              void setDocumentBundle(sceneId, element.id, 'surface', fields)
+            }
+          />
+        </PropertySection>
       ) : null;
     },
     row: (row) => (
@@ -224,6 +241,7 @@ const ElementPanelBody = ({
         }
         onCancelPreview={writer?.cancelPreview}
         colorId={`${element.kind}-${row.field}-${sceneId}-${element.id}`}
+        elementIds={[element.id]}
         panelElement={panelElement}
         t={t}
       />
@@ -259,9 +277,9 @@ const ElementPanelBody = ({
           setRenamingId(null);
           const trimmed = value.trim();
           // 기본 제목과 같거나 비면 이름을 지운다
-          const name = trimmed && trimmed !== defaultTitle ? trimmed : null;
-          if (writer) writer.commitField('layerName', name);
-          else void setDocumentCommon(sceneId, element.id, { name });
+          const next = trimmed && trimmed !== defaultTitle ? trimmed : null;
+          if (writer) writer.commitField('layerName', next);
+          else void setDocumentCommon(sceneId, element.id, { name: next });
         }}
         handleRenameCancel={() => {
           renameCancelledRef.current = true;
