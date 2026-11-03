@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import React, { act } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -13,10 +12,6 @@ import GridSelectionOverlays from './GridSelectionOverlays';
 import type { Bounds, ElementBounds } from '../handles/groupResizeUtils';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
-import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
-import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
-import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
@@ -109,12 +104,7 @@ describe('GridSelectionOverlays', () => {
     };
     act(() => {
       useKeyStore.setState({ selectedKeyType: '4key' });
-      useLegacyKeyArrays.setState({ canonicalPositions: positions });
       useDocumentSelectionStore.setState({ selectedElements });
-      useSpriteStore.setState({ positions: spritePositions });
-      useStatItemStore.setState({ positions: statPositions });
-      useGraphItemStore.setState({ positions: graphPositions });
-      useKnobItemStore.setState({ positions: knobPositions });
       root.render(
         <GridSelectionOverlays
           selectedElements={selectedElements}
@@ -150,10 +140,6 @@ describe('GridSelectionOverlays', () => {
 
   beforeEach(() => {
     usePluginDisplayElementStore.setState({ definitions: new Map() });
-    useStatItemStore.setState({ positions: {} });
-    useGraphItemStore.setState({ positions: {} });
-    useKnobItemStore.setState({ positions: {} });
-    useSpriteStore.setState({ positions: {} });
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);

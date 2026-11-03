@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createDefaultKeyPosition } from '../../model/keys';
 
 const api = vi.hoisted(() => ({
@@ -7,7 +6,6 @@ const api = vi.hoisted(() => ({
   commitGeneratedSemanticOps: vi.fn(),
   commitSemanticOps: vi.fn(),
   captureEditorDocument: vi.fn(),
-  lastAck: null as CanonicalEditorDocumentV1 | null,
 }));
 
 vi.mock('./editorSemanticOps', () => ({
@@ -17,12 +15,7 @@ vi.mock('./editorSemanticOps', () => ({
   // 트리 문서 없이 옛 경로만 시험한다
 }));
 
-import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
-import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
-import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
-import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import {
   commitBatchGeometryByIds,
@@ -72,7 +65,6 @@ import type {
   EditorPatchV1,
 } from '@src/types/editor';
 import type { GraphItemPosition } from '@src/types/key/graphItems';
-import type { ReactiveSpritePosition } from '@src/types/key/sprites';
 
 const ID_A = '11111111-1111-4111-8111-111111111111';
 const ID_B = '22222222-2222-4222-8222-222222222222';
@@ -96,60 +88,28 @@ const graphAt = (
   ...patch,
 });
 
-const spriteAt = (id: string): ReactiveSpritePosition & { id: string } => ({
-  activation: 'whileHeld',
-  pressDurationMs: 300,
-  id,
-  dx: 0,
-  dy: 0,
-  width: 200,
-  height: 120,
-  rotation: 0,
-  hidden: false,
-  zIndex: null,
-  layerName: null,
-  groupId: null,
-  className: null,
-  useInlineStyles: null,
-  baseImage: null,
-  pivot: { x: 0.5, y: 0.5 },
-  idleTransform: { x: 0, y: 0, rotation: 0, scale: 1 },
-  poses: [],
-  transitionMs: 90,
-  transitionEasing: 'linear',
-  referenceNaturalSize: null,
-});
+// 편집 의도의 바탕 문서(옛 편집 문서 모양) - 테스트가 꾸민다. 실패 시 낙관 반영 되돌리기는
+// 트리 스토어 몫이라 여기서는 연산 만들기·결과 판정·오류 전파만 본다
+let stored: CanonicalEditorDocumentV1;
 
-// 슬롯 시점 base. 기본은 호출 시점 스토어 - 대기 중 재정렬·삭제는 테스트가
+// 슬롯 시점 base. 기본은 호출 시점 바탕 문서 - 대기 중 재정렬·삭제는 테스트가
 // slotBase로 재현한다
 let slotBase: (() => CanonicalEditorDocumentV1) | null = null;
 
-const documentFromStores = (): CanonicalEditorDocumentV1 =>
-  ({
-    schemaVersion: 1,
-    keys: structuredClone(useLegacyKeyArrays.getState().keyMappings),
-    keyPositions: structuredClone(
-      useLegacyKeyArrays.getState().canonicalPositions,
-    ),
-    statPositions: structuredClone(useStatItemStore.getState().positions),
-    graphPositions: structuredClone(useGraphItemStore.getState().positions),
-    knobPositions: structuredClone(useKnobItemStore.getState().positions),
-    spritePositions: structuredClone(useSpriteStore.getState().positions),
-    layerGroups: structuredClone(useLayerGroupStore.getState().layerGroups),
-  } as CanonicalEditorDocumentV1);
+const currentDocument = (): CanonicalEditorDocumentV1 =>
+  structuredClone(stored);
 
 describe('elementOps', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     slotBase = null;
-    api.lastAck = null;
-    api.captureEditorDocument.mockImplementation(() => documentFromStores());
+    api.captureEditorDocument.mockImplementation(() => currentDocument());
     // legacy patch generator 경로는 미사용 가드 - 호출 시 base만 돌려준다
     api.commitGeneratedPatch.mockImplementation(
       async (
         generate: (base: CanonicalEditorDocumentV1) => EditorPatchV1 | null,
       ) => {
-        const base = (slotBase ?? documentFromStores)();
+        const base = (slotBase ?? currentDocument)();
         generate(base);
         return base;
       },
@@ -158,7 +118,7 @@ describe('elementOps', () => {
       enqueueEditorCompatibilityOperation(async () => {
         meta?.onEnrolled?.();
         return {
-          document: documentFromStores(),
+          document: currentDocument(),
           opResults: _ops.map((op) =>
             op.kind === 'setBounds' || op.kind === 'resizeSprite'
               ? { status: 'applied', bounds: op.bounds }
@@ -169,12 +129,12 @@ describe('elementOps', () => {
     );
     api.commitGeneratedSemanticOps.mockImplementation((generate, meta) =>
       enqueueEditorCompatibilityOperation(async () => {
-        const ops = generate((slotBase ?? documentFromStores)());
+        const ops = generate((slotBase ?? currentDocument)());
         if (!ops) return null;
         meta?.preflight?.();
         meta?.onEnrolled?.();
         return {
-          document: documentFromStores(),
+          document: currentDocument(),
           opResults: ops.map((op) =>
             op.kind === 'setBounds' || op.kind === 'resizeSprite'
               ? { status: 'applied', bounds: op.bounds }
@@ -184,21 +144,21 @@ describe('elementOps', () => {
       }),
     );
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useLegacyKeyArrays.setState({
-      keyMappings: { '4key': ['A', 'B'] },
-      canonicalPositions: { '4key': [keyAt(ID_A), keyAt(ID_B)] },
-      positions: { '4key': [keyAt(ID_A), keyAt(ID_B)] },
-    });
-    useStatItemStore.setState({ positions: {} });
-    useGraphItemStore.setState({ positions: {} });
-    useKnobItemStore.setState({ positions: {} });
-    useSpriteStore.setState({ positions: {} });
-    useLayerGroupStore.setState({ layerGroups: {} });
+    stored = {
+      schemaVersion: 1,
+      keys: { '4key': ['A', 'B'] },
+      keyPositions: { '4key': [keyAt(ID_A), keyAt(ID_B)] },
+      statPositions: {},
+      graphPositions: {},
+      knobPositions: {},
+      spritePositions: {},
+      layerGroups: {},
+    } as unknown as CanonicalEditorDocumentV1;
     useDocumentSelectionStore.setState({ selectedElements: [] });
   });
 
   it('단일 축 기하는 슬롯 최신 base의 나머지 bounds를 보존한다', async () => {
-    const base = documentFromStores();
+    const base = currentDocument();
     base.keyPositions = {
       '4key': [
         { ...keyAt(ID_A), dx: 10, dy: 77, width: 123, height: 91 },
@@ -229,9 +189,9 @@ describe('elementOps', () => {
       async (generate, meta) => {
         capturedGenerate = generate;
         meta?.onEnrolled?.();
-        const ops = generate(documentFromStores());
+        const ops = generate(currentDocument());
         return {
-          document: documentFromStores(),
+          document: currentDocument(),
           opResults: ops!.map((op: { bounds: unknown }) => ({
             status: 'applied',
             bounds: op.bounds,
@@ -245,18 +205,15 @@ describe('elementOps', () => {
     patch.dy = 777;
     await committed;
 
-    const ops = capturedGenerate!(documentFromStores()) as Array<{
+    const ops = capturedGenerate!(currentDocument()) as Array<{
       bounds: Record<string, number>;
     }>;
     expect(ops[0].bounds.dx).toBe(50);
     expect(ops[0].bounds.dy).not.toBe(777);
   });
 
-  it('단일 축 기하 대상이 슬롯 전에 사라지면 eager를 복원한다', async () => {
-    const before = structuredClone(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'][0],
-    );
-    const missing = documentFromStores();
+  it('단일 축 기하 대상이 슬롯 전에 사라지면 false로 끝난다', async () => {
+    const missing = currentDocument();
     missing.keys = { '4key': ['B'] };
     missing.keyPositions = { '4key': [keyAt(ID_B)] } as never;
     slotBase = () => missing;
@@ -264,40 +221,24 @@ describe('elementOps', () => {
     await expect(
       commitElementGeometryById('key', ID_A, { width: 90 }),
     ).resolves.toBe(false);
-
-    expect(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'][0].width,
-    ).toBe(before.width);
   });
 
-  it('단일 축 기하는 편입 전 실패만 CAS 복원한다', async () => {
+  it('단일 축 기하의 편입 전 실패는 오류로 올린다', async () => {
     api.commitGeneratedSemanticOps.mockRejectedValueOnce(
       new Error('start failed'),
     );
-    const before =
-      useLegacyKeyArrays.getState().canonicalPositions['4key'][0].height;
 
     await expect(
       commitElementGeometryById('key', ID_A, { height: 80 }),
     ).rejects.toThrow('start failed');
-
-    expect(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'][0].height,
-    ).toBe(before);
   });
 
   it('배치 정렬은 stable ID 전 대상을 N setBounds로 한 번에 생성한다', async () => {
     const stat = { ...keyAt(ID_B), dx: 50, dy: 10, width: 20, height: 30 };
-    useLegacyKeyArrays.setState({
-      canonicalPositions: {
-        '4key': [{ ...keyAt(ID_A), dx: 10, dy: 0, width: 10, height: 20 }],
-      },
-      positions: {
-        '4key': [{ ...keyAt(ID_A), dx: 10, dy: 0, width: 10, height: 20 }],
-      },
-    });
-    useStatItemStore.setState({ positions: { '4key': [stat as never] } });
-    api.lastAck = documentFromStores();
+    stored.keyPositions = {
+      '4key': [{ ...keyAt(ID_A), dx: 10, dy: 0, width: 10, height: 20 }],
+    } as never;
+    stored.statPositions = { '4key': [stat as never] };
 
     await commitBatchGeometryByIds({
       mode: '4key',
@@ -310,7 +251,7 @@ describe('elementOps', () => {
 
     expect(api.commitGeneratedSemanticOps).toHaveBeenCalledOnce();
     const generate = api.commitGeneratedSemanticOps.mock.calls[0][0];
-    expect(generate(documentFromStores())).toEqual([
+    expect(generate(currentDocument())).toEqual([
       {
         kind: 'setBounds',
         elementType: 'key',
@@ -327,22 +268,13 @@ describe('elementOps', () => {
   });
 
   it('배치 geometry는 slot 최신 base에서 전체 계획을 다시 계산한다', async () => {
-    useLegacyKeyArrays.setState({
-      canonicalPositions: {
-        '4key': [
-          { ...keyAt(ID_A), dx: 0, width: 10 },
-          { ...keyAt(ID_B), dx: 30, width: 10 },
-        ],
-      },
-      positions: {
-        '4key': [
-          { ...keyAt(ID_A), dx: 0, width: 10 },
-          { ...keyAt(ID_B), dx: 30, width: 10 },
-        ],
-      },
-    });
-    api.lastAck = documentFromStores();
-    const latest = documentFromStores();
+    stored.keyPositions = {
+      '4key': [
+        { ...keyAt(ID_A), dx: 0, width: 10 },
+        { ...keyAt(ID_B), dx: 30, width: 10 },
+      ],
+    } as never;
+    const latest = currentDocument();
     latest.keyPositions = {
       '4key': [
         { ...keyAt(ID_B), dx: 80, width: 20 },
@@ -373,24 +305,15 @@ describe('elementOps', () => {
     ]);
   });
 
-  it('배치 geometry 대상 하나가 소실되면 전체 null이고 eager를 복원한다', async () => {
-    useLegacyKeyArrays.setState({
-      canonicalPositions: {
-        '4key': [
-          { ...keyAt(ID_A), dx: 0 },
-          { ...keyAt(ID_B), dx: 30 },
-        ],
-      },
-      positions: {
-        '4key': [
-          { ...keyAt(ID_A), dx: 0 },
-          { ...keyAt(ID_B), dx: 30 },
-        ],
-      },
-    });
-    api.lastAck = documentFromStores();
+  it('배치 geometry 대상 하나가 소실되면 전체 null이고 false로 끝난다', async () => {
+    stored.keyPositions = {
+      '4key': [
+        { ...keyAt(ID_A), dx: 0 },
+        { ...keyAt(ID_B), dx: 30 },
+      ],
+    } as never;
     slotBase = () => {
-      const base = documentFromStores();
+      const base = currentDocument();
       base.keyPositions = { '4key': [keyAt(ID_A)] } as never;
       return base;
     };
@@ -405,20 +328,9 @@ describe('elementOps', () => {
         operation: { kind: 'align', direction: 'right' },
       }),
     ).resolves.toBe(false);
-
-    expect(useLegacyKeyArrays.getState().canonicalPositions['4key']).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: ID_A, dx: 0 }),
-        expect.objectContaining({ id: ID_B, dx: 30 }),
-      ]),
-    );
   });
 
-  it('호출 시점에 배치 geometry 대상이 없으면 eager나 슬롯 커밋을 시작하지 않는다', async () => {
-    const before = structuredClone(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'],
-    );
-
+  it('호출 시점에 배치 geometry 대상이 없으면 슬롯 커밋을 시작하지 않는다', async () => {
     await expect(
       commitBatchGeometryByIds({
         mode: '4key',
@@ -431,30 +343,15 @@ describe('elementOps', () => {
     ).resolves.toBe(false);
 
     expect(api.commitGeneratedSemanticOps).not.toHaveBeenCalled();
-    expect(useLegacyKeyArrays.getState().canonicalPositions['4key']).toEqual(
-      before,
-    );
   });
 
   it('호출 시점 spacing이 이미 정확하면 슬롯 커밋 없이 false를 반환한다', async () => {
-    useLegacyKeyArrays.setState({
-      canonicalPositions: {
-        '4key': [
-          { ...keyAt(ID_A), dx: 0, width: 10 },
-          { ...keyAt(ID_B), dx: 15, width: 10 },
-        ],
-      },
-      positions: {
-        '4key': [
-          { ...keyAt(ID_A), dx: 0, width: 10 },
-          { ...keyAt(ID_B), dx: 15, width: 10 },
-        ],
-      },
-    });
-    const before = structuredClone(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'],
-    );
-
+    stored.keyPositions = {
+      '4key': [
+        { ...keyAt(ID_A), dx: 0, width: 10 },
+        { ...keyAt(ID_B), dx: 15, width: 10 },
+      ],
+    } as never;
     await expect(
       commitBatchGeometryByIds({
         mode: '4key',
@@ -467,29 +364,15 @@ describe('elementOps', () => {
     ).resolves.toBe(false);
 
     expect(api.commitGeneratedSemanticOps).not.toHaveBeenCalled();
-    expect(useLegacyKeyArrays.getState().canonicalPositions['4key']).toEqual(
-      before,
-    );
   });
 
-  it('배치 geometry 편입 전 실패는 전체 eager를 CAS 복원한다', async () => {
-    useLegacyKeyArrays.setState({
-      canonicalPositions: {
-        '4key': [
-          { ...keyAt(ID_A), dx: 0, width: 10 },
-          { ...keyAt(ID_B), dx: 30, width: 10 },
-        ],
-      },
-      positions: {
-        '4key': [
-          { ...keyAt(ID_A), dx: 0, width: 10 },
-          { ...keyAt(ID_B), dx: 30, width: 10 },
-        ],
-      },
-    });
-    const before = structuredClone(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'],
-    );
+  it('배치 geometry 편입 전 실패는 오류로 올린다', async () => {
+    stored.keyPositions = {
+      '4key': [
+        { ...keyAt(ID_A), dx: 0, width: 10 },
+        { ...keyAt(ID_B), dx: 30, width: 10 },
+      ],
+    } as never;
     api.commitGeneratedSemanticOps.mockRejectedValueOnce(
       new Error('preflight failed'),
     );
@@ -504,17 +387,10 @@ describe('elementOps', () => {
         operation: { kind: 'align', direction: 'right' },
       }),
     ).rejects.toThrow('preflight failed');
-
-    expect(useLegacyKeyArrays.getState().canonicalPositions['4key']).toEqual(
-      before,
-    );
   });
 
-  it('단일 bounds op의 편입 전 실패는 4필드를 CAS 복원한다', async () => {
+  it('단일 bounds op의 편입 전 실패는 오류로 올린다', async () => {
     api.commitSemanticOps.mockRejectedValue(new Error('start failed'));
-    const before = structuredClone(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'][0],
-    );
 
     await expect(
       commitSingleElementBoundsById('key', ID_A, {
@@ -524,32 +400,9 @@ describe('elementOps', () => {
         height: 80,
       }),
     ).rejects.toThrow('start failed');
-
-    expect(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'][0],
-    ).toMatchObject({
-      dx: before.dx,
-      dy: before.dy,
-      width: before.width,
-      height: before.height,
-    });
   });
 
-  it('sprite bounds의 편입 전 실패는 콘텐츠 필드까지 CAS 복원한다', async () => {
-    const sprite = {
-      ...spriteAt(ID_B),
-      idleTransform: { x: 12, y: -6, rotation: 15, scale: 1.5 },
-      poses: [
-        {
-          poseId: 'pose-1',
-          triggers: [ID_A],
-          transform: { x: -30, y: 44, rotation: -90, scale: 0.5 },
-          imageOverride: null,
-          imageOverrideMetrics: null,
-        },
-      ],
-    };
-    useSpriteStore.setState({ positions: { '4key': [sprite] } });
+  it('sprite bounds는 콘텐츠와 한 몸인 resizeSprite로 보내고 편입 전 실패는 오류로 올린다', async () => {
     api.commitSemanticOps.mockRejectedValue(new Error('start failed'));
 
     await expect(
@@ -561,21 +414,20 @@ describe('elementOps', () => {
       }),
     ).rejects.toThrow('start failed');
 
-    const restored = useSpriteStore.getState().positions['4key'][0];
-    expect(restored).toMatchObject({ dx: 0, dy: 0, width: 200, height: 120 });
-    expect(restored.idleTransform).toEqual(sprite.idleTransform);
-    expect(restored.poses).toEqual(sprite.poses);
+    expect(api.commitSemanticOps.mock.calls[0][0]).toEqual([
+      {
+        kind: 'resizeSprite',
+        id: ID_B,
+        bounds: { dx: 5, dy: 8, width: 400, height: 60 },
+      },
+    ]);
   });
 
-  it('단일 bounds op의 targetMissing은 canonical 동기화 결과를 유지한다', async () => {
+  it('단일 bounds op의 targetMissing은 false로 끝난다', async () => {
     api.commitSemanticOps.mockImplementationOnce(async (_ops, meta) => {
       meta?.onEnrolled?.();
-      useLegacyKeyArrays.setState({
-        canonicalPositions: { '4key': [keyAt(ID_B)] },
-        positions: { '4key': [keyAt(ID_B)] },
-      });
       return {
-        document: documentFromStores(),
+        document: currentDocument(),
         opResults: [{ status: 'targetMissing' }],
       };
     });
@@ -588,10 +440,6 @@ describe('elementOps', () => {
         height: 80,
       }),
     ).resolves.toBe(false);
-
-    expect(useLegacyKeyArrays.getState().canonicalPositions['4key']).toEqual([
-      keyAt(ID_B),
-    ]);
   });
 
   it('그룹 bounds는 다중 semantic op 한 요청으로 정산한다', async () => {
@@ -626,11 +474,8 @@ describe('elementOps', () => {
     expect(api.commitGeneratedPatch).not.toHaveBeenCalled();
   });
 
-  it('그룹 bounds의 편입 전 실패는 모든 eager 필드를 CAS 복원한다', async () => {
+  it('그룹 bounds의 편입 전 실패는 오류로 올린다', async () => {
     api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
-    const before = structuredClone(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'],
-    );
 
     await expect(
       commitElementBoundsById(
@@ -645,23 +490,13 @@ describe('elementOps', () => {
         ]),
       ),
     ).rejects.toThrow('start failed');
-
-    expect(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'],
-    ).toMatchObject(before);
   });
 
-  it('그룹 bounds 대기 중 일부 대상이 사라지면 생존 대상만 저장한다', async () => {
+  it('그룹 bounds 대기 중 일부 대상이 사라져도 남은 대상이 적용되면 true로 끝난다', async () => {
     api.commitSemanticOps.mockImplementationOnce(async (ops, meta) => {
       meta?.onEnrolled?.();
-      const surviving = { ...keyAt(ID_B), ...ops[1].bounds };
-      useLegacyKeyArrays.setState({
-        keyMappings: { '4key': ['B'] },
-        canonicalPositions: { '4key': [surviving] },
-        positions: { '4key': [surviving] },
-      });
       return {
-        document: documentFromStores(),
+        document: currentDocument(),
         opResults: [
           { status: 'targetMissing' },
           { status: 'applied', bounds: ops[1].bounds },
@@ -682,26 +517,13 @@ describe('elementOps', () => {
     );
 
     expect(committed).toBe(true);
-    expect(useLegacyKeyArrays.getState().canonicalPositions['4key']).toEqual([
-      expect.objectContaining({ id: ID_B, dx: 70 }),
-    ]);
-    expect(
-      useLegacyKeyArrays
-        .getState()
-        .canonicalPositions['4key'].some(({ id }) => id === ID_A),
-    ).toBe(false);
   });
 
-  it('그룹 bounds 대상이 전부 사라지면 false로 정산하고 부활시키지 않는다', async () => {
+  it('그룹 bounds 대상이 전부 사라지면 false로 정산한다', async () => {
     api.commitSemanticOps.mockImplementationOnce(async (_ops, meta) => {
       meta?.onEnrolled?.();
-      useLegacyKeyArrays.setState({
-        keyMappings: { '4key': [] },
-        canonicalPositions: { '4key': [] },
-        positions: { '4key': [] },
-      });
       return {
-        document: documentFromStores(),
+        document: currentDocument(),
         opResults: [{ status: 'targetMissing' }, { status: 'targetMissing' }],
       };
     });
@@ -719,27 +541,19 @@ describe('elementOps', () => {
     );
 
     expect(committed).toBe(false);
-    expect(useLegacyKeyArrays.getState().canonicalPositions['4key']).toEqual(
-      [],
-    );
   });
 
   it('hidden noChange는 성공으로, targetMissing은 미적용으로 반환한다', async () => {
-    useLegacyKeyArrays.setState({
-      canonicalPositions: {
-        '4key': [{ ...keyAt(ID_A), hidden: true }, keyAt(ID_B)],
-      },
-      positions: {
-        '4key': [{ ...keyAt(ID_A), hidden: true }, keyAt(ID_B)],
-      },
-    });
+    stored.keyPositions = {
+      '4key': [{ ...keyAt(ID_A), hidden: true }, keyAt(ID_B)],
+    } as never;
     api.commitSemanticOps
       .mockResolvedValueOnce({
-        document: documentFromStores(),
+        document: currentDocument(),
         opResults: [{ status: 'noChange' }],
       })
       .mockResolvedValueOnce({
-        document: documentFromStores(),
+        document: currentDocument(),
         opResults: [{ status: 'targetMissing' }],
       });
 
@@ -749,18 +563,14 @@ describe('elementOps', () => {
     );
   });
 
-  it('hidden patch 편입 전 실패는 자기 eager만 복원한다', async () => {
+  it('hidden patch 편입 전 실패는 오류로 올린다', async () => {
     api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
     await expect(patchElementHiddenById('key', ID_A, true)).rejects.toThrow(
       'start failed',
     );
-    expect(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'][0].hidden ??
-        false,
-    ).toBe(false);
   });
 
-  it('hidden patch preflight 실패는 wire 편입 전 eager를 복원한다', async () => {
+  it('hidden patch preflight 실패는 wire 편입 전에 오류로 올린다', async () => {
     const preflight = vi.fn(() => {
       throw new Error('authority changed');
     });
@@ -774,57 +584,38 @@ describe('elementOps', () => {
     ).rejects.toThrow('authority changed');
 
     expect(preflight).toHaveBeenCalledOnce();
-    expect(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'][0].hidden ??
-        false,
-    ).toBe(false);
   });
 
-  it('layerName 편입 전 실패는 자기 leaf만 CAS 복원한다', async () => {
-    useLegacyKeyArrays.setState({
-      canonicalPositions: {
-        '4key': [{ ...keyAt(ID_A), layerName: 'Before' }, keyAt(ID_B)],
-      },
-      positions: {
-        '4key': [{ ...keyAt(ID_A), layerName: 'Before' }, keyAt(ID_B)],
-      },
-    });
+  it('layerName 편입 전 실패는 오류로 올린다', async () => {
+    stored.keyPositions = {
+      '4key': [{ ...keyAt(ID_A), layerName: 'Before' }, keyAt(ID_B)],
+    } as never;
     api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
 
     await expect(
       patchElementLayerNameById('key', ID_A, 'After'),
     ).rejects.toThrow('start failed');
-    expect(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'][0].layerName,
-    ).toBe('Before');
   });
 
-  it('graphType batch 편입 전 실패는 모든 eager leaf를 복원한다', async () => {
+  it('graphType batch 편입 전 실패는 오류로 올린다', async () => {
     const graphB = '00000000-0000-4000-8000-00000000008f';
-    useGraphItemStore.setState({
-      positions: {
-        '4key': [
-          graphAt(ID_A, { graphType: 'line' }),
-          graphAt(graphB, { graphType: 'line' }),
-        ],
-      },
-    });
+    stored.graphPositions = {
+      '4key': [
+        graphAt(ID_A, { graphType: 'line' }),
+        graphAt(graphB, { graphType: 'line' }),
+      ],
+    };
     api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
 
     await expect(patchGraphTypesByIds([ID_A, graphB], 'bar')).rejects.toThrow(
       'start failed',
     );
-    expect(
-      useGraphItemStore
-        .getState()
-        .positions['4key'].map((position) => position.graphType),
-    ).toEqual(['line', 'line']);
   });
 
   it('graphType batch는 일부 missing이어도 생존 대상 적용으로 판정한다', async () => {
     const missingId = '00000000-0000-4000-8000-000000000090';
     api.commitSemanticOps.mockResolvedValueOnce({
-      document: documentFromStores(),
+      document: currentDocument(),
       opResults: [{ status: 'applied' }, { status: 'targetMissing' }],
     });
 
@@ -835,11 +626,9 @@ describe('elementOps', () => {
   });
 
   it('graphColor batch는 preview gestureId를 semantic commit에 전달한다', async () => {
-    useGraphItemStore.setState({
-      positions: {
-        '4key': [graphAt(ID_A, { graphColor: '#old' })],
-      },
-    });
+    stored.graphPositions = {
+      '4key': [graphAt(ID_A, { graphColor: '#old' })],
+    };
 
     await patchGraphColorsByIds([ID_A], '#new', {
       gestureId: 'graph-color-gesture',
@@ -903,16 +692,14 @@ describe('elementOps', () => {
     },
   );
 
-  it('runtime leaf batch 편입 전 실패는 graph와 knob eager를 각각 복원한다', async () => {
+  it('runtime leaf batch 편입 전 실패는 graph와 knob 모두 오류로 올린다', async () => {
     const otherId = '00000000-0000-4000-8000-000000000096';
-    useGraphItemStore.setState({
-      positions: {
-        '4key': [
-          graphAt(ID_A, { graphSpeed: 1000 }),
-          graphAt(otherId, { graphSpeed: 1000 }),
-        ],
-      },
-    });
+    stored.graphPositions = {
+      '4key': [
+        graphAt(ID_A, { graphSpeed: 1000 }),
+        graphAt(otherId, { graphSpeed: 1000 }),
+      ],
+    };
     api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
     await expect(
       patchGraphPropertiesByIds([ID_A, otherId], {
@@ -920,20 +707,13 @@ describe('elementOps', () => {
         value: 2200,
       }),
     ).rejects.toThrow('start failed');
-    expect(
-      useGraphItemStore
-        .getState()
-        .positions['4key'].map((position) => position.graphSpeed),
-    ).toEqual([1000, 1000]);
 
-    useKnobItemStore.setState({
-      positions: {
-        '4key': [
-          { ...createDefaultKeyPosition(), id: ID_A, sensitivity: 1 },
-          { ...createDefaultKeyPosition(), id: otherId, sensitivity: 1 },
-        ] as never,
-      },
-    });
+    stored.knobPositions = {
+      '4key': [
+        { ...createDefaultKeyPosition(), id: ID_A, sensitivity: 1 },
+        { ...createDefaultKeyPosition(), id: otherId, sensitivity: 1 },
+      ] as never,
+    };
     api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
     await expect(
       patchKnobPropertiesByIds([ID_A, otherId], {
@@ -941,11 +721,6 @@ describe('elementOps', () => {
         value: 3,
       }),
     ).rejects.toThrow('start failed');
-    expect(
-      useKnobItemStore
-        .getState()
-        .positions['4key'].map((position) => position.sensitivity),
-    ).toEqual([1, 1]);
   });
 
   it('useInlineStyles batch는 duplicate와 empty ID를 wire 전에 거절한다', async () => {
@@ -1199,7 +974,7 @@ describe('elementOps', () => {
     },
   );
 
-  it('note paint 편입 전 실패는 자기 eager leaf만 복원한다', async () => {
+  it('note paint 편입 전 실패는 오류로 올린다', async () => {
     const key = {
       ...keyAt(ID_A),
       noteOpacity: 80,
@@ -1207,10 +982,7 @@ describe('elementOps', () => {
       noteOpacityBottom: 60,
       noteGlowColor: 'fresh-sibling',
     };
-    useLegacyKeyArrays.setState({
-      canonicalPositions: { '4key': [key] },
-      positions: { '4key': [key] },
-    });
+    stored.keyPositions = { '4key': [key] } as never;
     api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
 
     await expect(
@@ -1219,14 +991,6 @@ describe('elementOps', () => {
         value: { opacity: 99 },
       }),
     ).rejects.toThrow('start failed');
-    expect(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'][0],
-    ).toMatchObject({
-      noteOpacity: 80,
-      noteOpacityTop: 70,
-      noteOpacityBottom: 60,
-      noteGlowColor: 'fresh-sibling',
-    });
   });
 
   it.each([
@@ -1249,7 +1013,7 @@ describe('elementOps', () => {
     },
   );
 
-  it('displayText는 invalid target을 wire 전에 거절하고 편입 전 실패를 복원한다', async () => {
+  it('displayText는 invalid target을 wire 전에 거절하고 편입 전 실패는 오류로 올린다', async () => {
     await expect(
       patchStylePropertyByTargets(
         [
@@ -1274,9 +1038,6 @@ describe('elementOps', () => {
         value: 'After',
       }),
     ).rejects.toThrow('start failed');
-    expect(
-      useLegacyKeyArrays.getState().canonicalPositions['4key'][0].displayText,
-    ).toBeUndefined();
   });
 
   it('note batch는 duplicate와 empty ID를 wire 전에 거절한다', async () => {

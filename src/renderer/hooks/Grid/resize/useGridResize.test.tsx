@@ -2,9 +2,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CanonicalReactiveSpritePosition } from '@src/types/editor';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
-import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import type { ElementBounds } from '@utils/grid/smartGuides';
 import { aspectScaleRange } from '@components/main/Grid/handles/aspectResize';
 import { useGridResize } from './useGridResize';
@@ -35,13 +33,6 @@ const mocks = vi.hoisted(() => ({
   commitGroupBounds: vi.fn(() => Promise.resolve(true)),
   commitSingleBounds: vi.fn(() => Promise.resolve(true)),
   elements: [] as Array<{ fullId: string; pluginId: string }>,
-  keyPositions: [{ dx: 0, dy: 0, width: 40, height: 40 }] as Array<{
-    id?: string;
-    dx: number;
-    dy: number;
-    width: number;
-    height: number;
-  }>,
   gridSettings: {
     alignmentGuides: false,
     spacingGuides: false,
@@ -150,37 +141,6 @@ vi.mock('@stores/useSettingsStore', () => ({
   },
 }));
 
-vi.mock('@stores/data/useKeyStore', () => ({
-  useKeyStore: {
-    getState: () => ({
-      positions: {
-        '4key': mocks.keyPositions,
-      },
-      canonicalPositions: {
-        '4key': mocks.keyPositions,
-      },
-      setPositions: vi.fn(),
-    }),
-  },
-  // 공통 커밋 경로가 종류 정의(편집 화면 얼굴)를 불러올 때 프리뷰 오버레이가 등록한다
-  registerRenderedPositionsComposer: vi.fn(),
-}));
-vi.mock('@src/renderer/__tests__/legacyStores/useStatItemStore', () => ({
-  useStatItemStore: {
-    getState: () => ({ positions: { '4key': [] }, setPositions: vi.fn() }),
-  },
-}));
-vi.mock('@src/renderer/__tests__/legacyStores/useGraphItemStore', () => ({
-  useGraphItemStore: {
-    getState: () => ({ positions: { '4key': [] }, setPositions: vi.fn() }),
-  },
-}));
-vi.mock('@src/renderer/__tests__/legacyStores/useKnobItemStore', () => ({
-  useKnobItemStore: {
-    getState: () => ({ positions: { '4key': [] }, setPositions: vi.fn() }),
-  },
-}));
-
 type ResizeApi = ReturnType<typeof useGridResize>;
 
 interface HarnessProps {
@@ -217,38 +177,6 @@ const keySelection = (): SelectedElement => ({
 const STABLE_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const STABLE_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const STABLE_SPRITE = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
-
-const spriteAt = (id: string): CanonicalReactiveSpritePosition => ({
-  activation: 'whileHeld',
-  pressDurationMs: 300,
-  id,
-  dx: 0,
-  dy: 0,
-  width: 200,
-  height: 120,
-  hidden: false,
-  zIndex: null,
-  layerName: null,
-  groupId: null,
-  className: null,
-  useInlineStyles: null,
-  rotation: 0,
-  baseImage: null,
-  pivot: { x: 0.5, y: 0.5 },
-  idleTransform: { x: 0, y: 0, rotation: 0, scale: 1 },
-  poses: [
-    {
-      imageOverrideMetrics: null,
-      poseId: 'pose-1',
-      triggers: [STABLE_A],
-      transform: { x: 12, y: -6, rotation: 15, scale: 1.2 },
-      imageOverride: null,
-    },
-  ],
-  transitionMs: 90,
-  transitionEasing: 'linear',
-  referenceNaturalSize: null,
-});
 
 const stableKeySelection = (id: string, index = 0): SelectedElement => ({
   id,
@@ -309,8 +237,6 @@ describe('useGridResize plugin gesture lifecycle', () => {
       },
     );
     mocks.elements = [];
-    mocks.keyPositions = [{ dx: 0, dy: 0, width: 40, height: 40 }];
-    useSpriteStore.setState({ positions: {} });
     mocks.gridSettings = {
       alignmentGuides: false,
       spacingGuides: false,
@@ -600,17 +526,13 @@ describe('useGridResize plugin gesture lifecycle', () => {
       spacingGuides: true,
       sizeMatchGuides: true,
     };
-    mocks.keyPositions = [
-      { id: STABLE_A, dx: 0, dy: 0, width: 120, height: 60 },
-      { id: STABLE_B, dx: 200, dy: 0, width: 120, height: 60 },
-    ];
     await renderHarness([stableKeySelection(STABLE_A)], getOtherElements);
     const activeResizeApi = api;
 
     await act(async () => {
       activeResizeApi.handleResizeStart();
     });
-    mocks.keyPositions = [mocks.keyPositions[1], mocks.keyPositions[0]];
+    // 리사이즈 중 B와 자리를 바꿔 A가 순번 1로 간다
     await renderHarness([stableKeySelection(STABLE_A, 1)], getOtherElements);
     await act(async () => {
       activeResizeApi.handleResize({
@@ -875,8 +797,6 @@ describe('useGridResize plugin gesture lifecycle', () => {
   );
 
   it('그룹 resize의 sprite는 resizeSprite op으로 bounds를 보낸다', async () => {
-    const original = spriteAt(STABLE_SPRITE);
-    useSpriteStore.setState({ positions: { '4key': [original] } });
     mocks.elements = [{ fullId: 'plugin-a:one', pluginId: 'plugin-a' }];
     const spriteSelected: SelectedElement = {
       id: STABLE_SPRITE,
@@ -927,11 +847,6 @@ describe('useGridResize plugin gesture lifecycle', () => {
       spacingGuides: false,
       sizeMatchGuides: true,
     };
-    useSpriteStore.setState({
-      positions: {
-        '4key': [{ ...spriteAt(STABLE_SPRITE), width: 110, height: 55 }],
-      },
-    });
     // 폭 112는 임계값 4px 안, 높이 60은 밖. 가장자리는 멀리 둬 정렬 스냅은 없다
     const other: ElementBounds = {
       id: 'other',
@@ -977,11 +892,6 @@ describe('useGridResize plugin gesture lifecycle', () => {
       spacingGuides: false,
       sizeMatchGuides: true,
     };
-    useSpriteStore.setState({
-      positions: {
-        '4key': [{ ...spriteAt(STABLE_SPRITE), width: 100, height: 100 }],
-      },
-    });
     const other: ElementBounds = {
       id: 'other',
       left: 1000,
@@ -1019,9 +929,6 @@ describe('useGridResize plugin gesture lifecycle', () => {
       spacingGuides: false,
       sizeMatchGuides: true,
     };
-    mocks.keyPositions = [
-      { id: STABLE_A, dx: 0, dy: 0, width: 120, height: 60 },
-    ];
     // 높이 62는 임계값 안, 폭 500은 밖
     const other: ElementBounds = {
       id: 'other',
@@ -1093,11 +1000,6 @@ describe('useGridResize plugin gesture lifecycle', () => {
       spacingGuides: false,
       sizeMatchGuides: false,
     };
-    useSpriteStore.setState({
-      positions: {
-        '4key': [{ ...spriteAt(STABLE_SPRITE), width: 100, height: 100 }],
-      },
-    });
     // 오른쪽 가장자리 105는 오른쪽 108에(3px), 위쪽 0은 위쪽 0에 정렬 후보 - 두 축 모두 임계값 안
     const other: ElementBounds = {
       id: 'other',
@@ -1144,9 +1046,6 @@ describe('useGridResize plugin gesture lifecycle', () => {
       spacingGuides: false,
       sizeMatchGuides: false,
     };
-    mocks.keyPositions = [
-      { id: STABLE_A, dx: 3, dy: 0, width: 100, height: 100 },
-    ];
     // 왼쪽 가장자리 3은 다른 요소의 왼쪽 0에 정렬 후보(3px) - 아래 핸들이라 X는 잡지 않은 축
     const other: ElementBounds = {
       id: 'other',
