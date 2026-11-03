@@ -1,40 +1,39 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
-
-import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
-import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import {
-  previewOverlay,
-  previewPatchOf,
-} from '@src/renderer/editor/runtime/gesture/previewOverlay';
-import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
-import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
-import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
-import type { PreviewDomain } from '@src/types/preview';
-
-import {
-  previewBatchPaint,
-  previewBatchStyleProperty,
-  previewSingleStyleProperty,
-} from './previewPatchForwarders';
+import type { FakeElementDocumentBackend } from '@src/renderer/__tests__/fakeElementDocumentBackend';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
+import type { Document, JsonValue } from '@src/types/generated/elementDocument';
 
 const KEY_ID = '00000000-0000-4000-8000-000000000501';
 const KNOB_ID = '00000000-0000-4000-8000-000000000502';
 const KEY_ID_A = '00000000-0000-4000-8000-000000000511';
 const KEY_ID_B = '00000000-0000-4000-8000-000000000512';
 const KEY_ID_C = '00000000-0000-4000-8000-000000000513';
+const STAT_ID = '00000000-0000-4000-8000-000000000521';
 
-// 속성 패널은 지금 값을 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
-vi.mock(
-  '@src/renderer/editor/document/elementDocumentRuntime',
-  async (importOriginal) =>
-    (
-      await import('@src/renderer/__tests__/treeFromLegacyStores')
-    ).treeFromStores(importOriginal as never),
-);
+// IPC 경계만 대역 - 트리 스토어·런타임은 실물 (전달기는 트리 지금 값 위에 미리보기를 얹는다)
+const ipc = vi.hoisted(() => ({
+  backend: null as FakeElementDocumentBackend | null,
+}));
+vi.mock('@api/modules/editor/elementDocumentApi', () => ({
+  elementDocumentApi: new Proxy(
+    {},
+    {
+      get: (_target, name: string) =>
+        name === 'registerKind' || name === 'unregisterKind'
+          ? async () => undefined
+          : (ipc.backend!.api as Record<string, unknown>)[name],
+    },
+  ),
+}));
 vi.mock('@api/modules/editor/previewApi', () => ({
   previewApi: {
     subscribe: vi.fn().mockResolvedValue(1),
@@ -43,56 +42,94 @@ vi.mock('@api/modules/editor/previewApi', () => ({
   },
 }));
 
-const keyFixture = (): CanonicalEditorDocumentV1['keyPositions'] =>
-  ({
-    '4key': [
-      {
-        ...createDefaultKeyPosition(),
-        id: KEY_ID,
-        fontColor: '#old-idle',
-        backgroundColor: '#old-background',
-        activeBackgroundColor: undefined,
-        borderWidth: 1,
-        noteOffsetX: 42,
-      },
-    ],
-  } as CanonicalEditorDocumentV1['keyPositions']);
+const { createFakeElementDocumentBackend } = await import(
+  '@src/renderer/__tests__/fakeElementDocumentBackend'
+);
+const { loadElementDocumentStore } = await import(
+  '@src/renderer/editor/document/elementDocumentRuntime'
+);
+const { fillKindDefaults } = await import(
+  '@src/renderer/elementKinds/runtime/elementKindDefaults'
+);
+const { currentTreePosition, viewTreePosition } = await import(
+  '@src/renderer/elementKinds/runtime/treeElementPosition'
+);
+const { BUILTIN_BUNDLE_DEFAULTS } = await import(
+  '@src/types/generated/elementDocument'
+);
+const { useKeyStore } = await import('@stores/data/useKeyStore');
+const { previewOverlay, previewPatchOf } = await import(
+  '@src/renderer/editor/runtime/gesture/previewOverlay'
+);
+const { editGestureController } = await import(
+  '@src/renderer/editor/runtime/gesture/editGestureController'
+);
+const {
+  previewBatchPaint,
+  previewBatchStyleProperty,
+  previewSingleStyleProperty,
+} = await import('./previewPatchForwarders');
 
-const knobFixture = (): CanonicalEditorDocumentV1['knobPositions'] =>
-  ({
-    '4key': [
-      {
-        ...createDefaultKeyPosition(),
-        id: KNOB_ID,
-        axisId: 'HIDA:test',
-        sensitivity: 1,
-        reverse: false,
-      },
-    ],
-  } as CanonicalEditorDocumentV1['knobPositions']);
+type Fields = Record<string, JsonValue>;
 
-// 화면에 보일 값 - 지금 값 위에 요소별 미리보기 patch
-const composePreviewPositions = <T extends { id: string }>(
-  domain: PreviewDomain,
-  canonical: Record<string, T[]>,
-): Record<string, T[]> => ({
-  '4key': (canonical['4key'] ?? []).map((position) => ({
-    ...position,
-    ...previewPatchOf(domain, '4key', position.id),
-  })),
+// 트리 요소 - 기능 묶음 값은 기본값 위에 고친 칸만 얹는다
+const nodeOf = (
+  kind: string,
+  id: string,
+  index: number,
+  bundles: Record<string, Fields> = {},
+  extra: Partial<ElementNode> = {},
+): ElementNode =>
+  fillKindDefaults({
+    type: 'element',
+    id,
+    kind,
+    frame: { x: index * 70, y: 0, width: 60, height: 60, rotation: 0 },
+    legacy: { index },
+    bundles: Object.fromEntries(
+      Object.entries(bundles).map(([name, fields]) => [
+        name,
+        { ...BUILTIN_BUNDLE_DEFAULTS[name], ...fields },
+      ]),
+    ),
+    ...extra,
+  } as unknown as ElementNode);
+
+const keyNode = (
+  id: string,
+  index: number,
+  bundles: Record<string, Fields> = {},
+) => nodeOf('key', id, index, bundles, { input: { type: 'key', slot: '' } });
+
+// 키 하나(글자색·배경·테두리·노트 위치를 고친) + 노브 하나
+const baseKey = (surface: Fields = {}) =>
+  keyNode(KEY_ID, 0, {
+    surface: {
+      backgroundColor: '#old-background',
+      borderWidth: 1,
+      ...surface,
+    },
+    font: { fontColor: '#old-idle' },
+    note: { noteOffsetX: 42 },
+  });
+const knobNode = nodeOf('knob', KNOB_ID, 1, {}, {
+  input: { type: 'axis', axisId: 'HIDA:test' },
+  values: { sensitivity: 1, reverse: false },
+} as Partial<ElementNode>);
+
+const documentOf = (nodes: ElementNode[]): Document => ({
+  formatVersion: 1,
+  kindVersions: {},
+  scenes: { '4key': { nodes } },
 });
+const setNodes = (nodes: ElementNode[]) =>
+  ipc.backend!.replace(() => documentOf(nodes));
 
+// 화면에 보일 값 - 트리 지금 값 위에 요소별 미리보기 patch
 const composedKey = () =>
-  composePreviewPositions(
-    'keyPosition',
-    useLegacyKeyArrays.getState().canonicalPositions,
-  )['4key'][0] as Record<string, unknown>;
-
+  viewTreePosition('4key', KEY_ID) as Record<string, unknown>;
 const composedKnob = () =>
-  composePreviewPositions(
-    'knobPosition',
-    useKnobItemStore.getState().positions,
-  )['4key'][0] as Record<string, unknown>;
+  viewTreePosition('4key', KNOB_ID) as Record<string, unknown>;
 
 // 태그 patch가 원본 그대로 스프레드되면 위치 객체에 property/value
 // 리터럴 키가 생기고 실제 필드는 바뀌지 않는다 - 그 오염을 여기서 고정한다
@@ -102,17 +139,16 @@ const expectNoWirePollution = (position: Record<string, unknown>) => {
 };
 
 describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
+  beforeAll(async () => {
+    ipc.backend = createFakeElementDocumentBackend(documentOf([]));
+    await loadElementDocumentStore();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     previewOverlay.clearAll();
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useLegacyKeyArrays.setState({
-      canonicalPositions: keyFixture(),
-      positions: keyFixture(),
-    });
-    useStatItemStore.setState({ positions: {} });
-    useGraphItemStore.setState({ positions: {} });
-    useKnobItemStore.setState({ positions: knobFixture() });
+    setNodes([baseKey(), knobNode]);
   });
 
   afterEach(() => {
@@ -129,11 +165,8 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
     const composed = composedKey();
     expect(composed.borderWidth).toBe(12.5);
     expectNoWirePollution(composed);
-    // canonical은 불가침
-    expect(
-      (useLegacyKeyArrays.getState().canonicalPositions['4key'][0] as KeyRecord)
-        .borderWidth,
-    ).toBe(1);
+    // 트리 지금 값은 불가침
+    expect(currentTreePosition('4key', KEY_ID)?.borderWidth).toBe(1);
   });
 
   it('single style nullable leaf의 null은 undefined 위치 조각으로 투영된다', () => {
@@ -166,18 +199,18 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
   });
 
   it('batch shadow leaf는 대상별 현재 스펙에 얹혀 전체 스펙으로 투영된다', () => {
-    const seeded = keyFixture();
-    (seeded['4key'][0] as KeyRecord).shadow = {
-      enabled: true,
-      color: '#123456',
-      offsetX: 1,
-      offsetY: 2,
-      blur: 3,
-    };
-    useLegacyKeyArrays.setState({
-      canonicalPositions: seeded,
-      positions: seeded,
-    });
+    setNodes([
+      baseKey({
+        shadow: {
+          enabled: true,
+          color: '#123456',
+          offsetX: 1,
+          offsetY: 2,
+          blur: 3,
+        },
+      }),
+      knobNode,
+    ]);
 
     previewBatchStyleProperty(
       [
@@ -206,14 +239,7 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
   });
 
   it('batch activeShadow leaf는 통계를 건너뛴다', () => {
-    const STAT_ID = '00000000-0000-4000-8000-000000000521';
-    useStatItemStore.setState({
-      positions: {
-        '4key': [
-          { ...createDefaultKeyPosition(), id: STAT_ID, statType: 'kps' },
-        ],
-      } as CanonicalEditorDocumentV1['statPositions'],
-    });
+    setNodes([baseKey(), knobNode, nodeOf('stat', STAT_ID, 2)]);
 
     previewBatchStyleProperty(
       [
@@ -225,11 +251,8 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
     );
 
     expect((composedKey().activeShadow as KeyRecord).blur).toBe(9);
-    const stat = composePreviewPositions(
-      'statPosition',
-      useStatItemStore.getState().positions,
-    )['4key'][0] as KeyRecord;
-    expect(stat.activeShadow).toBeUndefined();
+    // 통계에는 눌림 그림자 미리보기를 얹지 않는다
+    expect(previewPatchOf('statPosition', '4key', STAT_ID)).toBeNull();
   });
 
   it('batch font paint는 commit eager와 같은 투영으로 active fallback까지 포함한다', () => {
@@ -272,23 +295,13 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
 
   it('배치 프리뷰 중 비대상 삭제로 index가 밀려도 요소별 patch가 제 요소에 누적된다', () => {
     // [C, A, B] - A·B만 선택, idle 색이 달라 active fallback이 요소별 상이값
-    useKeyStore.setState({ selectedKeyType: '4key' });
-    useLegacyKeyArrays.setState({
-      canonicalPositions: {
-        '4key': [
-          { ...createDefaultKeyPosition(), id: KEY_ID_C, fontColor: '#c-idle' },
-          { ...createDefaultKeyPosition(), id: KEY_ID_A, fontColor: '#a-idle' },
-          { ...createDefaultKeyPosition(), id: KEY_ID_B, fontColor: '#b-idle' },
-        ],
-      } as CanonicalEditorDocumentV1['keyPositions'],
-      positions: {
-        '4key': [
-          { ...createDefaultKeyPosition(), id: KEY_ID_C, fontColor: '#c-idle' },
-          { ...createDefaultKeyPosition(), id: KEY_ID_A, fontColor: '#a-idle' },
-          { ...createDefaultKeyPosition(), id: KEY_ID_B, fontColor: '#b-idle' },
-        ],
-      } as CanonicalEditorDocumentV1['keyPositions'],
-    });
+    const keyA = keyNode(KEY_ID_A, 1, { font: { fontColor: '#a-idle' } });
+    const keyB = keyNode(KEY_ID_B, 2, { font: { fontColor: '#b-idle' } });
+    setNodes([
+      keyNode(KEY_ID_C, 0, { font: { fontColor: '#c-idle' } }),
+      keyA,
+      keyB,
+    ]);
     const targets = [
       { elementType: 'key' as const, id: KEY_ID_A },
       { elementType: 'key' as const, id: KEY_ID_B },
@@ -299,12 +312,8 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
       value: { color: '#new-1', gradient: null },
     });
 
-    // 게스처와 미배타인 격리 커밋이 비선택 C를 삭제 - A·B live index가 당겨진다
-    const [, ...rest] =
-      useLegacyKeyArrays.getState().canonicalPositions['4key'];
-    useLegacyKeyArrays.getState().setPositions({
-      '4key': rest,
-    } as CanonicalEditorDocumentV1['keyPositions']);
+    // 게스처와 미배타인 격리 커밋(다른 창)이 비선택 C를 삭제 - A·B 순번이 당겨진다
+    setNodes([keyA, keyB]);
 
     // 드래그 계속 - forwarder가 live index를 재해석해 전달하는 두 번째 이벤트
     previewBatchPaint(targets, '4key', {
@@ -312,10 +321,9 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
       value: { color: '#new-2', gradient: null },
     });
 
-    const rendered = composePreviewPositions(
-      'keyPosition',
-      useLegacyKeyArrays.getState().canonicalPositions,
-    )['4key'] as Array<Record<string, unknown>>;
+    const rendered = [KEY_ID_A, KEY_ID_B].map((id) =>
+      viewTreePosition('4key', id),
+    );
     // 요소별 상이값(active fallback)이 제 요소에 유지 - B의 patch가 A를 덮지 않는다
     expect(rendered[0]).toMatchObject({
       id: KEY_ID_A,

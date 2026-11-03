@@ -28,7 +28,6 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
 
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
 import { previewOverlay } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { usePropertiesPanelSelection } from './usePropertiesPanelSelection';
 
@@ -37,23 +36,8 @@ import { usePropertiesPanelSelection } from './usePropertiesPanelSelection';
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe('속성 패널 단일 요소 값', () => {
-  it('트리 편집기가 맡는 요소는 트리 값 + 편집 미리보기를 읽는다 (옛 배열은 순번만)', () => {
+  it('트리 편집기가 맡는 요소는 트리 값 + 편집 미리보기를 읽는다', () => {
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useKnobItemStore.setState({
-      positions: {
-        '4key': [
-          {
-            id: KNOB,
-            dx: 0,
-            dy: 0,
-            width: 60,
-            height: 60,
-            sensitivity: 1,
-            reverse: false,
-          },
-        ],
-      } as never,
-    });
     useDocumentSelectionStore.setState({
       selectedElements: [{ type: 'knob', id: KNOB, index: 0 }],
     });

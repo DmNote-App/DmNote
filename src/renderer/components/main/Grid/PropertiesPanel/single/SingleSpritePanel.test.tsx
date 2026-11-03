@@ -1,12 +1,26 @@
 import React, { act, useEffect } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 import SpritePanelSection from '@src/renderer/elementKinds/definitions/sprite/SpritePanelSection';
 import { previewOverlay } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { stableStringify } from '@utils/core/stableStringify';
-import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
+import {
+  createFakeElementDocumentBackend,
+  type FakeElementDocumentBackend,
+} from '@src/renderer/__tests__/fakeElementDocumentBackend';
+import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
+import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import type { Document } from '@src/types/generated/elementDocument';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useSpriteEditPreviewStore } from '@stores/grid/useSpriteEditPreviewStore';
 import {
@@ -29,6 +43,7 @@ class ResizeObserverStub {
 }
 
 const mocks = vi.hoisted(() => ({
+  backend: null as FakeElementDocumentBackend | null,
   patchPosition: vi.fn(
     (
       _mode: string,
@@ -55,14 +70,16 @@ const mocks = vi.hoisted(() => ({
   ),
 }));
 
-// 패널은 담당 키 후보·지금 값을 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
-vi.mock(
-  '@src/renderer/editor/document/elementDocumentRuntime',
-  async (importOriginal) =>
-    (
-      await import('@src/renderer/__tests__/treeFromLegacyStores')
-    ).treeFromStores(importOriginal as never),
-);
+// 패널은 담당 키 후보·지금 값을 트리에서 읽는다 - 실제 트리 스토어 아래에 가짜 백엔드를 붙인다
+vi.mock('@api/modules/editor/elementDocumentApi', () => ({
+  elementDocumentApi: new Proxy(
+    {},
+    {
+      get: (_target, name: string) =>
+        (mocks.backend!.api as Record<string, unknown>)[name],
+    },
+  ),
+}));
 
 // 요소 상자(위치·크기)는 resizeSprite op 경로 - 커밋 인자만 검증한다
 vi.mock(
@@ -170,14 +187,78 @@ const spritePosition = (
   ...overrides,
 });
 
-// 스프라이트 패널은 스프라이트 정의의 패널 본문 섹션 - 트리(옛 스토어로 꾸민 장면) 값에 편집 미리보기를 얹어
-// 읽는다. 옛 패널에 넘기던 표시 값이 저장 값과 다르면 그 차이를 편집 미리보기로 얹는다
+// 담당 키 후보 - [슬롯, id] 트리 순서대로
+let keySlots: [string, string][] = [];
+
+const keyNode = ([slot, id]: [string, string], index: number) =>
+  ({
+    type: 'element',
+    id,
+    kind: 'key',
+    frame: { x: index * 70, y: 0, width: 60, height: 60, rotation: 0 },
+    input: { type: 'key', slot },
+    legacy: { index },
+  } as unknown as ElementNode);
+
+// 옛 모양 스프라이트 → 트리 요소 (상자는 틀, 나머지는 스프라이트 고유 값)
+const spriteNode = (
+  {
+    id,
+    dx,
+    dy,
+    width,
+    height,
+    rotation,
+    hidden,
+    layerName,
+    className,
+    useInlineStyles,
+    zIndex: _zIndex,
+    groupId: _groupId,
+    ...values
+  }: CanonicalReactiveSpritePosition,
+  index: number,
+) =>
+  ({
+    type: 'element',
+    id,
+    kind: 'sprite',
+    frame: { x: dx, y: dy, width, height, rotation: rotation ?? 0 },
+    hidden: hidden === true,
+    ...(layerName != null ? { name: layerName } : {}),
+    ...(className != null ? { className } : {}),
+    ...(useInlineStyles != null ? { useInlineStyles } : {}),
+    values,
+    legacy: { index },
+  } as unknown as ElementNode);
+
+const documentOf = (sprites: CanonicalReactiveSpritePosition[]): Document => ({
+  formatVersion: 1,
+  kindVersions: {},
+  scenes: {
+    '4key': {
+      nodes: [...keySlots.map(keyNode), ...sprites.map(spriteNode)],
+    },
+  },
+});
+
+mocks.backend = createFakeElementDocumentBackend(documentOf([]));
+
+// 같은 칸인지 - 빈 칸(null·undefined)은 같다
+const sameField = (left: unknown, right: unknown) =>
+  stableStringify(left ?? null) === stableStringify(right ?? null);
+
+// 스프라이트 패널은 스프라이트 정의의 패널 본문 섹션 - 트리 값에 편집 미리보기를 얹어 읽는다.
+// 옛 패널에 넘기던 표시 값이 저장 값과 다르면 그 차이를 편집 미리보기로 얹는다
 const showDisplay = (position: CanonicalReactiveSpritePosition) => {
   previewOverlay.clearAll();
-  const stored = useSpriteStore
-    .getState()
-    .positions['4key']?.find((candidate) => candidate.id === position.id);
-  if (stored && stableStringify(stored) !== stableStringify(position)) {
+  const stored = currentTreePosition('4key', position.id);
+  if (
+    stored &&
+    Object.entries(position).some(
+      ([field, value]) => !sameField(stored[field], value),
+    )
+  ) {
     previewOverlay.applyLocalPatchByIds(
       'sprite-display',
       '4key',
@@ -220,12 +301,16 @@ describe('SingleSpritePanel 자세 편집', () => {
   };
 
   const seed = (position: CanonicalReactiveSpritePosition) => {
-    useSpriteStore.setState({
-      positions: {
-        '4key': [position, spritePosition({ id: OTHER_SPRITE_ID })],
-      },
-    });
+    act(() =>
+      mocks.backend!.replace(() =>
+        documentOf([position, spritePosition({ id: OTHER_SPRITE_ID })]),
+      ),
+    );
   };
+
+  beforeAll(async () => {
+    await loadElementDocumentStore();
+  });
 
   const buttonByText = (text: string) =>
     [...container.querySelectorAll<HTMLButtonElement>('button')].find(
@@ -313,12 +398,11 @@ describe('SingleSpritePanel 자세 편집', () => {
     mocks.canDecodeImage.mockResolvedValue(true);
     mocks.probeImageSize.mockResolvedValue({ width: 64, height: 32 });
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useLegacyKeyArrays.setState({
-      keyMappings: { '4key': ['A', 'S'] },
-      canonicalPositions: {
-        '4key': [{ id: KEY_ID_A }, { id: KEY_ID_B }],
-      } as never,
-    });
+    keySlots = [
+      ['A', KEY_ID_A],
+      ['S', KEY_ID_B],
+    ];
+    act(() => mocks.backend!.replace(() => documentOf([])));
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -328,7 +412,6 @@ describe('SingleSpritePanel 자세 편집', () => {
     act(() => root.unmount());
     vi.unstubAllGlobals();
     container.remove();
-    useSpriteStore.setState({ positions: {} });
     useSpriteEditPreviewStore.setState({ preview: null });
     previewOverlay.clearAll();
   });
@@ -587,12 +670,11 @@ describe('SingleSpritePanel 자세 편집', () => {
   it('행 메뉴의 복제는 트리거만 비운 사본을 원본 아래에 추가하고 편집 팝업을 연다', async () => {
     const KEY_ID_C = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useLegacyKeyArrays.setState({
-      keyMappings: { '4key': ['A', 'S', 'D'] },
-      canonicalPositions: {
-        '4key': [{ id: KEY_ID_A }, { id: KEY_ID_B }, { id: KEY_ID_C }],
-      } as never,
-    });
+    keySlots = [
+      ['A', KEY_ID_A],
+      ['S', KEY_ID_B],
+      ['D', KEY_ID_C],
+    ];
     const position = spritePosition({
       poses: [
         {
@@ -1276,7 +1358,13 @@ describe('SingleSpritePanel 자세 편집', () => {
     );
     expect(mocks.commitBounds).not.toHaveBeenCalled();
     expect(position).toEqual(initial);
-    expect(useSpriteStore.getState().positions['4key'][0]).toEqual(initial);
+    expect(currentTreePosition('4key', SPRITE_ID)).toMatchObject({
+      dx: initial.dx,
+      dy: initial.dy,
+      rotation: initial.rotation,
+      idleTransform: initial.idleTransform,
+      poses: initial.poses,
+    });
   });
 
   it('배치 회전 입력의 Escape는 90°로 복원하고 자세 변경이나 저장을 남기지 않는다', async () => {
@@ -1315,7 +1403,13 @@ describe('SingleSpritePanel 자세 편집', () => {
     expect(parseFloat(input.value)).toBe(90);
     expect(mocks.patchPosition).not.toHaveBeenCalled();
     expect(mocks.commitBounds).not.toHaveBeenCalled();
-    expect(useSpriteStore.getState().positions['4key'][0]).toEqual(initial);
+    expect(currentTreePosition('4key', SPRITE_ID)).toMatchObject({
+      dx: initial.dx,
+      dy: initial.dy,
+      rotation: initial.rotation,
+      idleTransform: initial.idleTransform,
+      poses: initial.poses,
+    });
   });
 
   it('자세 행 클릭은 자세 팝업을 열어 프리뷰를 발행하고 재클릭은 닫는다', () => {
