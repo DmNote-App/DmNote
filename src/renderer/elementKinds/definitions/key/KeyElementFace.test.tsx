@@ -7,6 +7,8 @@ import { useKeyStore } from '@stores/data/useKeyStore';
 import { slotDisplayName } from '@utils/keySlot';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import KeyElementFace from './KeyElementFace';
+// 편집 화면 미리보기 그리기 등록 (편집 창처럼)
+import '@src/renderer/elementKinds/editorPreviewFaces';
 
 vi.mock('@components/main/Grid/document/treeEditedSelection', () => ({
   useInPanelSelection: () => false,

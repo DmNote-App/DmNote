@@ -51,6 +51,8 @@ const { useEditStatePreviewStore } = await import(
   '@stores/grid/useEditStatePreviewStore'
 );
 const { useKeyStore } = await import('@stores/data/useKeyStore');
+// 편집 화면 미리보기 그리기 등록 (편집 창처럼)
+await import('@src/renderer/elementKinds/editorPreviewFaces');
 
 const IMAGE =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';

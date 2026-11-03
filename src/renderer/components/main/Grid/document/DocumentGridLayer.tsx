@@ -1,5 +1,8 @@
 import React, { useEffect } from 'react';
 
+// 편집 화면 미리보기 그리기 등록 (편집 창만)
+import '@src/renderer/elementKinds/editorPreviewFaces';
+
 import { useLegacyPreviewFrame } from '@src/renderer/elementKinds/runtime/useLegacyPreviewFrame';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
