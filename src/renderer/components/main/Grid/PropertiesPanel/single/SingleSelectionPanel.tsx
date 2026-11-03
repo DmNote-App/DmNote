@@ -291,8 +291,6 @@ export const PluginSelectionPanel: React.FC<PluginSelectionPanelProps> = ({
   );
 };
 
-export { SingleKnobPanel } from './SingleKnobPanel';
-
 // ============================================================================
 // Single Key/Stat Selection Panel
 // ============================================================================

@@ -308,6 +308,9 @@ vi.mock('@hooks/pickers/useGradientColorState', () => ({
 vi.mock('@utils/input/axisEventBus', () => ({
   axisEventBus: { subscribe: () => vi.fn() },
 }));
+vi.mock('@contexts/useTranslation', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 // 그래프 패널은 그래프 정의의 패널 선언 - 트리 요소와 옛 패널 처리기를 대역으로 둔다
 const graphPanel = vi.hoisted(() => ({
   element: null as unknown,
@@ -330,7 +333,6 @@ vi.mock('../document/documentPanelWriter', () => ({
 import ActualStyleTabContent from './StyleTabContent';
 import ActualNoteTabContent from './NoteTabContent';
 import ActualCounterTabContent from './CounterTabContent';
-import { SingleKnobPanel as ActualSingleKnobPanel } from './SingleSelectionPanel';
 import DocumentElementPanel from '../document/DocumentElementPanel';
 import type {
   PanelWriter,
@@ -394,6 +396,10 @@ const renderGraphPanel = (
     commitInactiveImage: vi.fn(),
     commitIdleTransparent: vi.fn(),
     commitIdleImageFit: vi.fn(),
+    commitShadow: vi.fn(),
+    commitActiveImage: vi.fn(),
+    commitActiveTransparent: vi.fn(),
+    commitActiveImageFit: vi.fn(),
     commitGeometry: vi.fn(),
     previewGeometry: vi.fn(),
     ...writer,
@@ -409,9 +415,70 @@ const renderGraphPanel = (
     />
   );
 };
-const SingleKnobPanel = (props: CompatProps<typeof ActualSingleKnobPanel>) => (
-  <ActualSingleKnobPanel {...props} />
-);
+// 노브 패널도 노브 정의의 패널 선언 - 옛 노브 패널 props(옛 위치·처리기)를 트리 요소와 처리기 대역으로 옮긴다
+type Handler = (...args: never[]) => unknown;
+interface LegacyKnobPanelProps {
+  singleKnobPosition: Record<string, unknown>;
+  useCustomCSS?: boolean;
+  onElementPropertyCommit?: (patch: {
+    property: string;
+    value: unknown;
+  }) => unknown;
+  [handler: string]: unknown;
+}
+const SingleKnobPanel = ({
+  singleKnobPosition,
+  useCustomCSS = false,
+  onElementPropertyCommit,
+  ...handlers
+}: LegacyKnobPanelProps) => {
+  const handler = (name: string) =>
+    handlers[name] as Handler | undefined as never;
+  const id = (singleKnobPosition.id as string | undefined) ?? GRAPH_ID;
+  graphPanel.element = {
+    type: 'element',
+    id,
+    kind: 'knob',
+    frame: {
+      x: (singleKnobPosition.dx as number) ?? 0,
+      y: (singleKnobPosition.dy as number) ?? 0,
+      width: (singleKnobPosition.width as number) ?? 60,
+      height: (singleKnobPosition.height as number) ?? 60,
+      rotation: (singleKnobPosition.rotation as number) ?? 0,
+    },
+    // 옛 칸 모양 보기는 옛 칸을 그대로 싣는다
+    legacy: { fields: { ...singleKnobPosition, id } },
+  };
+  graphPanel.writer = {
+    commitField: (field: string, value: unknown) =>
+      onElementPropertyCommit?.({ property: field, value }),
+    previewField: vi.fn(),
+    cancelPreview: vi.fn(),
+    commitPaint: handler('onPaintCommit') ?? vi.fn(),
+    previewPaint: handler('onPaintPreview') ?? vi.fn(),
+    commitStyle: handler('onStylePropertyCommit') ?? vi.fn(),
+    previewStyle: handler('onStylePropertyPreview') ?? vi.fn(),
+    commitShadow: handler('onShadowCommit') ?? vi.fn(),
+    commitInactiveImage: handler('onInactiveImageCommit') ?? vi.fn(),
+    commitIdleTransparent: handler('onIdleTransparentCommit') ?? vi.fn(),
+    commitIdleImageFit: handler('onIdleImageFitCommit') ?? vi.fn(),
+    commitActiveImage: handler('onActiveImageCommit') ?? vi.fn(),
+    commitActiveTransparent: handler('onActiveTransparentCommit') ?? vi.fn(),
+    commitActiveImageFit: handler('onActiveImageFitCommit') ?? vi.fn(),
+    commitGeometry: handler('handleGeometryCommit') ?? vi.fn(),
+    previewGeometry: handler('handleGeometryPreview') ?? vi.fn(),
+  };
+  useSettingsStore.setState({ useCustomCSS });
+  return (
+    <DocumentElementPanel
+      sceneId="4key"
+      elementId={id}
+      panelElement={null}
+      setPanelElement={vi.fn()}
+      t={(key) => key}
+    />
+  );
+};
 
 const shadowSpec = () => ({
   enabled: true,

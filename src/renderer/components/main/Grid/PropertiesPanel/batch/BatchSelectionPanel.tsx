@@ -647,7 +647,4 @@ export const BatchKeyLikePanel: React.FC<BatchKeyLikePanelProps> = ({
   );
 };
 
-export {
-  BatchKnobOnlyPanel,
-  BatchPluginOnlyPanel,
-} from './BatchSpecializedPanels';
+export { BatchPluginOnlyPanel } from './BatchSpecializedPanels';

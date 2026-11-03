@@ -307,7 +307,6 @@ vi.mock('@src/renderer/editor/runtime/gesture/editGestureController', () => ({
 
 import { PanelNavProvider } from '@components/main/Grid/PropertiesPanel/navigation/PanelNavContext';
 import { BatchKeyLikePanel as ActualBatchKeyLikePanel } from '@components/main/Grid/PropertiesPanel/batch/BatchSelectionPanel';
-import { BatchKnobOnlyPanel } from '@components/main/Grid/PropertiesPanel/batch/BatchSelectionPanel';
 import DocumentBatchPanel from '@components/main/Grid/PropertiesPanel/document/DocumentBatchPanel';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { BATCH_STYLE_SOUND_PAGE_KEY } from '@components/main/Grid/PropertiesPanel/batch/style/BatchStyleTabContent';
@@ -348,16 +347,18 @@ type RemovedLegacyPanelProps = {
 type PanelProps = React.ComponentProps<typeof ActualBatchKeyLikePanel> &
   RemovedLegacyPanelProps;
 
-// 그래프 일괄은 그래프 정의의 패널 선언 - 고른 그래프 id로 그린다
-const GraphBatchPanel = ({
+// 그래프·노브 일괄은 그 종류 정의의 패널 선언 - 고른 그 종류 id로 그린다
+const KindBatchPanel = ({
+  kind,
   useCustomCSS = false,
 }: {
+  kind: 'graph' | 'knob';
   useCustomCSS?: boolean;
 }) => {
   useSettingsStore.setState({ useCustomCSS });
   const ids = useDocumentSelectionStore
     .getState()
-    .selectedElements.filter(({ type }) => type === 'graph')
+    .selectedElements.filter(({ type }) => type === kind)
     .map(({ id }) => id);
   return (
     <DocumentBatchPanel
@@ -1349,14 +1350,8 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
     const panel =
       kind === 'mixed' ? (
         <BatchKeyLikePanel {...(shared as unknown as PanelProps)} />
-      ) : kind === 'graph' ? (
-        <GraphBatchPanel useCustomCSS />
       ) : (
-        <BatchKnobOnlyPanel
-          {...(shared as unknown as React.ComponentProps<
-            typeof BatchKnobOnlyPanel
-          >)}
-        />
+        <KindBatchPanel kind={kind} useCustomCSS />
       );
     act(() => {
       root.render(
@@ -2050,14 +2045,8 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
     const panel =
       kind === 'mixed' ? (
         <BatchKeyLikePanel {...(shared as unknown as PanelProps)} />
-      ) : kind === 'graph' ? (
-        <GraphBatchPanel />
       ) : (
-        <BatchKnobOnlyPanel
-          {...(shared as unknown as React.ComponentProps<
-            typeof BatchKnobOnlyPanel
-          >)}
-        />
+        <KindBatchPanel kind={kind} />
       );
     act(() => {
       root.render(
@@ -2075,7 +2064,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       );
     });
     // 선언 패널은 이미지 피커를 버튼으로 연다 - 이미 연 피커(그때 선택에 묶인)는 다시 열지 않는다
-    if (kind === 'graph' && captured.image === null) {
+    if (kind !== 'mixed' && captured.image === null) {
       const configure = [...host.querySelectorAll('button')].find(
         (button) => button.textContent === 'propertiesPanel.configure',
       );
@@ -2371,6 +2360,13 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
           : target.elementType === 'key' || target.elementType === 'knob',
       );
       renderImagePanel(kind, legacy);
+      // 선언 패널은 선택이 바뀌면 편집 영역째 새로 그려 피커가 닫힌다 - 새 선택으로 다시 연다
+      if (kind !== 'mixed') {
+        const configure = [...host.querySelectorAll('button')].find(
+          (button) => button.textContent === 'propertiesPanel.configure',
+        );
+        act(() => configure?.click());
+      }
 
       act(() => {
         if (state === 'idle') {

@@ -1,13 +1,10 @@
-import type {
-  GraphItemPosition,
-  GraphItemPositions,
-} from '@src/types/key/graphItems';
+import type { GraphItemPositions } from '@src/types/key/graphItems';
 import type {
   KeyMappings,
   KeyPosition,
   KeyPositions,
 } from '@src/types/key/keys';
-import type { KnobItemPosition, KnobItemPositions } from '@src/types/key/knobs';
+import type { KnobItemPositions } from '@src/types/key/knobs';
 import type { StatItemPositions } from '@src/types/key/statItems';
 import type {
   CanonicalReactiveSpritePosition,
@@ -227,15 +224,11 @@ export const createBatchSelectionModel = ({
   );
 
   const getSelectedKeysData = () => selectedKeysData;
-  const getSelectedGraphsData = () => selectedGraphsData;
-  const getSelectedKnobsData = () => selectedKnobsData;
   const getSelectedBatchStyleData = () => selectedBatchStyleData;
   const getSelectedKeyOnlyPositions = () => selectedKeyOnlyPositions;
 
   return {
     getSelectedKeysData,
-    getSelectedGraphsData,
-    getSelectedKnobsData,
     getSelectedBatchStyleData,
     getSelectedKeyOnlyPositions,
     getMixedValue: <Value>(
@@ -257,42 +250,6 @@ export const createBatchSelectionModel = ({
         defaultValue,
       );
     },
-    getMixedValueGraphs: <Value>(
-      getter: (position: GraphItemPosition) => Value | undefined,
-      defaultValue: Value,
-    ) =>
-      aggregateMixedValue(
-        getSelectedGraphsData().map((data) => data.position),
-        getter,
-        defaultValue,
-      ),
-    getMixedValueGraphsAsKey: <Value>(
-      getter: (position: KeyPosition) => Value | undefined,
-      defaultValue: Value,
-    ) =>
-      aggregateMixedValue(
-        getSelectedGraphsData().map((data) => data.position),
-        getter,
-        defaultValue,
-      ),
-    getMixedValueKnobs: <Value>(
-      getter: (position: KnobItemPosition) => Value | undefined,
-      defaultValue: Value,
-    ) =>
-      aggregateMixedValue(
-        getSelectedKnobsData().map((data) => data.position),
-        getter,
-        defaultValue,
-      ),
-    getMixedValueKnobsAsKey: <Value>(
-      getter: (position: KeyPosition) => Value | undefined,
-      defaultValue: Value,
-    ) =>
-      aggregateMixedValue(
-        getSelectedKnobsData().map((data) => data.position),
-        getter,
-        defaultValue,
-      ),
     getMixedValueBatch: <Value>(
       getter: (position: KeyPosition) => Value | undefined,
       defaultValue: Value,

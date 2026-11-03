@@ -84,10 +84,11 @@ describe('createBatchSelectionModel', () => {
       model.getSelectedKeysData().map(({ position }) => position.id),
     ).toEqual(['key-1', 'stat-1']);
     expect(model.getSelectedKeysData()[1].keyInfo?.displayName).toBe('Total');
-    expect(model.getSelectedGraphsData()[0].keyInfo?.displayName).toBe(
-      'MAX Graph',
-    );
-    expect(model.getSelectedKnobsData()[0].keyInfo?.displayName).toBe('Knob');
+    expect(
+      model
+        .getSelectedBatchStyleData()
+        .map(({ keyInfo }) => keyInfo?.displayName),
+    ).toEqual(['Total', 'KeyA', 'MAX Graph', 'Knob']);
     expect(
       model.getSelectedBatchStyleData().map(({ position }) => position.id),
     ).toEqual(['stat-1', 'key-1', 'graph-1', 'knob-1']);
@@ -138,12 +139,14 @@ describe('createBatchSelectionModel', () => {
     const model = createBatchSelectionModel(input);
 
     expect(model.getSelectedKeysData()).toBe(model.getSelectedKeysData());
-    expect(model.getSelectedGraphsData()).toBe(model.getSelectedGraphsData());
     expect(
       model.getSelectedKeysData().map(({ position }) => position.id),
     ).toEqual(['key-1', 'stat-1']);
     expect(
-      model.getSelectedGraphsData().map(({ position }) => position.id),
+      model
+        .getSelectedBatchStyleData()
+        .filter(({ position }) => position.id.startsWith('graph'))
+        .map(({ position }) => position.id),
     ).toEqual(['graph-1']);
   });
 

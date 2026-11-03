@@ -1,9 +1,7 @@
 import type { NativeLayerBoundsTarget } from '@plugins/runtime/displayElement/pluginElementActions';
-import type { KnobItemPosition } from '@src/types/key/knobs';
 import type {
   EditorFontFamilyPropertyPatchV1,
   EditorFontStylePropertyPatchV1,
-  EditorKnobRuntimePropertyPatchV1,
   EditorNotePropertyPatchV1,
 } from '@src/types/editor';
 import { TABS } from '../types';
@@ -39,24 +37,6 @@ export const shouldNormalizePropertyTabToStyle = (
     return true;
   }
   return hasGraph && !hasKey && !hasStat;
-};
-
-export const getKnobRuntimePropertyPatch = (
-  updates: Partial<KnobItemPosition>,
-): EditorKnobRuntimePropertyPatchV1 | null => {
-  const keys = Object.keys(updates);
-  if (keys.length !== 1) return null;
-  if (keys[0] === 'reverse' && typeof updates.reverse === 'boolean') {
-    return { property: 'reverse', value: updates.reverse };
-  }
-  if (
-    keys[0] === 'sensitivity' &&
-    typeof updates.sensitivity === 'number' &&
-    Number.isFinite(updates.sensitivity)
-  ) {
-    return { property: 'sensitivity', value: updates.sensitivity };
-  }
-  return null;
 };
 
 export const getUseInlineStylesPatch = (updates: object): boolean | null => {

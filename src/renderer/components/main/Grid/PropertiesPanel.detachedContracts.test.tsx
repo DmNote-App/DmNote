@@ -32,7 +32,6 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const {
   batchKeyLikePropsMock,
-  batchKnobPropsMock,
   batchPluginPropsMock,
   batchPropsMock,
   graphUpdatePositionsMock,
@@ -113,11 +112,9 @@ const {
   settleCommitMock,
   activeGestureIdMock,
   singleKeyStatPropsMock,
-  singleKnobPropsMock,
   reportElementOpSkippedMock,
 } = vi.hoisted(() => ({
   batchKeyLikePropsMock: vi.fn(),
-  batchKnobPropsMock: vi.fn(),
   batchPluginPropsMock: vi.fn(),
   batchPropsMock: vi.fn(),
   graphUpdatePositionsMock: vi.fn(() => Promise.resolve()),
@@ -202,7 +199,6 @@ const {
   settleCommitMock: vi.fn(),
   activeGestureIdMock: vi.fn(() => null as string | null),
   singleKeyStatPropsMock: vi.fn(),
-  singleKnobPropsMock: vi.fn(),
   reportElementOpSkippedMock: vi.fn(),
 }));
 
@@ -343,10 +339,6 @@ vi.mock('./PropertiesPanel/index', async () => {
       </>
     );
   };
-  const SingleKnobPanel = (props: Record<string, unknown>) => {
-    singleKnobPropsMock(props);
-    return <div />;
-  };
   return {
     TABS: { STYLE: 'style', NOTE: 'note', COUNTER: 'counter' },
     PropertyRow: Stub,
@@ -356,14 +348,9 @@ vi.mock('./PropertiesPanel/index', async () => {
     TextInput: Stub,
     LayerPanel: () => <div data-testid="layer-panel" />,
     PluginSelectionPanel: Stub,
-    SingleKnobPanel,
     SingleKeyStatPanel,
     BatchKeyLikePanel: (props: Record<string, unknown>) => {
       batchKeyLikePropsMock(props);
-      return <div />;
-    },
-    BatchKnobOnlyPanel: (props: Record<string, unknown>) => {
-      batchKnobPropsMock(props);
       return <div />;
     },
     BatchPluginOnlyPanel: (props: Record<string, unknown>) => {
@@ -454,7 +441,6 @@ const resetStores = () => {
   activeGestureIdMock.mockReset();
   activeGestureIdMock.mockReturnValue(null);
   singleKeyStatPropsMock.mockClear();
-  batchKnobPropsMock.mockClear();
   batchPluginPropsMock.mockClear();
   batchPropsMock.mockClear();
   batchKeyLikePropsMock.mockClear();
@@ -531,7 +517,6 @@ const resetStores = () => {
   keyLegacyUpdateMock.mockClear();
   legacyBatchStyleCommitMock.mockClear();
   legacyBatchCounterUpdateMock.mockClear();
-  singleKnobPropsMock.mockClear();
   reportElementOpSkippedMock.mockClear();
   statUpdatePositionsMock.mockClear();
   useKeyStore.setState({ selectedKeyType: '4key' });
@@ -605,11 +590,7 @@ describe('PropertiesPanel canonical native contract', () => {
   let mounted: MountedPanel | null;
   let originalWindowType: typeof window.__dmn_window_type;
 
-  const installSingle = (
-    type: 'key' | 'stat' | 'knob',
-    id: string,
-    staleIndex = 0,
-  ) => {
+  const installSingle = (type: 'key' | 'stat', id: string, staleIndex = 0) => {
     const otherId = '99999999-9999-4999-8999-999999999999';
     const base = createDefaultKeyPosition();
     if (type === 'key') {
@@ -622,33 +603,12 @@ describe('PropertiesPanel canonical native contract', () => {
         positions: { '4key': items },
         canonicalPositions: { '4key': items },
       });
-    } else if (type === 'stat') {
+    } else {
       useStatItemStore.setState({
         positions: {
           '4key': [
             { ...base, id: otherId, statType: 'kps' },
             { ...base, id, statType: 'kps' },
-          ],
-        },
-      });
-    } else {
-      useKnobItemStore.setState({
-        positions: {
-          '4key': [
-            {
-              ...base,
-              id: otherId,
-              axisId: 'HIDA:other',
-              sensitivity: 1,
-              reverse: false,
-            },
-            {
-              ...base,
-              id,
-              axisId: 'HIDA:test',
-              sensitivity: 1,
-              reverse: false,
-            },
           ],
         },
       });
@@ -658,11 +618,8 @@ describe('PropertiesPanel canonical native contract', () => {
     });
   };
 
-  const latestSingleProps = (type: 'key' | 'stat' | 'knob') =>
-    (type === 'key' || type === 'stat'
-      ? singleKeyStatPropsMock
-      : singleKnobPropsMock
-    ).mock.lastCall?.[0] as {
+  const latestSingleProps = (_type: 'key' | 'stat') =>
+    singleKeyStatPropsMock.mock.lastCall?.[0] as {
       handleGeometryCommit?: (field: 'dx', value: number) => void;
       handleGeometryPreview?: (field: 'dx', value: number) => void;
       onElementPropertyCommit?: (patch: Record<string, unknown>) => void;
@@ -744,7 +701,6 @@ describe('PropertiesPanel canonical native contract', () => {
   it.each([
     ['key', '11111111-1111-4111-8111-111111111111'],
     ['stat', '22222222-2222-4222-8222-222222222222'],
-    ['knob', '44444444-4444-4444-8444-444444444444'],
   ] as const)(
     'single stable %s geometry는 stale index가 아니라 선택 ID를 쓴다',
     (type, id) => {
@@ -776,7 +732,7 @@ describe('PropertiesPanel canonical native contract', () => {
     );
   });
 
-  it.each(['key', 'stat', 'knob'] as const)(
+  it.each(['key', 'stat'] as const)(
     'invalid %s ID는 semantic과 full-record writer를 모두 막는다',
     (type) => {
       installSingle(type, `${type}-0`, 1);
@@ -793,39 +749,6 @@ describe('PropertiesPanel canonical native contract', () => {
       expect(keyLegacyUpdateMock).not.toHaveBeenCalled();
     },
   );
-
-  it('미지원 knob batch 속성은 full-record 저장 없이 fail-closed로 기록한다', () => {
-    const ids = [
-      '91111111-1111-4111-8111-111111111113',
-      '92222222-2222-4222-8222-222222222224',
-    ];
-    const base = createDefaultKeyPosition();
-    useKnobItemStore.setState({
-      positions: {
-        '4key': ids.map((id, index) => ({
-          ...base,
-          id,
-          axisId: `HIDA:test-${index}`,
-          sensitivity: 1,
-          reverse: false,
-        })),
-      },
-    });
-    useDocumentSelectionStore.setState({
-      selectedElements: ids.map((id, index) => ({ type: 'knob', id, index })),
-    });
-    mounted = mountPanel();
-    const props = batchKnobPropsMock.mock.lastCall?.[0] as {
-      handleKnobBatchSharedSetting?: (updates: { dx: number }) => void;
-    };
-
-    act(() => props.handleKnobBatchSharedSetting?.({ dx: 17 }));
-
-    expect(reportElementOpSkippedMock).toHaveBeenCalledWith(
-      'batch knob property (unsupported payload or invalid target)',
-    );
-    expect(knobUpdatePositionsMock).not.toHaveBeenCalled();
-  });
 
   it('batch geometry는 stable ID target만 한 번 커밋한다', () => {
     const firstId = '71111111-1111-4111-8111-111111111111';

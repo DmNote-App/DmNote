@@ -18,11 +18,9 @@ import {
   TABS,
   LayerPanel,
   PluginSelectionPanel,
-  SingleKnobPanel,
   SingleSpritePanel,
   SingleKeyStatPanel,
   BatchKeyLikePanel,
-  BatchKnobOnlyPanel,
   BatchPluginOnlyPanel,
   PluginSettingsPanelView,
   usePanelScroll,
@@ -125,13 +123,10 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   } = usePropertiesPanelSelection();
   const {
     getSelectedKeysData,
-    getSelectedKnobsData,
     getSelectedBatchStyleData,
     getSelectedKeyOnlyPositions,
     getMixedValue,
     getMixedValueCanonical,
-    getMixedValueKnobs,
-    getMixedValueKnobsAsKey,
     getMixedValueBatch,
     getMixedValueGeometry,
     getMixedValueActiveCapable,
@@ -455,11 +450,9 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const {
     handleBatchElementPropertyCommit,
     handleBatchNoteElementPropertyCommit,
-    handleKnobBatchSharedSetting,
   } = usePropertiesPanelBatchCommitHandlers({
     selectedBatchStyleElements,
     selectedKeyElements,
-    selectedKnobElements,
   });
 
   // 정규화 진단 리포터 — 플러그인·키당 1회만 기록, empty-state 단락 경로의
@@ -600,43 +593,28 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    // 다중 선택인 경우 (노브 요소만)
+    // 다중 선택인 경우 (노브 요소만, 플러그인 요소와 함께) - 노브 정의의 패널 선언
     if (route.kind === 'batchKnobOnly') {
       return (
-        <BatchKnobOnlyPanel
-          setPanelElement={setPanelElement}
-          totalCount={selectionTotalCount}
-          selectedKnobElements={selectedKnobElements}
-          selectedGroupInfo={selectedGroupInfo}
-          isRenaming={isRenaming}
-          renameInputRef={renameInputRef}
-          renameValue={renameValue}
-          setRenameValue={setRenameValue}
-          renameCancelledRef={renameCancelledRef}
-          handleRenameCommit={handleRenameCommit}
-          handleRenameCancel={handleRenameCancel}
-          handleRenameStart={handleRenameStart}
-          handleBatchAlign={handleBatchAlign}
-          handleBatchDistribute={handleBatchDistribute}
-          handleBatchSpacing={handleBatchSpacing}
-          handleBatchSpacingPreview={handleBatchSpacingPreview}
-          handleBatchSpacingCommit={handleBatchSpacingCommit}
-          getBatchSpacingValue={getBatchSpacingValue}
-          handleBatchResize={handleBatchResize}
-          handleBatchResizePreview={handleBatchResizePreview}
-          onElementPropertyCommit={handleBatchElementPropertyCommit}
-          handleKnobBatchSharedSetting={handleKnobBatchSharedSetting}
-          getMixedValueGeometry={getMixedValueGeometry}
-          getMixedValueKnobs={getMixedValueKnobs}
-          getMixedValueKnobsAsKey={getMixedValueKnobsAsKey}
-          getSelectedKnobsData={getSelectedKnobsData}
-          batchScrollRefFor={batchScrollRefFor}
-          batchImageButtonRef={batchImageButtonRef}
-          showBatchImagePicker={showBatchImagePicker}
-          setShowBatchImagePicker={setShowBatchImagePicker}
+        <DocumentBatchPanel
+          sceneId={selectedKeyType}
+          elementIds={selectedKnobElements.map(({ id }) => id)}
           panelElement={panelElement}
-          useCustomCSS={useCustomCSS}
-          selectedKeyType={selectedKeyType}
+          setPanelElement={setPanelElement}
+          scrollRef={batchScrollRefFor(TABS.STYLE)}
+          legacyHost={{
+            totalCount: selectionTotalCount,
+            groupInfo: selectedGroupInfo,
+            geometry: {
+              handleBatchAlign,
+              handleBatchDistribute,
+              handleBatchSpacing,
+              handleBatchSpacingCommit,
+              getBatchSpacingValue,
+              handleBatchResize,
+              handleBatchResizePreview,
+            },
+          }}
           t={t}
         />
       );
@@ -749,80 +727,15 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    // 단일 노브 요소 선택인 경우
-    if (route.kind === 'singleKnob' && singleKnobPosition) {
+    // 단일 노브 요소 선택인 경우 - 노브 정의의 패널 선언
+    if (route.kind === 'singleKnob' && selectedKnobElements[0]) {
       return (
-        <SingleKnobPanel
-          setPanelElement={setPanelElement}
-          singleKnobPosition={singleKnobPosition}
-          selectedKeyType={selectedKeyType}
-          isRenaming={isRenaming}
-          renameInputRef={renameInputRef}
-          renameValue={renameValue}
-          setRenameValue={setRenameValue}
-          renameCancelledRef={renameCancelledRef}
-          handleRenameCommit={handleRenameCommit}
-          handleRenameCancel={handleRenameCancel}
-          handleRenameStart={handleRenameStart}
-          onElementPropertyCommit={stableElementPropertyCommitHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          onInactiveImageCommit={stableInactiveImageHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          onActiveImageCommit={stableActiveImageHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          onIdleTransparentCommit={stableIdleTransparentHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          onActiveTransparentCommit={stableActiveTransparentHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          onIdleImageFitCommit={stableIdleImageFitHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          onActiveImageFitCommit={stableActiveImageFitHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          handleGeometryPreview={stableGeometryPreviewHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          handleGeometryCommit={stableGeometryHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          onStylePropertyCommit={stableStylePropertyCommitHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          onPaintPreview={stablePaintPreviewHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          onPaintCommit={stablePaintCommitHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          onStylePropertyPreview={stableStylePropertyPreviewHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          onShadowCommit={stableShadowCommitHandler(
-            'knob',
-            selectedKnobElements[0]?.id,
-          )}
-          singleScrollRefFor={singleScrollRefFor}
+        <DocumentElementPanel
+          sceneId={selectedKeyType}
+          elementId={selectedKnobElements[0].id}
           panelElement={panelElement}
-          useCustomCSS={useCustomCSS}
+          setPanelElement={setPanelElement}
+          scrollRef={singleScrollRefFor(TABS.STYLE)}
           t={t}
         />
       );

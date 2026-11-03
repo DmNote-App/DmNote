@@ -4,7 +4,6 @@ import {
   geometryAxisPatch,
   getFontFamilyPatch,
   getFontStylePatch,
-  getKnobRuntimePropertyPatch,
   getNotePropertyPatch,
   getStatTypeLabel,
   getUseInlineStylesPatch,
@@ -34,14 +33,6 @@ describe('property panel adapters', () => {
     expect(
       shouldNormalizePropertyTabToStyle([{ type: 'graph' }], TABS.STYLE),
     ).toBe(false);
-  });
-
-  it('knob 런타임 패치를 단일 허용 필드로 제한한다', () => {
-    expect(getKnobRuntimePropertyPatch({ sensitivity: 1.5 })).toEqual({
-      property: 'sensitivity',
-      value: 1.5,
-    });
-    expect(getKnobRuntimePropertyPatch({ sensitivity: Number.NaN })).toBeNull();
   });
 
   it('공통 스타일 패치를 wire 태그 유니온으로 변환한다', () => {

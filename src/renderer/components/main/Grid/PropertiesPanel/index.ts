@@ -32,13 +32,11 @@ export { default as LayerPanel } from './layer/LayerPanel';
 // 분리된 서브 패널 컴포넌트
 export {
   PluginSelectionPanel,
-  SingleKnobPanel,
   SingleKeyStatPanel,
 } from './single/SingleSelectionPanel';
 export { SingleSpritePanel } from './single/SingleSpritePanel';
 export {
   BatchKeyLikePanel,
-  BatchKnobOnlyPanel,
   BatchPluginOnlyPanel,
 } from './batch/BatchSelectionPanel';
 export { default as PluginSettingsPanelView } from './plugin/PluginSettingsPanelView';
