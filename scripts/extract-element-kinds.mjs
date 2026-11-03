@@ -10,6 +10,15 @@ import ts from 'typescript';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const kindsDir = resolve(root, 'src/renderer/elementKinds');
 export const OUTPUT_PATH = resolve(root, 'src-tauri/kinds/builtin-kinds.json');
+// 플러그인 종류 정의의 백엔드 몫 - 종류를 등록하기 전(불러올 때 옮기기)에도 같은 기본 틀 크기를 쓴다
+const PLUGIN_KIND_SOURCE = resolve(
+  root,
+  'src/renderer/plugins/runtime/api/pluginKindSchema.ts',
+);
+export const PLUGIN_KIND_OUTPUT_PATH = resolve(
+  root,
+  'src-tauri/kinds/plugin-kind.json',
+);
 
 const DATA_KEYS = [
   'kind',
@@ -205,21 +214,39 @@ export const extractBuiltinKinds = () =>
     2,
   )}\n`;
 
+export const extractPluginKind = () => {
+  const source = parse(PLUGIN_KIND_SOURCE);
+  const consts = topLevelConsts(source);
+  const fallbackSize = consts.get('PLUGIN_FALLBACK_SIZE');
+  if (!fallbackSize) throw new Error('PLUGIN_FALLBACK_SIZE 없음');
+  return `${JSON.stringify(
+    { fallbackSize: evaluate(source, consts, fallbackSize) },
+    null,
+    2,
+  )}\n`;
+};
+
 const isMain =
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  const output = extractBuiltinKinds();
+  const outputs = [
+    [OUTPUT_PATH, extractBuiltinKinds()],
+    [PLUGIN_KIND_OUTPUT_PATH, extractPluginKind()],
+  ];
   if (process.argv.includes('--check')) {
-    const current = readFileSync(OUTPUT_PATH, 'utf8');
-    if (current !== output) {
-      console.error(
-        '요소 종류 추출 결과가 다릅니다. npm run kinds:extract 후 커밋하세요.',
-      );
-      process.exit(1);
+    for (const [path, output] of outputs) {
+      if (readFileSync(path, 'utf8') !== output) {
+        console.error(
+          '요소 종류 추출 결과가 다릅니다. npm run kinds:extract 후 커밋하세요.',
+        );
+        process.exit(1);
+      }
     }
   } else {
-    writeFileSync(OUTPUT_PATH, output);
-    console.info(`저장: ${OUTPUT_PATH}`);
+    for (const [path, output] of outputs) {
+      writeFileSync(path, output);
+      console.info(`저장: ${path}`);
+    }
   }
 }

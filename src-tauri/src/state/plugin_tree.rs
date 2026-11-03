@@ -19,8 +19,22 @@ const ENTRY: &str = "pluginEntry";
 const ORDER: &str = "order";
 // 장면 밖에 보존한 항목 - {pluginId: [{order, entry}] | {raw}}
 const REST: &str = "pluginInstanceRest";
-// 측정 크기가 없을 때 - 크기 조절 플러그인의 기본 크기
-const DEFAULT_SIZE: (f64, f64) = (200.0, 150.0);
+// 플러그인 종류 정의(src/renderer/plugins/runtime/api/pluginKindSchema.ts)에서 뽑은 백엔드 몫
+const PLUGIN_KIND_JSON: &str = include_str!("../../kinds/plugin-kind.json");
+
+// 측정 크기가 없을 때의 틀 - 플러그인 종류 정의의 기본 틀 크기 (등록 전에도 같은 값)
+fn default_size() -> (f64, f64) {
+    static SIZE: std::sync::OnceLock<(f64, f64)> = std::sync::OnceLock::new();
+    *SIZE.get_or_init(|| {
+        let kind: Value =
+            serde_json::from_str(PLUGIN_KIND_JSON).expect("플러그인 종류 정의가 올바르지 않음");
+        let size = &kind["fallbackSize"];
+        (
+            number(size, "width").expect("플러그인 기본 틀 너비 없음"),
+            number(size, "height").expect("플러그인 기본 틀 높이 없음"),
+        )
+    })
+}
 
 pub(crate) fn plugin_kind(plugin_id: &str) -> String {
     format!("{EXTERNAL_KIND_PREFIX}{plugin_id}")
@@ -175,7 +189,7 @@ fn placeable(
     let (width, height) = entry
         .get("measuredSize")
         .and_then(|size| Some((number(size, "width")?, number(size, "height")?)))
-        .unwrap_or(DEFAULT_SIZE);
+        .unwrap_or_else(default_size);
     let tab = normalize_plugin_instance_tab_id(entry.get("tabId").and_then(Value::as_str));
     let values = entry
         .get("settings")
@@ -361,7 +375,7 @@ fn sync_entry_fields(
     let size = entry
         .get("measuredSize")
         .and_then(|size| Some((number(size, "width")?, number(size, "height")?)))
-        .unwrap_or(DEFAULT_SIZE);
+        .unwrap_or_else(default_size);
     if size != (frame.width, frame.height) {
         entry.insert(
             "measuredSize".into(),

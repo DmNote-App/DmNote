@@ -64,7 +64,7 @@ const pluginNodes = (view: TreeView, pluginId: string) => {
   return found;
 };
 
-// 측정 크기가 없던 인스턴스는 기본 크기 틀이다 (백엔드 버킷 ↔ 트리와 같은 규칙)
+// 측정 크기가 없던 인스턴스는 기본 크기 틀이다 (백엔드 버킷 ↔ 트리와 같은 규칙, 기본 크기는 종류 정의 하나)
 const measuredSizeOf = (node: ElementNode) => {
   const { width, height } = node.frame;
   const measured =

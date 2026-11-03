@@ -6,8 +6,11 @@ import { describe, expect, it } from 'vitest';
 import {
   extractBuiltinKinds,
   extractDefinition,
+  extractPluginKind,
   OUTPUT_PATH,
+  PLUGIN_KIND_OUTPUT_PATH,
 } from '../scripts/extract-element-kinds.mjs';
+import { PLUGIN_FALLBACK_SIZE } from '../src/renderer/plugins/runtime/api/pluginKindSchema';
 import { BUILTIN_ELEMENT_KINDS } from '../src/renderer/elementKinds/builtinKinds';
 import { elementKindData } from '../src/renderer/elementKinds/defineElementKind';
 import { EDITOR_ELEMENT_TYPES, isEditorElementType } from '../src/types/editor';
@@ -19,6 +22,15 @@ import { DEFAULT_SPRITE_SIZE } from '../src/types/key/sprites';
 describe('요소 종류 정의 추출', () => {
   it('커밋된 추출 결과가 정의 파일과 같다', () => {
     expect(readFileSync(OUTPUT_PATH, 'utf8')).toBe(extractBuiltinKinds());
+  });
+
+  it('플러그인 종류의 기본 틀 크기는 정의 파일 하나에서 뽑아 Rust가 같은 값을 읽는다', () => {
+    expect(readFileSync(PLUGIN_KIND_OUTPUT_PATH, 'utf8')).toBe(
+      extractPluginKind(),
+    );
+    expect(JSON.parse(extractPluginKind())).toEqual({
+      fallbackSize: PLUGIN_FALLBACK_SIZE,
+    });
   });
 
   it('구문 트리로 읽은 데이터가 실행 시 정의와 같다', () => {
