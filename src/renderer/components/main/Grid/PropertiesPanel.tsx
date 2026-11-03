@@ -356,6 +356,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       selectedKeyLikeElementsLength: selectedKeyLikeElements.length,
       selectedBatchGeometryElementsLength: selectedBatchGeometryElements.length,
       selectedPluginElementsLength: selectedPluginElements.length,
+      documentSelectedIds,
       pluginSettingsPanel,
       closePage,
       setShowImagePicker,

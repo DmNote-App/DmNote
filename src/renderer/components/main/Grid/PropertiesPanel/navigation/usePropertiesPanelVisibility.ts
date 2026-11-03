@@ -15,6 +15,8 @@ interface UsePropertiesPanelVisibilityOptions {
   selectedKeyLikeElementsLength: number;
   selectedBatchGeometryElementsLength: number;
   selectedPluginElementsLength: number;
+  // 트리 선택 - 옛 선택 모양에 들지 않는 트리에만 있는 종류도 선택이다
+  documentSelectedIds: readonly string[];
   pluginSettingsPanel: object | null;
   closePage: () => void;
   setShowImagePicker: (visible: boolean) => void;
@@ -36,6 +38,7 @@ export const usePropertiesPanelVisibility = ({
   selectedKeyLikeElementsLength,
   selectedBatchGeometryElementsLength,
   selectedPluginElementsLength,
+  documentSelectedIds,
   pluginSettingsPanel,
   closePage,
   setShowImagePicker,
@@ -61,7 +64,9 @@ export const usePropertiesPanelVisibility = ({
 
   useEffect(() => {
     const hasSelection =
-      selectedKeyElementsLength > 0 || selectedElements.length > 0;
+      selectedKeyElementsLength > 0 ||
+      selectedElements.length > 0 ||
+      documentSelectedIds.length > 0;
     const hadSelection = prevHasSelectionRef.current;
 
     if (pluginSettingsPanel) {
@@ -110,6 +115,7 @@ export const usePropertiesPanelVisibility = ({
     singleKeyIndex,
     selectedKeyElementsLength,
     selectedElements,
+    documentSelectedIds,
     isPanelVisible,
     pluginSettingsPanel,
     setIsPanelVisible,
@@ -127,7 +133,8 @@ export const usePropertiesPanelVisibility = ({
       !pluginSettingsPanel &&
       panelMode === 'property' &&
       selectedKeyElementsLength === 0 &&
-      selectedElements.length === 0
+      selectedElements.length === 0 &&
+      documentSelectedIds.length === 0
     ) {
       setPanelMode('layer');
     }
@@ -137,6 +144,7 @@ export const usePropertiesPanelVisibility = ({
     panelMode,
     selectedKeyElementsLength,
     selectedElements,
+    documentSelectedIds,
     setPanelMode,
   ]);
 
@@ -167,7 +175,9 @@ export const usePropertiesPanelVisibility = ({
 
   useEffect(() => {
     const hasSelection =
-      selectedKeyElementsLength > 0 || selectedElements.length > 0;
+      selectedKeyElementsLength > 0 ||
+      selectedElements.length > 0 ||
+      documentSelectedIds.length > 0;
     if (frameVariant === 'window' || !isPanelVisible || hasSelection) {
       return undefined;
     }
@@ -205,6 +215,7 @@ export const usePropertiesPanelVisibility = ({
     selectedKeyElementsLength,
     selectedKeyLikeElementsLength,
     selectedElements.length,
+    documentSelectedIds.length,
     setIsPanelVisible,
   ]);
 
@@ -216,7 +227,8 @@ export const usePropertiesPanelVisibility = ({
     if (willOpen) {
       manuallyClosedRef.current = false;
       setIsPanelVisible(true);
-      const hasSelection = selectedElements.length > 0;
+      const hasSelection =
+        selectedElements.length > 0 || documentSelectedIds.length > 0;
       if (!hasSelection) setPanelMode('layer');
     } else {
       manuallyClosedRef.current = true;
