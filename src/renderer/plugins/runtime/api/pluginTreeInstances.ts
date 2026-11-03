@@ -2,8 +2,10 @@
 // 읽기는 장면의 플러그인 노드를 저장 모양으로, 쓰기는 런타임이 바꾼 칸만 트리 연산으로 옮긴다.
 // 탭·겹침값·그룹을 바꾸면 빼고 다시 넣는다 - 자리는 노드가 든 자기 항목의 값으로 백엔드가 정한다
 // (인스턴스 목록 쓰기와 같은 놓기)
+import { applyLocalOps } from '@src/renderer/editor/document/documentLocalOps';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import type {
+  Document,
   JsonValue,
   Node,
   Op,
@@ -278,9 +280,26 @@ export const pluginInstanceOps = (
   return ops;
 };
 
+const documentOf = (view: TreeView): Document => ({
+  formatVersion: 1,
+  kindVersions: {},
+  scenes: Object.fromEntries(
+    view.getSceneIds().flatMap((sceneId) => {
+      const scene = view.getScene(sceneId);
+      return scene ? [[sceneId, scene]] : [];
+    }),
+  ),
+});
+
+const viewOf = (document: Document): TreeView => ({
+  getSceneIds: () => Object.keys(document.scenes),
+  getScene: (sceneId) => document.scenes[sceneId],
+});
+
 /** 백엔드가 자리를 정하는 다시 넣기 - 겹침값을 실은 플러그인 노드를 index 없이 넣는 연산과 그 노드의 빼기.
- * 그대로 화면에 얹으면 장면·그룹 맨 위에 놓였다가 패치로 제자리에 가 튀므로, 화면에는 같은 부모면 지금 자리에
- * 다시 넣는 연산(`placedLocal` - 바뀐 값은 바로 보인다)을 얹고 자리는 패치로 받는다 (놓기 규칙을 TS에 두지 않는다).
+ * 그대로 화면에 얹으면 장면·그룹 맨 위에 놓였다가 패치로 제자리에 가 튀므로, 화면에는 같은 부모면 빼기 직전
+ * 자리에 다시 넣는 연산(`placedLocal` - 바뀐 값은 바로 보인다)을 얹고 자리는 패치로 받는다 (놓기 규칙을 TS에 두지 않는다).
+ * 빼기 직전 자리는 화면에 먼저 얹히는 이어 붙이는 편집(`local`)과 앞의 다시 넣기를 적용한 뒤 기준이다.
  * 겹침값 없는 넣기는 맨 위라 백엔드 놓기와 같아 그대로 얹는다 */
 export const splitBackendPlacedOps = (
   view: TreeView,
@@ -301,15 +320,27 @@ export const splitBackendPlacedOps = (
     (op.op === 'insert' && placedIds.has(op.node.id)) ||
     (op.op === 'remove' && op.ids.some((id) => placedIds.has(id)));
   const placed = ops.filter(isPlaced);
-  const nodes = pluginNodes(view, pluginId);
+  const local = ops.filter((op) => !isPlaced(op));
+  let document = applyLocalOps(documentOf(view), local);
+  const removedAt = new Map<string, PluginNode>();
   const placedLocal = placed.map((op) => {
-    if (op.op !== 'insert') return op;
-    const found = nodes.get(op.node.id);
-    return found &&
+    if (op.op === 'remove') {
+      const nodes = pluginNodes(viewOf(document), pluginId);
+      for (const id of op.ids) {
+        const found = nodes.get(id);
+        if (found) removedAt.set(id, found);
+      }
+    }
+    const found = op.op === 'insert' ? removedAt.get(op.node.id) : undefined;
+    const shown =
+      op.op === 'insert' &&
+      found &&
       found.sceneId === op.scene &&
       (found.parentId ?? null) === op.parent
-      ? { ...op, index: found.index }
-      : op;
+        ? { ...op, index: found.index }
+        : op;
+    document = applyLocalOps(document, [shown]);
+    return shown;
   });
-  return { placed, placedLocal, local: ops.filter((op) => !isPlaced(op)) };
+  return { placed, placedLocal, local };
 };

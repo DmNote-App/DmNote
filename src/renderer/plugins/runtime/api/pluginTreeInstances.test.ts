@@ -364,6 +364,43 @@ describe('백엔드가 자리를 정하는 다시 넣기', () => {
     expect(placed.length + local.length).toBe(ops.length);
   });
 
+  it('화면 자리는 같은 묶음에서 먼저 얹히는 연산(이어 붙이는 편집, 앞의 다시 넣기)을 적용한 뒤 기준이다', () => {
+    const three = view({
+      '4key': ['a', 'b', 'c'].map((id, order) =>
+        plugin(id, box, {
+          legacy: { pluginEntry: { instanceId: id, tabId: '4key' }, order },
+        }),
+      ),
+      '5key': [],
+    });
+    const all = new Map([saved('a'), saved('b'), saved('c')]);
+    const localIndexOf = (next: Map<string, SavedInstance>) =>
+      splitBackendPlacedOps(
+        three,
+        'demo',
+        pluginInstanceOps(three, 'demo', all, next),
+      ).placedLocal.flatMap((op) =>
+        op.op === 'insert' ? [[op.node.id, op.index]] : [],
+      );
+    // 아래 형제 a를 지우면(이어 붙이는 편집이 먼저 얹힌다) b는 한 칸 내려온 자리
+    expect(
+      localIndexOf(new Map([saved('b', { zIndex: 5 }), saved('c')])),
+    ).toEqual([['demo::b', 0]]);
+    // 앞의 다시 넣기가 같은 부모를 떠나도 같다
+    expect(
+      localIndexOf(
+        new Map([
+          saved('a', { tabId: '5key', zIndex: 1 }),
+          saved('b', { zIndex: 5 }),
+          saved('c'),
+        ]),
+      ),
+    ).toEqual([
+      ['demo::a', null],
+      ['demo::b', 0],
+    ]);
+  });
+
   it('겹침값을 실은 다시 넣기가 없으면 그대로 돌려준다', () => {
     const ops = pluginInstanceOps(
       scenes,
