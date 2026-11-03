@@ -2229,7 +2229,7 @@ fn 트리에서_플러그인_노드를_옮기면_항목_겹침값을_다시_적�
         store.plan_element_document_commit(&ops, None).unwrap(),
         ElementDocumentCommitPlan::TreeOrderOnly
     ));
-    let (result, plugin_changes) = store
+    let result = store
         .commit_element_document_tree(&ops, false, None)
         .unwrap();
     assert!(matches!(
@@ -2237,9 +2237,6 @@ fn 트리에서_플러그인_노드를_옮기면_항목_겹침값을_다시_적�
         ElementDocumentCommitResult::Committed { .. }
     ));
     assert!(store.plugin_model_revision() > revision);
-    assert_eq!(plugin_changes.len(), 1);
-    assert_eq!(plugin_changes[0].plugin_id, "demo");
-    assert_eq!(plugin_changes[0].revision, store.plugin_model_revision());
     // 맨 아래 옛 종류보다 낮은 값 - 다시 놓아도 맨 아래
     assert!(demo_entry(&store)["zIndex"].is_number());
     assert_eq!(
@@ -2295,17 +2292,9 @@ fn 플러그인_노드를_옛_종류와_한_그룹으로_묶으면_항목이_그
     else {
         panic!("옛 편집 커밋이어야 한다");
     };
-    let change = store.commit_editor_document(*request).unwrap();
+    store.commit_editor_document(*request).unwrap();
     assert_eq!(demo_entry(&store)["groupId"], serde_json::json!("mixed"));
     assert!(store.plugin_model_revision() > revision);
-    assert_eq!(
-        change
-            .plugin_instances_changes
-            .iter()
-            .map(|change| change.plugin_id.as_str())
-            .collect::<Vec<_>>(),
-        vec!["demo"]
-    );
     assert_eq!(
         store.element_document_snapshot().1.scenes["4key"].parent_of(&id),
         Some(Some("mixed".to_string()))
@@ -2377,7 +2366,7 @@ fn move_demo(
         { "op": "move", "scene": "4key", "ids": [id], "parent": null, "index": index }
     ]))
     .unwrap();
-    let (result, _) = store
+    let result = store
         .commit_element_document_tree(&ops, false, gesture)
         .unwrap();
     assert!(matches!(
@@ -2701,14 +2690,13 @@ fn 트리에서_플러그인_노드를_옮기고_숨기면_인스턴스_위치_�
         { "op": "setCommon", "scene": "4key", "id": id, "hidden": true }
     ]))
     .unwrap();
-    let (result, plugin_changes) = store
+    let result = store
         .commit_element_document_tree(&ops, true, None)
         .unwrap();
     assert!(matches!(
         result,
         ElementDocumentCommitResult::Committed { .. }
     ));
-    assert_eq!(plugin_changes.len(), 1);
     assert!(store.plugin_model_revision() > revision);
     let entry = demo_entry(&store);
     assert_eq!(
@@ -2745,8 +2733,9 @@ fn 옛_종류와_플러그인_노드를_한_트리_커밋으로_옮기면_둘_�
     else {
         panic!("옛 편집 커밋이어야 한다");
     };
-    let change = store.commit_editor_document(*request).unwrap();
-    assert_eq!(change.plugin_instances_changes.len(), 1);
+    let plugin_revision = store.plugin_model_revision();
+    store.commit_editor_document(*request).unwrap();
+    assert!(store.plugin_model_revision() > plugin_revision);
     assert_eq!(
         store.snapshot().legacy().key_positions["4key"][0].dx,
         key_x + 7.0
@@ -2756,34 +2745,6 @@ fn 옛_종류와_플러그인_노드를_한_트리_커밋으로_옮기면_둘_�
     undo(&store).unwrap();
     assert_eq!(store.snapshot().legacy().key_positions["4key"][0].dx, key_x);
     assert_eq!(demo_entry(&store)["position"]["x"].as_f64(), Some(0.0));
-    store.flush_and_shutdown().unwrap();
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn 트리_쓰기가_바꾼_플러그인_알림은_동작_id를_출처로_싣는다() {
-    let (dir, store) = open_store();
-    write_demo_bucket(
-        &store,
-        serde_json::json!([{ "instanceId": PLUGIN_INSTANCE, "position": { "x": 0, "y": 0 }, "tabId": "4key" }]),
-    );
-    let ops: Vec<Op> = serde_json::from_value(serde_json::json!([
-        { "op": "setFrame", "scene": "4key", "id": format!("demo::{PLUGIN_INSTANCE}"), "frame": { "x": 7 } }
-    ]))
-    .unwrap();
-    let gesture = uuid::Uuid::new_v4().to_string();
-    let (result, plugin_changes) = store
-        .commit_element_document_tree(&ops, true, Some(gesture.clone()))
-        .unwrap();
-    assert!(matches!(
-        result,
-        ElementDocumentCommitResult::Committed { .. }
-    ));
-    assert_eq!(plugin_changes.len(), 1);
-    assert_eq!(
-        plugin_changes[0].origin_mutation_id.as_deref(),
-        Some(gesture.as_str())
-    );
     store.flush_and_shutdown().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -2856,14 +2817,15 @@ fn 트리_연산으로_플러그인_노드를_넣으면_인스턴스가_생기�
         !matches!(plan, ElementDocumentCommitPlan::Rejected(_)),
         "플러그인 노드 넣기는 받아들여야 한다"
     );
-    let (result, plugin_changes) = store
+    let plugin_revision = store.plugin_model_revision();
+    let result = store
         .commit_element_document_tree(&ops, false, None)
         .unwrap();
     assert!(matches!(
         result,
         ElementDocumentCommitResult::Committed { .. }
     ));
-    assert_eq!(plugin_changes.len(), 1);
+    assert!(store.plugin_model_revision() > plugin_revision);
     let entry = demo_entry(&store);
     assert_eq!(entry["instanceId"], serde_json::json!(PLUGIN_INSTANCE));
     assert_eq!(entry["tabId"], serde_json::json!("4key"));
@@ -2910,14 +2872,15 @@ fn 플러그인_노드를_빼고_겹침값을_든_자기_항목으로_다시_넣
         store.plan_element_document_commit(&ops, None).unwrap(),
         ElementDocumentCommitPlan::TreeOrderOnly
     ));
-    let (result, plugin_changes) = store
+    let plugin_revision = store.plugin_model_revision();
+    let result = store
         .commit_element_document_tree(&ops, false, None)
         .unwrap();
     assert!(matches!(
         result,
         ElementDocumentCommitResult::Committed { .. }
     ));
-    assert_eq!(plugin_changes.len(), 1);
+    assert!(store.plugin_model_revision() > plugin_revision);
     // zIndex 100인 첫 키 바로 위, 101인 둘째 키 아래
     let document = store.element_document_snapshot().1;
     let snapshot = store.snapshot();

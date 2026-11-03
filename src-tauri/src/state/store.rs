@@ -15,8 +15,7 @@ use crate::models::{
     CustomCssPatch, CustomJsPatch, EditorCommitOrigin, EditorCommitRequest, EditorCommitResult,
     EditorCommittedV1, EditorDocumentV1, EditorField, EditorGetResult, EditorOpResultStatusV1,
     EditorOpResultV1, EditorTransactionResult, HistoryStatus, KeyCounters, KeyMappings,
-    NoteSettingsPatch, PluginInstancesChangedPayload, SettingsDiff, SettingsPatchInput,
-    SettingsState, EDITOR_SCHEMA_VERSION,
+    NoteSettingsPatch, SettingsDiff, SettingsPatchInput, SettingsState, EDITOR_SCHEMA_VERSION,
 };
 use anyhow::{anyhow, Context, Result};
 use parking_lot::{RwLock, RwLockWriteGuard};
@@ -148,8 +147,6 @@ pub(crate) enum HistoryAuxChange {
     CustomTabs {
         snapshot: Box<CustomTabsHistorySnapshot>,
         changed_tab_css_ids: Vec<String>,
-        plugin_ids: Vec<String>,
-        revision: u64,
     },
     PresetFull {
         snapshot: Box<PresetFullHistorySnapshot>,
@@ -158,28 +155,15 @@ pub(crate) enum HistoryAuxChange {
     },
     Mode(String),
     Counters(KeyCounters),
-    PluginElements {
-        plugin_id: String,
-        revision: u64,
-    },
-    PluginElementsBatch {
-        plugin_ids: Vec<String>,
-        revision: u64,
-    },
+    // 플러그인 인스턴스(트리 장면)가 바뀌었을 수 있는 되돌리기 - 트리 변경을 보낸다
+    PluginElements,
 }
 
 #[derive(Debug)]
 pub(crate) struct AdmittedPluginStorageMutation<T> {
     pub(crate) value: T,
     pub(crate) history_status: Option<HistoryStatus>,
-    pub(crate) plugin_instances_changes: Vec<PluginInstancesStorageChange>,
     _admission: HistoryAdmissionLease,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PluginInstancesStorageChange {
-    pub(crate) plugin_id: String,
-    pub(crate) revision: u64,
 }
 
 #[derive(Debug)]

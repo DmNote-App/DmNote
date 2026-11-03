@@ -45,13 +45,3 @@ pub struct SavedPluginInstance {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group_id: Option<String>,
 }
-
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct PluginInstancesChangedPayload {
-    pub plugin_id: String,
-    pub revision: u64,
-    // commit 발신 mutation id - undo/redo 복원 이벤트는 None (self-echo 구분용)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub origin_mutation_id: Option<String>,
-}

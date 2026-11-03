@@ -162,7 +162,6 @@ impl AppStore {
                 selected_key_type: guard.data.selected_key_type.clone(),
                 key_counters: guard.data.key_counters.clone(),
                 history_status: None,
-                plugin_instances_changes: Vec::new(),
                 runtime_publication_generation: guard.revision,
             });
         }
@@ -314,7 +313,6 @@ impl AppStore {
                 selected_key_type: current_store.selected_key_type,
                 key_counters: current_store.key_counters,
                 history_status: None,
-                plugin_instances_changes: Vec::new(),
                 runtime_publication_generation: guard.revision,
             });
         }
@@ -425,8 +423,6 @@ impl AppStore {
                 .apply_editor_record_plan(plan, &candidate, &tree, &plugins);
             guard.history.issue_status(self.history_gate.is_closed())
         });
-        // 트리 쓰기가 옛 모양 경로로 온 플러그인 노드 편집의 알림 - 창이 동작 id로 자기 편집을 알아본다
-        let plugin_origin = options.gesture_id.clone();
         let event = options.origin.event_name().map(|origin| EditorCommittedV1 {
             schema_version: EDITOR_SCHEMA_VERSION,
             revision,
@@ -450,14 +446,6 @@ impl AppStore {
             selected_key_type,
             key_counters,
             history_status,
-            plugin_instances_changes: changed_plugins
-                .into_iter()
-                .map(|plugin_id| PluginInstancesChangedPayload {
-                    plugin_id,
-                    revision: plugin_model_revision,
-                    origin_mutation_id: plugin_origin.clone(),
-                })
-                .collect(),
             runtime_publication_generation: guard.revision,
         })
     }

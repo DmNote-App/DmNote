@@ -9,7 +9,6 @@ use crate::{
             emit_best_effort, emit_element_collections_changed, publish_editor_change,
             publish_editor_change_after_key_runtime, publish_legacy_editor_change,
         },
-        plugin::instances::publish_plugin_instances_changed,
         run_blocking, run_history_mutation,
     },
     defaults::{default_keys, default_positions, default_stat_positions},
@@ -89,10 +88,7 @@ fn emit_aux_history_status(app: &AppHandle, change: &CommittedEditorChange) {
     }
 }
 
-fn publish_reset_plugin_instances(app: &AppHandle, change: &CommittedEditorChange) {
-    for payload in &change.plugin_instances_changes {
-        publish_plugin_instances_changed(app, payload);
-    }
+fn publish_reset_plugin_instances(app: &AppHandle) {
     // 인스턴스는 트리 장면에 있다 - 창들이 트리로 따라온다
     publish_element_document_changes(app);
 }
@@ -711,7 +707,7 @@ fn keys_reset_all_inner(
     }
     drop(css_operation_guard);
     publish_legacy_reset_editor_change(state, app, &transaction.change, key_runtime_applied);
-    publish_reset_plugin_instances(app, &transaction.change);
+    publish_reset_plugin_instances(app);
 
     let (settings_diff, cleared_tab_css_ids) = transaction.value;
     let document = transaction.change.document;
@@ -813,7 +809,7 @@ fn keys_reset_mode_inner(
         });
     };
     publish_legacy_reset_editor_change(state, app, &transaction.change, key_runtime_applied);
-    publish_reset_plugin_instances(app, &transaction.change);
+    publish_reset_plugin_instances(app);
 
     if cleared_tab_css {
         state.unwatch_tab_css(&mode);

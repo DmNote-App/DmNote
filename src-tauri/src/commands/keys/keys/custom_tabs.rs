@@ -302,7 +302,7 @@ fn custom_tabs_delete_inner(
     } else {
         publish_editor_change(state, app, &transaction.change, false);
     }
-    publish_reset_plugin_instances(app, &transaction.change);
+    publish_reset_plugin_instances(app);
     state.unwatch_tab_css(&id);
 
     emit_best_effort(

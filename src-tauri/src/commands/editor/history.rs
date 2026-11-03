@@ -2,12 +2,9 @@ use tauri::{AppHandle, Manager};
 
 use crate::{
     commands::preset::PresetSnapshot,
-    commands::{
-        keys::keys::CustomTabChangePayload, plugin::instances::publish_plugin_instances_changed,
-        run_blocking, run_mutation,
-    },
+    commands::{keys::keys::CustomTabChangePayload, run_blocking, run_mutation},
     errors::{CmdResult, CommandError},
-    models::{AppStoreData, CustomCss, CustomJs, HistoryStatus, PluginInstancesChangedPayload},
+    models::{AppStoreData, CustomCss, CustomJs, HistoryStatus},
     services::{event_publisher::publish_element_document_changes, preview_broker::PreviewBroker},
     state::{
         history::{
@@ -179,8 +176,8 @@ fn run_history_operation(
                     counters,
                 );
             }
-            Some(HistoryAuxChange::PluginElements { .. }) => {}
-            Some(HistoryAuxChange::PluginElementsBatch { .. }) | None => {
+            // 플러그인 하나만 되돌린 기록은 옛 편집 변경이 없다 - 섞인 기록의 옛 편집 변경만 키 런타임에 반영
+            Some(HistoryAuxChange::PluginElements) | None => {
                 if let Some(change) = committed_change {
                     counters_restored =
                         state.apply_history_editor_key_runtime_locked(&mut counter_guard, change);
@@ -247,8 +244,6 @@ fn publish_history_aux_change(
         Some(HistoryAuxChange::CustomTabs {
             snapshot,
             changed_tab_css_ids,
-            plugin_ids,
-            revision,
         }) => {
             let restored_store = state.store.snapshot();
             emit_best_effort(
@@ -279,16 +274,6 @@ fn publish_history_aux_change(
                     &crate::commands::editor::css::TabCssResponse {
                         tab_id: tab_id.clone(),
                         css: restored_store.tab_css_overrides.get(tab_id).cloned(),
-                    },
-                );
-            }
-            for plugin_id in plugin_ids {
-                publish_plugin_instances_changed(
-                    app,
-                    &PluginInstancesChangedPayload {
-                        plugin_id: plugin_id.clone(),
-                        revision: *revision,
-                        origin_mutation_id: None,
                     },
                 );
             }
@@ -358,35 +343,8 @@ fn publish_history_aux_change(
         Some(HistoryAuxChange::Counters(_)) => {
             state.obs_broadcast_counters();
         }
-        Some(HistoryAuxChange::PluginElements {
-            plugin_id,
-            revision,
-        }) => {
-            publish_plugin_instances_changed(
-                app,
-                &PluginInstancesChangedPayload {
-                    plugin_id: plugin_id.clone(),
-                    revision: *revision,
-                    origin_mutation_id: None,
-                },
-            );
+        Some(HistoryAuxChange::PluginElements) => {
             // 인스턴스는 트리 장면에 있다 - 창들이 트리로 따라온다
-            publish_element_document_changes(app);
-        }
-        Some(HistoryAuxChange::PluginElementsBatch {
-            plugin_ids,
-            revision,
-        }) => {
-            for plugin_id in plugin_ids {
-                publish_plugin_instances_changed(
-                    app,
-                    &PluginInstancesChangedPayload {
-                        plugin_id: plugin_id.clone(),
-                        revision: *revision,
-                        origin_mutation_id: None,
-                    },
-                );
-            }
             publish_element_document_changes(app);
         }
         None => {}

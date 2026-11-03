@@ -2,18 +2,10 @@ use serde_json::Value;
 use tauri::{AppHandle, WebviewWindow};
 
 use crate::{
-    commands::{
-        editor::state::emit_best_effort,
-        plugin::instances::{publish_plugin_instances_changed, PluginInstancesEventEmitter},
-        run_blocking, run_history_mutation,
-    },
+    commands::{editor::state::emit_best_effort, run_blocking, run_history_mutation},
     errors::CmdResult,
-    models::PluginInstancesChangedPayload,
     services::event_publisher::publish_element_document_changes,
-    state::{
-        plugin::{plugin_instances_storage_key, validate_plugin_id, PLUGIN_DATA_KEY_PREFIX},
-        store::PluginInstancesStorageChange,
-    },
+    state::plugin::{plugin_instances_storage_key, validate_plugin_id, PLUGIN_DATA_KEY_PREFIX},
 };
 
 /// 플러그인 스토리지 키 생성 (네임스페이스 자동 적용)
@@ -25,22 +17,6 @@ fn canonical_instances_key_for_full_namespace(prefix: &str) -> Option<String> {
     let plugin_id = prefix.strip_suffix('/')?;
     validate_plugin_id(plugin_id).ok()?;
     Some(plugin_instances_storage_key(plugin_id))
-}
-
-fn publish_plugin_instances_deletions(
-    emitter: &dyn PluginInstancesEventEmitter,
-    changes: &[PluginInstancesStorageChange],
-) {
-    for change in changes {
-        publish_plugin_instances_changed(
-            emitter,
-            &PluginInstancesChangedPayload {
-                plugin_id: change.plugin_id.clone(),
-                revision: change.revision,
-                origin_mutation_id: None,
-            },
-        );
-    }
 }
 
 /// 플러그인 데이터 조회
@@ -113,7 +89,6 @@ pub async fn plugin_storage_clear(app: AppHandle, window: WebviewWindow) -> CmdR
             let mutation = state
                 .store
                 .clear_all_plugin_data_with_admission(admission)?;
-            publish_plugin_instances_deletions(app, &mutation.plugin_instances_changes);
             // 인스턴스 버킷은 트리 장면에 있다 - 기록 상태가 없어도(기록이 비었을 때) 창들이 트리로 따라오게
             publish_element_document_changes(app);
             if let Some(status) = mutation.history_status.as_ref() {
@@ -182,7 +157,6 @@ pub async fn plugin_storage_clear_by_prefix(
             let mutation = state
                 .store
                 .remove_plugin_data_by_prefix_with_admission(&storage_prefix, admission)?;
-            publish_plugin_instances_deletions(app, &mutation.plugin_instances_changes);
             // 인스턴스 버킷은 트리 장면에 있다 - 기록 상태가 없어도(기록이 비었을 때) 창들이 트리로 따라오게
             publish_element_document_changes(app);
             if let Some(status) = mutation.history_status.as_ref() {
@@ -196,28 +170,7 @@ pub async fn plugin_storage_clear_by_prefix(
 
 #[cfg(test)]
 mod tests {
-    use parking_lot::Mutex;
-
     use super::*;
-
-    #[derive(Default)]
-    struct TestEmitter {
-        events: Mutex<Vec<PluginInstancesChangedPayload>>,
-    }
-
-    impl PluginInstancesEventEmitter for TestEmitter {
-        fn main_available(&self) -> bool {
-            true
-        }
-
-        fn emit_plugin_instances_changed(
-            &self,
-            payload: &PluginInstancesChangedPayload,
-        ) -> Result<(), String> {
-            self.events.lock().push(payload.clone());
-            Ok(())
-        }
-    }
 
     // 저장 키 네임스페이스 wire 바이트 고정
     #[test]
@@ -245,39 +198,6 @@ mod tests {
         assert_eq!(
             canonical_instances_key_for_full_namespace("invalid/id/"),
             None
-        );
-    }
-
-    #[test]
-    fn bulk_deletion_publishes_each_plugin_revision_without_origin() {
-        let emitter = TestEmitter::default();
-        let changes = vec![
-            PluginInstancesStorageChange {
-                plugin_id: "alpha".to_string(),
-                revision: 7,
-            },
-            PluginInstancesStorageChange {
-                plugin_id: "beta".to_string(),
-                revision: 7,
-            },
-        ];
-
-        publish_plugin_instances_deletions(&emitter, &changes);
-
-        assert_eq!(
-            *emitter.events.lock(),
-            vec![
-                PluginInstancesChangedPayload {
-                    plugin_id: "alpha".to_string(),
-                    revision: 7,
-                    origin_mutation_id: None,
-                },
-                PluginInstancesChangedPayload {
-                    plugin_id: "beta".to_string(),
-                    revision: 7,
-                    origin_mutation_id: None,
-                },
-            ]
         );
     }
 }

@@ -43,7 +43,6 @@ impl AppStore {
             return Ok(AdmittedPluginStorageMutation {
                 value: (),
                 history_status: None,
-                plugin_instances_changes: Vec::new(),
                 _admission: admission,
             });
         }
@@ -53,7 +52,6 @@ impl AppStore {
         Ok(AdmittedPluginStorageMutation {
             value: (),
             history_status: None,
-            plugin_instances_changes: Vec::new(),
             _admission: admission,
         })
     }
@@ -86,7 +84,6 @@ impl AppStore {
             return Ok(AdmittedPluginStorageMutation {
                 value: (),
                 history_status: None,
-                plugin_instances_changes: Vec::new(),
                 _admission: admission,
             });
         }
@@ -96,7 +93,6 @@ impl AppStore {
         Ok(AdmittedPluginStorageMutation {
             value: (),
             history_status: None,
-            plugin_instances_changes: Vec::new(),
             _admission: admission,
         })
     }
@@ -125,7 +121,6 @@ impl AppStore {
             return Ok(AdmittedPluginStorageMutation {
                 value: (),
                 history_status,
-                plugin_instances_changes: Vec::new(),
                 _admission: admission,
             });
         }
@@ -147,21 +142,9 @@ impl AppStore {
         let history_status = ((instance_data_changed || plugin_history_exists)
             && guard.history.invalidate_all())
         .then(|| guard.history.issue_status(self.history_gate.is_closed()));
-        let plugin_instances_changes = next_model_revision
-            .map(|revision| {
-                affected_plugin_ids
-                    .into_iter()
-                    .map(|plugin_id| PluginInstancesStorageChange {
-                        plugin_id,
-                        revision,
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
         Ok(AdmittedPluginStorageMutation {
             value: (),
             history_status,
-            plugin_instances_changes,
             _admission: admission,
         })
     }
@@ -226,7 +209,6 @@ impl AppStore {
             return Ok(AdmittedPluginStorageMutation {
                 value: 0,
                 history_status,
-                plugin_instances_changes: Vec::new(),
                 _admission: admission,
             });
         }
@@ -250,21 +232,9 @@ impl AppStore {
         let history_status = ((instance_data_changed || plugin_history_exists)
             && guard.history.invalidate_all())
         .then(|| guard.history.issue_status(self.history_gate.is_closed()));
-        let plugin_instances_changes = next_model_revision
-            .map(|revision| {
-                affected_plugin_ids
-                    .into_iter()
-                    .map(|plugin_id| PluginInstancesStorageChange {
-                        plugin_id,
-                        revision,
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
         Ok(AdmittedPluginStorageMutation {
             value: keys.len(),
             history_status,
-            plugin_instances_changes,
             _admission: admission,
         })
     }

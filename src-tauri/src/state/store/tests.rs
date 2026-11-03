@@ -664,7 +664,7 @@ fn write_plugin_instances(
         ElementDocumentCommitPlan::Rejected(result) => return Err(format!("{result:?}")),
         plan @ (ElementDocumentCommitPlan::TreeOnly | ElementDocumentCommitPlan::TreeOrderOnly) => {
             let check_legacy = matches!(plan, ElementDocumentCommitPlan::TreeOnly);
-            let (result, _) = store
+            let result = store
                 .commit_element_document_tree(&ops, check_legacy, gesture_id)
                 .map_err(|error| error.to_string())?;
             if !matches!(result, ElementDocumentCommitResult::Committed { .. }) {
@@ -720,14 +720,6 @@ fn editor_reset_all_atomically_clears_only_plugin_instances() {
     );
     assert_eq!(store.plugin_model_revision(), before_revision + 1);
     assert_eq!(store.history_status().history_epoch, before_epoch + 1);
-    assert_eq!(
-        transaction.change.plugin_instances_changes,
-        vec![crate::models::PluginInstancesChangedPayload {
-            plugin_id: "plugin-a".to_string(),
-            revision: before_revision + 1,
-            origin_mutation_id: None,
-        }]
-    );
     assert!(!transaction.change.history_status.as_ref().unwrap().can_undo);
     assert_eq!(
         store.get_plugin_data("plugin_data_plugin-a/total").unwrap(),
@@ -789,12 +781,6 @@ fn editor_reset_mode_filters_loaded_and_unloaded_plugin_instances_once() {
     assert_eq!(store.plugin_model_revision(), before_revision + 1);
     assert_eq!(store.history_status().history_epoch, before_epoch + 1);
     assert!(!store.history_status().can_undo);
-    assert_eq!(transaction.change.plugin_instances_changes.len(), 2);
-    assert!(transaction
-        .change
-        .plugin_instances_changes
-        .iter()
-        .all(|change| change.revision == before_revision + 1));
 
     drop(transaction);
     store.flush_and_shutdown().unwrap();
@@ -849,15 +835,6 @@ fn editor_reset_mode_preserves_malformed_entries_and_skips_non_array_buckets() {
         Some(non_array.clone())
     );
     assert_eq!(plugin_instances_of(&store, "plugin-a"), vec![retained]);
-    assert_eq!(
-        transaction
-            .change
-            .plugin_instances_changes
-            .iter()
-            .map(|change| change.plugin_id.as_str())
-            .collect::<Vec<_>>(),
-        vec!["plugin-a"]
-    );
 
     drop(transaction);
     store.flush_and_shutdown().unwrap();
@@ -900,7 +877,6 @@ fn editor_reset_missing_mode_does_not_touch_plugin_instances() {
     assert_eq!(plugin_instances_of(&store, "plugin-a"), vec![ghost]);
     assert_eq!(store.plugin_model_revision(), before_revision);
     assert_eq!(store.history_status().history_epoch, before_epoch);
-    assert!(transaction.change.plugin_instances_changes.is_empty());
 
     drop(transaction);
     store.flush_and_shutdown().unwrap();
@@ -1283,6 +1259,7 @@ fn plugin_instances_undo_redo_restore_backend_without_runtime_projection() {
     )
     .unwrap();
     drop(committed);
+    let before_undo_revision = store.plugin_model_revision();
 
     let gate = store.history_gate();
     let undo_id = uuid::Uuid::new_v4().to_string();
@@ -1291,15 +1268,12 @@ fn plugin_instances_undo_redo_restore_backend_without_runtime_projection() {
     let undo = store
         .apply_history_operation(HistoryDirection::Undo, &undo_id, &counters, || {})
         .unwrap();
-    let Some(HistoryAuxChange::PluginElements {
-        plugin_id,
-        revision: undo_revision,
-    }) = undo.aux_change
-    else {
-        panic!("plugin undo must expose its projection payload");
-    };
-    assert_eq!(plugin_id, "demo-plugin");
-    assert_eq!(undo_revision, store.plugin_model_revision());
+    // 인스턴스가 바뀐 되돌리기 - 창에 트리 변경을 보내고, 계획과 커밋 사이 펜스(plugin revision)를 올린다
+    assert!(matches!(
+        undo.aux_change,
+        Some(HistoryAuxChange::PluginElements)
+    ));
+    assert!(store.plugin_model_revision() > before_undo_revision);
     assert!(plugin_instances_of(&store, "demo-plugin").is_empty());
     assert!(undo.status.can_redo);
     drop(undo_barrier);
@@ -1379,8 +1353,7 @@ fn mixed_editor_plugin_gesture_undoes_and_redoes_atomically() {
     assert!(undo.change.is_some());
     assert!(matches!(
         undo.aux_change,
-        Some(HistoryAuxChange::PluginElementsBatch { ref plugin_ids, .. })
-            if plugin_ids == &["demo-plugin".to_string(), "second-plugin".to_string()]
+        Some(HistoryAuxChange::PluginElements)
     ));
     drop(undo_barrier);
 
@@ -1478,7 +1451,7 @@ fn compound_history_projects_live_and_historical_key_counters() {
         .is_some_and(|change| change.result.changed_fields.contains(&EditorField::Keys)));
     assert!(matches!(
         undo.aux_change,
-        Some(HistoryAuxChange::PluginElementsBatch { .. })
+        Some(HistoryAuxChange::PluginElements)
     ));
     drop(undo_barrier);
 
@@ -1552,8 +1525,7 @@ fn plugin_only_cross_plugin_gesture_merges_into_one_undo_step() {
     assert!(undo.status.can_redo);
     assert!(matches!(
         undo.aux_change,
-        Some(HistoryAuxChange::PluginElementsBatch { ref plugin_ids, .. })
-            if plugin_ids == &["demo-plugin".to_string(), "second-plugin".to_string()]
+        Some(HistoryAuxChange::PluginElements)
     ));
     drop(undo_barrier);
 
@@ -2791,7 +2763,7 @@ fn plugin_namespace_clear_invalidates_history_after_instances_are_already_empty(
 }
 
 #[test]
-fn bulk_plugin_storage_deletion_reports_each_instance_revision() {
+fn bulk_plugin_storage_deletion_clears_instances_and_advances_plugin_revision() {
     let dir = test_directory("plugin-instances-bulk-delete-test");
     std::fs::create_dir_all(&dir).unwrap();
     let store = AppStore::initialize_in_dir(&dir).unwrap();
@@ -2825,14 +2797,8 @@ fn bulk_plugin_storage_deletion_reports_each_instance_revision() {
     assert_eq!(prefix_delete.value, 2);
     assert!(!prefix_delete.history_status.as_ref().unwrap().can_undo);
     assert!(!prefix_delete.history_status.as_ref().unwrap().can_redo);
-    assert_eq!(
-        prefix_delete.plugin_instances_changes,
-        vec![super::PluginInstancesStorageChange {
-            plugin_id: "alpha".to_string(),
-            revision: prefix_revision,
-        }]
-    );
     drop(prefix_delete);
+    assert_eq!(store.plugin_model_revision(), prefix_revision);
     assert!(plugin_instances_of(&store, "alpha").is_empty());
     assert!(plugin_instances_of(&store, "beta").is_empty());
 
@@ -2847,19 +2813,6 @@ fn bulk_plugin_storage_deletion_reports_each_instance_revision() {
     let clear = store.clear_all_plugin_data().unwrap();
     assert!(!clear.history_status.as_ref().unwrap().can_undo);
     assert!(!clear.history_status.as_ref().unwrap().can_redo);
-    assert_eq!(
-        clear.plugin_instances_changes,
-        vec![
-            super::PluginInstancesStorageChange {
-                plugin_id: "beta".to_string(),
-                revision: clear_revision,
-            },
-            super::PluginInstancesStorageChange {
-                plugin_id: "gamma".to_string(),
-                revision: clear_revision,
-            },
-        ]
-    );
     drop(clear);
     assert_eq!(store.plugin_model_revision(), clear_revision);
     assert!(plugin_instances_of(&store, "beta").is_empty());
@@ -12725,7 +12678,6 @@ fn custom_tab_delete_history_restores_plugin_instances_atomically() {
 
     assert_eq!(store.plugin_model_revision(), before_plugin_revision + 1);
     assert_eq!(store.history_status().history_epoch, before_epoch + 1);
-    assert_eq!(delete.change.plugin_instances_changes.len(), 2);
     let after_delete = store.snapshot();
     assert_eq!(
         super::read_plugin_instance_bucket(&after_delete, "plugin-a").unwrap(),
@@ -12742,19 +12694,11 @@ fn custom_tab_delete_history_restores_plugin_instances_atomically() {
         .apply_history_operation(HistoryDirection::Undo, &undo_id, &current_counters, || {})
         .unwrap();
     drop(undo_barrier);
-    let Some(HistoryAuxChange::CustomTabs {
-        plugin_ids,
-        revision,
-        ..
-    }) = undo.aux_change.as_ref()
-    else {
-        panic!("custom tabs history change expected");
-    };
-    assert_eq!(
-        plugin_ids,
-        &["plugin-a".to_string(), "plugin-b".to_string()]
-    );
-    assert_eq!(*revision, before_plugin_revision + 2);
+    assert!(matches!(
+        undo.aux_change,
+        Some(HistoryAuxChange::CustomTabs { .. })
+    ));
+    assert_eq!(store.plugin_model_revision(), before_plugin_revision + 2);
     let restored = store.snapshot();
     assert_eq!(
         super::read_plugin_instance_bucket(&restored, "plugin-a").unwrap(),

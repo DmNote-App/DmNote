@@ -23,10 +23,7 @@ use crate::models::legacy_layout::{
     locked_legacy_violations, moved_z_fixes, project_document, reconcile_document, set_tree_z,
     settle_locked_elements, strip_tree_only, LegacyRef,
 };
-use crate::models::{
-    builtin_kind_registry, AppStoreData, EditorCommitRequest, EditorDocumentV1,
-    PluginInstancesChangedPayload,
-};
+use crate::models::{builtin_kind_registry, AppStoreData, EditorCommitRequest, EditorDocumentV1};
 use crate::state::history::ElementTreeHistorySnapshot;
 use crate::state::plugin_tree::{
     carry_plugin_buckets, changed_plugin_buckets, place_plugin_inserts,
@@ -968,24 +965,17 @@ impl AppStore {
         gesture_id: Option<String>,
     ) -> Result<ElementDocumentCommitResult> {
         self.commit_element_document_tree(ops, check_legacy, gesture_id)
-            .map(|(result, _)| result)
     }
 
     /// `check_legacy`가 false면 옛 종류 요소를 건드리는 연산도 받는다 - 옛 모양이 그대로인지는
     /// 아래에서 같은 방식으로 확인한다(트리 전용 노드와의 순서만 바뀌는 편집).
-    /// 플러그인 노드를 옮겨 항목 값이 바뀐 플러그인을 함께 돌려준다(알림용)
     pub(crate) fn commit_element_document_tree(
         &self,
         ops: &[Op],
         check_legacy: bool,
         gesture_id: Option<String>,
-    ) -> Result<(
-        ElementDocumentCommitResult,
-        Vec<PluginInstancesChangedPayload>,
-    )> {
+    ) -> Result<ElementDocumentCommitResult> {
         let revision = self.element_document_revision();
-        // 편집 창이 보낸 플러그인 노드 편집의 알림 - 창은 이미 그 값을 들고 있어 자기 편집으로 알아본다
-        let plugin_origin = gesture_id.clone();
         let in_progress = ElementDocumentCommitResult::Rejected {
             revision,
             code: HISTORY_IN_PROGRESS,
@@ -993,11 +983,11 @@ impl AppStore {
             editor_error: None,
         };
         let Ok(admission) = self.admit_editor_mutation() else {
-            return Ok((in_progress, Vec::new()));
+            return Ok(in_progress);
         };
         let mut guard = self.lock_for_update()?;
         if admission.revalidate_for(&self.history_gate).is_err() {
-            return Ok((in_progress, Vec::new()));
+            return Ok(in_progress);
         }
         let rejected = |code, violations| ElementDocumentCommitResult::Rejected {
             revision,
@@ -1014,21 +1004,18 @@ impl AppStore {
             .then(|| first_legacy_op(&engine, guard.data.element_document(), ops))
             .flatten()
         {
-            return Ok((
-                rejected(
-                    MANAGED_ELSEWHERE,
-                    vec![Violation::new(
-                        ViolationCode::InvalidMove,
-                        format!("ops[{index}]"),
-                    )],
-                ),
-                Vec::new(),
+            return Ok(rejected(
+                MANAGED_ELSEWHERE,
+                vec![Violation::new(
+                    ViolationCode::InvalidMove,
+                    format!("ops[{index}]"),
+                )],
             ));
         }
         let mut scratch = guard.data.clone();
         let mut changes = match engine.apply(scratch.element_document_mut(), ops) {
             Ok(changes) => changes,
-            Err(violations) => return Ok((rejected(VIOLATION, violations), Vec::new())),
+            Err(violations) => return Ok(rejected(VIOLATION, violations)),
         };
         // 다시 넣은 플러그인 노드를 먼저 제자리(그룹)로 - 빈 그룹 정리가 그 그룹을 지우지 않게
         place_plugin_inserts(scratch.element_document_mut(), ops);
@@ -1037,20 +1024,17 @@ impl AppStore {
         if !prune.is_empty() {
             match engine.apply(scratch.element_document_mut(), &prune) {
                 Ok(more) => changes.merge(more),
-                Err(violations) => return Ok((rejected(VIOLATION, violations), Vec::new())),
+                Err(violations) => return Ok(rejected(VIOLATION, violations)),
             }
         }
         // 옛 모양이 그대로인지 확인 - 트리에만 있는 요소만 바뀌었어야 한다
         let before = project_document(guard.data.element_document())?;
         let after = project_document(scratch.element_document())?;
         if before != after {
-            return Ok((rejected(MANAGED_ELSEWHERE, Vec::new()), Vec::new()));
+            return Ok(rejected(MANAGED_ELSEWHERE, Vec::new()));
         }
         if changes.is_empty() {
-            return Ok((
-                ElementDocumentCommitResult::Committed { revision, changes },
-                Vec::new(),
-            ));
+            return Ok(ElementDocumentCommitResult::Committed { revision, changes });
         }
         // 옮긴 플러그인 노드는 새 자리에 맞는 zIndex·groupId를 항목에 받는다. 지우기 등도 목록이 바뀌므로
         // 목록 비교로 바뀐 플러그인을 고른다
@@ -1115,21 +1099,10 @@ impl AppStore {
                 .history
                 .apply_element_tree_record_plan(plan, &current, &plugins);
         }
-        let plugin_changes = changed_plugins
-            .into_iter()
-            .map(|plugin_id| PluginInstancesChangedPayload {
-                plugin_id,
-                revision: plugin_model_revision,
-                origin_mutation_id: plugin_origin.clone(),
-            })
-            .collect();
-        Ok((
-            ElementDocumentCommitResult::Committed {
-                revision: self.element_document_revision(),
-                changes,
-            },
-            plugin_changes,
-        ))
+        Ok(ElementDocumentCommitResult::Committed {
+            revision: self.element_document_revision(),
+            changes,
+        })
     }
 }
 

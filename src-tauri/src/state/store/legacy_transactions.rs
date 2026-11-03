@@ -648,14 +648,6 @@ impl AppStore {
             selected_key_type,
             key_counters,
             history_status,
-            plugin_instances_changes: affected_plugin_ids
-                .into_iter()
-                .map(|plugin_id| PluginInstancesChangedPayload {
-                    plugin_id,
-                    revision: plugin_model_revision,
-                    origin_mutation_id: None,
-                })
-                .collect(),
             runtime_publication_generation: guard.revision,
         };
 

@@ -101,7 +101,7 @@ impl AppStore {
                     let opposite = require_history_entry(
                         guard.history.prepare_custom_tabs_entry(current_snapshot)?,
                     )?;
-                    let (change, plugin_ids, revision) = self
+                    let change = self
                         .commit_custom_tabs_history_locked(
                             &mut guard,
                             &before,
@@ -116,8 +116,6 @@ impl AppStore {
                         Some(HistoryAuxChange::CustomTabs {
                             snapshot: before,
                             changed_tab_css_ids,
-                            plugin_ids,
-                            revision,
                         }),
                     )
                 }
@@ -202,14 +200,7 @@ impl AppStore {
                     self.commit_locked(&mut guard, scratch, ())
                         .map_err(|error| error.to_string())?;
                     guard.plugin_model_revision = plugin_model_revision;
-                    (
-                        opposite,
-                        None,
-                        Some(HistoryAuxChange::PluginElements {
-                            plugin_id: before.plugin_id,
-                            revision: plugin_model_revision,
-                        }),
-                    )
+                    (opposite, None, Some(HistoryAuxChange::PluginElements))
                 }
                 HistorySnapshot::ElementTree(before) => {
                     let current_snapshot = super::element_tree::element_tree_snapshot(
@@ -275,7 +266,7 @@ impl AppStore {
                             opposite_snapshots,
                             target_gesture_ids,
                         )?)?;
-                    let (change, plugin_ids, plugin_model_revision) = self
+                    let change = self
                         .commit_compound_history_locked(
                             &mut guard,
                             &snapshots,
@@ -284,14 +275,7 @@ impl AppStore {
                             current_key_counters,
                         )
                         .map_err(editor_history_error)?;
-                    (
-                        opposite,
-                        change,
-                        Some(HistoryAuxChange::PluginElementsBatch {
-                            plugin_ids,
-                            revision: plugin_model_revision,
-                        }),
-                    )
+                    (opposite, change, Some(HistoryAuxChange::PluginElements))
                 }
             };
 
@@ -320,8 +304,7 @@ impl AppStore {
         operation_id: &str,
         origin: EditorCommitOrigin,
         current_key_counters: &KeyCounters,
-    ) -> std::result::Result<(Option<CommittedEditorChange>, Vec<String>, u64), EditorCommitError>
-    {
+    ) -> std::result::Result<Option<CommittedEditorChange>, EditorCommitError> {
         let mut current_store = guard.data.clone();
         let mut editor_target = None;
         let mut plugin_targets = Vec::new();
@@ -497,12 +480,11 @@ impl AppStore {
                 selected_key_type,
                 key_counters,
                 history_status: None,
-                plugin_instances_changes: Vec::new(),
                 runtime_publication_generation: guard.revision,
             })
         });
 
-        Ok((change, plugin_ids, plugin_model_revision))
+        Ok(change)
     }
 
     fn commit_custom_tabs_history_locked(
@@ -512,8 +494,7 @@ impl AppStore {
         operation_id: &str,
         origin: EditorCommitOrigin,
         current_key_counters: &KeyCounters,
-    ) -> std::result::Result<(Option<CommittedEditorChange>, Vec<String>, u64), EditorCommitError>
-    {
+    ) -> std::result::Result<Option<CommittedEditorChange>, EditorCommitError> {
         let current_store = guard.data.clone();
         if target.matches_store(&current_store) {
             return Err(EditorCommitError::validation(
@@ -585,7 +566,7 @@ impl AppStore {
         guard.plugin_model_revision = plugin_model_revision;
 
         if changed_fields.is_empty() {
-            return Ok((None, plugin_ids, plugin_model_revision));
+            return Ok(None);
         }
         let event = origin.event_name().map(|origin| EditorCommittedV1 {
             schema_version: EDITOR_SCHEMA_VERSION,
@@ -597,25 +578,20 @@ impl AppStore {
             changed_fields: changed_fields.clone(),
             patch: candidate.patch_for_fields(&changed_fields),
         });
-        Ok((
-            Some(CommittedEditorChange {
-                result: EditorCommitResult {
-                    revision,
-                    changed_fields,
-                    op_results: None,
-                },
-                event,
-                replayed: false,
-                document: candidate,
-                selected_key_type,
-                key_counters,
-                history_status: None,
-                plugin_instances_changes: Vec::new(),
-                runtime_publication_generation: guard.revision,
-            }),
-            plugin_ids,
-            plugin_model_revision,
-        ))
+        Ok(Some(CommittedEditorChange {
+            result: EditorCommitResult {
+                revision,
+                changed_fields,
+                op_results: None,
+            },
+            event,
+            replayed: false,
+            document: candidate,
+            selected_key_type,
+            key_counters,
+            history_status: None,
+            runtime_publication_generation: guard.revision,
+        }))
     }
 
     fn commit_preset_full_history_locked(
@@ -719,7 +695,6 @@ impl AppStore {
                 selected_key_type,
                 key_counters,
                 history_status: None,
-                plugin_instances_changes: Vec::new(),
                 runtime_publication_generation: guard.revision,
             }),
             settings_diff,

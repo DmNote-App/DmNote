@@ -5,11 +5,10 @@ use tauri::{AppHandle, WebviewWindow};
 use crate::{
     commands::{
         editor::state::{emit_best_effort, publish_editor_commit},
-        plugin::instances::publish_plugin_instances_changed,
         run_blocking, run_prepared_mutation,
     },
     errors::{CmdResult, CommandError, EditorCommitError, EditorCommitErrorCode},
-    models::{EditorCommitRequest, EditorField, PluginInstancesChangedPayload},
+    models::{EditorCommitRequest, EditorField},
     services::event_publisher::publish_element_document_changes,
     state::{
         plugin_tree::skip_removed_plugin_nodes, AppState, ElementDocumentCommitPlan,
@@ -61,13 +60,6 @@ fn legacy_rejected(state: &AppState, error: EditorCommitError) -> ElementDocumen
     }
 }
 
-// 트리에서 옮긴 플러그인 노드의 항목 값이 바뀌었으면 플러그인 쪽에 알린다
-fn publish_plugin_changes(app: &AppHandle, changes: &[PluginInstancesChangedPayload]) {
-    for payload in changes {
-        publish_plugin_instances_changed(app, payload);
-    }
-}
-
 // 옛 종류 요소를 고치는 트리 쓰기 - 옛 편집 커밋으로 보낸다 (검증·되돌리기·옛 알림 그대로)
 fn commit_through_editor(
     app: &AppHandle,
@@ -99,7 +91,6 @@ fn commit_through_editor(
     );
     drop(admission);
     publish_element_document_changes(app);
-    publish_plugin_changes(app, &change.plugin_instances_changes);
     Ok(ElementDocumentCommitResult::Committed {
         revision: state.store.element_document_revision(),
         changes,
@@ -135,7 +126,7 @@ pub async fn element_document_commit(
                     plan @ (ElementDocumentCommitPlan::TreeOnly
                     | ElementDocumentCommitPlan::TreeOrderOnly) => {
                         let check_legacy = matches!(plan, ElementDocumentCommitPlan::TreeOnly);
-                        let (result, plugin_changes) = state
+                        let result = state
                             .store
                             .commit_element_document_tree(
                                 ops,
@@ -145,7 +136,6 @@ pub async fn element_document_commit(
                             .map_err(|error| CommandError::msg(format!("{error:#}")))?;
                         if matches!(result, ElementDocumentCommitResult::Committed { .. }) {
                             publish_element_document_changes(app);
-                            publish_plugin_changes(app, &plugin_changes);
                             emit_best_effort(app, "history:status", &state.store.history_status());
                         }
                         return Ok(result);
