@@ -19,14 +19,17 @@ interface BatchPluginSettingsProps {
   ) => void;
 }
 
-/** 플러그인 요소 여럿의 설정 - 정의마다 이름과 설정 칸 (값이 다르면 Mixed). 고친 값은 그 정의의 고른 요소 모두에 */
+/** 플러그인 요소 여럿의 설정 - 정의마다 이름과 설정 칸 (값이 다르면 Mixed). 고친 값은 그 정의의 고른 요소 중
+ * 그 칸이 보이는 요소에 (보일 값·섞임도 그 요소끼리) */
 const BatchPluginSettings = ({
   groups,
   renderPluginSettingsForm,
   reportNormalizationError,
 }: BatchPluginSettingsProps) => (
   <>
-    {groups.map(({ definition, elements, valuesList, mixedKeys }) => {
+    {groups.map((group) => {
+      const { definition, elements, valuesList, displayValues, mixedKeys } =
+        group;
       // 보일 칸이 없는 정의는 빼되, 칸을 가린 visibility 예외는 폼과 같은 리포터로 남긴다
       const renderable = normalizeSettingsSectionsOfMany(
         definition.settings,
@@ -49,13 +52,14 @@ const BatchPluginSettings = ({
           </p>
           {renderPluginSettingsForm(
             definition.settings,
-            valuesList[0],
+            displayValues,
             definition.messages,
             definition.pluginId,
             // 고른 요소가 바뀌면 입력도 바꾼다 (앞 대상의 편집값을 다음 대상에 확정하지 않게)
             `plugin-batch-${elements.map(({ fullId }) => fullId).join('|')}`,
+            // 그 칸이 보이는 요소에만 (보일 조건이 있는 선언 칸과 같다)
             (key, value) => {
-              for (const element of elements) {
+              for (const element of group.ownersOf(key)) {
                 updatePluginElement(element.fullId, {
                   settings: { [key]: value },
                 });

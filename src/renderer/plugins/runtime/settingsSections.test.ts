@@ -222,6 +222,30 @@ describe('normalizeSettingsSectionsOfMany', () => {
     ]);
   });
 
+  it('섹션과 칸의 보임은 요소마다 함께 따진다 - 어느 요소에서도 안 보이는 칸은 보이지 않는다', () => {
+    const glowSchema: Record<string, PluginSettingSchema> = {
+      name: value('Name'),
+      advanced: {
+        type: 'section',
+        label: 'Advanced',
+        visible: (values) => values.mode === 'adv',
+      },
+      glow: { ...value('Glow'), visible: (values) => values.glowOn === true },
+    };
+    // A는 섹션만, B는 칸만 보인다 - 둘 다 그 칸을 보이지 않는다
+    expect(
+      visibility(
+        normalizeSettingsSectionsOfMany(glowSchema, [
+          { mode: 'adv', glowOn: false },
+          { mode: 'basic', glowOn: true },
+        ]),
+      ),
+    ).toEqual([
+      { key: null, renderVisible: true, entries: [['name', true]] },
+      { key: 'advanced', renderVisible: false, entries: [['glow', false]] },
+    ]);
+  });
+
   it('요소 하나면 그 요소의 섹션 그대로, 없으면 빈 목록', () => {
     expect(
       visibility(normalizeSettingsSectionsOfMany(schema, [{ mode: 'a' }])),

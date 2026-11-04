@@ -2,6 +2,7 @@
 import {
   getDefaultSettings,
   omitLayoutSettingValues,
+  visibleSettingKeysOf,
 } from '@plugins/runtime/settingsSections';
 import type {
   PluginDefinitionInternal,
@@ -15,8 +16,12 @@ export interface PluginSettingsGroup {
   elements: PluginPanelElementView[];
   // 요소마다 보일 설정 값 (기본값 위에 요소 값, 위치·크기 칸 제외) - 하나 고를 때와 같은 값
   valuesList: Record<string, unknown>[];
-  // 요소마다 값이 다른 칸
+  // 칸마다 보일 값 - 그 칸이 보이는 첫 요소의 값
+  displayValues: Record<string, unknown>;
+  // 그 칸이 보이는 요소끼리 값이 다른 칸
   mixedKeys: Set<string>;
+  // 그 칸을 고칠 요소 - 그 칸이 보이는 요소 (보이는 요소가 없으면 전부)
+  ownersOf: (key: string) => PluginPanelElementView[];
 }
 
 /** 그 정의 요소의 보일 설정 값 - 하나 고를 때와 같다 */
@@ -44,18 +49,35 @@ export const pluginSettingsGroups = (
       definition,
       elements: [],
       valuesList: [],
+      displayValues: {},
       mixedKeys: new Set<string>(),
+      ownersOf: () => [],
     };
     group.elements.push(element);
     group.valuesList.push(pluginSettingValuesOf(definition, element));
     groups.set(definition.id, group);
   }
   for (const group of groups.values()) {
-    const [first, ...rest] = group.valuesList;
+    const visible = group.valuesList.map((values) =>
+      visibleSettingKeysOf(group.definition.settings, values),
+    );
+    // 그 칸이 보이는 요소 순번 - 없으면 전부
+    const ownerIndices = (key: string) => {
+      const owners = visible.flatMap((keys, index) =>
+        keys.has(key) ? [index] : [],
+      );
+      return owners.length > 0 ? owners : group.valuesList.map((_, i) => i);
+    };
+    group.ownersOf = (key) =>
+      ownerIndices(key).map((index) => group.elements[index]);
     const keys = new Set(group.valuesList.flatMap(Object.keys));
     for (const key of keys) {
-      const shown = stableStringify(first[key]);
-      if (rest.some((values) => stableStringify(values[key]) !== shown)) {
+      const [first, ...rest] = ownerIndices(key).map(
+        (index) => group.valuesList[index][key],
+      );
+      group.displayValues[key] = first;
+      const shown = stableStringify(first);
+      if (rest.some((value) => stableStringify(value) !== shown)) {
         group.mixedKeys.add(key);
       }
     }

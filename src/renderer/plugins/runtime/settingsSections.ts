@@ -197,29 +197,49 @@ export const normalizeSettingsSections = (
   return sections;
 };
 
-/** 여러 요소의 설정 섹션 - 어느 요소에서라도 보이는 섹션·칸을 보인다 (같은 스키마라 섹션·칸 순서가 같다) */
+/** 요소 하나에서 보이는 설정 칸 - 섹션 표식과 칸 조건이 모두 보일 때 */
+export const visibleSettingKeysOf = (
+  schema: Record<string, PluginSettingSchema> | undefined,
+  values: Record<string, unknown>,
+): Set<string> =>
+  new Set(
+    normalizeSettingsSections(schema, values).flatMap((section) =>
+      section.markerVisible
+        ? section.entries
+            .filter((entry) => entry.renderVisible)
+            .map((entry) => entry.key)
+        : [],
+    ),
+  );
+
+/** 여러 요소의 설정 섹션 - 어느 요소에서라도 보이는 칸을 보인다. 칸의 보임은 요소마다 섹션 표식과 칸 조건을
+ * 함께 따진다 (같은 스키마라 섹션·칸 순서가 같다) */
 export const normalizeSettingsSectionsOfMany = (
   schema: Record<string, PluginSettingSchema> | undefined,
   valuesList: readonly Record<string, unknown>[],
   onNormalizationError?: SettingsNormalizationErrorHandler,
 ): NormalizedSection[] => {
-  const [first, ...rest] = valuesList.map((values) =>
+  const perElement = valuesList.map((values) =>
     normalizeSettingsSections(schema, values, onNormalizationError),
   );
+  const [first] = perElement;
   if (!first) return [];
-  for (const sections of rest) {
-    sections.forEach((section, sectionIndex) => {
-      const merged = first[sectionIndex];
-      merged.markerVisible ||= section.markerVisible;
-      section.entries.forEach((entry, entryIndex) => {
-        merged.entries[entryIndex].renderVisible ||= entry.renderVisible;
-      });
-    });
-  }
-  for (const section of first) {
-    section.renderVisible =
-      section.markerVisible &&
-      section.entries.some((entry) => entry.renderVisible);
-  }
-  return first;
+  return first.map((section, sectionIndex) => {
+    const entries = section.entries.map((entry, entryIndex) => ({
+      ...entry,
+      renderVisible: perElement.some(
+        (sections) =>
+          sections[sectionIndex].markerVisible &&
+          sections[sectionIndex].entries[entryIndex].renderVisible,
+      ),
+    }));
+    return {
+      ...section,
+      markerVisible: perElement.some(
+        (sections) => sections[sectionIndex].markerVisible,
+      ),
+      renderVisible: entries.some((entry) => entry.renderVisible),
+      entries,
+    };
+  });
 };

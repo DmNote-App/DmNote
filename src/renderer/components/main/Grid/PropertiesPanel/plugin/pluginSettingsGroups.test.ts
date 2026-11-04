@@ -68,6 +68,45 @@ describe('플러그인 요소 여럿의 설정 묶음', () => {
     expect([...timer.mixedKeys]).toEqual(['color']);
   });
 
+  it('보일 조건이 있는 칸은 그 칸이 보이는 요소끼리 - 보일 값·섞임·쓸 요소', () => {
+    const modal = definition('modes', {
+      settings: {
+        mode: {
+          type: 'select',
+          default: 'a',
+          label: 'Mode',
+          options: [
+            { label: 'A', value: 'a' },
+            { label: 'B', value: 'b' },
+          ],
+        },
+        extra: {
+          type: 'number',
+          default: 0,
+          label: 'Extra',
+          visible: (values: Record<string, unknown>) => values.mode === 'b',
+        },
+      },
+    } as Partial<PluginDefinitionInternal>);
+    const [group] = pluginSettingsGroups(
+      [
+        element('modes::a', 'modes', { mode: 'a', extra: 1 }),
+        element('modes::b', 'modes', { mode: 'b', extra: 5 }),
+      ],
+      new Map([['modes', modal]]),
+    );
+    // extra는 B에만 보인다 - B 값을 보이고 섞이지 않았으며 B에만 쓴다
+    expect(group.displayValues).toMatchObject({ mode: 'a', extra: 5 });
+    expect([...group.mixedKeys]).toEqual(['mode']);
+    expect(group.ownersOf('extra').map(({ fullId }) => fullId)).toEqual([
+      'modes::b',
+    ]);
+    expect(group.ownersOf('mode').map(({ fullId }) => fullId)).toEqual([
+      'modes::a',
+      'modes::b',
+    ]);
+  });
+
   it('설정 모달을 쓰는 정의·정의를 못 찾은 요소·설정 스키마가 없는 정의는 뺀다', () => {
     expect(
       pluginSettingsGroups(
