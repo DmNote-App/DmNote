@@ -19,7 +19,7 @@ import {
 } from '@hooks/pickers/useBatchElementBinding';
 import { BATCH_STYLE_SOUND_PAGE_KEY } from './style/BatchSoundSection';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
-import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { currentFieldsOf } from '@src/renderer/elementKinds/runtime/viewFields';
 import type {
   EditorNotePaintPropertyPatchV1,
   EditorCounterFillPropertyPatchV1,
@@ -117,8 +117,7 @@ export const useBatchKeyLikeCommitRuntime = ({
   ): boolean => {
     if (patch.property !== 'noteGlowPaint' || !stableNotePaintIds) return false;
     return stableNotePaintIds.some(
-      (id) =>
-        currentTreePosition(selectedKeyType, id)?.noteGlowSyncPaint === true,
+      (id) => currentFieldsOf(selectedKeyType, id)?.noteGlowSyncPaint === true,
     );
   };
   // 영구 실패 시 로컬 대표값 복원 - 피커 로컬 상태(useBatchNotePaint)가 아래에서
@@ -159,7 +158,7 @@ export const useBatchKeyLikeCommitRuntime = ({
         }> = [];
         // 지금 값(트리 낙관 적용 포함) 전달 - 동기화 켜진 키의 글로우 미러가 낙관 적용과 같은 규칙
         for (const id of stableNotePaintIds) {
-          const current = currentTreePosition(selectedKeyType, id);
+          const current = currentFieldsOf(selectedKeyType, id);
           if (!current) return;
           entries.push({
             id,

@@ -8,8 +8,8 @@ import { useBatchHandlers } from './useBatchHandlers';
 const tree = vi.hoisted(() => ({
   positions: new Map<string, unknown>(),
 }));
-vi.mock('@src/renderer/elementKinds/runtime/treeElementPosition', () => ({
-  viewTreePosition: (_scene: string, id: string) => tree.positions.get(id),
+vi.mock('@src/renderer/elementKinds/runtime/viewFields', () => ({
+  viewFieldsById: (_scene: string, id: string) => tree.positions.get(id),
 }));
 
 const IDS = {

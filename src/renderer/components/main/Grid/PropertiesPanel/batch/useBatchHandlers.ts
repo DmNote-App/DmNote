@@ -1,4 +1,4 @@
-import { viewTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { viewFieldsById } from '@src/renderer/elementKinds/runtime/viewFields';
 import {
   computeBatchGeometryPlan,
   computeBatchSpacingValue,
@@ -55,7 +55,7 @@ export function useBatchHandlers({
 }: UseBatchHandlersProps) {
   // 보이는 값(트리 값 + 편집 미리보기) - 지금 탭의 요소만
   const getPosition = (_type: KeyLikeType, id: string) =>
-    (viewTreePosition(selectedKeyType, id) as
+    (viewFieldsById(selectedKeyType, id) as
       | { dx: number; dy: number; width: number; height: number }
       | undefined) ?? null;
 

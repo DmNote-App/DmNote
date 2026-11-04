@@ -1,5 +1,6 @@
 'use no memo';
 // 프리뷰 오버레이(모듈 상태)를 previewVersion으로 다시 읽어야 해서 컴파일러 메모 제외
+// 패널·손잡이가 읽는 요소 값 - 트리 칸 보기(panelFieldViewOf)에 편집 미리보기를 얹는다
 import { useSyncExternalStore } from 'react';
 
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
@@ -11,24 +12,24 @@ import {
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { isEditorElementType } from '@src/types/editor';
 import { PREVIEW_DOMAIN_BY_ELEMENT_TYPE } from '@src/types/preview';
-import { legacyPositionOf } from './legacyPosition';
+import { panelFieldViewOf, type PanelFieldView } from './fieldView';
 
 // 같은 요소·같은 미리보기면 같은 객체 - 패널 effect·메모가 참조로 비교한다(새 객체면 렌더마다 다시 돈다)
 const cache = new WeakMap<
   ElementNode,
-  Map<string, { version: number; result: Record<string, unknown> }>
+  Map<string, { version: number; result: PanelFieldView }>
 >();
 
-/** 트리로 옮긴 옛 종류 요소의 옛 모양 - 트리 값(낙관 반영 포함)에 편집 미리보기를 얹는다 */
-export const treeElementPositionOf = (
+/** 요소의 보이는 칸 - 트리 칸 보기(낙관 반영 포함)에 그 탭의 편집 미리보기를 얹는다 */
+export const viewFieldsOf = (
   element: ElementNode,
   sceneId: string,
-): Record<string, unknown> => {
+): PanelFieldView => {
   const version = getPreviewOverlayVersion();
   let byScene = cache.get(element);
   const cached = byScene?.get(sceneId);
   if (cached?.version === version) return cached.result;
-  const position = legacyPositionOf(element);
+  const view = panelFieldViewOf(element);
   const patch = isEditorElementType(element.kind)
     ? previewPatchOf(
         PREVIEW_DOMAIN_BY_ELEMENT_TYPE[element.kind],
@@ -36,7 +37,7 @@ export const treeElementPositionOf = (
         element.id,
       )
     : null;
-  const result = patch ? { ...position, ...patch } : position;
+  const result = patch ? ({ ...view, ...patch } as PanelFieldView) : view;
   if (!byScene) {
     byScene = new Map();
     cache.set(element, byScene);
@@ -45,30 +46,30 @@ export const treeElementPositionOf = (
   return result;
 };
 
-/** treeElementPositionOf 구독 - 이 요소의 보이는 값이 바뀔 때만 다시 그린다
+/** viewFieldsOf 구독 - 이 요소의 보이는 값이 바뀔 때만 다시 그린다
  * (미리보기가 없는 요소는 같은 객체라 다른 요소의 미리보기에 다시 그리지 않는다) */
-export const useTreeElementPosition = (
+export const useViewFields = (
   element: ElementNode,
   sceneId: string,
-): Record<string, unknown> =>
+): PanelFieldView =>
   useSyncExternalStore(subscribePreviewOverlay, () =>
-    treeElementPositionOf(element, sceneId),
+    viewFieldsOf(element, sceneId),
   );
 
-/** 장면의 요소 지금 값(옛 칸 모양) - 트리 값(낙관 적용 포함), 미리보기 없음. 요소가 없으면 undefined */
-export const currentTreePosition = (
+/** 장면의 요소 지금 칸 - 트리 값(낙관 적용 포함), 미리보기 없음. 요소가 없으면 undefined */
+export const currentFieldsOf = (
   sceneId: string,
   id: string,
-): Record<string, unknown> | undefined => {
+): PanelFieldView | undefined => {
   const element = getElementDocumentStore()?.getElement(sceneId, id);
-  return element ? legacyPositionOf(element) : undefined;
+  return element ? panelFieldViewOf(element) : undefined;
 };
 
-/** 장면의 요소 보이는 값 - 지금 값에 편집 미리보기를 얹는다. 요소가 없으면 undefined */
-export const viewTreePosition = (
+/** 장면의 요소 보이는 칸 - 지금 칸에 편집 미리보기를 얹는다. 요소가 없으면 undefined */
+export const viewFieldsById = (
   sceneId: string,
   id: string,
-): Record<string, unknown> | undefined => {
+): PanelFieldView | undefined => {
   const element = getElementDocumentStore()?.getElement(sceneId, id);
-  return element ? treeElementPositionOf(element, sceneId) : undefined;
+  return element ? viewFieldsOf(element, sceneId) : undefined;
 };

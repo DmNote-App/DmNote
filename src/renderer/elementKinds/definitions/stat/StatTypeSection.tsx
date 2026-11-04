@@ -15,7 +15,7 @@ import {
   type StatItemType,
 } from '@src/types/key/statItems';
 import type { PanelSectionProps } from '../../defineElementKind';
-import { useTreeElementPosition } from '../../runtime/treeElementPosition';
+import { useViewFields } from '../../runtime/viewFields';
 
 /** 스탯 종류 - 기본(KPS·누적)과 KPS 종류 두 칸. 옛 스탯 패널의 매핑 자리 그대로 (여럿이면 고른 스탯 모두에) */
 const StatTypeSection = ({ sceneId, elementIds, t }: PanelSectionProps) => {
@@ -115,7 +115,7 @@ const StatTypeRows = ({
   t,
 }: Pick<PanelSectionProps, 'sceneId' | 't'> & { element: ElementNode }) => {
   // 옛 패널이 보던 값 - 트리 값 + 편집 미리보기
-  const position = useTreeElementPosition(element, sceneId);
+  const position = useViewFields(element, sceneId);
   const resolvedStatType = (position.statType as StatItemType) || 'kps';
   const statBaseValue = resolvedStatType === 'total' ? 'total' : 'kps';
   const commit = singleSelectionHandlers.stableElementPropertyCommitHandler(

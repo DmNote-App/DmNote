@@ -89,7 +89,7 @@ const loadHarness = async () => {
       import('@src/renderer/editor/runtime/gesture/previewOverlay'),
       import('@src/renderer/elementKinds/runtime/treePanelRecords'),
       import('@stores/grid/useDocumentSelectionStore'),
-      import('@src/renderer/elementKinds/runtime/treeElementPosition'),
+      import('@src/renderer/elementKinds/runtime/viewFields'),
     ]);
   const dragSession = await import('@hooks/Grid/drag/dragSession');
   return {
@@ -102,7 +102,7 @@ const loadHarness = async () => {
     getPreviewOverlayVersion: overlay.getPreviewOverlayVersion,
     treePanelRecords: records.treePanelRecords,
     useDocumentSelectionStore: selection.useDocumentSelectionStore,
-    currentTreePosition: position.currentTreePosition,
+    currentFieldsOf: position.currentFieldsOf,
     releaseDragSession: dragSession.releaseDragSession,
   };
 };
@@ -170,7 +170,7 @@ describe('SpriteCanvasHandles 기준점 드래그 통합 (트리 스토어)', ()
   const backend = () => ipc.backend!;
   // 지금 값(낙관 반영 포함)과 백엔드에 저장된 값
   const current = () =>
-    harness.currentTreePosition('4key', SPRITE_ID) as {
+    harness.currentFieldsOf('4key', SPRITE_ID) as unknown as {
       pivot: { x: number; y: number };
       idleTransform: { x: number };
     };

@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { commitFrames } from '@src/renderer/editor/runtime/operations/treeEditCommit';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { currentTreePosition } from '../../runtime/treeElementPosition';
+import { currentFieldsOf } from '../../runtime/viewFields';
 import { treeModeArrays } from '../../runtime/treeModeArrays';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { commitSingleElementBoundsById } from '@src/renderer/editor/runtime/operations/elementOps';
@@ -81,7 +81,7 @@ import SpritePoseEditorPopup from '@components/main/Grid/PropertiesPanel/single/
 import SpriteImagePreviewCard from '@components/main/Grid/PropertiesPanel/single/SpriteImagePreviewCard';
 import { useDocumentElement } from '@src/renderer/editor/document/elementDocumentRuntime';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import { useTreeElementPosition } from '../../runtime/treeElementPosition';
+import { useViewFields } from '../../runtime/viewFields';
 import type { PanelSectionProps } from '../../defineElementKind';
 import { spriteEasingOptions } from './spriteEasingOptions';
 
@@ -197,7 +197,7 @@ const SpritePanelBody = ({
   t,
 }: SpritePanelBodyProps) => {
   // 옛 스프라이트 패널이 보던 값 - 트리 값 + 편집 미리보기 (옛 칸 모양)
-  const singleSpritePosition = useTreeElementPosition(
+  const singleSpritePosition = useViewFields(
     element,
     selectedKeyType,
   ) as unknown as CanonicalReactiveSpritePosition;
@@ -254,7 +254,7 @@ const SpritePanelBody = ({
   // 건드리지 않는다
   const storePosition =
     (scene &&
-      (currentTreePosition(selectedKeyType, position.id) as unknown as
+      (currentFieldsOf(selectedKeyType, position.id) as unknown as
         | ReactiveSpritePosition
         | undefined)) ??
     null;
@@ -546,7 +546,7 @@ const SpritePanelBody = ({
   // 스크럽·타이핑 실시간 프리뷰 (spritePosition 도메인)
   const previewFields = (patch: Record<string, unknown>) => {
     if (!isNativeElementId(position.id)) return;
-    if (!currentTreePosition(selectedKeyType, position.id)) return;
+    if (!currentFieldsOf(selectedKeyType, position.id)) return;
     editGestureController.preview(
       selectedKeyType,
       [{ id: position.id, patch }],

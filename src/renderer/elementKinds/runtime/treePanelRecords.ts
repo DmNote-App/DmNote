@@ -4,13 +4,13 @@ import type { Node, Scene } from '@src/types/generated/elementDocument';
 import { getPreviewOverlayVersion } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
 import { isItemElementType } from '@src/types/editor';
-import { legacyPositionOf } from './legacyPosition';
-import { treeElementPositionOf } from './treeElementPosition';
+import { panelFieldViewOf } from './fieldView';
+import { viewFieldsOf } from './viewFields';
 
 type Positions = Record<string, unknown[]>;
 
 export interface TreePanelRecords {
-  // 보이는 값(편집 미리보기 포함) - 옛 위치 기록 모양, 지금 탭 하나만
+  // 보이는 값(편집 미리보기 포함) - 트리 칸 보기를 옛 위치 기록처럼 종류별 목록으로, 지금 탭 하나만
   positions: Positions;
   statItemPositions: Positions;
   graphItemPositions: Positions;
@@ -83,8 +83,8 @@ export const treePanelRecords = (
         continue;
       }
       if (node.kind !== 'key' && !isItemElementType(node.kind)) continue;
-      view[node.kind].push(treeElementPositionOf(node, sceneId));
-      current[node.kind].push(legacyPositionOf(node));
+      view[node.kind].push(viewFieldsOf(node, sceneId));
+      current[node.kind].push(panelFieldViewOf(node));
       if (node.kind === 'key') slots.push(treeKeySlot(node) ?? '');
     }
   };

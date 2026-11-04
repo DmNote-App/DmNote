@@ -19,7 +19,7 @@ import {
 } from '@src/renderer/__tests__/fakeElementDocumentBackend';
 import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { currentFieldsOf } from '@src/renderer/elementKinds/runtime/viewFields';
 import type { Document } from '@src/types/generated/elementDocument';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useSpriteEditPreviewStore } from '@stores/grid/useSpriteEditPreviewStore';
@@ -264,7 +264,7 @@ const sameField = (left: unknown, right: unknown) =>
 // 옛 패널에 넘기던 표시 값이 저장 값과 다르면 그 차이를 편집 미리보기로 얹는다
 const showDisplay = (position: CanonicalReactiveSpritePosition) => {
   previewOverlay.clearAll();
-  const stored = currentTreePosition('4key', position.id);
+  const stored = currentFieldsOf('4key', position.id);
   if (
     stored &&
     Object.entries(position).some(
@@ -1369,7 +1369,7 @@ describe('SingleSpritePanel 자세 편집', () => {
     expect(mocks.patchPosition).not.toHaveBeenCalled();
     expect(mocks.commitBounds).not.toHaveBeenCalled();
     expect(position).toEqual(initial);
-    expect(currentTreePosition('4key', SPRITE_ID)).toMatchObject({
+    expect(currentFieldsOf('4key', SPRITE_ID)).toMatchObject({
       dx: initial.dx,
       dy: initial.dy,
       rotation: initial.rotation,
@@ -1415,7 +1415,7 @@ describe('SingleSpritePanel 자세 편집', () => {
     expect(mocks.patchPosition).not.toHaveBeenCalled();
     expect(mocks.commitFrames).not.toHaveBeenCalled();
     expect(mocks.commitBounds).not.toHaveBeenCalled();
-    expect(currentTreePosition('4key', SPRITE_ID)).toMatchObject({
+    expect(currentFieldsOf('4key', SPRITE_ID)).toMatchObject({
       dx: initial.dx,
       dy: initial.dy,
       rotation: initial.rotation,

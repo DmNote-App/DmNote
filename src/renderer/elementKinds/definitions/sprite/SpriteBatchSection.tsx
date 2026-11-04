@@ -25,7 +25,7 @@ import {
   type SpriteAnchor,
 } from '@src/types/key/sprites';
 import type { PanelSectionProps } from '../../defineElementKind';
-import { currentTreePosition } from '../../runtime/treeElementPosition';
+import { currentFieldsOf } from '../../runtime/viewFields';
 import { spriteEasingOptions } from './spriteEasingOptions';
 
 // 여러 스프라이트 - 고친 값을 고른 스프라이트 모두에 (하나를 고를 때와 같은 규칙을 스프라이트마다).
@@ -66,7 +66,7 @@ const useSpriteBatch = (sceneId: string, elementIds: readonly string[]) => {
     patchOf: (canonical: ReactiveSpritePosition) => SpritePatch | null,
   ) => {
     const entries = ids.flatMap((id) => {
-      const canonical = currentTreePosition(sceneId, id) as
+      const canonical = currentFieldsOf(sceneId, id) as
         | ReactiveSpritePosition
         | undefined;
       const patch = canonical ? patchOf(canonical) : null;

@@ -12,8 +12,8 @@ import {
 import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
 import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
 import type { KeyMappings, KeyPosition } from '@src/types/key/keys';
-import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
-import { treeElementPositionOf } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { panelFieldViewOf } from '@src/renderer/elementKinds/runtime/fieldView';
+import { viewFieldsOf } from '@src/renderer/elementKinds/runtime/viewFields';
 import {
   selectPropertyPanelPluginElements,
   usePluginDisplayElementStore,
@@ -228,7 +228,7 @@ export const usePropertiesPanelSelection = () => {
   const treeView = <T>(id: string, fallback: T | null): T | null => {
     const element = storedElement(id);
     return element
-      ? (treeElementPositionOf(element, selectedKeyType) as unknown as T)
+      ? (viewFieldsOf(element, selectedKeyType) as unknown as T)
       : fallback;
   };
 
@@ -249,7 +249,7 @@ export const usePropertiesPanelSelection = () => {
   // 미리보기 없는 값
   const singleKeyElement = singleKeyId ? storedElement(singleKeyId) : undefined;
   const singleCanonicalKeyPosition = singleKeyElement
-    ? (legacyPositionOf(singleKeyElement) as unknown as NonNullable<
+    ? (panelFieldViewOf(singleKeyElement) as unknown as NonNullable<
         typeof singleKeyPosition
       >)
     : singleKeyId

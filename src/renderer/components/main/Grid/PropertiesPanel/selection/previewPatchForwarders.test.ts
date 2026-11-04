@@ -51,8 +51,8 @@ const { loadElementDocumentStore } = await import(
 const { fillKindDefaults } = await import(
   '@src/renderer/elementKinds/runtime/elementKindDefaults'
 );
-const { currentTreePosition, viewTreePosition } = await import(
-  '@src/renderer/elementKinds/runtime/treeElementPosition'
+const { currentFieldsOf, viewFieldsById } = await import(
+  '@src/renderer/elementKinds/runtime/viewFields'
 );
 const { BUILTIN_BUNDLE_DEFAULTS } = await import(
   '@src/types/generated/elementDocument'
@@ -127,9 +127,9 @@ const setNodes = (nodes: ElementNode[]) =>
 
 // 화면에 보일 값 - 트리 지금 값 위에 요소별 미리보기 patch
 const composedKey = () =>
-  viewTreePosition('4key', KEY_ID) as Record<string, unknown>;
+  viewFieldsById('4key', KEY_ID) as Record<string, unknown>;
 const composedKnob = () =>
-  viewTreePosition('4key', KNOB_ID) as Record<string, unknown>;
+  viewFieldsById('4key', KNOB_ID) as Record<string, unknown>;
 
 // 태그 patch가 원본 그대로 스프레드되면 위치 객체에 property/value
 // 리터럴 키가 생기고 실제 필드는 바뀌지 않는다 - 그 오염을 여기서 고정한다
@@ -166,7 +166,7 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
     expect(composed.borderWidth).toBe(12.5);
     expectNoWirePollution(composed);
     // 트리 지금 값은 불가침
-    expect(currentTreePosition('4key', KEY_ID)?.borderWidth).toBe(1);
+    expect(currentFieldsOf('4key', KEY_ID)?.borderWidth).toBe(1);
   });
 
   it('single style nullable leaf의 null은 undefined 위치 조각으로 투영된다', () => {
@@ -322,7 +322,7 @@ describe('preview patch forwarders (forwarder → overlay 실경로)', () => {
     });
 
     const rendered = [KEY_ID_A, KEY_ID_B].map((id) =>
-      viewTreePosition('4key', id),
+      viewFieldsById('4key', id),
     );
     // 요소별 상이값(active fallback)이 제 요소에 유지 - B의 patch가 A를 덮지 않는다
     expect(rendered[0]).toMatchObject({

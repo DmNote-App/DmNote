@@ -124,7 +124,7 @@ const loadHarness = async () => {
     import('@src/renderer/editor/runtime/gesture/previewOverlay'),
     import('@src/renderer/elementKinds/runtime/treePanelRecords'),
     import('@stores/grid/useDocumentSelectionStore'),
-    import('@src/renderer/elementKinds/runtime/treeElementPosition'),
+    import('@src/renderer/elementKinds/runtime/viewFields'),
     import('@hooks/Grid/drag/dragSession'),
     import('@src/renderer/elementKinds/definitions/sprite/SpritePreview'),
     import('@stores/grid/useSpriteEditPreviewStore'),
@@ -141,7 +141,7 @@ const loadHarness = async () => {
     getPreviewOverlayVersion: overlay.getPreviewOverlayVersion,
     treePanelRecords: records.treePanelRecords,
     useDocumentSelectionStore: selection.useDocumentSelectionStore,
-    currentTreePosition: position.currentTreePosition,
+    currentFieldsOf: position.currentFieldsOf,
     releaseDragSession: dragSession.releaseDragSession,
   };
 };
@@ -233,7 +233,7 @@ describe('자세 손잡이 저장 후 실제 팝업 닫기와 다시 열기 (트
   const backend = () => ipc.backend!;
   const poses = () =>
     (
-      harness.currentTreePosition('4key', SPRITE_ID) as unknown as {
+      harness.currentFieldsOf('4key', SPRITE_ID) as unknown as {
         poses: Array<Record<string, unknown>>;
       }
     ).poses;

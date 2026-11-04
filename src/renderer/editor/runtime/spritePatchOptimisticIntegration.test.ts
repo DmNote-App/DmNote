@@ -53,17 +53,14 @@ const loadHarness = async () => {
     import('@src/renderer/__tests__/fakeElementDocumentBackend'),
     import('@src/renderer/editor/document/elementDocumentRuntime'),
     import('@api/modules/editor/itemsApi'),
-    import('@src/renderer/elementKinds/runtime/treeElementPosition'),
+    import('@src/renderer/elementKinds/runtime/viewFields'),
   ]);
   ipc.backend = backend.createFakeElementDocumentBackend(makeDocument());
   await runtime.loadElementDocumentStore();
   return {
     spriteItemsApi: itemsApi.spriteItemsApi,
     current: () =>
-      position.currentTreePosition('4key', SPRITE_ID) as Record<
-        string,
-        unknown
-      >,
+      position.currentFieldsOf('4key', SPRITE_ID) as Record<string, unknown>,
   };
 };
 type Harness = Awaited<ReturnType<typeof loadHarness>>;

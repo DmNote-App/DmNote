@@ -159,7 +159,7 @@ const loadHarness = async () => {
     import('@src/renderer/editor/runtime/gesture/previewOverlay'),
     import('@src/renderer/elementKinds/runtime/treePanelRecords'),
     import('@stores/grid/useDocumentSelectionStore'),
-    import('@src/renderer/elementKinds/runtime/treeElementPosition'),
+    import('@src/renderer/elementKinds/runtime/viewFields'),
     import('@hooks/Grid/drag/dragSession'),
     import('@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock'),
     import('@src/renderer/editor/runtime/lifecycle/lifecycleEditorFlush'),
@@ -176,8 +176,8 @@ const loadHarness = async () => {
     getPreviewOverlayVersion: overlay.getPreviewOverlayVersion,
     treePanelRecords: records.treePanelRecords,
     useDocumentSelectionStore: selection.useDocumentSelectionStore,
-    currentTreePosition: position.currentTreePosition,
-    viewTreePosition: position.viewTreePosition,
+    currentFieldsOf: position.currentFieldsOf,
+    viewFieldsById: position.viewFieldsById,
     releaseDragSession: dragSession.releaseDragSession,
     historyLock,
     flushFocusedEditor: lifecycle.flushFocusedEditor,
@@ -261,9 +261,9 @@ describe('자세 편집 세션 통합 (패널 + 캔버스 손잡이, 트리 스�
   const backend = () => ipc.backend!;
   // 지금 값(낙관 반영 포함) · 보이는 값(미리보기 포함) · 백엔드에 저장된 값
   const current = () =>
-    harness.currentTreePosition('4key', SPRITE_ID) as unknown as SpriteValues;
+    harness.currentFieldsOf('4key', SPRITE_ID) as unknown as SpriteValues;
   const visible = () =>
-    harness.viewTreePosition('4key', SPRITE_ID) as unknown as SpriteValues;
+    harness.viewFieldsById('4key', SPRITE_ID) as unknown as SpriteValues;
   const saved = () =>
     (
       backend().document().scenes['4key']!.nodes[0] as unknown as {

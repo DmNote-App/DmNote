@@ -12,7 +12,7 @@ import {
   getPreviewOverlayVersion,
   subscribePreviewOverlay,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
-import { treeElementPositionOf } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { viewFieldsOf } from '@src/renderer/elementKinds/runtime/viewFields';
 import type { Scene } from '@src/types/generated/elementDocument';
 import type { Values } from './documentPanelModel';
 import { batchPanelWriterFor, type PanelWriter } from './documentPanelWriter';
@@ -50,7 +50,7 @@ export const usePanelElements = (
     items: elements.map(
       (element) =>
         (writer
-          ? treeElementPositionOf(element, sceneId)
+          ? viewFieldsOf(element, sceneId)
           : element.values ?? {}) as Values,
     ),
   };

@@ -341,6 +341,7 @@ import type {
 } from '../document/documentPanelWriter';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
+import { legacyShapedNode } from '@src/renderer/__tests__/treeNodes';
 import { isEditorElementPropertyPatchV1 } from '@src/types/editor';
 import { gradientToCss } from '@src/types/color';
 import type { ImageFit } from '@src/types/key/keys';
@@ -436,20 +437,12 @@ const SingleKnobPanel = ({
   const handler = (name: string) =>
     handlers[name] as Handler | undefined as never;
   const id = (singleKnobPosition.id as string | undefined) ?? GRAPH_ID;
-  graphPanel.element = {
-    type: 'element',
-    id,
-    kind: 'knob',
-    frame: {
-      x: (singleKnobPosition.dx as number) ?? 0,
-      y: (singleKnobPosition.dy as number) ?? 0,
-      width: (singleKnobPosition.width as number) ?? 60,
-      height: (singleKnobPosition.height as number) ?? 60,
-      rotation: (singleKnobPosition.rotation as number) ?? 0,
-    },
-    // 옛 칸 모양 보기는 옛 칸을 그대로 싣는다
-    legacy: { fields: { ...singleKnobPosition, id } },
-  };
+  // 옛 위치 모양 값을 트리 요소로 - 노브가 가진 칸은 고유 값·묶음·입력에 (패널은 트리 칸 보기를 읽는다)
+  graphPanel.element = legacyShapedNode(
+    'knob',
+    { width: 60, height: 60, ...singleKnobPosition, id },
+    0,
+  ) as unknown as typeof graphPanel.element;
   graphPanel.writer = {
     commitField: (field: string, value: unknown) =>
       onElementPropertyCommit?.({ property: field, value }),

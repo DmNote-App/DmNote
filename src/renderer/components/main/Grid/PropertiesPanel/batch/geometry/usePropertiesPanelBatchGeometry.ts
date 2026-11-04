@@ -8,9 +8,9 @@ import {
 } from '@src/renderer/editor/runtime/operations/elementOps';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import {
-  currentTreePosition,
-  viewTreePosition,
-} from '@src/renderer/elementKinds/runtime/treeElementPosition';
+  currentFieldsOf,
+  viewFieldsById,
+} from '@src/renderer/elementKinds/runtime/viewFields';
 import { computeBatchGeometryPlan } from '@src/renderer/editor/runtime/geometry/batchGeometryPlan';
 import { commitMixedBatchGeometry } from '@src/renderer/editor/runtime/geometry/mixedBatchGeometry';
 import { spriteResizePatch } from '@utils/sprite/resizeProjection';
@@ -57,7 +57,7 @@ export const usePropertiesPanelBatchGeometry = ({
       >();
       for (const target of stableBatchGeometryTargets) {
         // 보이는 값(트리 값 + 편집 미리보기)
-        const position = viewTreePosition(selectedKeyType, target.id) as
+        const position = viewFieldsById(selectedKeyType, target.id) as
           | Pick<KeyPosition, 'id' | 'dx' | 'dy' | 'width' | 'height'>
           | undefined;
         const element = getElementDocumentStore()?.getElement(
@@ -115,10 +115,9 @@ export const usePropertiesPanelBatchGeometry = ({
         const bounds = spriteBoundsByKey.get(key);
         if (!bounds) return null;
         // 지금 값(미리보기 없음)
-        const canonical = currentTreePosition(
-          selectedKeyType,
-          id,
-        ) as unknown as Parameters<typeof spriteResizePatch>[0] | undefined;
+        const canonical = currentFieldsOf(selectedKeyType, id) as unknown as
+          | Parameters<typeof spriteResizePatch>[0]
+          | undefined;
         return canonical
           ? (spriteResizePatch(canonical, bounds) as Record<string, unknown>)
           : null;
