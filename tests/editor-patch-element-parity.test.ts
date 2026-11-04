@@ -27,9 +27,30 @@ const patchOnly = fixture.cases.filter((entry) =>
   entry.ops.every((op) => op.kind === 'patchElement'),
 );
 
+// 속성 칸 목록(Rust 원본) - 칸마다 기준 경우가 하나 이상 있어야 한다
+const propertyTags = (
+  JSON.parse(
+    readFileSync(
+      join(__dirname, 'fixtures', 'editor-property-tags.json'),
+      'utf8',
+    ),
+  ) as { properties: string[] }
+).properties;
+
 describe('속성 패치 칸 계산 파리티', () => {
   it('속성 패치 경우가 있다', () => {
     expect(patchOnly.length).toBeGreaterThan(0);
+  });
+
+  it('속성 칸마다 기준 경우가 있다', () => {
+    const covered = new Set(
+      patchOnly.flatMap((entry) =>
+        entry.ops.flatMap((op) =>
+          op.kind === 'patchElement' ? [op.patch.property as string] : [],
+        ),
+      ),
+    );
+    expect(propertyTags.filter((tag) => !covered.has(tag))).toEqual([]);
   });
 
   it.each(patchOnly.map((entry) => [entry.name, entry] as const))(

@@ -3635,6 +3635,2461 @@
         "layerGroups": {},
         "spritePositions": {}
       }
+    },
+    {
+      "name": "patch-graph-runtime",
+      "comment": "그래프 고유 값 - 모양·평균선·애니메이션·속도",
+      "initialDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      },
+      "ops": [
+        {
+          "kind": "patchElement",
+          "elementType": "graph",
+          "id": "55555555-5555-4555-8555-555555555555",
+          "patch": {
+            "property": "graphType",
+            "value": "bar"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "graph",
+          "id": "55555555-5555-4555-8555-555555555555",
+          "patch": {
+            "property": "showAvgLine",
+            "value": false
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "graph",
+          "id": "55555555-5555-4555-8555-555555555555",
+          "patch": {
+            "property": "graphAnimationEnabled",
+            "value": false
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "graph",
+          "id": "55555555-5555-4555-8555-555555555555",
+          "patch": {
+            "property": "graphSpeed",
+            "value": 2500
+          }
+        }
+      ],
+      "expectedDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "bar",
+              "graphSpeed": 2500,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "graphAnimationEnabled": false
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      }
+    },
+    {
+      "name": "patch-knob-runtime",
+      "comment": "노브 고유 값 - 반전·축",
+      "initialDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      },
+      "ops": [
+        {
+          "kind": "patchElement",
+          "elementType": "knob",
+          "id": "66666666-6666-4666-8666-666666666666",
+          "patch": {
+            "property": "reverse",
+            "value": true
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "knob",
+          "id": "66666666-6666-4666-8666-666666666666",
+          "patch": {
+            "property": "axisId",
+            "value": "HIDA:1ccf:101c:1:48"
+          }
+        }
+      ],
+      "expectedDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "HIDA:1ccf:101c:1:48",
+              "sensitivity": 1,
+              "reverse": true,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      }
+    },
+    {
+      "name": "patch-font-style-toggles",
+      "comment": "글꼴 스타일 토글·글꼴 이름",
+      "initialDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      },
+      "ops": [
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "fontBold",
+            "value": false
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "fontItalic",
+            "value": true
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "fontUnderline",
+            "value": true
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "fontStrikethrough",
+            "value": true
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "fontFamily",
+            "value": "Pretendard"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "stat",
+          "id": "44444444-4444-4444-8444-444444444444",
+          "patch": {
+            "property": "fontItalic",
+            "value": true
+          }
+        }
+      ],
+      "expectedDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "fontBold": false,
+              "fontItalic": true,
+              "fontUnderline": true,
+              "fontStrikethrough": true,
+              "fontFamily": "Pretendard"
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "fontItalic": true
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      }
+    },
+    {
+      "name": "patch-text-inline-styles",
+      "comment": "사용자 CSS 클래스·인라인 스타일 우선",
+      "initialDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      },
+      "ops": [
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "className",
+            "value": "my-key"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "useInlineStyles",
+            "value": true
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "graph",
+          "id": "55555555-5555-4555-8555-555555555555",
+          "patch": {
+            "property": "className",
+            "value": "my-graph"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "knob",
+          "id": "66666666-6666-4666-8666-666666666666",
+          "patch": {
+            "property": "useInlineStyles",
+            "value": false
+          }
+        }
+      ],
+      "expectedDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "className": "my-key",
+              "useInlineStyles": true
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "className": "my-graph"
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "useInlineStyles": false
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      }
+    },
+    {
+      "name": "patch-active-paints",
+      "comment": "눌림 칠 - 글자·배경·테두리 (대기 칠은 그대로)",
+      "initialDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      },
+      "ops": [
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "activeFontPaint",
+            "value": {
+              "color": "#112233",
+              "gradient": null
+            }
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "activeBackgroundPaint",
+            "value": {
+              "color": "#223344",
+              "gradient": null
+            }
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "activeBorderPaint",
+            "value": {
+              "color": "#334455",
+              "gradient": null
+            }
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "knob",
+          "id": "66666666-6666-4666-8666-666666666666",
+          "patch": {
+            "property": "activeBackgroundPaint",
+            "value": {
+              "color": "#445566",
+              "gradient": null
+            }
+          }
+        }
+      ],
+      "expectedDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "activeFontColor": "#112233",
+              "activeBackgroundColor": "#223344",
+              "activeBorderColor": "#334455"
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "activeBackgroundColor": "#445566"
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      }
+    },
+    {
+      "name": "patch-numeric-style",
+      "comment": "테두리 두께·라운딩·글자 크기",
+      "initialDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      },
+      "ops": [
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "borderWidth",
+            "value": 3
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "borderRadius",
+            "value": 12
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "fontSize",
+            "value": 18
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "graph",
+          "id": "55555555-5555-4555-8555-555555555555",
+          "patch": {
+            "property": "borderWidth",
+            "value": 2
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "stat",
+          "id": "44444444-4444-4444-8444-444444444444",
+          "patch": {
+            "property": "fontSize",
+            "value": 20
+          }
+        }
+      ],
+      "expectedDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "borderWidth": 3,
+              "borderRadius": 12,
+              "fontSize": 18
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "fontSize": 20
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "borderWidth": 2
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      }
+    },
+    {
+      "name": "patch-images",
+      "comment": "사용자 이미지 - 대기·눌림 이미지·투명·맞춤·모드·변환 칸",
+      "initialDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      },
+      "ops": [
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "inactiveImage",
+            "value": "idle.png"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "activeImage",
+            "value": "active.png"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "idleTransparent",
+            "value": true
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "activeTransparent",
+            "value": true
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "idleImageFit",
+            "value": "contain"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "activeImageFit",
+            "value": "fill"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "imageMode",
+            "value": "overlay"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "idleImageTransform",
+            "value": {
+              "leaf": "offsetX",
+              "value": 5
+            }
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "activeImageTransform",
+            "value": {
+              "leaf": "scale",
+              "value": 1.5
+            }
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "stat",
+          "id": "44444444-4444-4444-8444-444444444444",
+          "patch": {
+            "property": "inactiveImage",
+            "value": "stat.png"
+          }
+        }
+      ],
+      "expectedDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "inactiveImage": "idle.png",
+              "activeImage": "active.png",
+              "idleTransparent": true,
+              "activeTransparent": true,
+              "idleImageFit": "contain",
+              "activeImageFit": "fill",
+              "imageMode": "overlay",
+              "idleImageTransform": {
+                "offsetX": 5,
+                "offsetY": 0,
+                "rotation": 0,
+                "scale": 1
+              },
+              "activeImageTransform": {
+                "offsetX": 0,
+                "offsetY": 0,
+                "rotation": 0,
+                "scale": 1.5
+              }
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "inactiveImage": "stat.png"
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      }
+    },
+    {
+      "name": "patch-sound",
+      "comment": "키 사운드 - 경로·켜기·볼륨",
+      "initialDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      },
+      "ops": [
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "soundPath",
+            "value": "click.wav"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "soundEnabled",
+            "value": true
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "soundVolume",
+            "value": 40
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "22222222-2222-4222-8222-222222222222",
+          "patch": {
+            "property": "soundEnabled",
+            "value": false
+          }
+        }
+      ],
+      "expectedDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "soundPath": "click.wav",
+              "soundEnabled": true,
+              "soundVolume": 40
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "soundEnabled": false
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      }
+    },
+    {
+      "name": "patch-counter-layout-typography",
+      "comment": "카운터 배치·글꼴 칸 (설정 객체 안 칸 하나씩) - 처음 문서는 카운터 설정을 다 적는다 (없는 설정의 기본값 채우기는 칸 규칙 밖)",
+      "initialDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "counter": {
+                "enabled": true,
+                "placement": "inside",
+                "align": "bottom",
+                "alignMode": "center",
+                "fill": {
+                  "idle": "rgba(237, 238, 242, 0.78)",
+                  "active": "rgba(20, 20, 24, 0.9)"
+                },
+                "gap": 4,
+                "fontSize": 11,
+                "fontWeight": 500,
+                "fontBold": false,
+                "fontFamily": null,
+                "fontItalic": false,
+                "fontUnderline": false,
+                "fontStrikethrough": false,
+                "animation": {
+                  "enabled": true,
+                  "presetId": "builtin-ease-out",
+                  "bezier": [0.25, 0.46, 0.45, 0.94],
+                  "scale": 1.1,
+                  "durationMs": 300
+                }
+              }
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "counter": {
+                "enabled": true,
+                "placement": "inside",
+                "align": "bottom",
+                "alignMode": "center",
+                "fill": {
+                  "idle": "rgba(237, 238, 242, 0.78)",
+                  "active": "rgba(20, 20, 24, 0.9)"
+                },
+                "gap": 4,
+                "fontSize": 11,
+                "fontWeight": 500,
+                "fontBold": false,
+                "fontFamily": null,
+                "fontItalic": false,
+                "fontUnderline": false,
+                "fontStrikethrough": false,
+                "animation": {
+                  "enabled": true,
+                  "presetId": "builtin-ease-out",
+                  "bezier": [0.25, 0.46, 0.45, 0.94],
+                  "scale": 1.1,
+                  "durationMs": 300
+                }
+              }
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      },
+      "ops": [
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "counterAnimationEnabled",
+            "value": false
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "counterPlacement",
+            "value": "outside"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "counterAlign",
+            "value": "top"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "counterAlignMode",
+            "value": "between"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "counterFontBold",
+            "value": false
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "counterFontItalic",
+            "value": true
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "counterFontUnderline",
+            "value": true
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "counterFontStrikethrough",
+            "value": true
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "counterFontFamily",
+            "value": "Pretendard"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "stat",
+          "id": "44444444-4444-4444-8444-444444444444",
+          "patch": {
+            "property": "counterAlign",
+            "value": "left"
+          }
+        }
+      ],
+      "expectedDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "counter": {
+                "enabled": true,
+                "placement": "outside",
+                "align": "top",
+                "alignMode": "between",
+                "fill": {
+                  "idle": "rgba(237, 238, 242, 0.78)",
+                  "active": "rgba(20, 20, 24, 0.9)"
+                },
+                "gap": 4,
+                "fontSize": 11,
+                "fontWeight": 500,
+                "fontBold": false,
+                "fontFamily": "Pretendard",
+                "fontItalic": true,
+                "fontUnderline": true,
+                "fontStrikethrough": true,
+                "animation": {
+                  "enabled": false,
+                  "presetId": "builtin-ease-out",
+                  "bezier": [0.25, 0.46, 0.45, 0.94],
+                  "scale": 1.1,
+                  "durationMs": 300
+                }
+              }
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "counter": {
+                "enabled": true,
+                "placement": "inside",
+                "align": "left",
+                "alignMode": "center",
+                "fill": {
+                  "idle": "rgba(237, 238, 242, 0.78)",
+                  "active": "rgba(20, 20, 24, 0.9)"
+                },
+                "gap": 4,
+                "fontSize": 11,
+                "fontWeight": 500,
+                "fontBold": false,
+                "fontFamily": null,
+                "fontItalic": false,
+                "fontUnderline": false,
+                "fontStrikethrough": false,
+                "animation": {
+                  "enabled": true,
+                  "presetId": "builtin-ease-out",
+                  "bezier": [0.25, 0.46, 0.45, 0.94],
+                  "scale": 1.1,
+                  "durationMs": 300
+                }
+              }
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      }
+    },
+    {
+      "name": "patch-note-props",
+      "comment": "노트 칸 - 효과·글로우·위치·크기·테두리·정렬 (비울 수 있는 칸은 비우기도)",
+      "initialDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      },
+      "ops": [
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "noteEffectEnabled",
+            "value": false
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "noteGlowEnabled",
+            "value": true
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "noteGlowSize",
+            "value": 12
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "noteGlowPaint",
+            "value": {
+              "color": "#00FF00"
+            }
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "noteOffsetX",
+            "value": 5
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "noteOffsetY",
+            "value": -3
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "noteWidth",
+            "value": 30
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "noteBorderWidth",
+            "value": 2
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "noteBorderRadius",
+            "value": 4
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "noteAutoYCorrection",
+            "value": false
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "noteAlignment",
+            "value": "left"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "patch": {
+            "property": "noteBorderSide",
+            "value": "vertical"
+          }
+        },
+        {
+          "kind": "patchElement",
+          "elementType": "key",
+          "id": "22222222-2222-4222-8222-222222222222",
+          "patch": {
+            "property": "noteOffsetX",
+            "value": null
+          }
+        }
+      ],
+      "expectedDocument": {
+        "schemaVersion": 1,
+        "keys": {
+          "4key": ["A", "B"]
+        },
+        "keyPositions": {
+          "4key": [
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "dx": 0,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "noteEffectEnabled": false,
+              "noteGlowEnabled": true,
+              "noteGlowSize": 12,
+              "noteGlowColor": "#00FF00",
+              "noteOffsetX": 5,
+              "noteOffsetY": -3,
+              "noteWidth": 30,
+              "noteBorderWidth": 2,
+              "noteBorderRadius": 4,
+              "noteAutoYCorrection": false,
+              "noteAlignment": "left",
+              "noteBorderSide": "vertical"
+            },
+            {
+              "id": "22222222-2222-4222-8222-222222222222",
+              "dx": 80,
+              "dy": 0,
+              "width": 60,
+              "height": 60,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90,
+              "noteOffsetX": null
+            }
+          ]
+        },
+        "statPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "id": "44444444-4444-4444-8444-444444444444",
+              "dx": 10,
+              "dy": 120,
+              "width": 120,
+              "height": 40,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "graphPositions": {
+          "4key": [
+            {
+              "statType": "kps",
+              "graphType": "line",
+              "graphSpeed": 60,
+              "graphColor": "#888888",
+              "showAvgLine": false,
+              "id": "55555555-5555-4555-8555-555555555555",
+              "dx": 20,
+              "dy": 200,
+              "width": 180,
+              "height": 80,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "knobPositions": {
+          "4key": [
+            {
+              "axisId": "axis-0",
+              "sensitivity": 1,
+              "reverse": false,
+              "id": "66666666-6666-4666-8666-666666666666",
+              "dx": 240,
+              "dy": 0,
+              "width": 64,
+              "height": 64,
+              "count": 0,
+              "noteColor": "#FFFFFF",
+              "noteOpacity": 90
+            }
+          ]
+        },
+        "layerGroups": {},
+        "spritePositions": {}
+      }
     }
   ]
 }
