@@ -32,7 +32,7 @@ import {
   useDocumentElement,
   useElementDocumentScene,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
+import { keyAnchorPosition } from '@src/renderer/elementKinds/runtime/keyAnchorPosition';
 import {
   getPreviewOverlayVersion,
   subscribePreviewOverlay,
@@ -186,11 +186,11 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
     });
 
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
-  // 키에 붙은 요소의 기준 위치 - 트리의 키 슬롯·위치(편집 미리보기 포함)
-  const keyRecords = treePanelRecords(
-    useElementDocumentScene(selectedKeyType),
-    selectedKeyType,
-    useSyncExternalStore(subscribePreviewOverlay, getPreviewOverlayVersion),
+  // 키에 붙은 요소의 기준 위치 - 트리의 그 키 위치(편집 미리보기 포함)
+  const scene = useElementDocumentScene(selectedKeyType);
+  const previewVersion = useSyncExternalStore(
+    subscribePreviewOverlay,
+    getPreviewOverlayVersion,
   );
   // Settings 변경 감지용 ref와 콜백 리스트
   const prevSettingsRef = useRef<Record<string, unknown> | null>(null);
@@ -263,9 +263,8 @@ const PluginElementImpl: React.FC<PluginElementProps> = ({
 
   const calculatedPosition = resolvePluginElementPosition({
     element: shownElement,
-    positions: keyRecords.positions as never,
-    keyMappings: keyRecords.keyMappings as never,
-    selectedKeyType,
+    keyPositionOf: (keyCode) =>
+      keyAnchorPosition(scene, selectedKeyType, keyCode, previewVersion),
     positionOffset,
   });
 
