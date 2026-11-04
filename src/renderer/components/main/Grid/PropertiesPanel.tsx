@@ -35,6 +35,7 @@ import DocumentElementPanel from './PropertiesPanel/document/DocumentElementPane
 import DocumentBatchPanel from './PropertiesPanel/document/DocumentBatchPanel';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import PluginSettingsForm from './PropertiesPanel/plugin/PluginSettingsForm';
+import { aggregateMixedValue } from './PropertiesPanel/batch/mixedValue';
 import { usePropertiesPanelSelection } from './PropertiesPanel/selection/usePropertiesPanelSelection';
 import { usePanelNavigation } from './PropertiesPanel/navigation/usePanelNavigation';
 import { createBatchSelectionModel } from './PropertiesPanel/batch/batchSelectionModel';
@@ -458,6 +459,10 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         singleSpritePosition
       ),
     });
+    // 크기 일괄이 고치는 플러그인 요소(크기를 정하는 정의)의 크기
+    const resizablePluginSizes = (stablePluginGeometryElements ?? []).filter(
+      ({ resizable }) => resizable,
+    );
     // 옛 종류 일괄 선택의 개수·그룹·일괄 기하 (플러그인 요소 포함) - 선언 일괄 패널에 넘긴다
     const legacyBatchHost = {
       totalCount: selectionTotalCount,
@@ -468,9 +473,23 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         handleBatchSpacing,
         handleBatchSpacingCommit,
         getBatchSpacingValue,
-        // 크기 조절이 고치는 대상 전부(스프라이트 포함)로 모은다 - 고른 종류만 모으면 섞인 크기가 가려진다
-        getBatchSizeValue: (dimension: 'width' | 'height') =>
-          getMixedValueGeometry((position) => position[dimension], 60),
+        // 크기 조절이 고치는 대상 전부(스프라이트·크기를 정하는 플러그인 포함)로 모은다 - 고른 종류만 모으면
+        // 섞인 크기가 가려진다
+        getBatchSizeValue: (dimension: 'width' | 'height') => {
+          const native = getMixedValueGeometry(
+            (position) => position[dimension],
+            60,
+          );
+          const plugins = resizablePluginSizes.map((size) => size[dimension]);
+          if (selectedBatchGeometryElements.length === 0) {
+            return aggregateMixedValue(plugins, (value) => value, 60);
+          }
+          return {
+            value: native.value,
+            isMixed:
+              native.isMixed || plugins.some((value) => value !== native.value),
+          };
+        },
         handleBatchResize,
         handleBatchResizePreview,
       },

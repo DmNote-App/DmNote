@@ -173,6 +173,8 @@ export const usePropertiesPanelSelection = () => {
       y: number;
       width: number;
       height: number;
+      // 크기를 정하는 플러그인 - 크기 일괄 대상 (나머지는 내용이 크기를 정한다)
+      resizable: boolean;
     }> = [];
     for (const selected of selectedPluginElements) {
       const element = pluginElements.find(
@@ -188,6 +190,8 @@ export const usePropertiesPanelSelection = () => {
         y: element.position.y,
         width: size.width,
         height: size.height,
+        resizable:
+          pluginDefinitions.get(element.definitionId ?? '')?.resizable === true,
       });
     }
     return resolved;
@@ -347,6 +351,7 @@ export const usePropertiesPanelSelection = () => {
     canonicalSpritePositions,
     spriteItemPositions,
     pluginElements,
+    pluginDefinitions,
     selectedKeyElements,
     selectedStatElements,
     selectedGraphElements,

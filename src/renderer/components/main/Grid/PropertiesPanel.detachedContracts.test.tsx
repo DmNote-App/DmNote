@@ -261,7 +261,11 @@ vi.mock('@plugins/runtime/displayElement/pluginElementActions', () => ({
   patchUseInlineStylesViaAuthority: patchUseInlineStylesViaAuthorityMock,
   updatePluginElement: vi.fn(),
 }));
-vi.mock('@src/renderer/editor/runtime/operations/elementOps', () => ({
+vi.mock('@src/renderer/editor/runtime/operations/elementOps', async () => ({
+  // 비율 고정 판정은 종류 선언 그대로 (크기 일괄 미리보기·커밋이 같은 계획을 쓴다)
+  isAspectLockedNode: (
+    await import('@src/renderer/editor/runtime/operations/elementGeometryOps')
+  ).isAspectLockedNode,
   commitElementGeometryById: patchGeometryMock,
   commitBatchGeometryByIds: patchBatchGeometryMock,
   patchElementLayerNameById: patchLayerNameMock,
@@ -590,6 +594,7 @@ const resetStores = () => {
   usePluginDisplayElementStore.setState({
     elements: [],
     panelElements: [],
+    definitions: new Map(),
   } as never);
   usePropertiesPanelStore.setState({
     canvasPanelMode: 'property',
@@ -929,7 +934,31 @@ describe('PropertiesPanel canonical native contract', () => {
       expect(patchBatchGeometryViaAuthorityMock).not.toHaveBeenCalled();
     });
 
-    it('혼합 선택 resize는 native 전용 경로로 남는다', () => {
+    it('크기를 정하는 플러그인(resizable)이 섞인 resize는 mixed helper에 그 플러그인을 싣는다', () => {
+      installMixedSelection('main');
+      usePluginDisplayElementStore.setState({
+        definitions: new Map([['plugin-a', { resizable: true }]]),
+      } as never);
+      mounted = mountPanel();
+
+      act(() =>
+        commitProps().onStableGeometryCommit(
+          { kind: 'resize', dimension: 'width', value: 91 },
+          { gestureId: 'a3333333-3333-4333-8333-333333333333' },
+        ),
+      );
+
+      expect(commitMixedBatchGeometryMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: { kind: 'resize', dimension: 'width', value: 91 },
+        }),
+        [PLUGIN_FULL_ID],
+        { gestureId: 'a3333333-3333-4333-8333-333333333333' },
+      );
+      expect(patchBatchGeometryMock).not.toHaveBeenCalled();
+    });
+
+    it('내용이 크기를 정하는 플러그인이 섞인 resize는 native 전용 경로로 남는다', () => {
       installMixedSelection('main');
       mounted = mountPanel();
 

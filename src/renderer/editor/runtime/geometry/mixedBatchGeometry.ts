@@ -1,6 +1,6 @@
-// 혼합(native+plugin) 배치 기하 진입점: 정렬·분배·간격 결과를 native는
+// 혼합(native+plugin) 배치 기하 진입점: 정렬·분배·간격·크기 결과를 native는
 // 틀 트리 커밋, 플러그인은 트리 노드 틀 커밋으로 - 같은 동작 id라
-// 한 번에 되돌린다
+// 한 번에 되돌린다. 크기는 크기를 정하는 플러그인(resizable)만
 
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { setPluginElementFrames } from '@plugins/runtime/displayElement/pluginTreeGeometry';
@@ -14,6 +14,7 @@ import {
 import {
   boundsFrame,
   commitBatchGeometryByIds,
+  isAspectLockedNode,
   type BatchGeometryDescriptor,
 } from '../operations/elementOps';
 
@@ -64,10 +65,17 @@ const readNativeLayoutElements = (
       y,
       width,
       height,
+      lockAspect: isAspectLockedNode(element),
     });
   }
   return elements;
 };
+
+// 크기를 정하는 플러그인 - 정의의 resizable (나머지는 내용이 크기를 정한다)
+const isResizablePlugin = (element: PluginDisplayElementInternal) =>
+  usePluginDisplayElementStore
+    .getState()
+    .definitions.get(element.definitionId ?? '')?.resizable === true;
 
 // 플러그인 대상 bounds 수집 - 크기는 measuredSize ?? estimatedSize ?? 기본값
 // 폴백(캔버스 렌더 크기와 동일). 대상 소실·모드 이탈은 전체 거절 (fail-closed)
@@ -109,7 +117,8 @@ interface MixedGeometryPlanned {
     id: string;
     frame: FramePatch;
   }>;
-  pluginPositions: Map<string, { x: number; y: number }>;
+  // 플러그인 목표 틀 - 위치, 크기 일괄이면 크기까지
+  pluginFrames: Map<string, FramePatch>;
 }
 
 // 혼합 입력 위에서 순수 plan을 계산해 native 틀과 plugin 목표 위치로 분해
@@ -129,11 +138,11 @@ const planMixedBatchGeometry = (
     ),
   );
   const nativeFrames: MixedGeometryPlanned['nativeFrames'] = [];
-  const pluginPositions = new Map<string, { x: number; y: number }>();
+  const pluginFrames = new Map<string, FramePatch>();
   for (const { key, bounds } of plan.bounds) {
     const native = targetByKey.get(key);
     if (native) {
-      // 이 경로는 치수 불변 연산만 통과하므로 스프라이트 이동값 비례도 배율 1이다
+      // 크기가 바뀌면 스프라이트 이동값 비례는 트리 커밋 입구가 같은 커밋에 붙인다
       nativeFrames.push({
         elementType: native.type,
         id: native.id,
@@ -142,10 +151,12 @@ const planMixedBatchGeometry = (
       continue;
     }
     if (key.startsWith(PLUGIN_KEY_PREFIX)) {
-      pluginPositions.set(key.slice(PLUGIN_KEY_PREFIX.length), {
-        x: bounds.dx,
-        y: bounds.dy,
-      });
+      pluginFrames.set(
+        key.slice(PLUGIN_KEY_PREFIX.length),
+        descriptor.operation.kind === 'resize'
+          ? boundsFrame(bounds)
+          : { x: bounds.dx, y: bounds.dy },
+      );
     }
   }
   return {
@@ -154,14 +165,14 @@ const planMixedBatchGeometry = (
       patch: patch as Record<string, unknown>,
     })),
     nativeFrames,
-    pluginPositions,
+    pluginFrames,
   };
 };
 
 /**
  * 선택된 native+plugin 요소의 배치 기하 조작 (main 창 전용)
  * plugin 대상이 없으면 기존 native 전용 경로에 위임.
- * resize는 native 전용 - 플러그인 크기는 content-driven이라 fail-closed 거절
+ * resize는 크기를 정하는 플러그인(resizable)만 - 내용이 크기를 정하는 플러그인이 섞이면 fail-closed 거절
  */
 export const commitMixedBatchGeometry = (
   descriptor: BatchGeometryDescriptor,
@@ -171,12 +182,12 @@ export const commitMixedBatchGeometry = (
   if (pluginFullIds.length === 0) {
     return commitBatchGeometryByIds(descriptor, options);
   }
+  const resize = descriptor.operation.kind === 'resize';
   if (
-    descriptor.operation.kind === 'resize' ||
     !validStructuralText(descriptor.mode, 128) ||
     !validNativeGeometryTargets(descriptor) ||
-    // 최소 개수는 native+plugin 합산 - plugin 단독도 2개 이상이면 성립
-    descriptor.targets.length + pluginFullIds.length < 2 ||
+    // 최소 개수는 native+plugin 합산 - plugin 단독도 2개 이상이면 성립 (크기는 하나부터)
+    descriptor.targets.length + pluginFullIds.length < (resize ? 1 : 2) ||
     pluginFullIds.length > MAX_BATCH_GEOMETRY_TARGETS ||
     pluginFullIds.some((fullId) => fullId.trim().length === 0) ||
     new Set(pluginFullIds).size !== pluginFullIds.length
@@ -198,7 +209,8 @@ export const commitMixedBatchGeometry = (
     targetedPlugins.length !== fullIds.length ||
     targetedPlugins.some(
       (element) => !isPluginVisibleInMode(element, frozenDescriptor.mode),
-    )
+    ) ||
+    (resize && !targetedPlugins.every(isResizablePlugin))
   ) {
     return Promise.resolve(false);
   }
@@ -220,26 +232,14 @@ export const commitMixedBatchGeometry = (
 
   options.preflight?.();
   const gestureId = options.gestureId ?? crypto.randomUUID();
-  const { nativeFrames, pluginPositions } = initialPlanned;
+  const { nativeFrames, pluginFrames } = initialPlanned;
   const writes: Promise<unknown>[] = [];
   if (nativeFrames.length > 0) {
     writes.push(commitFrames(nativeFrames, { gestureId }));
   }
-  // 플러그인 위치는 트리 노드 틀로 (트리 스토어가 바로 얹는다 - 런타임은 트리를 따라온다)
+  // 플러그인 틀은 트리 노드 틀로 (트리 스토어가 바로 얹는다 - 런타임은 트리를 따라온다)
   writes.push(
-    setPluginElementFrames(
-      frozenDescriptor.mode,
-      new Map(
-        [...pluginPositions].map(([fullId, position]) => [
-          fullId,
-          {
-            ...(position.x !== undefined ? { x: position.x } : {}),
-            ...(position.y !== undefined ? { y: position.y } : {}),
-          },
-        ]),
-      ),
-      gestureId,
-    ),
+    setPluginElementFrames(frozenDescriptor.mode, pluginFrames, gestureId),
   );
   return Promise.all(writes).then(() => true);
 };

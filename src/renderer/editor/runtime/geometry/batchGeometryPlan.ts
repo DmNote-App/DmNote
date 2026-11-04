@@ -24,6 +24,8 @@ export interface BatchGeometryLayoutElement {
   y: number;
   width: number;
   height: number;
+  // 비율을 지키는 요소 (그림 레이어) - 크기 일괄에서 다른 축도 같은 배율로
+  lockAspect?: boolean;
 }
 
 interface BatchGeometryUpdate {
@@ -512,8 +514,18 @@ export const computeBatchGeometryPlan = (
     if (!Number.isFinite(operation.value) || operation.value <= 0) {
       return null;
     }
+    const other = operation.dimension === 'width' ? 'height' : 'width';
     for (const element of working) {
-      setPatch(element, { [operation.dimension]: operation.value });
+      setPatch(element, {
+        [operation.dimension]: operation.value,
+        ...(element.lockAspect
+          ? {
+              [other]:
+                (element[other] * operation.value) /
+                element[operation.dimension],
+            }
+          : {}),
+      });
     }
   }
 

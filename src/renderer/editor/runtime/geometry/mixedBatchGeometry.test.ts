@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
       Promise.resolve(),
   ),
   commitBatchGeometryByIds: vi.fn(() => Promise.resolve(true)),
+  // 마지막 플러그인 틀 커밋의 틀
+  pluginFrames: new Map<string, Record<string, number>>(),
 }));
 
 vi.mock(
@@ -61,6 +63,7 @@ vi.mock('@plugins/runtime/displayElement/pluginTreeGeometry', async () => {
       frames: ReadonlyMap<string, { x?: number; y?: number }>,
       gestureId?: string,
     ) => {
+      mocks.pluginFrames = new Map(frames) as never;
       const state = store.getState();
       state.setElements(
         state.elements.map((element) => {
@@ -109,6 +112,8 @@ const seed = (
   options: {
     plugins?: PluginDisplayElementInternal[];
     sprite?: { x: number; y: number; width: number; height: number };
+    // 크기를 정하는 플러그인 (정의의 resizable)
+    resizable?: boolean;
   } = {},
 ) => {
   mocks.nodes = [
@@ -119,8 +124,20 @@ const seed = (
   ];
   usePluginDisplayElementStore.setState({
     elements: options.plugins ?? [pluginElement()],
+    definitions: new Map([
+      ['plugin-a', { resizable: options.resizable ?? false } as never],
+    ]),
   });
 };
+
+const resizeWidth = (
+  value: number,
+  targets: BatchGeometryDescriptor['targets'] = [{ type: 'key', id: KEY_ID }],
+): BatchGeometryDescriptor => ({
+  mode: '4key',
+  targets,
+  operation: { kind: 'resize', dimension: 'width', value },
+});
 
 const align = (
   targets: BatchGeometryDescriptor['targets'] = [{ type: 'key', id: KEY_ID }],
@@ -193,15 +210,46 @@ describe('commitMixedBatchGeometry', () => {
     expect(mocks.commitFrames).not.toHaveBeenCalled();
   });
 
-  it('resize에 plugin이 섞이거나 대상이 없거나 모드 밖이면 거절한다', async () => {
+  it('크기 일괄은 크기를 정하는 플러그인(resizable)의 틀 크기도 같은 동작 id로 바꾼다', async () => {
+    seed({
+      resizable: true,
+      sprite: { x: 300, y: 0, width: 40, height: 20 },
+    });
     await expect(
       commitMixedBatchGeometry(
-        {
-          ...align(),
-          operation: { kind: 'resize', axis: 'width', mode: 'max' },
-        } as never,
+        resizeWidth(80, [
+          { type: 'key', id: KEY_ID },
+          { type: 'sprite', id: SPRITE_ID },
+        ]),
         [FULL_ID],
       ),
+    ).resolves.toBe(true);
+    const [frames, options] = mocks.commitTreeFrames.mock.calls[0];
+    // 스프라이트는 비율 그대로
+    expect(frames).toEqual([
+      {
+        elementType: 'key',
+        id: KEY_ID,
+        frame: { x: 0, y: 0, width: 80, height: 60 },
+      },
+      {
+        elementType: 'sprite',
+        id: SPRITE_ID,
+        frame: { x: 300, y: 0, width: 80, height: 40 },
+      },
+    ]);
+    expect(mocks.pluginFrames.get(FULL_ID)).toEqual({
+      x: 100,
+      y: 0,
+      width: 80,
+      height: 50,
+    });
+    expect(mocks.commitFrames.mock.calls[0][2]).toBe(options?.gestureId);
+  });
+
+  it('크기 일괄에 내용이 크기를 정하는 플러그인이 섞이거나 대상이 없거나 모드 밖이면 거절한다', async () => {
+    await expect(
+      commitMixedBatchGeometry(resizeWidth(80), [FULL_ID]),
     ).resolves.toBe(false);
     await expect(
       commitMixedBatchGeometry(align(), ['plugin-a::missing']),

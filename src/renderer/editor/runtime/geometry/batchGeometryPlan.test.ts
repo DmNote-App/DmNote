@@ -167,6 +167,29 @@ describe('computeBatchGeometryPlan', () => {
     });
   });
 
+  it('크기 일괄 - 비율을 지키는 요소는 다른 축도 같은 배율로 바꾼다 (왼쪽 위는 제자리)', () => {
+    const plan = computeBatchGeometryPlan(
+      [
+        element('key', 0, 0, 60, 60),
+        { ...element('sprite', 100, 20, 200, 100), lockAspect: true },
+      ],
+      { kind: 'resize', dimension: 'width', value: 80 },
+    );
+
+    expect(patchFor(plan, 'key')).toEqual({ width: 80 });
+    expect(patchFor(plan, 'sprite')).toEqual({ width: 80, height: 40 });
+    expect(plan?.bounds).toContainEqual({
+      key: 'sprite',
+      bounds: { dx: 100, dy: 20, width: 80, height: 40 },
+    });
+
+    const byHeight = computeBatchGeometryPlan(
+      [{ ...element('sprite', 0, 0, 200, 100), lockAspect: true }],
+      { kind: 'resize', dimension: 'height', value: 50 },
+    );
+    expect(patchFor(byHeight, 'sprite')).toEqual({ width: 100, height: 50 });
+  });
+
   it('plugin이 합류하면 native만으로 모자란 분배 최소 개수도 성립한다', () => {
     const plan = computeBatchGeometryPlan(
       [

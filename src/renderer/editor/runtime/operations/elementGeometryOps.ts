@@ -7,6 +7,8 @@ import {
   type BatchGeometryOperation,
 } from '../geometry/batchGeometryPlan';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
+import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 import type { EditorBoundsV1 } from '@src/types/editor';
 import type { FramePatch } from '@src/types/generated/elementDocument';
 
@@ -28,6 +30,12 @@ export interface BatchGeometryDescriptor {
   operation: BatchGeometryOperation;
 }
 
+/** 비율을 지키는 요소인지 - 종류 선언 (그림 레이어는 늘리지 않는다) */
+export const isAspectLockedNode = (element: ElementNode): boolean =>
+  elementKindDefinition(element.kind)?.lockAspect?.(
+    (element.values ?? {}) as never,
+  ) === true;
+
 // 대상들의 지금 틀 (트리 낙관 반영 포함, 미리보기 없음) - 모두 그 탭에 그 종류로 있어야 한다
 const readBatchGeometryElements = (descriptor: BatchGeometryDescriptor) => {
   const store = getElementDocumentStore();
@@ -41,6 +49,7 @@ const readBatchGeometryElements = (descriptor: BatchGeometryDescriptor) => {
     y: number;
     width: number;
     height: number;
+    lockAspect: boolean;
   }> = [];
   for (const target of descriptor.targets) {
     if (!isNativeElementId(target.id) || seen.has(target.id)) return null;
@@ -56,6 +65,7 @@ const readBatchGeometryElements = (descriptor: BatchGeometryDescriptor) => {
       y,
       width,
       height,
+      lockAspect: isAspectLockedNode(element),
     });
   }
   return elements;

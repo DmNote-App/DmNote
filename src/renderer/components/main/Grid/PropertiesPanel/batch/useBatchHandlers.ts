@@ -24,6 +24,8 @@ export interface PluginLayoutElement {
   y: number;
   width: number;
   height: number;
+  // 크기를 정하는 플러그인 - 크기 일괄 대상
+  resizable?: boolean;
 }
 
 interface UseBatchHandlersProps {
@@ -58,7 +60,7 @@ export function useBatchHandlers({
       | undefined) ?? null;
 
   const getSelectedLayoutElements = (
-    options: { includePlugins?: boolean } = {},
+    options: { resizeOnly?: boolean } = {},
   ) => {
     // plugin 대상 미해결(null)은 부분 조작 대신 전체 차단 (fail-closed)
     if (pluginLayoutElements === null) return null;
@@ -77,23 +79,25 @@ export function useBatchHandlers({
         : [];
     });
     if (elements.length !== selectedKeyLikeElements.length) return null;
-    if (options.includePlugins === false) return elements;
     return [
       ...elements,
-      ...pluginLayoutElements.map((element) => ({
-        key: getPluginLayoutElementKey(element.fullId),
-        x: element.x,
-        y: element.y,
-        width: element.width,
-        height: element.height,
-      })),
+      ...pluginLayoutElements
+        // 크기 일괄은 크기를 정하는 플러그인만
+        .filter((element) => !options.resizeOnly || element.resizable)
+        .map((element) => ({
+          key: getPluginLayoutElementKey(element.fullId),
+          x: element.x,
+          y: element.y,
+          width: element.width,
+          height: element.height,
+        })),
     ];
   };
 
   const hasGeometryPlan = (operation: BatchGeometryOperation) => {
-    // 크기 일괄은 native 전용 - 게이트도 native만으로 계산
+    // 크기 일괄은 크기를 정하는 플러그인까지 - 게이트도 그 집합으로 계산
     const elements = getSelectedLayoutElements({
-      includePlugins: operation.kind !== 'resize',
+      resizeOnly: operation.kind === 'resize',
     });
     return (
       elements !== null &&

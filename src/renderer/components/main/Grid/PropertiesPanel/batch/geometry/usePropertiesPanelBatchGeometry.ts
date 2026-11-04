@@ -3,8 +3,10 @@ import type { usePropertiesPanelSelection } from '../../selection/usePropertiesP
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import {
   commitBatchGeometryByIds,
+  isAspectLockedNode,
   type BatchGeometryDescriptor,
 } from '@src/renderer/editor/runtime/operations/elementOps';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import {
   currentTreePosition,
   viewTreePosition,
@@ -50,6 +52,7 @@ export const usePropertiesPanelBatchGeometry = ({
         {
           type: EditorElementTypeV1;
           position: Pick<KeyPosition, 'id' | 'dx' | 'dy' | 'width' | 'height'>;
+          lockAspect: boolean;
         }
       >();
       for (const target of stableBatchGeometryTargets) {
@@ -57,25 +60,34 @@ export const usePropertiesPanelBatchGeometry = ({
         const position = viewTreePosition(selectedKeyType, target.id) as
           | Pick<KeyPosition, 'id' | 'dx' | 'dy' | 'width' | 'height'>
           | undefined;
-        if (!position) return;
+        const element = getElementDocumentStore()?.getElement(
+          selectedKeyType,
+          target.id,
+        );
+        if (!position || !element) return;
         targetsByKey.set(`${target.type}:${target.id}`, {
           type: target.type,
           position,
+          // 커밋과 같은 계획 - 비율을 지키는 요소는 크기 일괄에서도 비율 그대로
+          lockAspect: isAspectLockedNode(element),
         });
       }
       // 커밋과 같은 기준선을 쓰도록 plan 입력에는 plugin bounds를 합치되,
       // preview 반영은 native 4 domain 전용 - 플러그인은 dial 중 정지,
-      // 커밋 시 착지 (v1). resize는 native 전용이라 plugin 미합류
+      // 커밋 시 착지 (v1). resize는 크기를 정하는 플러그인만 합류
       const pluginPlanInputs =
-        operation.kind === 'resize' ? [] : stablePluginGeometryElements;
+        operation.kind === 'resize'
+          ? stablePluginGeometryElements.filter(({ resizable }) => resizable)
+          : stablePluginGeometryElements;
       const plan = computeBatchGeometryPlan(
         [
-          ...[...targetsByKey].map(([key, { position }]) => ({
+          ...[...targetsByKey].map(([key, { position, lockAspect }]) => ({
             key,
             x: position.dx,
             y: position.dy,
             width: position.width,
             height: position.height,
+            lockAspect,
           })),
           ...pluginPlanInputs.map((element) => ({
             key: `plugin:${element.fullId}`,
@@ -151,9 +163,13 @@ export const usePropertiesPanelBatchGeometry = ({
         (operation.kind === 'resize'
           ? editGestureController.activeGestureId() ?? undefined
           : undefined);
-      // 크기 일괄은 native 전용 - 플러그인 크기는 content-driven
+      // 크기 일괄은 크기를 정하는 플러그인까지 - 나머지 플러그인 크기는 내용이 정한다
       const pluginTargets =
-        operation.kind === 'resize' ? [] : stablePluginGeometryTargets;
+        operation.kind === 'resize'
+          ? (stablePluginGeometryElements ?? [])
+              .filter(({ resizable }) => resizable)
+              .map(({ fullId }) => fullId)
+          : stablePluginGeometryTargets;
       const commit =
         pluginTargets.length > 0
           ? commitMixedBatchGeometry(descriptor, pluginTargets, {
