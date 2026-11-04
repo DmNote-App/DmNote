@@ -353,6 +353,34 @@ const CASES: Record<string, Case> = {
     tab: 'note',
   },
   '키와 노브': { nodes: [key, knob], selected: [ID(3), ID(6)] },
+  '키와 노브 - 노트 탭': {
+    nodes: [key, knob],
+    selected: [ID(3), ID(6)],
+    tab: 'note',
+  },
+  '키와 노브 - 카운터 탭': {
+    nodes: [key, knob],
+    selected: [ID(3), ID(6)],
+    tab: 'counter',
+  },
+  '키와 스탯 - 카운터 탭': {
+    nodes: [key, stat],
+    selected: [ID(3), ID(11)],
+    tab: 'counter',
+  },
+  '스탯 여럿 - 카운터 탭': {
+    nodes: [stat, totalStat],
+    selected: [ID(11), ID(12)],
+    tab: 'counter',
+  },
+  '키·그래프·노브': {
+    nodes: [lineGraph, key, knob],
+    selected: [ID(1), ID(3), ID(6)],
+  },
+  '키·스프라이트·그래프': {
+    nodes: [lineGraph, key, sprite],
+    selected: [ID(1), ID(3), ID(8)],
+  },
   '키와 스프라이트': { nodes: [key, sprite], selected: [ID(3), ID(8)] },
   '키와 그래프 - 카운터 탭': {
     nodes: [lineGraph, key],
