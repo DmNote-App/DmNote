@@ -18,11 +18,9 @@ import {
   type BatchGeometryDescriptor,
 } from '../operations/elementOps';
 
-import { isEditorElementType } from '@src/types/editor';
 import type { FramePatch } from '@src/types/generated/elementDocument';
-import type { NativeElementType } from '../../model/elementIdMap';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { commitFrames } from '../operations/treeEditCommit';
+import { commitFrames, isTreeWritableKind } from '../operations/treeEditCommit';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
 const MAX_BATCH_GEOMETRY_TARGETS = 4096;
@@ -31,8 +29,7 @@ const PLUGIN_KEY_PREFIX = 'plugin:';
 const validStructuralText = (value: string, maxBytes: number): boolean =>
   value.length > 0 && new TextEncoder().encode(value).length <= maxBytes;
 
-const nativeLayoutKey = (type: NativeElementType, id: string): string =>
-  `${type}:${id}`;
+const nativeLayoutKey = (type: string, id: string): string => `${type}:${id}`;
 
 const pluginLayoutKey = (fullId: string): string =>
   `${PLUGIN_KEY_PREFIX}${fullId}`;
@@ -44,7 +41,7 @@ const validNativeGeometryTargets = (
 ): boolean =>
   descriptor.targets.length <= MAX_BATCH_GEOMETRY_TARGETS &&
   descriptor.targets.every(
-    ({ type, id }) => isEditorElementType(type) && isNativeElementId(id),
+    ({ type, id }) => isTreeWritableKind(type) && isNativeElementId(id),
   ) &&
   new Set(descriptor.targets.map(({ id }) => id)).size ===
     descriptor.targets.length;
@@ -113,7 +110,7 @@ const readPluginLayoutElements = (
 interface MixedGeometryPlanned {
   updates: Array<{ key: string; patch: Record<string, unknown> }>;
   nativeFrames: Array<{
-    elementType: NativeElementType;
+    elementType: string;
     id: string;
     frame: FramePatch;
   }>;

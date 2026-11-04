@@ -14,7 +14,10 @@ import {
 import { computeBatchGeometryPlan } from '@src/renderer/editor/runtime/geometry/batchGeometryPlan';
 import { commitMixedBatchGeometry } from '@src/renderer/editor/runtime/geometry/mixedBatchGeometry';
 import { spriteResizePatch } from '@utils/sprite/resizeProjection';
-import type { EditorElementTypeV1 } from '@src/types/editor';
+import {
+  isEditorElementType,
+  type EditorElementTypeV1,
+} from '@src/types/editor';
 import { PREVIEW_DOMAIN_BY_ELEMENT_TYPE } from '@src/types/preview';
 import type { KeyPosition } from '@src/types/key/keys';
 
@@ -50,7 +53,7 @@ export const usePropertiesPanelBatchGeometry = ({
       const targetsByKey = new Map<
         string,
         {
-          type: EditorElementTypeV1;
+          type: string;
           position: Pick<KeyPosition, 'id' | 'dx' | 'dy' | 'width' | 'height'>;
           lockAspect: boolean;
         }
@@ -130,6 +133,8 @@ export const usePropertiesPanelBatchGeometry = ({
         if (update.key.startsWith('plugin:')) continue;
         const target = targetsByKey.get(update.key);
         if (!target) return;
+        // 트리에만 있는 종류는 편집 미리보기 영역이 없어 커밋 때 반영한다 (플러그인 요소처럼)
+        if (!isEditorElementType(target.type)) continue;
         const entries = byType.get(target.type) ?? [];
         // 이동 계열은 배율 1이라 커밋도 setBounds와 같다 - 원시 patch 유지
         const projected =

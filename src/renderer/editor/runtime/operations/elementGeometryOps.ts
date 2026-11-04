@@ -19,7 +19,8 @@ export type GeometryField = 'dx' | 'dy' | 'width' | 'height';
 type GeometryPatch = Partial<Record<GeometryField, number>>;
 
 export interface BatchGeometryTarget {
-  type: NativeElementType;
+  // 종류 - 트리로 옮긴 옛 종류와 트리에만 있는 내장 종류
+  type: string;
   id: string;
 }
 
@@ -42,7 +43,7 @@ const readBatchGeometryElements = (descriptor: BatchGeometryDescriptor) => {
   const seen = new Set<string>();
   const elements: Array<{
     key: string;
-    type: NativeElementType;
+    type: string;
     id: string;
     x: number;
     y: number;
