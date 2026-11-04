@@ -15,7 +15,11 @@ import {
   hasRenderableSettings,
   type SettingsNormalizationErrorKind,
 } from '@plugins/runtime/settingsSections';
-import { PropertyRow, NumberInput, PropertySection } from '../index';
+import {
+  PropertyRow,
+  NumberInput,
+  PropertySection,
+} from '../controls/PropertyInputs';
 import { AXIS_FIELD_WIDTH } from '@utils/cardRecipes';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
 

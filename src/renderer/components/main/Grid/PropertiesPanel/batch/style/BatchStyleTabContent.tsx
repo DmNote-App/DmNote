@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { KeyPosition } from '@src/types/key/keys';
-import { PropertyRow, NumberInput, PropertySection } from '../../index';
+import {
+  PropertyRow,
+  NumberInput,
+  PropertySection,
+} from '../../controls/PropertyInputs';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePanelSelection } from '../../../document/treeEditedSelection';
 import {
