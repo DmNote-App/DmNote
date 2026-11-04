@@ -80,11 +80,6 @@ pub fn run() {
 
     let context = tauri::generate_context!();
 
-    // 저장 파일 해석을 Tauri 초기화와 겹쳐 미리 한다 - setup은 메인 스레드라 그동안 창 요청을 받지 못한다
-    if !interaction_benchmark {
-        state::store::preload::start(&context.config().identifier);
-    }
-
     let builder = tauri::Builder::default()
         .on_page_load(|webview, payload| {
             if matches!(payload.event(), PageLoadEvent::Started) && webview.label() == "overlay" {
@@ -400,6 +395,12 @@ pub fn run() {
         ])
         .build(context)
         .expect("error while building tauri application");
+
+    // 저장 파일 해석을 setup 전까지 겹쳐 미리 한다 - setup은 메인 스레드라 그동안 창 요청을 받지 못한다.
+    // 단일 인스턴스 확인(build) 뒤에 읽는다 - 앞선 앱이 마지막 저장을 끝내기 전 내용을 읽지 않게
+    if !interaction_benchmark {
+        state::store::preload::start(&app.config().identifier);
+    }
 
     app.run(|app_handle, event| match event {
         tauri::RunEvent::WindowEvent {
