@@ -1,45 +1,49 @@
 /**
  * 레이어 패널 이름표 — 순수 함수
- * 행 순서·그룹은 트리가 정하고, 이름이 비었을 때의 기본 이름과 플러그인 요소의 표시 상태만 옛 컬렉션에서 읽는다
+ * 행 순서·그룹·기본 이름은 트리가 정하고, 플러그인 요소의 표시 상태만 플러그인 스토어에서 읽는다
  */
 
 import { slotDisplayName } from '@utils/keySlot';
-import type { KeyMappings } from '@src/types/key/keys';
-import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
-  ITEM_ELEMENT_TYPES,
-  type CanonicalEditorDocumentV1,
-  type CanonicalPositionOf,
-  type ItemElementType,
-} from '@src/types/editor';
-import type { ElementCollections } from '@src/types/editor';
-
-type ItemElementCollections = Omit<ElementCollections, 'keyPositions'>;
 import { getStatTypeLabel } from '@utils/grid/statTypeLabel';
 import type { PluginPanelElementView } from '@src/types/plugin/api';
+import type { StatItemType } from '@src/types/key/statItems';
 import { isPluginVisibleInMode } from '@utils/layerGroupUtils';
-import type { Node, Scene } from '@src/types/generated/elementDocument';
+import type { Scene } from '@src/types/generated/elementDocument';
+import {
+  sceneElements,
+  type ElementNode,
+} from '@src/renderer/editor/document/documentPatch';
+import { keySlotOf } from '@src/renderer/elementKinds/definitions/key/keySlotInfo';
 
-type BuildLayerLabelsParams = ItemElementCollections & {
+interface BuildLayerLabelsParams {
+  scene: Scene | undefined;
   selectedKeyType: string;
-  positions: CanonicalEditorDocumentV1['keyPositions'];
-  keyMappings: KeyMappings;
   pluginElements: PluginPanelElementView[];
-  // 기본 이름 번호 - 옛 배열 순번 (목록은 겹침 순서라 순번과 다르다)
-  storedIndexOf?: (id: string) => number | undefined;
-};
+}
 
-// 키 외 종류별 레이어 기본 이름
-const ITEM_LAYER_DEFAULT_NAMES: {
-  [K in ItemElementType]: (
-    position: CanonicalPositionOf<K>,
-    index: number,
-  ) => string;
-} = {
-  stat: (position) => getStatTypeLabel(position.statType),
-  graph: (position) => `${getStatTypeLabel(position.statType)} Graph`,
-  knob: (_position, index) => `Knob ${index + 1}`,
-  sprite: (_position, index) => `Sprite ${index + 1}`,
+const statTypeOf = (element: ElementNode) =>
+  (element.values as { statType?: StatItemType | null } | undefined)?.statType;
+
+// 옛 종류별 레이어 기본 이름 - 번호는 옛 배열 순번
+const LAYER_DEFAULT_NAMES = new Map<
+  string,
+  (element: ElementNode, index: number) => string
+>([
+  [
+    'key',
+    (element, index) =>
+      slotDisplayName(keySlotOf(element) ?? '') || `Key ${index + 1}`,
+  ],
+  ['stat', (element) => getStatTypeLabel(statTypeOf(element))],
+  ['graph', (element) => `${getStatTypeLabel(statTypeOf(element))} Graph`],
+  ['knob', (_element, index) => `Knob ${index + 1}`],
+  ['sprite', (_element, index) => `Sprite ${index + 1}`],
+]);
+
+// 트리에 실린 옛 배열 순번 - 기본 이름 번호 (목록은 겹침 순서라 순번과 다르다)
+const legacyIndexOf = (element: ElementNode) => {
+  const index = (element.legacy as { index?: unknown } | undefined)?.index;
+  return typeof index === 'number' ? index : undefined;
 };
 
 export interface LayerLabels {
@@ -49,42 +53,25 @@ export interface LayerLabels {
   pluginHidden: Map<string, boolean>;
 }
 
-export function buildLayerLabels(params: BuildLayerLabelsParams): LayerLabels {
-  const {
-    selectedKeyType,
-    positions,
-    keyMappings,
-    pluginElements,
-    storedIndexOf,
-  } = params;
-  const numberIndex = (id: string, index: number) =>
-    storedIndexOf?.(id) ?? index;
+export function buildLayerLabels({
+  scene,
+  selectedKeyType,
+  pluginElements,
+}: BuildLayerLabelsParams): LayerLabels {
   const defaultNames = new Map<string, string>();
   const pluginHidden = new Map<string, boolean>();
 
-  const currentKeyMappings = keyMappings[selectedKeyType] || [];
-  (positions[selectedKeyType] || []).forEach((position, index) => {
+  // 종류 안 트리 순서 - 옛 순번이 없을 때의 번호
+  const orders = new Map<string, number>();
+  for (const element of scene ? sceneElements(scene) : []) {
+    const defaultName = LAYER_DEFAULT_NAMES.get(element.kind);
+    if (!defaultName) continue;
+    const order = orders.get(element.kind) ?? 0;
+    orders.set(element.kind, order + 1);
     defaultNames.set(
-      position.id,
-      slotDisplayName(currentKeyMappings[index] ?? '') ||
-        `Key ${numberIndex(position.id, index) + 1}`,
+      element.id,
+      defaultName(element, legacyIndexOf(element) ?? order),
     );
-  });
-
-  for (const type of ITEM_ELEMENT_TYPES) {
-    const defaultName = ITEM_LAYER_DEFAULT_NAMES[type] as (
-      position: never,
-      index: number,
-    ) => string;
-    (
-      (params[EDITOR_ELEMENT_POSITION_FIELDS[type]][selectedKeyType] ||
-        []) as Array<{ id: string }>
-    ).forEach((position, index) => {
-      defaultNames.set(
-        position.id,
-        defaultName(position as never, numberIndex(position.id, index)),
-      );
-    });
   }
 
   pluginElements
@@ -96,20 +83,3 @@ export function buildLayerLabels(params: BuildLayerLabelsParams): LayerLabels {
 
   return { defaultNames, pluginHidden };
 }
-
-/** 요소 id → 트리에 실린 옛 배열 순번 */
-export const legacyIndicesOf = (scene: Scene | undefined) => {
-  const indices = new Map<string, number>();
-  const visit = (nodes: readonly Node[]) => {
-    for (const node of nodes) {
-      if (node.type === 'group') {
-        visit(node.children);
-        continue;
-      }
-      const index = (node.legacy as { index?: unknown } | undefined)?.index;
-      if (typeof index === 'number') indices.set(node.id, index);
-    }
-  };
-  if (scene) visit(scene.nodes);
-  return indices;
-};
