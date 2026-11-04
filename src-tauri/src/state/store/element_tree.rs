@@ -1137,4 +1137,6 @@ impl AppStore {
 #[cfg(test)]
 mod local_ops_fixture;
 #[cfg(test)]
+mod property_rules_fixture;
+#[cfg(test)]
 mod tests;
