@@ -1,19 +1,27 @@
 import React, { act } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
-import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
+import {
+  createFakeElementDocumentBackend,
+  type FakeElementDocumentBackend,
+} from '@src/renderer/__tests__/fakeElementDocumentBackend';
+import { legacyShapedSeed } from '@src/renderer/__tests__/treeNodes';
+import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
-import { useLayerGroupStore } from '@src/renderer/__tests__/legacyStores/useLayerGroupStore';
-import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useKeySlotCapture } from '@hooks/useKeySlotCapture';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
-import { useSpriteStore } from '@src/renderer/__tests__/legacyStores/useSpriteStore';
 import {
   cancelPluginSettingsSessionForPlugin,
   openPluginSettingsSession,
@@ -202,14 +210,21 @@ const {
   reportElementOpSkippedMock: vi.fn(),
 }));
 
-// 속성 패널은 지금 값을 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
-vi.mock(
-  '@src/renderer/editor/document/elementDocumentRuntime',
-  async (importOriginal) =>
-    (
-      await import('@src/renderer/__tests__/treeFromLegacyStores')
-    ).treeFromStores(importOriginal as never),
-);
+// 속성 패널은 지금 값을 트리에서 읽는다 - IPC 경계만 대역, 트리 스토어·런타임은 실물
+const ipc = vi.hoisted(() => ({
+  backend: null as FakeElementDocumentBackend | null,
+}));
+vi.mock('@api/modules/editor/elementDocumentApi', () => ({
+  elementDocumentApi: new Proxy(
+    {},
+    {
+      get: (_target, name: string) =>
+        name === 'registerKind' || name === 'unregisterKind'
+          ? async () => undefined
+          : (ipc.backend!.api as Record<string, unknown>)[name],
+    },
+  ),
+}));
 vi.mock('@contexts/useTranslation', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
@@ -411,7 +426,24 @@ const mountPanel = (): MountedPanel => {
   return { container, root, render };
 };
 
+// 옛 위치 모양으로 꾸민 트리 장면
+const seed = legacyShapedSeed(() => ipc.backend!);
+
+beforeAll(async () => {
+  // 속성 패널은 편집 창(메인)에서 트리를 읽는다
+  const windowType = window.__dmn_window_type;
+  window.__dmn_window_type = 'main';
+  ipc.backend = createFakeElementDocumentBackend({
+    formatVersion: 1,
+    kindVersions: {},
+    scenes: {},
+  });
+  await loadElementDocumentStore();
+  window.__dmn_window_type = windowType;
+});
+
 const resetStores = () => {
+  seed.reset();
   previewMock.mockClear();
   settleCommitMock.mockClear();
   activeGestureIdMock.mockReset();
@@ -496,12 +528,12 @@ const resetStores = () => {
   reportElementOpSkippedMock.mockClear();
   statUpdatePositionsMock.mockClear();
   useKeyStore.setState({ selectedKeyType: '4key' });
-  useLegacyKeyArrays.setState({
+  seed.keys({
     keyMappings: { '4key': [] },
     positions: { '4key': [] },
     canonicalPositions: { '4key': [] },
   });
-  useStatItemStore.setState({
+  seed.stats({
     positions: {
       '4key': [
         {
@@ -514,7 +546,7 @@ const resetStores = () => {
       ],
     },
   });
-  useGraphItemStore.setState({
+  seed.graphs({
     positions: {
       '4key': [
         {
@@ -530,7 +562,7 @@ const resetStores = () => {
       ],
     },
   });
-  useKnobItemStore.setState({
+  seed.knobs({
     positions: {
       '4key': [
         {
@@ -545,7 +577,7 @@ const resetStores = () => {
       ],
     },
   });
-  useLayerGroupStore.setState({ layerGroups: {} });
+  seed.layerGroups({ layerGroups: {} });
   usePluginDisplayElementStore.setState({
     elements: [],
     panelElements: [],
@@ -574,13 +606,13 @@ describe('PropertiesPanel canonical native contract', () => {
         { ...base, id: otherId },
         { ...base, id },
       ];
-      useLegacyKeyArrays.setState({
+      seed.keys({
         keyMappings: { '4key': ['B', 'A'] },
         positions: { '4key': items },
         canonicalPositions: { '4key': items },
       });
     } else {
-      useStatItemStore.setState({
+      seed.stats({
         positions: {
           '4key': [
             { ...base, id: otherId, statType: 'kps' },
@@ -629,7 +661,7 @@ describe('PropertiesPanel canonical native contract', () => {
     const secondId = '72222222-2222-4222-8222-222222222222';
     const first = { ...createDefaultKeyPosition(), id: firstId };
     const second = { ...createDefaultKeyPosition(), id: secondId, dx: 80 };
-    useLegacyKeyArrays.setState({
+    seed.keys({
       keyMappings: { '4key': ['A', 'B'] },
       positions: { '4key': [first, second] },
       canonicalPositions: { '4key': [first, second] },
@@ -672,7 +704,7 @@ describe('PropertiesPanel canonical native contract', () => {
     const stableId = '81111111-1111-4111-8111-111111111111';
     const stable = { ...createDefaultKeyPosition(), id: stableId };
     const invalid = { ...createDefaultKeyPosition(), id: 'key-1' };
-    useLegacyKeyArrays.setState({
+    seed.keys({
       keyMappings: { '4key': ['A', 'B'] },
       positions: { '4key': [stable, invalid] },
       canonicalPositions: { '4key': [stable, invalid] },
@@ -700,12 +732,12 @@ describe('PropertiesPanel canonical native contract', () => {
     // 그 값을 확정하면 스프라이트의 모든 자세 오프셋까지 배율이 먹는다
     it('키와 스프라이트를 함께 고르면 크기 getter가 Mixed를 낸다', () => {
       const key = { ...createDefaultKeyPosition(), id: MIXED_KEY_ID };
-      useLegacyKeyArrays.setState({
+      seed.keys({
         keyMappings: { '4key': ['A'] },
         positions: { '4key': [key] },
         canonicalPositions: { '4key': [key] },
       });
-      useSpriteStore.setState({
+      seed.sprites({
         positions: {
           '4key': [
             makeCanonicalSpritePosition({
@@ -747,12 +779,12 @@ describe('PropertiesPanel canonical native contract', () => {
     // bounds만 얹으면 드래그 중엔 활동 영역만 줄다가 놓는 순간 튄다
     it('스프라이트 크기 미리보기는 이미지와 자세까지 커밋과 같게 투영한다', () => {
       const key = { ...createDefaultKeyPosition(), id: MIXED_KEY_ID };
-      useLegacyKeyArrays.setState({
+      seed.keys({
         keyMappings: { '4key': ['A'] },
         positions: { '4key': [key] },
         canonicalPositions: { '4key': [key] },
       });
-      useSpriteStore.setState({
+      seed.sprites({
         positions: {
           '4key': [
             makeCanonicalSpritePosition({
@@ -830,7 +862,7 @@ describe('PropertiesPanel canonical native contract', () => {
         id: SECOND_KEY_ID,
         dx: 80,
       };
-      useLegacyKeyArrays.setState({
+      seed.keys({
         keyMappings: { '4key': ['A', 'B'] },
         positions: { '4key': [first, second] },
         canonicalPositions: { '4key': [first, second] },
@@ -936,17 +968,22 @@ describe('PropertiesPanel canonical native contract', () => {
         dx: 80,
         groupId: 'group-a',
       };
-      useLegacyKeyArrays.setState({
+      seed.keys({
         keyMappings: { '4key': ['A', 'B'] },
         positions: { '4key': [first, second] },
         canonicalPositions: { '4key': [first, second] },
       });
-      useLayerGroupStore.setState({
+      seed.layerGroups({
         layerGroups: { '4key': [{ id: 'group-a', name: '그룹 A' }] },
       } as never);
       usePluginDisplayElementStore.setState({
         elements: [{ ...pluginElement(), groupId: 'group-a' }],
       } as never);
+      seed.plugins({
+        '4key': [
+          { id: PLUGIN_FULL_ID, pluginId: 'plugin-a', groupId: 'group-a' },
+        ],
+      });
       useDocumentSelectionStore.setState({
         selectedElements: [
           { type: 'key', id: FIRST_KEY_ID, index: 0 },
@@ -1024,11 +1061,11 @@ describe('PropertiesPanel 편집 세션 scope 경계', () => {
 
   it('캔버스 선택 패널은 편집 세션 scope 안이다', () => {
     const id = '91111111-1111-4111-8111-111111111111';
-    useStatItemStore.setState({
+    seed.stats({
       positions: {
         '4key': [
           {
-            ...useStatItemStore.getState().positions['4key'][0],
+            ...seed.current().stats['4key']![0],
             id,
           },
         ],
@@ -1142,7 +1179,7 @@ describe('PropertiesPanel 배치 색상 피커 대상 결합', () => {
   beforeEach(() => {
     resetStores();
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useLegacyKeyArrays.setState({
+    seed.keys({
       keyMappings: { '4key': ['KeyA', 'KeyS', 'KeyD'] as never },
       positions: {
         '4key': [

@@ -1,13 +1,23 @@
 // @vitest-environment jsdom
 import React, { act, createRef } from 'react';
-import { useLegacyKeyArrays } from '@src/renderer/__tests__/legacyStores/useLegacyKeyArrays';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+import {
+  createFakeElementDocumentBackend,
+  type FakeElementDocumentBackend,
+} from '@src/renderer/__tests__/fakeElementDocumentBackend';
+import { legacyShapedSeed } from '@src/renderer/__tests__/treeNodes';
+import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { useStatItemStore } from '@src/renderer/__tests__/legacyStores/useStatItemStore';
-import { useGraphItemStore } from '@src/renderer/__tests__/legacyStores/useGraphItemStore';
-import { useKnobItemStore } from '@src/renderer/__tests__/legacyStores/useKnobItemStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 import type { CompletionBinding } from '@src/renderer/contexts/EditSessionScope';
@@ -142,14 +152,21 @@ const errors = vi.hoisted(() => ({
   reportElementOpError: vi.fn(),
 }));
 
-// 속성 패널은 지금 값을 트리에서 읽는다 - 옛 스토어 값으로 트리 장면을 만든다
-vi.mock(
-  '@src/renderer/editor/document/elementDocumentRuntime',
-  async (importOriginal) =>
-    (
-      await import('@src/renderer/__tests__/treeFromLegacyStores')
-    ).treeFromStores(importOriginal as never),
-);
+// 속성 패널은 지금 값을 트리에서 읽는다 - IPC 경계만 대역, 트리 스토어·런타임은 실물
+const ipc = vi.hoisted(() => ({
+  backend: null as FakeElementDocumentBackend | null,
+}));
+vi.mock('@api/modules/editor/elementDocumentApi', () => ({
+  elementDocumentApi: new Proxy(
+    {},
+    {
+      get: (_target, name: string) =>
+        name === 'registerKind' || name === 'unregisterKind'
+          ? async () => undefined
+          : (ipc.backend!.api as Record<string, unknown>)[name],
+    },
+  ),
+}));
 vi.mock('@src/renderer/editor/runtime/operations/elementOps', () => ({
   patchElementPropertyByTargetsViaAuthority:
     patches.patchElementPropertyByTargetsViaAuthority,
@@ -328,6 +345,21 @@ const ID_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 const keyAt = (id: string) => ({ ...createDefaultKeyPosition(), id });
 
+// 옛 위치 모양으로 꾸민 트리 장면
+const seed = legacyShapedSeed(() => ipc.backend!);
+
+beforeAll(async () => {
+  // 속성 패널은 편집 창(메인)에서 트리를 읽는다
+  window.__dmn_window_type = 'main';
+  ipc.backend = createFakeElementDocumentBackend({
+    formatVersion: 1,
+    kindVersions: {},
+    scenes: {},
+  });
+  await loadElementDocumentStore();
+  delete window.__dmn_window_type;
+});
+
 const shadowSpec = () => ({
   enabled: true,
   color: '#0008',
@@ -469,7 +501,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
 
   const selectKey = (id: string) => {
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useLegacyKeyArrays.setState({
+    seed.keys({
       canonicalPositions: { '4key': [keyAt(id)] },
       positions: { '4key': [keyAt(id)] },
     });
@@ -654,11 +686,11 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
 
   const selectCounterTargets = (keyId: string, statId: string) => {
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useLegacyKeyArrays.setState({
+    seed.keys({
       canonicalPositions: { '4key': [keyAt(keyId)] },
       positions: { '4key': [keyAt(keyId)] },
     });
-    useStatItemStore.setState({
+    seed.stats({
       positions: {
         '4key': [{ ...keyAt(statId), statType: 'kps' }],
       },
@@ -994,11 +1026,11 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
     const legacy = vi.fn();
     const key = keyAt(ID_A);
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useLegacyKeyArrays.setState({
+    seed.keys({
       positions: { '4key': [key] },
       canonicalPositions: { '4key': [key] },
     });
-    useKnobItemStore.setState({
+    seed.knobs({
       positions: { '4key': [keyAt(ID_B)] } as never,
     });
     useDocumentSelectionStore.setState({
@@ -1033,7 +1065,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       window.__dmn_window_type = windowType;
       const keys = [keyAt(ID_A), keyAt(ID_B)];
       useKeyStore.setState({ selectedKeyType: '4key' });
-      useLegacyKeyArrays.setState({
+      seed.keys({
         canonicalPositions: { '4key': keys },
         positions: { '4key': keys },
       });
@@ -1082,7 +1114,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
         { ...keyAt(ID_B), noteOffsetX: 0, noteOffsetY: 0 },
       ];
       useKeyStore.setState({ selectedKeyType: '4key' });
-      useLegacyKeyArrays.setState({
+      seed.keys({
         canonicalPositions: { '4key': keys },
         positions: { '4key': keys },
       });
@@ -1167,17 +1199,17 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       const knobId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
       const otherId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
       useKeyStore.setState({ selectedKeyType: '4key' });
-      useLegacyKeyArrays.setState({
+      seed.keys({
         canonicalPositions: { '4key': [keyAt(otherId), keyAt(keyId)] },
         positions: { '4key': [keyAt(otherId), keyAt(keyId)] },
       });
-      useStatItemStore.setState({
+      seed.stats({
         positions: { '4key': [{ ...keyAt(statId), statType: 'kps' }] },
       });
-      useGraphItemStore.setState({
+      seed.graphs({
         positions: { '4key': [keyAt(graphId)] } as never,
       });
-      useKnobItemStore.setState({
+      seed.knobs({
         positions: { '4key': [keyAt(knobId)] } as never,
       });
       useDocumentSelectionStore.setState({
@@ -1262,7 +1294,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
 
   it('displayText stable target 하나가 사라지면 partial preview 없이 중단한다', async () => {
     useKeyStore.setState({ selectedKeyType: '4key' });
-    useLegacyKeyArrays.setState({
+    seed.keys({
       canonicalPositions: { '4key': [keyAt(ID_A)] },
       positions: { '4key': [keyAt(ID_A)] },
     });
@@ -1272,7 +1304,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
         { type: 'graph', id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', index: 0 },
       ],
     });
-    useGraphItemStore.setState({ positions: {} });
+    seed.graphs({ positions: {} });
     renderPanel({ active: null, renderKey: null });
     const input = host.querySelector<HTMLInputElement>('input[type="text"]')!;
     act(() => input.focus());
@@ -1303,23 +1335,23 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
     const knobId = byType.get('knob');
     if (keyId !== undefined) {
       useKeyStore.setState({ selectedKeyType: '4key' });
-      useLegacyKeyArrays.setState({
+      seed.keys({
         positions: { '4key': [keyAt(keyId)] },
         canonicalPositions: { '4key': [keyAt(keyId)] },
       });
     }
     if (statId !== undefined) {
-      useStatItemStore.setState({
+      seed.stats({
         positions: { '4key': [{ ...keyAt(statId), statType: 'kps' }] },
       });
     }
     if (graphId !== undefined) {
-      useGraphItemStore.setState({
+      seed.graphs({
         positions: { '4key': [keyAt(graphId)] } as never,
       });
     }
     if (knobId !== undefined) {
-      useKnobItemStore.setState({
+      seed.knobs({
         positions: { '4key': [keyAt(knobId)] } as never,
       });
     }
@@ -1768,7 +1800,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
           },
         };
         useKeyStore.setState({ selectedKeyType: '4key' });
-        useLegacyKeyArrays.setState({
+        seed.keys({
           canonicalPositions: { '4key': [withGradient] },
           positions: { '4key': [withGradient] },
         });
@@ -1848,12 +1880,12 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
         keyAt(other.type === 'key' ? other.id : 'unused'),
       ];
       useKeyStore.setState({ selectedKeyType: '4key' });
-      useLegacyKeyArrays.setState({
+      seed.keys({
         canonicalPositions: { '4key': keyPositions },
         positions: { '4key': keyPositions },
       });
       if (other.type === 'stat') {
-        useStatItemStore.setState({
+        seed.stats({
           positions: {
             '4key': [{ ...keyAt(other.id), statType: 'kps' }],
           },
@@ -1998,25 +2030,25 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
     if (typeList.includes('key')) {
       const position = keyAt(idFor('key'));
       useKeyStore.setState({ selectedKeyType: '4key' });
-      useLegacyKeyArrays.setState({
+      seed.keys({
         positions: { '4key': [position] },
         canonicalPositions: { '4key': [position] },
       });
     }
     if (typeList.includes('stat')) {
-      useStatItemStore.setState({
+      seed.stats({
         positions: {
           '4key': [{ ...keyAt(idFor('stat')), statType: 'kps' }],
         },
       });
     }
     if (typeList.includes('graph')) {
-      useGraphItemStore.setState({
+      seed.graphs({
         positions: { '4key': [keyAt(idFor('graph'))] } as never,
       });
     }
     if (typeList.includes('knob')) {
-      useKnobItemStore.setState({
+      seed.knobs({
         positions: { '4key': [keyAt(idFor('knob'))] } as never,
       });
     }
