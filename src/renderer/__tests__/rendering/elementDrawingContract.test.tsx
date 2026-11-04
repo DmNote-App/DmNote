@@ -128,6 +128,19 @@ const CASES: Record<string, ContractCase> = {
     previewPressed: true,
     previewDomain: 'keyPosition',
   },
+  // 사용자 이미지 - 대기·눌림 이미지 층(data-key-image-layer, 사용자 CSS 공개 약속)
+  keyImage: {
+    element: node('key-2', 'key', {
+      input: { type: 'key', slot: 'KeyB' },
+      bundles: {
+        surface,
+        image: { inactiveImage: IMAGE, activeImage: IMAGE },
+      },
+    }),
+    press: () => setKeyActive('KeyB', true),
+    previewPressed: true,
+    previewDomain: 'keyPosition',
+  },
   stat: {
     element: node('stat-1', 'stat', {
       values: { statType: 'kps', displayText: 'KPS', count: 0 },
