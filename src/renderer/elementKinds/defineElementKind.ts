@@ -125,6 +125,10 @@ export interface ElementKindCode<Values> {
   // 오버레이·OBS에서 감싸는 상자 없이 얼굴이 받은 자리(placement)에 스스로 놓인다 - 옛 오버레이 DOM을
   // 그대로 지키는 옛 종류 (사용자 CSS·히트 영역 측정이 그 모양에 기댄다)
   readonly placesItself?: boolean;
+  // 눌림 그림이 있다 - 패널이 눌림 상태 칸(눌림 칠·그림자·이미지·카운터 채움)을 보이고 고친다
+  readonly activeVisual?: boolean;
+  // 표면 묶음의 그림자를 그리지 않는다 (예: 그래프) - 패널이 그림자 칸을 보이지 않는다
+  readonly surfaceShadow?: false;
   // 크기 조절 때 비율을 지킬지
   readonly lockAspect?: (values: Values) => boolean;
   // 크기가 바뀔 때 함께 맞출 값 - 바뀐 값만 (예: 스프라이트 자세 이동값을 크기 비율로)

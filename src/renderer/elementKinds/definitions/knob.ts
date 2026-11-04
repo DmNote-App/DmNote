@@ -28,6 +28,7 @@ export const knobKind = defineElementKind(
   {
     // 편집 화면은 눌림 미리보기 상태, 오버레이·OBS는 축 입력으로 돌리는 같은 그리기
     render: KnobElementFace as never,
+    activeVisual: true,
     placesItself: true,
     title: () => 'Knob',
     // 축 매핑이 위치·크기보다 위에 온다
