@@ -34,7 +34,6 @@ import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStor
 import {
   commitBatchGeometryByIds,
   commitElementGeometryById,
-  commitElementBoundsById,
   commitSingleElementBoundsById,
   patchElementHiddenById,
   patchElementLayerNameById,
@@ -290,89 +289,6 @@ describe('elementOps', () => {
         height: 80,
       }),
     ).resolves.toBe(false);
-  });
-
-  it('그룹 bounds는 대상 전부의 틀을 커밋 하나로 정산한다', async () => {
-    const committed = await commitElementBoundsById(
-      new Map([
-        [
-          'key',
-          new Map([
-            [ID_A, { dx: 50, dy: 60, width: 90, height: 80 }],
-            [ID_B, { dx: 70, dy: 80, width: 100, height: 110 }],
-          ]),
-        ],
-      ]),
-    );
-
-    expect(committed).toBe(true);
-    expect(api.commitFrames).toHaveBeenCalledOnce();
-    expect(api.commitFrames.mock.calls[0][0]).toEqual([
-      {
-        elementType: 'key',
-        id: ID_A,
-        frame: { x: 50, y: 60, width: 90, height: 80 },
-      },
-      {
-        elementType: 'key',
-        id: ID_B,
-        frame: { x: 70, y: 80, width: 100, height: 110 },
-      },
-    ]);
-  });
-
-  it('그룹 bounds의 커밋 실패는 오류로 올린다', async () => {
-    api.commitFrames.mockRejectedValueOnce(new Error('start failed'));
-
-    await expect(
-      commitElementBoundsById(
-        new Map([
-          [
-            'key',
-            new Map([
-              [ID_A, { dx: 50, dy: 60, width: 90, height: 80 }],
-              [ID_B, { dx: 70, dy: 80, width: 100, height: 110 }],
-            ]),
-          ],
-        ]),
-      ),
-    ).rejects.toThrow('start failed');
-  });
-
-  it('그룹 bounds 일부 대상이 사라져도 남은 대상이 적용되면 true로 끝난다', async () => {
-    api.commitFrames.mockResolvedValueOnce(['targetMissing', 'applied']);
-
-    const committed = await commitElementBoundsById(
-      new Map([
-        [
-          'key',
-          new Map([
-            [ID_A, { dx: 50, dy: 60, width: 90, height: 80 }],
-            [ID_B, { dx: 70, dy: 80, width: 100, height: 110 }],
-          ]),
-        ],
-      ]),
-    );
-
-    expect(committed).toBe(true);
-  });
-
-  it('그룹 bounds 대상이 전부 사라지면 false로 정산한다', async () => {
-    api.commitFrames.mockResolvedValueOnce(['targetMissing', 'targetMissing']);
-
-    const committed = await commitElementBoundsById(
-      new Map([
-        [
-          'key',
-          new Map([
-            [ID_A, { dx: 50, dy: 60, width: 90, height: 80 }],
-            [ID_B, { dx: 70, dy: 80, width: 100, height: 110 }],
-          ]),
-        ],
-      ]),
-    );
-
-    expect(committed).toBe(false);
   });
 
   it('hidden은 적용되면 true, targetMissing이면 미적용으로 반환한다', async () => {

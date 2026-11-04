@@ -120,6 +120,61 @@ describe('calculateResizePreviewPlan', () => {
     expect(plan.guideUpdate.kind).toBe('set');
   });
 
+  // 크기 일치를 끄면 옛 종류·트리 요소(native)는 대상과 무관한 수평 간격 가이드를 거르고,
+  // 플러그인 요소는 참조용으로 남긴다
+  it.each([
+    { policy: 'native' as const, kept: ['related'] },
+    { policy: 'plugin' as const, kept: ['related', 'unrelated'] },
+  ])(
+    '크기 일치를 끈 $policy 크기 조절의 수평 간격 가이드',
+    ({ policy, kept }) => {
+      const unrelated = {
+        type: 'spacing' as const,
+        direction: 'horizontal' as const,
+        value: 20,
+        startPos: 0,
+        endPos: 20,
+        crossAxisPos: 0,
+        fromElementId: 'reference-a',
+        toElementId: 'reference-b',
+        isMatched: true,
+      };
+      const related = {
+        ...unrelated,
+        fromElementId: 'element-a',
+        toElementId: 'reference-c',
+      };
+      mocks.calculateSnapPoints.mockReturnValue({
+        ...emptySnapResult,
+        snappedX: 0,
+        snappedY: 0,
+        spacingGuides: [related, unrelated],
+        didSnapX: true,
+        didSpacingSnapX: true,
+      });
+
+      const plan = calculateResizePreviewPlan({
+        elementId: 'element-a',
+        newBounds: {
+          x: 0,
+          y: 0,
+          width: 120,
+          height: 60,
+          handle: { id: 'e', dx: 1, dy: 0 },
+        },
+        otherElements: [],
+        settings: { ...settings, spacingGuidesEnabled: true },
+        policy,
+      });
+
+      expect(plan.guideUpdate.kind).toBe('set');
+      if (plan.guideUpdate.kind !== 'set') return;
+      expect(plan.guideUpdate.spacingGuides).toEqual(
+        kept.map((name) => (name === 'related' ? related : unrelated)),
+      );
+    },
+  );
+
   it('size-only snap은 정렬 가이드를 비우고 size guide payload만 유지한다', () => {
     const sizeGuide = {
       type: 'size-match' as const,

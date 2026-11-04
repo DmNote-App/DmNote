@@ -1,6 +1,5 @@
 import { isNativeElementId } from '../../model/elementId';
 import type { NativeElementType } from '../../model/elementIdMap';
-import { type PropertyIntents } from '../intent/elementIntent';
 import { commitFrames, sceneOfElement } from './treeEditCommit';
 import {
   computeBatchGeometryPlan,
@@ -155,57 +154,6 @@ export const commitElementGeometryById = (
     ...(options.gestureId ? { gestureId: options.gestureId } : {}),
     ...(options.preflight ? { preflight: options.preflight } : {}),
   }).then(([status]) => status !== 'targetMissing');
-};
-
-// 리사이즈 완료 전용: 시작 시 동결한 대상 id들에 최종 bounds를 한 커밋으로 (트리가 낙관 반영, 오류는 전파)
-export const commitElementBoundsById = (
-  intents: PropertyIntents,
-  gestureId?: string,
-): Promise<boolean> => {
-  const frames: Array<{
-    elementType: NativeElementType;
-    id: string;
-    frame: FramePatch;
-  }> = [];
-  const boundsKeys = new Set(['dx', 'dy', 'width', 'height']);
-  const seenIds = new Set<string>();
-  for (const [elementType, byId] of intents) {
-    for (const [id, patch] of byId) {
-      if (
-        !isNativeElementId(id) ||
-        seenIds.has(id) ||
-        Object.keys(patch).some((key) => !boundsKeys.has(key)) ||
-        typeof patch.dx !== 'number' ||
-        typeof patch.dy !== 'number' ||
-        typeof patch.width !== 'number' ||
-        typeof patch.height !== 'number' ||
-        !Number.isFinite(patch.dx) ||
-        !Number.isFinite(patch.dy) ||
-        !Number.isFinite(patch.width) ||
-        !Number.isFinite(patch.height) ||
-        patch.width <= 0 ||
-        patch.height <= 0
-      ) {
-        return Promise.resolve(false);
-      }
-      seenIds.add(id);
-      frames.push({
-        elementType,
-        id,
-        frame: boundsFrame({
-          dx: patch.dx,
-          dy: patch.dy,
-          width: patch.width,
-          height: patch.height,
-        }),
-      });
-    }
-  }
-  if (frames.length === 0) return Promise.resolve(false);
-
-  return commitFrames(frames, {
-    ...(gestureId ? { gestureId } : {}),
-  }).then((statuses) => statuses.some((status) => status !== 'targetMissing'));
 };
 
 export const commitSingleElementBoundsById = (
