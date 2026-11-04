@@ -23,7 +23,8 @@ import {
   type PropertyCommitOptions,
 } from './elementPropertyCore';
 
-type PaintTarget = { elementType: NativeElementType; id: string };
+// 고칠 요소 - 옛 종류와 트리에만 있는 내장 종류 (트리 커밋 입구가 쓰는 종류를 가린다)
+type PaintTarget = { elementType: string; id: string };
 
 export const patchPaintByTargets = (
   targets: readonly PaintTarget[],
@@ -32,7 +33,7 @@ export const patchPaintByTargets = (
 ): Promise<boolean> => {
   const { active, surface } = paintPropertyFields(patch.property);
   // 표면별 허용 타깃 - font는 라벨 렌더러가 있는 키·스탯(active는 키만)
-  const rejectsTarget = (elementType: NativeElementType): boolean =>
+  const rejectsTarget = (elementType: string): boolean =>
     surface === 'font'
       ? active
         ? elementType !== 'key'
@@ -98,7 +99,7 @@ export const patchCounterFillById = (
 ) => patchCounterFillByTargets([{ elementType, id }], patch, options);
 
 type ShadowTarget = {
-  elementType: NativeElementType;
+  elementType: string;
   id: string;
 };
 
@@ -208,7 +209,7 @@ export const patchStylePropertyById = (
     : patchElementPropertyById(type, id, patch, options);
 
 export const patchStylePropertyByTargets = (
-  targets: readonly { elementType: NativeElementType; id: string }[],
+  targets: readonly { elementType: string; id: string }[],
   patch: EditorPreviewStylePropertyPatchV1,
   options: { gestureId?: string; preflight?: () => void } = {},
 ): Promise<boolean> =>

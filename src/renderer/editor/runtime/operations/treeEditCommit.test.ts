@@ -63,6 +63,8 @@ const KEY_A = '00000000-0000-4000-8000-000000000a01';
 const KEY_B = '00000000-0000-4000-8000-000000000a02';
 const SPRITE = '00000000-0000-4000-8000-000000000a03';
 const OTHER_TAB_KEY = '00000000-0000-4000-8000-000000000a04';
+const TRACKER = '00000000-0000-4000-8000-000000000a05';
+const PLUGIN = 'timer::00000000-0000-4000-8000-000000000a06';
 
 const key = (id: string, slot: string): ElementNode =>
   fillKindDefaults({
@@ -82,11 +84,38 @@ const sprite = (): ElementNode =>
     values: { idleTransform: { x: 0, y: 40, rotation: 0, scale: 1 } },
   } as ElementNode);
 
+// 트리에만 있는 내장 종류
+const tracker = (): ElementNode =>
+  fillKindDefaults({
+    type: 'element',
+    id: TRACKER,
+    kind: 'cursorTracker',
+    frame: { x: 400, y: 0, width: 120, height: 120, rotation: 0 },
+    bundles: { surface: { borderWidth: 1 } },
+  } as ElementNode);
+
+// 플러그인 요소 - 플러그인 저장소가 맡는다
+const plugin = (): ElementNode =>
+  ({
+    type: 'element',
+    id: PLUGIN,
+    kind: 'plugin:timer',
+    frame: { x: 600, y: 0, width: 80, height: 40, rotation: 0 },
+  } as ElementNode);
+
 const documentOf = (): Document => ({
   formatVersion: 1,
   kindVersions: {},
   scenes: {
-    '4key': { nodes: [key(KEY_A, 'KeyA'), key(KEY_B, 'KeyB'), sprite()] },
+    '4key': {
+      nodes: [
+        key(KEY_A, 'KeyA'),
+        key(KEY_B, 'KeyB'),
+        sprite(),
+        tracker(),
+        plugin(),
+      ],
+    },
     custom: { nodes: [key(OTHER_TAB_KEY, 'KeyC')] },
   },
 });
@@ -317,6 +346,40 @@ describe('트리 편집 커밋 입구', () => {
       expect(
         (valuesOf('4key', SPRITE).idleTransform as { y: number }).y,
       ).toBeCloseTo(20);
+    });
+  });
+
+  describe('트리에만 있는 내장 종류', () => {
+    it('속성 패치·틀도 같은 커밋 입구로 쓴다 - 플러그인 요소는 쓰지 않는다', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      await expect(
+        commitPropertyPatch(
+          [
+            { elementType: 'cursorTracker', id: TRACKER },
+            { elementType: 'plugin:timer', id: PLUGIN },
+          ],
+          { property: 'borderWidth', value: 4 },
+        ),
+      ).resolves.toEqual(['applied', 'targetMissing']);
+      expect(committedOps()).toEqual([
+        {
+          op: 'setBundle',
+          scene: '4key',
+          id: TRACKER,
+          bundle: 'surface',
+          fields: { borderWidth: 4 },
+        },
+      ]);
+
+      await expect(
+        commitFrames([
+          { elementType: 'cursorTracker', id: TRACKER, frame: { x: 10 } },
+        ]),
+      ).resolves.toEqual(['applied']);
+      expect(committedOps(1)).toEqual([
+        { op: 'setFrame', scene: '4key', id: TRACKER, frame: { x: 10 } },
+      ]);
+      warn.mockRestore();
     });
   });
 

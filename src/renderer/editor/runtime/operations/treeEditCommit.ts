@@ -16,7 +16,8 @@ import {
 import { propertyPatchOps } from '@src/renderer/elementKinds/runtime/propertyPatchOps';
 import { withResizeValues } from '@src/renderer/elementKinds/runtime/resizeValues';
 import type { EditorElementPropertyPatchV1 } from '@src/types/editor';
-import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
+import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
+import { isPluginKind, TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import type { FramePatch, Op } from '@src/types/generated/elementDocument';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { markGestureSessionsDiscarded } from '../gesture/gestureSessionLifecycle';
@@ -106,7 +107,12 @@ export const sceneOfElement = (store: ElementDocumentStore, id: string) => {
   return store.getSceneIds().find((scene) => store.getElement(scene, id));
 };
 
-// 대상마다 트리 연산을 만들어 커밋 하나로 - 트리에 있는 옛 종류 요소만, 연산을 못 만들면 그 대상은 targetMissing.
+/** 이 입구로 쓰는 종류 - 트리로 옮긴 옛 종류와 트리에만 있는 내장 종류 (플러그인 요소는 플러그인 저장소가 맡는다) */
+export const isTreeWritableKind = (kind: string) =>
+  TREE_EDITED_KINDS.has(kind) ||
+  (!isPluginKind(kind) && elementKindDefinition(kind) !== undefined);
+
+// 대상마다 트리 연산을 만들어 커밋 하나로 - 이 입구로 쓰는 종류만, 연산을 못 만들면 그 대상은 targetMissing.
 // resizeValues - 크기와 함께 맞출 값을 비례할지 (칸 패치는 비례하지 않는다)
 const commitPerTarget = <T extends TreeCommitTarget>(
   targets: readonly T[],
@@ -119,7 +125,7 @@ const commitPerTarget = <T extends TreeCommitTarget>(
     const treeOps: Op[] = [];
     const statuses = targets.map((target): TreeCommitStatus => {
       const scene =
-        store?.edit && TREE_EDITED_KINDS.has(target.elementType)
+        store?.edit && isTreeWritableKind(target.elementType)
           ? sceneOfElement(store, target.id)
           : undefined;
       const element = scene ? store!.getElement(scene, target.id) : undefined;
@@ -180,7 +186,7 @@ export const commitFieldPatch = (
   makeFields: (current: PanelFieldView) => Record<string, unknown> | null,
   options: { gestureId?: string; resizeValues: boolean },
 ): Promise<'committed' | 'skipped'> | null => {
-  if (!TREE_EDITED_KINDS.has(target.elementType)) return null;
+  if (!isTreeWritableKind(target.elementType)) return null;
   const store = getElementDocumentStore();
   if (!store?.edit) return null;
   const element = store.getElement(target.scene, target.id);

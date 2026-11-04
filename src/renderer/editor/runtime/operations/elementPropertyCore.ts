@@ -23,8 +23,9 @@ export const patchElementPropertyById = (
   }).then(([status]) => status !== 'targetMissing');
 };
 
+// 고칠 요소 - 옛 종류와 트리에만 있는 내장 종류 (트리 커밋 입구가 쓰는 종류를 가린다)
 interface ElementPropertyTarget {
-  elementType: NativeElementType;
+  elementType: string;
   id: string;
 }
 
