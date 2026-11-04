@@ -6,6 +6,7 @@ import SpriteCanvasHandles from '../handles/SpriteCanvasHandles';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { usePanelSelection } from '../document/treeEditedSelection';
 import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
+import { viewFieldsById } from '@src/renderer/elementKinds/runtime/viewFields';
 import { projectSpriteResize } from '@utils/sprite/resizeProjection';
 import {
   getSelectionOutlineEdges,
@@ -25,6 +26,7 @@ import {
 import type { ElementCollections } from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
+import type { ReactiveSpritePosition } from '@src/types/key/sprites';
 
 type ResizeHandlesProps = ComponentProps<typeof ResizeHandles>;
 type GroupResizeHandlesProps = ComponentProps<typeof GroupResizeHandles>;
@@ -76,14 +78,14 @@ const GridSelectionOverlays = ({
   // 기준점·자세 손잡이 - 트리에서 그리는 스프라이트는 트리 틀(끌기·크기 미리보기 포함)을 따른다
   const framedSprites = useTreeFramedPositions(
     'sprite',
-    collections.spritePositions[mode] ?? [],
     mode,
-  );
+  ) as unknown as readonly ReactiveSpritePosition[];
   // 크기가 달라졌으면 이동값도 같은 비율로 (얼굴·커밋과 같은 projection)
   const spriteHandlePositions = {
-    ...collections.spritePositions,
-    [mode]: framedSprites.map((framed, index) => {
-      const source = collections.spritePositions[mode]?.[index];
+    [mode]: framedSprites.map((framed) => {
+      const source = viewFieldsById(mode, framed.id) as unknown as
+        | ReactiveSpritePosition
+        | undefined;
       return source && framed !== source
         ? {
             ...framed,

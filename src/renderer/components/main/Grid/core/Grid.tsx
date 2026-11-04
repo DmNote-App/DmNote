@@ -263,21 +263,11 @@ const Grid = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [records, previewVersion],
   );
-  const { statPositions, keyPositions: positions } = collections;
 
   const panelSelection = usePanelSelection(selectedKeyType);
-  // 트리에서 그리는 키의 바깥 카운터는 트리 틀을 따라간다
-  const keyCounterPositions = useTreeFramedPositions(
-    'key',
-    positions[selectedKeyType] ?? [],
-    selectedKeyType,
-  );
-  // 트리에서 그리는 스탯의 바깥 카운터는 트리 틀을 따라간다
-  const statCounterPositions = useTreeFramedPositions(
-    'stat',
-    statPositions?.[selectedKeyType] || [],
-    selectedKeyType,
-  );
+  // 키·스탯의 바깥 카운터는 트리 틀을 따라간다
+  const keyCounterPositions = useTreeFramedPositions('key', selectedKeyType);
+  const statCounterPositions = useTreeFramedPositions('stat', selectedKeyType);
 
   // 선택 관련 로직 훅 사용
   const {
