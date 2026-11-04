@@ -83,7 +83,7 @@ import {
   beginDocumentDuplicate,
   placeDocumentDuplicate,
 } from '../document/documentDuplicate';
-import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
+import { keySlotOf } from '@src/renderer/elementKinds/definitions/key/keySlotInfo';
 import { keyMenuContextOf } from '@hooks/Grid/contextMenu/useGridContextMenu';
 import { useDocumentKeyboard } from '../document/useDocumentKeyboard';
 import {
@@ -920,12 +920,12 @@ const Grid = ({
             }
 
             if (id === 'counterReset') {
-              const displayName = slotDisplayName(treeKeySlot(target) ?? '');
+              const displayName = slotDisplayName(keySlotOf(target) ?? '');
               showConfirm(
                 t('confirm.resetKeyCounter', { name: displayName }),
                 async () => {
                   // 확인 시점 다시 읽기 - 모달이 떠 있는 동안의 슬롯 바꾸기 반영
-                  const slot = treeKeySlot(
+                  const slot = keySlotOf(
                     getElementDocumentStore()?.getElement(
                       selectedKeyType,
                       target.id,

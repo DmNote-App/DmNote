@@ -47,7 +47,7 @@ import {
 } from './documentLayerModel';
 import { buildLayerLabels } from './layerPanelModel';
 import { slotDisplayName } from '@utils/keySlot';
-import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
+import { keySlotOf } from '@src/renderer/elementKinds/definitions/key/keySlotInfo';
 import {
   LayerElementRow,
   LayerGroupRow,
@@ -162,7 +162,7 @@ const LayerTabContent = ({
   // 이름이 비었을 때 보이는 이름
   const defaultNameOf = (node: ElementNode) => {
     // 키는 트리 입력 슬롯 이름 (슬롯 바꾸기가 트리 연산 - 낙관 적용)
-    const slot = slotDisplayName(treeKeySlot(node) ?? '');
+    const slot = slotDisplayName(keySlotOf(node) ?? '');
     if (slot) return slot;
     const fallback = labels.defaultNames.get(node.id);
     if (fallback) return fallback;
