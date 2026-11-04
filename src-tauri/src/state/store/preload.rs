@@ -30,7 +30,12 @@ fn start_at(path: PathBuf) {
     let thread_path = path.clone();
     let Ok(handle) = std::thread::Builder::new()
         .name("store-preload".into())
-        .spawn(move || load_store_from_path(&thread_path))
+        .spawn(move || {
+            let loaded = load_store_from_path(&thread_path)?;
+            // 불러온 뒤 정리가 바로 읽는 옛 모양 보기도 만들어 둔다 (트리 판의 캐시 - 같은 값)
+            loaded.data.tree_legacy();
+            Ok(loaded)
+        })
     else {
         return;
     };
