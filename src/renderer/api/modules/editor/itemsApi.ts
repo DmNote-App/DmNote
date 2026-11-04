@@ -7,7 +7,7 @@ import type { GraphItemPositions } from '@src/types/key/graphItems';
 import type { KnobItemPositions } from '@src/types/key/knobs';
 import type { ReactiveSpritePosition } from '@src/types/key/sprites';
 import { toSpriteWireShape } from '@utils/sprite/spriteWireShape';
-import { commitTreeLegacyFields } from '@src/renderer/editor/runtime/operations/editorSemanticOps';
+import { commitFieldPatch } from '@src/renderer/editor/runtime/operations/treeEditCommit';
 import type { LayerGroups } from '@src/types/layerGroups';
 
 // 커밋 성사 여부를 호출자가 판별하는 typed 결과. targetMissing은 무커밋
@@ -60,10 +60,8 @@ export const spriteItemsApi = {
     generatePatch?: SpritePatchGenerator,
   ): Promise<SpritePatchCommitResult> => {
     // 트리 편집기가 맡는 스프라이트는 트리로 (확인 전까지 대기 중인 트리 편집이 얹는다)
-    const tree = commitTreeLegacyFields(
-      'sprite',
-      mode,
-      id,
+    const tree = commitFieldPatch(
+      { elementType: 'sprite', id, scene: mode },
       (current) => {
         const latestPatch = generatePatch
           ? generatePatch(current as unknown as ReactiveSpritePosition)
@@ -78,7 +76,8 @@ export const spriteItemsApi = {
           Object.keys(latestPatch).map((field) => [field, next[field] ?? null]),
         );
       },
-      gestureId,
+      // 칸 패치는 이동값을 비례하지 않는다 (예: 기본 이미지에 상자를 맞춰도 자세 이동값은 그대로)
+      { gestureId, resizeValues: false },
     );
     // 지금 장면 트리에 없는 스프라이트는 고칠 수 없다
     return tree ?? Promise.resolve('targetMissing');

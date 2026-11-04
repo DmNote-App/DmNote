@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { sendTreeEditedFrame } from '@src/renderer/editor/runtime/operations/editorSemanticOps';
+import { commitFrames } from '@src/renderer/editor/runtime/operations/treeEditCommit';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { currentTreePosition } from '../../runtime/treeElementPosition';
@@ -515,23 +515,24 @@ const SpritePanelBody = ({
     return persisted;
   };
 
-  // 회전 - 트리 편집기가 맡는 스프라이트는 트리에 바로 써 감싸는 상자가 즉시 돈다
+  // 회전 - 틀에 바로 써 감싸는 상자가 즉시 돈다
   const commitRotation = (rotation: number) => {
     const gestureId = editGestureController.activeGestureId() ?? undefined;
-    const persisted = sendTreeEditedFrame(
-      'sprite',
-      position.id,
-      { rotation },
-      gestureId,
+    const persisted = commitFrames(
+      [{ elementType: 'sprite', id: position.id, frame: { rotation } }],
+      gestureId ? { gestureId } : {},
     );
-    if (!persisted) {
-      void commitFields({ rotation });
-      return;
-    }
     editGestureController.settleCommit(persisted);
-    void persisted.catch((error) => {
-      console.error('Failed to rotate sprite', error);
-    });
+    void persisted
+      .then(([status]) => {
+        // 무커밋 조용 종료 방지: 대상 소실은 흔적을 남긴다
+        if (status === 'targetMissing') {
+          console.error('Sprite patch target missing', position.id);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to rotate sprite', error);
+      });
   };
 
   const trackPoseWrite = (persisted: Promise<unknown>) => {

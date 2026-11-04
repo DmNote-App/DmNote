@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
 
-const { commitPatch, commitTreeLegacyFields } = vi.hoisted(() => ({
+const { commitPatch, commitFieldPatch } = vi.hoisted(() => ({
   commitPatch: vi.fn(),
-  commitTreeLegacyFields: vi.fn(),
+  commitFieldPatch: vi.fn(),
 }));
 
 vi.mock('@src/renderer/editor/runtime/lifecycle/legacyEditorMutation', () => ({
   commitLegacyEditorPatch: commitPatch,
   runExclusiveLegacyMutation: (mutation: () => Promise<unknown>) => mutation(),
 }));
-vi.mock('@src/renderer/editor/runtime/operations/editorSemanticOps', () => ({
-  commitTreeLegacyFields,
+vi.mock('@src/renderer/editor/runtime/operations/treeEditCommit', () => ({
+  commitFieldPatch,
 }));
 
 import { keysApi, updatePositionsWithGesture } from './keysApi';
@@ -67,7 +67,7 @@ describe('editor API compatibility adapters', () => {
   beforeEach(() => {
     commitPatch.mockReset();
     commitPatch.mockResolvedValue(structuredClone(document));
-    commitTreeLegacyFields.mockReset();
+    commitFieldPatch.mockReset();
   });
 
   it('routes key writers through editor_commit and preserves return shapes', async () => {
@@ -129,11 +129,9 @@ describe('editor API compatibility adapters', () => {
 
   it('sprite patchPosition은 지금 값에서 패치를 만들어 트리로 보낸다', async () => {
     const sprite = spriteFixture('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
-    commitTreeLegacyFields.mockImplementation(
+    commitFieldPatch.mockImplementation(
       (
-        _type: string,
-        _mode: string,
-        _id: string,
+        _target: unknown,
         makeFields: (current: unknown) => Record<string, unknown> | null,
       ) => {
         expect(makeFields({ ...sprite, layerName: 'old' })).toEqual({
@@ -151,17 +149,16 @@ describe('editor API compatibility adapters', () => {
         'g1',
       ),
     ).resolves.toBe('committed');
-    expect(commitTreeLegacyFields).toHaveBeenCalledWith(
-      'sprite',
-      '4key',
-      sprite.id,
+    expect(commitFieldPatch).toHaveBeenCalledWith(
+      { elementType: 'sprite', id: sprite.id, scene: '4key' },
       expect.any(Function),
-      'g1',
+      // 칸 패치는 이동값을 비례하지 않는다
+      { gestureId: 'g1', resizeValues: false },
     );
   });
 
   it('sprite patchPosition은 지금 장면 트리에 없으면 무커밋 targetMissing이다', async () => {
-    commitTreeLegacyFields.mockReturnValue(null);
+    commitFieldPatch.mockReturnValue(null);
     await expect(
       spriteItemsApi.patchPosition('4key', 'missing', { layerName: 'x' }),
     ).resolves.toBe('targetMissing');

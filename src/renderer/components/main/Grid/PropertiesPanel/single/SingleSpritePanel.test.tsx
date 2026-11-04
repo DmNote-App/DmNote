@@ -68,6 +68,9 @@ const mocks = vi.hoisted(() => ({
     (_type: string, _id: string, _bounds: unknown, _gestureId?: string) =>
       Promise.resolve(true),
   ),
+  commitFrames: vi.fn((targets: unknown[], _options?: unknown) =>
+    Promise.resolve(targets.map(() => 'applied')),
+  ),
 }));
 
 // 패널은 담당 키 후보·지금 값을 트리에서 읽는다 - 실제 트리 스토어 아래에 가짜 백엔드를 붙인다
@@ -87,6 +90,15 @@ vi.mock(
   async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),
     commitSingleElementBoundsById: mocks.commitBounds,
+  }),
+);
+
+// 회전은 틀 커밋 - 커밋 인자만 검증한다
+vi.mock(
+  '@src/renderer/editor/runtime/operations/treeEditCommit',
+  async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    commitFrames: mocks.commitFrames,
   }),
 );
 
@@ -1349,13 +1361,12 @@ describe('SingleSpritePanel 자세 편집', () => {
     );
     act(() => input.blur());
 
-    expect(mocks.patchPosition).toHaveBeenCalledExactlyOnceWith(
-      '4key',
-      SPRITE_ID,
-      { rotation: 0 },
-      undefined,
-      undefined,
+    // 회전만 틀로 - 위치·대기 변환·자세는 보내지 않는다
+    expect(mocks.commitFrames).toHaveBeenCalledExactlyOnceWith(
+      [{ elementType: 'sprite', id: SPRITE_ID, frame: { rotation: 0 } }],
+      {},
     );
+    expect(mocks.patchPosition).not.toHaveBeenCalled();
     expect(mocks.commitBounds).not.toHaveBeenCalled();
     expect(position).toEqual(initial);
     expect(currentTreePosition('4key', SPRITE_ID)).toMatchObject({
@@ -1402,6 +1413,7 @@ describe('SingleSpritePanel 자세 편집', () => {
     expect(mocks.gestureCancel).toHaveBeenCalledOnce();
     expect(parseFloat(input.value)).toBe(90);
     expect(mocks.patchPosition).not.toHaveBeenCalled();
+    expect(mocks.commitFrames).not.toHaveBeenCalled();
     expect(mocks.commitBounds).not.toHaveBeenCalled();
     expect(currentTreePosition('4key', SPRITE_ID)).toMatchObject({
       dx: initial.dx,
