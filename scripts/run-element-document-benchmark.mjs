@@ -121,6 +121,27 @@ const webContentPids = () => {
   );
 };
 
+const UNIT_SCALE = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 };
+
+// 범주별 더러운 메모리 (JS 힙·WebKit malloc·그리기 계층 등 - 어느 쪽이 늘었는지 가른다)
+const footprintCategories = (pid) => {
+  try {
+    const output = sh('/usr/bin/footprint', ['-p', String(pid)]);
+    const categories = {};
+    for (const line of output.split('\n')) {
+      const match = line.match(
+        /^\s*([\d.]+)\s*(B|KB|MB|GB)\s+[\d.]+\s*(?:B|KB|MB|GB)\s+[\d.]+\s*(?:B|KB|MB|GB)\s+\d+\s+(.+?)\s*$/,
+      );
+      if (!match) continue;
+      const bytes = Math.round(Number(match[1]) * UNIT_SCALE[match[2]]);
+      if (bytes > 0) categories[match[3]] = bytes;
+    }
+    return categories;
+  } catch {
+    return null;
+  }
+};
+
 // phys_footprint (Activity Monitor의 메모리 열과 같은 값)
 const footprintBytes = (pid) => {
   try {
@@ -216,7 +237,11 @@ const launch = async (phase) => {
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 1000));
       const fresh = [...webContentPids()].filter((pid) => !before.has(pid));
       return {
-        webContent: fresh.map((pid) => ({ pid, bytes: footprintBytes(pid) })),
+        webContent: fresh.map((pid) => ({
+          pid,
+          bytes: footprintBytes(pid),
+          categories: footprintCategories(pid),
+        })),
         host: footprintBytes(child.pid),
       };
     };
@@ -229,7 +254,11 @@ const launch = async (phase) => {
   const memoryAfter =
     phase === 'measure'
       ? {
-          webContent: fresh.map((pid) => ({ pid, bytes: footprintBytes(pid) })),
+          webContent: fresh.map((pid) => ({
+            pid,
+            bytes: footprintBytes(pid),
+            categories: footprintCategories(pid),
+          })),
           host: footprintBytes(child.pid),
         }
       : null;
