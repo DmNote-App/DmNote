@@ -37,8 +37,13 @@ const sectionKey = (
     ? `bundle:${section.bundle}`
     : `${kind}#${index}`;
 
+// 종류 사이에서 하나인 섹션 (공통 섹션·기능 묶음)
+const isSharedKey = (key: string) =>
+  key.startsWith('common:') || key.startsWith('bundle:');
+
 /** 고른 종류들의 일괄 섹션 - 종류마다 선언 순서를 지키며 합친다. 한 종류에만 있는 섹션은
- * 그 종류의 다음 섹션 중 이미 있는 것 바로 앞에 (없으면 끝에) */
+ * 그 종류의 다음 섹션 중 이미 있는 것 바로 앞에, 다음 섹션이 없으면 바로 앞 섹션 뒤
+ * (앞선 종류가 그 뒤에 붙인 고유 섹션 다음 - 종류 순서), 그것도 없으면 끝에 */
 export const unionBatchSections = (
   kinds: readonly string[],
 ): UnionSection[] => {
@@ -49,6 +54,16 @@ export const unionBatchSections = (
       const definition = elementKindDefinition(kind);
       return definition ? [definition] : [];
     });
+  const afterPrevious = (key: string | undefined) => {
+    const previous =
+      key === undefined ? -1 : merged.findIndex((entry) => entry.key === key);
+    if (previous < 0) return merged.length;
+    let position = previous + 1;
+    while (position < merged.length && !isSharedKey(merged[position].key)) {
+      position += 1;
+    }
+    return position;
+  };
   for (const definition of definitions) {
     const keyed = (definition.panel ?? defaultPanel(definition))
       .map((section, index) => ({
@@ -66,7 +81,7 @@ export const unionBatchSections = (
         .slice(index + 1)
         .map((later) => merged.findIndex((entry) => entry.key === later.key))
         .find((position) => position >= 0);
-      merged.splice(next ?? merged.length, 0, {
+      merged.splice(next ?? afterPrevious(keyed[index - 1]?.key), 0, {
         key,
         section,
         kinds: [definition.kind],

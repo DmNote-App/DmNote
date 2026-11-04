@@ -39,7 +39,7 @@ export const keyKind = defineElementKind(
     // 옛 키 패널 배치 - 겉모습 묶음(표면·글자·이미지·사운드)은 옛 스타일 탭 부품 하나가 사용자 CSS를
     // 글자와 사운드 사이에 함께 그린다 (색 피커 하나를 같이 쓰고, 사운드를 열면 피커를 닫는다)
     panel: [
-      { custom: KeySlotSection, only: 'single' },
+      { custom: KeySlotSection },
       { common: 'geometry' },
       { bundle: 'surface' },
       { bundle: 'font' },

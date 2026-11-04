@@ -33,7 +33,7 @@ import {
 
 // 편집 창이 패널 부품을 불러올 때 종류 패널의 지연 로딩 입력도 미리 불러 둔다 - 처음 여는 패널이 빈 칸으로
 // 한 번 그려지지 않게
-preloadPanelControls(BUILTIN_ELEMENT_KINDS as never);
+void preloadPanelControls(BUILTIN_ELEMENT_KINDS as never);
 
 const MixedLabel = () => (
   <span className="text-fg-faint text-body italic">Mixed</span>
@@ -181,6 +181,7 @@ export const FieldRow = ({
           {mixedLabel}
           <control.component
             value={value}
+            isMixed={isMixed}
             onCommit={onCommit}
             elementIds={elementIds}
           />

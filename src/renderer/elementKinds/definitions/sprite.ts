@@ -10,6 +10,15 @@ import { spriteResizeValues } from './sprite/spriteResizeValues';
 const SpritePanelSection = lazyPanelControl(
   () => import('./sprite/SpritePanelSection'),
 );
+// 여럿 - 기본 이미지 카드와 기준점·반응 방식 (같은 모듈)
+const SpriteBatchImageSection = lazyPanelControl(() =>
+  import('./sprite/SpriteBatchSection').then((module) => ({
+    default: module.SpriteBatchImageSection,
+  })),
+);
+const SpriteBatchSection = lazyPanelControl(
+  () => import('./sprite/SpriteBatchSection'),
+);
 
 const transformFields = [
   { name: 'x', value: { type: 'number', min: -2000, max: 2000 }, default: 0 },
@@ -175,10 +184,13 @@ export const spriteKind = defineElementKind(
     occupiedResizeHandle: spriteOccupiedResizeHandle,
     resizeValues: spriteResizeValues,
     title: () => 'Sprite',
-    // 하나는 옛 스프라이트 패널 본문(기본 이미지·상자·기준점·자세 목록·반응 방식), 여럿은 위치·크기
+    // 하나는 옛 스프라이트 패널 본문(기본 이미지·상자·기준점·자세 목록·반응 방식), 여럿은 같은 순서로
+    // 기본 이미지·위치·크기·기준점·반응 방식 (자세 목록은 스프라이트마다 달라 하나를 고를 때)
     panel: [
       { custom: SpritePanelSection, only: 'single' },
+      { custom: SpriteBatchImageSection, only: 'batch' },
       { common: 'geometry', only: 'batch' },
+      { custom: SpriteBatchSection, only: 'batch' },
     ],
   },
 );

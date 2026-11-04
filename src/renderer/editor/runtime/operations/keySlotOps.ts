@@ -33,3 +33,26 @@ export const rebindKeySlotById = async (
   ]);
   return result.status === 'committed';
 };
+
+/** 여러 키의 슬롯을 같은 슬롯으로 - 트리 입력 연산을 커밋 하나로 (그 장면의 키만). 바꿀 키가 없거나 거부되면 false */
+export const rebindKeySlotsByIds = async (
+  positionIds: readonly string[],
+  newSlot: KeySlot,
+): Promise<boolean> => {
+  const store = getElementDocumentStore();
+  if (!store?.edit) return false;
+  const sceneId = useKeyStore.getState().selectedKeyType;
+  const ids = positionIds.filter(
+    (id) => store.getElement(sceneId, id)?.kind === 'key',
+  );
+  if (ids.length === 0) return false;
+  const result = await store.edit(
+    ids.map((id) => ({
+      op: 'setInput' as const,
+      scene: sceneId,
+      id,
+      input: { type: 'key', slot: newSlot as JsonValue },
+    })),
+  );
+  return result.status === 'committed';
+};

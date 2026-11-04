@@ -53,6 +53,7 @@ const { drainEditorWrites } = await import('../lifecycle/editorWriteBarrier');
 const { useKeyStore } = await import('@stores/data/useKeyStore');
 const {
   commitFieldPatch,
+  commitFieldPatches,
   commitFrames,
   commitPreviewIntents,
   commitPropertyPatch,
@@ -379,6 +380,83 @@ describe('트리 편집 커밋 입구', () => {
         ),
       ).toBeNull();
       expect(ipc.backend!.commit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('여러 대상의 칸 패치', () => {
+    it('대상마다 지금 칸 보기로 칸을 만들어 커밋 하나로 - 만들 칸이 없는 대상은 그대로', async () => {
+      const makeFields = vi.fn(
+        (_current: Record<string, unknown>, target: { id: string }) =>
+          target.id === KEY_B
+            ? null
+            : target.id === SPRITE
+            ? { baseImage: 'wide.png', width: 200, height: 50 }
+            : { displayText: 'A' },
+      );
+      await expect(
+        commitFieldPatches(
+          [
+            { elementType: 'key', id: KEY_A },
+            { elementType: 'key', id: KEY_B },
+            { elementType: 'sprite', id: SPRITE },
+          ],
+          makeFields,
+          { gestureId: 'gesture-fields', resizeValues: false },
+        ),
+      ).resolves.toEqual(['applied', 'applied', 'applied']);
+      expect(ipc.backend!.commit).toHaveBeenCalledTimes(1);
+      expect(ipc.backend!.commit.mock.calls[0][1]).toBe('gesture-fields');
+      expect(makeFields).toHaveBeenCalledWith(
+        expect.objectContaining({ id: SPRITE, width: 200 }),
+        { elementType: 'sprite', id: SPRITE },
+      );
+      // 칸 패치는 크기를 맞춰도 이동값을 비례하지 않는다
+      expect(committedOps()).toEqual([
+        {
+          op: 'setValues',
+          scene: '4key',
+          id: KEY_A,
+          values: { displayText: 'A' },
+        },
+        {
+          op: 'setFrame',
+          scene: '4key',
+          id: SPRITE,
+          frame: { width: 200, height: 50 },
+        },
+        {
+          op: 'setValues',
+          scene: '4key',
+          id: SPRITE,
+          values: { baseImage: 'wide.png' },
+        },
+      ]);
+    });
+
+    it('트리에 없거나 자리가 없는 칸이 섞인 대상은 targetMissing - 나머지는 커밋한다', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      await expect(
+        commitFieldPatches(
+          [
+            { elementType: 'sprite', id: 'missing' },
+            { elementType: 'key', id: KEY_A },
+            { elementType: 'sprite', id: SPRITE },
+          ],
+          (_current, target) =>
+            target.id === SPRITE ? { groupId: 'g' } : { displayText: 'A' },
+          { resizeValues: false },
+        ),
+      ).resolves.toEqual(['targetMissing', 'applied', 'targetMissing']);
+      expect(committedOps()).toEqual([
+        {
+          op: 'setValues',
+          scene: '4key',
+          id: KEY_A,
+          values: { displayText: 'A' },
+        },
+      ]);
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
     });
   });
 

@@ -17,6 +17,8 @@ import { PropertyRow, PropertySection } from '../controls/PropertyInputs';
 interface SingleMappingSectionProps {
   keyIndex: number;
   keySlot?: KeySlot | null;
+  // 여러 키를 골랐고 슬롯이 다르다 - 칸 이름 옆에 Mixed(선언 칸과 같은 자리), 고치면 고른 키 모두에 새 슬롯
+  mixed?: boolean;
   onKeyMappingChange?: (index: number, newSlot: KeySlot) => void;
   mappingControl?: React.ReactNode;
   mappingControlLayout?: React.ReactNode;
@@ -28,6 +30,7 @@ interface SingleMappingSectionProps {
 const SingleMappingSection = ({
   keyIndex,
   keySlot,
+  mixed = false,
   onKeyMappingChange,
   mappingControl,
   mappingControlLayout,
@@ -35,8 +38,9 @@ const SingleMappingSection = ({
   panelElement,
   t,
 }: SingleMappingSectionProps) => {
-  const slotEditable = keySlot != null && Boolean(onKeyMappingChange);
-  const members = keySlot != null ? slotMembers(keySlot) : [];
+  const slotEditable =
+    (keySlot != null || mixed) && Boolean(onKeyMappingChange);
+  const members = !mixed && keySlot != null ? slotMembers(keySlot) : [];
   const slotIdentityKey = `${keyIndex}:${
     keySlot != null ? slotCanonical(keySlot) : ''
   }`;
@@ -120,6 +124,9 @@ const SingleMappingSection = ({
   return (
     <PropertySection>
       <PropertyRow label={t('propertiesPanel.keyMapping') || '키 매핑'}>
+        {mixed && (
+          <span className="text-fg-faint text-body italic">Mixed</span>
+        )}
         <button
           onClick={() =>
             // 기존처럼 즉시 캡처 (멀티 슬롯이면 첫 키 교체)

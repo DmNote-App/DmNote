@@ -24,6 +24,8 @@ const layout = (kinds: readonly string[]) =>
   });
 
 const KEY_STAT = [
+  'custom:key',
+  'custom:stat',
   'geometry:key+stat',
   'surface:key+stat',
   'font:key+stat',
@@ -40,9 +42,20 @@ describe('고른 종류들의 일괄 패널 합', () => {
     expect(layout(['stat', 'key'])).toEqual(KEY_STAT);
   });
 
-  it('하나에만 쓰는 섹션은 빼고, 여럿에만 쓰는 섹션은 넣는다', () => {
+  it('하나에만 쓰는 섹션은 빼고, 여럿에만 쓰는 섹션은 넣는다 (스프라이트 - 이미지 카드·위치·크기·기준점과 반응)', () => {
+    expect(layout(['sprite'])).toEqual([
+      'custom:sprite',
+      'geometry:sprite',
+      'custom:sprite',
+    ]);
+  });
+
+  it('다음 섹션이 없는 고유 섹션은 그 종류의 앞 섹션 뒤 - 끝(사용자 CSS·탭 뒤)으로 밀리지 않는다', () => {
     expect(layout(['key', 'sprite'])).toEqual([
+      'custom:key',
+      'custom:sprite',
       'geometry:key+sprite',
+      'custom:sprite',
       'surface:key',
       'font:key',
       'image:key',
@@ -51,11 +64,26 @@ describe('고른 종류들의 일괄 패널 합', () => {
       'note@note:key',
       'counter@counter:key',
     ]);
-    expect(layout(['sprite'])).toEqual(['geometry:sprite']);
+    // 앞선 종류(그래프)가 위치·크기 뒤에 붙인 고유 섹션 다음 - 종류 순서
+    expect(layout(['sprite', 'graph', 'key'])).toEqual([
+      'custom:key',
+      'custom:sprite',
+      'geometry:key+graph+sprite',
+      '[graphType,showAvgLine,graphSpeed,graphColor,graphAnimationEnabled]:graph',
+      'custom:sprite',
+      'surface:key+graph',
+      'font:key',
+      'image:key+graph',
+      'sound:key',
+      'customCss:key+graph',
+      'note@note:key',
+      'counter@counter:key',
+    ]);
   });
 
   it('한 종류에만 있는 칸 묶음은 그 종류의 다음 공유 섹션 바로 앞에 (노브 칸은 위치·크기 아래)', () => {
     expect(layout(['key', 'knob'])).toEqual([
+      'custom:key',
       '[axisId]:knob',
       'geometry:key+knob',
       '[sensitivity,reverse]:knob',

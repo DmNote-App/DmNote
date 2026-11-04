@@ -39,7 +39,6 @@ export const knobKind = defineElementKind(
             field: 'axisId',
             label: label('knobAxis'),
             control: { type: 'custom', component: KnobAxisControl },
-            only: 'single',
           },
         ],
       },

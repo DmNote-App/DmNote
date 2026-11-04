@@ -83,16 +83,7 @@ import { useDocumentElement } from '@src/renderer/editor/document/elementDocumen
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import { useTreeElementPosition } from '../../runtime/treeElementPosition';
 import type { PanelSectionProps } from '../../defineElementKind';
-
-// 계약과 동일한 cubic-bezier 문자열만 저장 (transitionEasing은 문자열 그대로 CSS로 간다)
-const SPRITE_EASING_PRESETS: ReadonlyArray<{ label: string; value: string }> = [
-  { label: 'Default', value: DEFAULT_SPRITE_TRANSITION_EASING },
-  { label: 'Linear', value: 'cubic-bezier(0, 0, 1, 1)' },
-  { label: 'Ease Out', value: 'cubic-bezier(0, 0, 0.58, 1)' },
-  { label: 'Ease In', value: 'cubic-bezier(0.42, 0, 1, 1)' },
-  { label: 'Ease In-Out', value: 'cubic-bezier(0.42, 0, 0.58, 1)' },
-  { label: 'Overshoot', value: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
-];
+import { spriteEasingOptions } from './spriteEasingOptions';
 
 // 요소 상자 입력의 편집 한계 - 다른 요소의 위치·크기 행과 같은 범위
 const BOUNDS_EDIT_LIMITS = {
@@ -1248,17 +1239,7 @@ const SpritePanelBody = ({
   const { anchor, transitionMs, pressDurationMs } = SPRITE_CONSTRAINTS;
   const easingValue =
     position.transitionEasing || DEFAULT_SPRITE_TRANSITION_EASING;
-  const easingOptions = SPRITE_EASING_PRESETS.some(
-    (preset) => preset.value === easingValue,
-  )
-    ? [...SPRITE_EASING_PRESETS]
-    : [
-        {
-          label: t('propertiesPanel.spriteEasingCustom') || '사용자 정의',
-          value: easingValue,
-        },
-        ...SPRITE_EASING_PRESETS,
-      ];
+  const easingOptions = spriteEasingOptions(easingValue, t);
   const pivotLabel = t('propertiesPanel.spritePivot') || '기준점';
 
   return (

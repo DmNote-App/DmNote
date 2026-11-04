@@ -8,6 +8,8 @@ import SpriteImagePlaceholder from '@components/main/common/SpriteImagePlacehold
 interface SpriteImagePreviewCardProps {
   // 저장된 경로 그대로 - 표시용 URL 변환은 카드가 맡는다
   source: string | null;
+  // 여러 스프라이트의 이미지가 다르다 - 그림 대신 Mixed, 초기화는 이미지가 있는 스프라이트만
+  mixed?: boolean;
   onPick: () => void;
   onReset: () => void;
   t: (key: string) => string;
@@ -17,6 +19,7 @@ interface SpriteImagePreviewCardProps {
 // 기본 이미지와 상태 이미지가 같은 문법을 쓴다. 썸네일은 비트맵을 그대로 담는 맞춤
 const SpriteImagePreviewCard = ({
   source,
+  mixed = false,
   onPick,
   onReset,
   t,
@@ -37,7 +40,11 @@ const SpriteImagePreviewCard = ({
             'var(--ui-checker-pattern) center / var(--ui-checker-size) var(--ui-checker-size) repeat',
         }}
       />
-      {imageFailed ? (
+      {mixed ? (
+        <span className="absolute inset-0 flex items-center justify-center text-fg-faint text-body italic pointer-events-none">
+          Mixed
+        </span>
+      ) : imageFailed ? (
         <SpriteImagePlaceholder color="var(--ui-fg-faint)" />
       ) : imageSrc ? (
         <img
@@ -60,7 +67,7 @@ const SpriteImagePreviewCard = ({
       />
       {/* 초기화는 그림이 아니라 저장값 기준 - 공백 경로처럼 그릴 수 없는 값도
           지울 수 있어야 한다. 칩이 그 값의 유일한 표시다 (이미지 피커와 같은 기준) */}
-      {source ? (
+      {source || mixed ? (
         <button
           type="button"
           aria-label={t('imagePicker.reset') || '초기화'}

@@ -20,9 +20,11 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const mocks = vi.hoisted(() => ({
   rebind: vi.fn(async (_id: string, _slot: unknown) => true),
+  rebindMany: vi.fn(async (_ids: readonly string[], _slot: unknown) => true),
   mapping: null as null | {
     keyIndex: number;
     keySlot?: KeySlot | null;
+    mixed?: boolean;
     onKeyMappingChange?: (index: number, slot: KeySlot) => void;
   },
 }));
@@ -32,6 +34,8 @@ vi.mock(
   async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),
     rebindKeySlotById: (id: string, slot: unknown) => mocks.rebind(id, slot),
+    rebindKeySlotsByIds: (ids: readonly string[], slot: unknown) =>
+      mocks.rebindMany(ids, slot),
   }),
 );
 // 매핑 섹션 부품은 옛 키 패널 그대로 - 받은 값·쓰기만 본다
@@ -147,5 +151,27 @@ describe('키 매핑 섹션', () => {
       'key mapping target disappeared',
     );
     warning.mockRestore();
+  });
+
+  it('여럿이면 슬롯이 다를 때 Mixed로, 고친 슬롯은 고른 키 모두에 커밋 하나로 쓴다', () => {
+    mocks.rebindMany.mockClear();
+    act(() => {
+      root.render(
+        <KeySlotSection
+          sceneId="4key"
+          elementIds={[KEY_A, KEY_B]}
+          panelElement={null}
+          t={(key) => key}
+        />,
+      );
+    });
+    expect(mocks.mapping).toMatchObject({ keySlot: null, mixed: true });
+
+    act(() => mocks.mapping?.onKeyMappingChange?.(-1, 'Z'));
+    expect(mocks.rebindMany).toHaveBeenCalledExactlyOnceWith(
+      [KEY_A, KEY_B],
+      'Z',
+    );
+    expect(mocks.rebind).not.toHaveBeenCalled();
   });
 });

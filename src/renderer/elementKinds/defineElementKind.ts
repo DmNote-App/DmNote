@@ -203,6 +203,8 @@ export type PanelControlDecl =
 
 export interface PanelFieldControlProps {
   value: JsonValue | undefined;
+  // 여러 개를 골랐고 값이 다르다 (칸 이름 옆에 Mixed가 붙는다)
+  isMixed?: boolean;
   onCommit: (value: JsonValue) => void;
   // 고른 요소들 - 커밋을 시작 시점 요소에 묶어야 하는 입력(노브 축 감지 등)이 쓴다
   elementIds: readonly string[];

@@ -43,7 +43,7 @@ export const statKind = defineElementKind(
     title: (values) => getStatTypeLabel(values.statType),
     // 옛 스탯 패널 배치 - 겉모습 묶음은 옛 스타일 탭 부품 하나가 사용자 CSS와 함께 그린다
     panel: [
-      { custom: StatTypeSection, only: 'single' },
+      { custom: StatTypeSection },
       { common: 'geometry' },
       { bundle: 'surface' },
       { bundle: 'font' },

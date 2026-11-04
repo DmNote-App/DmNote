@@ -106,11 +106,12 @@ export const sceneOfElement = (store: ElementDocumentStore, id: string) => {
   return store.getSceneIds().find((scene) => store.getElement(scene, id));
 };
 
-// 대상마다 트리 연산을 만들어 커밋 하나로 - 트리에 있는 옛 종류 요소만, 연산을 못 만들면 그 대상은 targetMissing
+// 대상마다 트리 연산을 만들어 커밋 하나로 - 트리에 있는 옛 종류 요소만, 연산을 못 만들면 그 대상은 targetMissing.
+// resizeValues - 크기와 함께 맞출 값을 비례할지 (칸 패치는 비례하지 않는다)
 const commitPerTarget = <T extends TreeCommitTarget>(
   targets: readonly T[],
   opsOf: (scene: string, element: ElementNode, target: T) => Op[] | null,
-  options: TreeCommitOptions,
+  options: TreeCommitOptions & { resizeValues?: boolean },
 ): Promise<TreeCommitStatus[]> => {
   const run = async () => {
     options.preflight?.();
@@ -131,7 +132,12 @@ const commitPerTarget = <T extends TreeCommitTarget>(
       reportElementOpSkipped('editor ops outside the element tree');
     }
     if (store && treeOps.length > 0) {
-      await sendTreeEdit(store, treeOps, options.gestureId);
+      await sendTreeEdit(
+        store,
+        treeOps,
+        options.gestureId,
+        options.resizeValues ?? true,
+      );
     }
     return statuses;
   };
@@ -188,6 +194,27 @@ export const commitFieldPatch = (
     () => 'committed' as const,
   );
 };
+
+/** 칸 패치를 대상마다 - 대상마다 지금 칸 보기(대기 편집 포함)로 칸을 만들어 트리 커밋 하나로. 만들 칸이 없는
+ * 대상은 그대로 두고, 트리에 없거나 트리에 자리가 없는 칸이 섞인 대상은 targetMissing */
+export const commitFieldPatches = <T extends TreeCommitTarget>(
+  targets: readonly T[],
+  makeFields: (
+    current: PanelFieldView,
+    target: T,
+  ) => Record<string, unknown> | null,
+  options: TreeCommitOptions & { resizeValues: boolean },
+): Promise<TreeCommitStatus[]> =>
+  commitPerTarget(
+    targets,
+    (scene, element, target) => {
+      const fields = makeFields(panelFieldViewOf(element), target);
+      if (!fields) return [];
+      const { ops, unowned } = fieldPatchOps(scene, element, fields);
+      return unowned.length > 0 ? null : ops;
+    },
+    options,
+  );
 
 /** 요소별 칸 값(미리보기에 쌓인 값 등)을 트리 커밋 하나로 - 트리에 있는 요소만(그 요소의 장면으로).
  * 트리에 자리가 없는 칸은 빼고 알린다. 보낼 것이 없으면 false */
