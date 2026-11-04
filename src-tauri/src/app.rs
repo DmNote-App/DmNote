@@ -80,6 +80,11 @@ pub fn run() {
 
     let context = tauri::generate_context!();
 
+    // 저장 파일 해석을 Tauri 초기화와 겹쳐 미리 한다 - setup은 메인 스레드라 그동안 창 요청을 받지 못한다
+    if !interaction_benchmark {
+        state::store::preload::start(&context.config().identifier);
+    }
+
     let builder = tauri::Builder::default()
         .on_page_load(|webview, payload| {
             if matches!(payload.event(), PageLoadEvent::Started) && webview.label() == "overlay" {
@@ -192,6 +197,7 @@ pub fn run() {
             let resolver = app.path();
             let store = AppStore::initialize(resolver)
                 .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+            state::store::preload::discard();
             let app_state = AppState::initialize(store)
                 .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
             let preview_broker =
