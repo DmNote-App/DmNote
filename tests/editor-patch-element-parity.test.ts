@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { applySemanticElementPatch } from '../src/renderer/editor/runtime/projection/semanticElementPatchProjection';
+import { applyPropertyPatch } from '../src/renderer/editor/runtime/projection/semanticElementPatchProjection';
 import {
   EDITOR_ELEMENT_POSITION_FIELDS,
   type CanonicalEditorDocumentV1,
@@ -10,7 +10,7 @@ import {
 } from '../src/types/editor';
 
 // Rust 테스트(src-tauri/src/state/editor_ops_parity.rs)와 같은 fixture - 속성 패치(patchElement)만 있는 경우를
-// 패널 편집의 칸 계산(legacyFieldPatch가 쓰는 applySemanticElementPatch)으로 돌려 백엔드 옛 편집 연산
+// 패널 편집의 칸 규칙(propertyPatchOps가 쓰는 applyPropertyPatch)으로 돌려 백엔드 옛 편집 연산
 // 적용(플러그인 editor.commit의 속성 패치)과 같은 문서가 되는지 고정한다
 const fixture = JSON.parse(
   readFileSync(join(__dirname, 'fixtures', 'editor-ops-parity.json'), 'utf8'),
@@ -59,12 +59,23 @@ describe('속성 패치 칸 계산 파리티', () => {
       const document = structuredClone(initialDocument);
       for (const op of ops) {
         if (op.kind !== 'patchElement') continue;
-        applySemanticElementPatch(
-          document,
-          op,
-          undefined,
-          EDITOR_ELEMENT_POSITION_FIELDS,
-        );
+        // 요소가 든 탭의 그 자리에 규칙을 적용한다
+        const record = document[
+          EDITOR_ELEMENT_POSITION_FIELDS[op.elementType]
+        ] as unknown as Record<
+          string,
+          Array<Record<string, unknown> & { id: string }>
+        >;
+        for (const positions of Object.values(record)) {
+          const index = positions.findIndex(({ id }) => id === op.id);
+          if (index < 0) continue;
+          positions[index] = applyPropertyPatch(
+            op.elementType,
+            positions[index],
+            op.patch,
+          );
+          break;
+        }
       }
       expect(document).toEqual(expectedDocument);
     },
