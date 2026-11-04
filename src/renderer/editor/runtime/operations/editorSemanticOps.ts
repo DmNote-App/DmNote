@@ -1,25 +1,17 @@
 import type { EditorElementTypeV1, EditorOpV1 } from '@src/types/editor';
 import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import type { FramePatch } from '@src/types/generated/elementDocument';
-import { useKeyStore } from '@stores/data/useKeyStore';
-import { previewApi } from '@api/modules/editor/previewApi';
-import { markGestureSessionsDiscarded } from '../gesture/gestureSessionLifecycle';
-import { previewOverlay } from '../gesture/previewOverlay';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { treeRoutedOps } from './treeRoutedOps';
+import { sceneOfElement, sendTreeEdit } from './treeEditCommit';
 import { withResizeValues } from '@src/renderer/elementKinds/runtime/resizeValues';
 import { legacyFieldPatch } from '@src/renderer/elementKinds/runtime/legacyFieldPatch';
 import { fieldPatchOps } from '@src/renderer/elementKinds/runtime/fieldView';
 import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
 import { treeEditorDocument } from '@src/renderer/elementKinds/runtime/treeEditorDocument';
-import {
-  ElementEditHeldError,
-  type ElementDocumentStore,
-} from '@src/renderer/editor/document/elementDocumentStore';
-import type { ElementDocumentCommitResult } from '@api/modules/editor/elementDocumentApi';
+import type { ElementDocumentStore } from '@src/renderer/editor/document/elementDocumentStore';
 import type { Op } from '@src/types/generated/elementDocument';
 import type { CanonicalEditorDocumentV1 } from '@src/types/editor';
-import type { PropertyIntents } from '../intent/elementIntent';
 import { reportElementOpSkipped } from '../intent/elementIntent';
 import { trackEditorWrite } from '../lifecycle/editorWriteBarrier';
 import type { EditorOpResultV1 } from '@src/types/editor';
@@ -70,13 +62,6 @@ const treeStylePatchOf = (
   return unowned.length === 0 && ops.length > 0 ? { fields, ops } : null;
 };
 
-// 요소가 있는 장면 - 지금 탭부터 (커밋 사이에 탭을 바꿔도 그 요소의 장면으로 보낸다)
-const sceneOfElement = (store: ElementDocumentStore, id: string) => {
-  const current = useKeyStore.getState().selectedKeyType;
-  if (store.getElement(current, id)) return current;
-  return store.getSceneIds().find((scene) => store.getElement(scene, id));
-};
-
 // 트리로 갈 몫 - 트리에 있는 옛 종류 요소의 연산
 const routeForTree = (
   ops: readonly EditorOpV1[],
@@ -87,67 +72,6 @@ const routeForTree = (
     sceneOf: (id) => sceneOfElement(store, id),
     styleOps: (op, scene) => treeStylePatchOf(op, scene, store)?.ops ?? null,
   });
-
-// 트리 변경 이벤트를 놓쳐도 종료·패널 붙이기 같은 쓰기 대기가 끝없이 멈추지 않게
-const REFLECT_TIMEOUT_MS = 3000;
-
-// 이 창의 트리 스토어가 그 revision의 변경을 받은 뒤 - 분리된 패널의 미리보기 취소가 반영보다 앞서지 않게
-const whenTreeCaughtUp = (store: ElementDocumentStore, revision: number) =>
-  new Promise<void>((resolve) => {
-    if (store.getRevision() >= revision) {
-      resolve();
-      return;
-    }
-    const done = () => {
-      clearTimeout(timer);
-      unsubscribe();
-      resolve();
-    };
-    const timer = setTimeout(done, REFLECT_TIMEOUT_MS);
-    const unsubscribe = store.subscribe(() => {
-      if (store.getRevision() >= revision) done();
-    });
-  });
-
-// 다시 해도 받지 않는 실패 - 이 동작의 미리보기를 버린다
-const discardGesture = (gestureId: string) => {
-  markGestureSessionsDiscarded([gestureId]);
-  previewOverlay.endSessions([gestureId]);
-  previewApi.cancel(gestureId).catch(() => {});
-};
-
-// 트리 편집 보내기 - 트리 스토어가 낙관 적용하고, 반영된 뒤 끝난다.
-// 거부·실패는 오류로 올린다(호출자가 알린다) - 옛 경로로 다시 보내면 뒤에 줄 선 편집을 덮을 수 있다
-const sendTreeEdit = async (
-  store: ElementDocumentStore,
-  treeOps: Op[],
-  gestureId: string | undefined,
-  // 크기가 바뀌면 함께 맞출 값(스프라이트 이동값 비례) - 크기 조절만. 옛 필드 패치는 맞추지 않았다
-  resizeValues = true,
-): Promise<void> => {
-  let result: ElementDocumentCommitResult;
-  try {
-    result = await store.edit!(
-      // 크기와 함께 맞출 값(스프라이트 이동값 등)도 같은 커밋에
-      resizeValues ? withResizeValues(treeOps) : treeOps,
-      gestureId ? { gestureId } : undefined,
-    );
-  } catch (error) {
-    // 보류한 편집은 화면에 남고 스토어가 다시 보낸다 - 동작은 끝난 것으로 둬야 다시 확정해 겹쳐 쌓지 않는다
-    if (error instanceof ElementEditHeldError) return;
-    // 되돌린 실패 - 거절과 같이 이 동작을 버려 다음 정산이 같은 실패(안내)를 되풀이하지 않게
-    if (gestureId) discardGesture(gestureId);
-    throw error;
-  }
-  if (result.status !== 'committed') {
-    // 다시 해도 받지 않는 거절이면 이 동작의 미리보기를 버린다 (되돌리기 중은 다시 할 수 있다)
-    if (gestureId && result.code !== 'HISTORY_IN_PROGRESS') {
-      discardGesture(gestureId);
-    }
-    throw new Error(`[ElementDocument] edit rejected: ${result.code}`);
-  }
-  await whenTreeCaughtUp(store, result.revision);
-};
 
 /** 트리로 옮긴 종류 요소 하나의 옛 칸 패치를 트리로 - 지금 장면 트리에 있고 칸이 모두 트리에 자리가 있을 때만.
  * 아니면 null (호출자가 옛 경로로). current는 대기 편집까지 얹은 지금 값 */
@@ -192,37 +116,6 @@ export const sendTreeEditedFrame = (
     withResizeValues([{ op: 'setFrame', scene, id, frame }]),
     gestureId ? { gestureId } : undefined,
   );
-};
-
-/** 요소별 옛 칸 값(미리보기에 쌓인 값 등)을 트리 커밋 하나로 - 트리에 있는 요소만(그 요소의 장면으로).
- * 트리에 자리가 없는 칸은 빼고 알린다. 보낼 것이 없으면 false */
-export const commitPropertyIntents = (
-  intents: PropertyIntents,
-  gestureId?: string,
-): Promise<boolean> => {
-  const store = getElementDocumentStore();
-  if (!store?.edit) return Promise.resolve(false);
-  const ops: Op[] = [];
-  let skipped = false;
-  for (const byId of intents.values()) {
-    for (const [id, fields] of byId) {
-      const scene = sceneOfElement(store, id);
-      const element = scene ? store.getElement(scene, id) : undefined;
-      if (!scene || !element) {
-        skipped = true;
-        continue;
-      }
-      const patch = fieldPatchOps(scene, element, fields);
-      if (patch.unowned.length > 0) skipped = true;
-      ops.push(...patch.ops);
-    }
-  }
-  if (skipped)
-    reportElementOpSkipped('property intents outside the element tree');
-  if (ops.length === 0) return Promise.resolve(false);
-  const committed = sendTreeEdit(store, ops, gestureId).then(() => true);
-  trackEditorWrite(committed).catch(() => undefined);
-  return committed;
 };
 
 /** 편집 의도의 바탕 - 트리 문서의 옛 편집 문서 모양 (트리 낙관 반영 포함, 미리보기 없음) */

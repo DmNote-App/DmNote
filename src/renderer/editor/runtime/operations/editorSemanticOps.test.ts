@@ -19,7 +19,6 @@ import { drainEditorWrites } from '../lifecycle/editorWriteBarrier';
 import { ElementEditHeldError } from '@src/renderer/editor/document/elementDocumentStore';
 import {
   commitGeneratedSemanticOps,
-  commitPropertyIntents,
   commitSemanticOps,
   commitTreeLegacyFields,
 } from './editorSemanticOps';
@@ -170,39 +169,6 @@ describe('옛 편집 연산을 트리로', () => {
     await pending;
 
     await expect(commitGeneratedSemanticOps(() => null)).resolves.toBeNull();
-  });
-
-  it('요소별 옛 칸 값을 한 트리 커밋으로 (트리에 없는 요소는 뺀다)', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const pending = commitPropertyIntents(
-      new Map([
-        [
-          'knob',
-          new Map([
-            [KNOB, { sensitivity: 3, dx: 5 }],
-            ['missing', { sensitivity: 1 }],
-          ]),
-        ],
-      ]) as never,
-      'gesture-1',
-    );
-    const [ops, options] = tree.store!.edit.mock.calls[0];
-    expect(ops).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ op: 'setFrame', id: KNOB }),
-        {
-          op: 'setValues',
-          scene: '4key',
-          id: KNOB,
-          values: { sensitivity: 3 },
-        },
-      ]),
-    );
-    expect(options).toEqual({ gestureId: 'gesture-1' });
-    revision = 1;
-    listeners.forEach((listener) => listener());
-    await expect(pending).resolves.toBe(true);
-    warn.mockRestore();
   });
 
   it('트리 변경 이벤트를 놓쳐도 시한이 지나면 끝난다', async () => {
