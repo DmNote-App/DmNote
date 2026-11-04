@@ -5,9 +5,8 @@ import {
   type BatchGeometryOperation,
 } from '@src/renderer/editor/runtime/geometry/batchGeometryPlan';
 
-import type { EditorElementTypeV1 } from '@src/types/editor';
-
-type KeyLikeType = EditorElementTypeV1;
+// 요소 종류 - 트리로 옮긴 옛 종류와 트리에만 있는 내장 종류
+type KeyLikeType = string;
 
 export interface BatchCommitOptions {
   gestureId?: string;

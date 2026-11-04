@@ -3,7 +3,7 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
-import { panelSelectionOf } from '../../document/treeEditedSelection';
+import { propertyPanelSelectionOf } from '../../document/treeEditedSelection';
 import { wholeGroupOf } from '../../document/documentGroups';
 import {
   getElementDocumentStore,
@@ -26,7 +26,6 @@ import {
 import type {
   CanonicalEditorDocumentV1,
   CanonicalReactiveSpritePosition,
-  EditorElementTypeV1,
 } from '@src/types/editor';
 import type { BatchGeometryTarget } from '@src/renderer/editor/runtime/operations/elementOps';
 import type { GraphItemPosition } from '@src/types/key/graphItems';
@@ -44,27 +43,27 @@ export const usePropertiesPanelSelection = () => {
   const documentSceneId = useDocumentSelectionStore((state) => state.sceneId);
   const documentIds = useDocumentSelectionStore((state) => state.selectedIds);
   // 트리 문서가 바뀌면(종류 확인) 다시 합친다
-  const documentScene = useElementDocumentScene(documentSceneId ?? '');
+  useElementDocumentScene(documentSceneId ?? '');
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   // 패널이 읽는 위치 기록·키 슬롯은 트리에서 (지금 탭, 편집 미리보기 포함) - 바뀌면 다시 읽는다
   const scene = useElementDocumentScene(selectedKeyType);
-  // 트리 선택이 모두 트리로 옮긴 옛 종류면 옛 패널이 옛 선택과 함께 그 요소들을 고른 것처럼 본다
+  // 트리 선택 중 트리로 옮긴 옛 종류·플러그인 요소는 옛 패널이 옛 선택과 함께 고른 것처럼 본다(트리에만 있는
+  // 종류가 섞여도 - 섞인 선택은 고른 종류들 선언의 합 패널). 트리에만 있는 종류 요소는 따로 든다
   // (위치·회전·숨김·이름·지우기 커밋은 공통 커밋 경로가 트리로 보낸다)
   // 같은 선택이면 같은 참조 - 선택 바뀜 effect(피커·하위 페이지 닫기)가 렌더마다, 트리를 고칠 때마다 돌지 않게.
-  // 장면이 바뀌면(종류 확인·지운 요소) 다시 합치되 고른 요소가 같으면 앞 목록을 그대로 쓴다
-  const merged = documentSceneId
-    ? panelSelectionOf(
-        legacySelection,
-        documentSceneId,
-        documentIds,
-        documentScene,
-      )
-    : legacySelection;
+  // 장면이 바뀌면(종류 확인·지운 요소, documentScene 구독) 다시 합치되 고른 요소가 같으면 앞 목록을 그대로 쓴다
+  const split = documentSceneId
+    ? propertyPanelSelectionOf(legacySelection, documentSceneId, documentIds)
+    : { elements: legacySelection, treeOnlyIds: [] as string[] };
+  const merged = split.elements;
   const mergedKey = merged
     .map((element) => `${element.type}:${element.id}:${element.index ?? ''}`)
     .join('|');
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 내용(종류·id·순번)이 같으면 같은 참조
   const selectedElements = useMemo(() => merged, [mergedKey]);
+  const treeOnlyKey = split.treeOnlyIds.join('|');
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 내용이 같으면 같은 참조
+  const treeOnlyIds = useMemo(() => split.treeOnlyIds, [treeOnlyKey]);
   const bridgedDocumentSelection =
     selectedElements.length > legacySelection.length;
   useSyncExternalStore(
@@ -157,14 +156,25 @@ export const usePropertiesPanelSelection = () => {
   })();
 
   // invalid native ID 또는 모드에서 사라진 plugin이 섞이면 fail-closed
+  // 정렬·분배·간격·크기 대상 - 옛 종류와 트리에만 있는 종류 요소 (그 종류)
+  const batchGeometryTargets: BatchGeometryTarget[] = [
+    ...selectedBatchGeometryElements.map((element) => ({
+      type: element.type as string,
+      id: element.id,
+    })),
+    ...treeOnlyIds.flatMap((id) => {
+      const kind = getElementDocumentStore()?.getElement(
+        documentSceneId ?? selectedKeyType,
+        id,
+      )?.kind;
+      return kind ? [{ type: kind, id }] : [];
+    }),
+  ];
   const stableBatchGeometryTargets: BatchGeometryTarget[] | null =
-    selectedBatchGeometryElements.every(
-      (element) => element.id.length > 0 && isNativeElementId(element.id),
+    batchGeometryTargets.every(
+      (target) => target.id.length > 0 && isNativeElementId(target.id),
     )
-      ? selectedBatchGeometryElements.map((element) => ({
-          type: element.type as EditorElementTypeV1,
-          id: element.id,
-        }))
+      ? batchGeometryTargets
       : null;
   const stablePluginGeometryElements = (() => {
     const resolved: Array<{
@@ -341,6 +351,8 @@ export const usePropertiesPanelSelection = () => {
     // 실제 옛 선택 수 - 트리 선택을 옛 패널로 본 경우와 섞인 선택을 가린다
     legacySelectionCount: legacySelection.length,
     bridgedDocumentSelection,
+    treeOnlyIds,
+    batchGeometryTargets,
     selectedKeyType,
     positions,
     canonicalPositions,

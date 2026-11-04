@@ -22,7 +22,7 @@ export interface PanelElements {
   elements: ElementNode[];
   // 옛 종류만 고른 선택의 옛 일괄 처리기 (아니면 없음 - 트리 연산)
   writer: PanelWriter | null;
-  // 칸 값 - 옛 종류는 옛 패널이 보던 옛 칸 모양 보기(트리 값 + 편집 미리보기), 트리에만 있는 종류는 고유 값
+  // 칸 값 - 트리 칸 보기(고유 값·묶음 칸·틀)에 편집 미리보기를 얹은 값
   items: Values[];
 }
 
@@ -47,11 +47,6 @@ export const usePanelElements = (
     scene,
     elements,
     writer,
-    items: elements.map(
-      (element) =>
-        (writer
-          ? viewFieldsOf(element, sceneId)
-          : element.values ?? {}) as Values,
-    ),
+    items: elements.map((element) => viewFieldsOf(element, sceneId) as Values),
   };
 };

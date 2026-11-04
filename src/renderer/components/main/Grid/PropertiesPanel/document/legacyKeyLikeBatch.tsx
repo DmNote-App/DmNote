@@ -13,7 +13,10 @@ import type {
   PanelTab,
 } from '@src/renderer/elementKinds/defineElementKind';
 import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
-import type { EditorCounterFillPropertyPatchV1 } from '@src/types/editor';
+import {
+  isEditorElementType,
+  type EditorCounterFillPropertyPatchV1,
+} from '@src/types/editor';
 import type { Scene } from '@src/types/generated/elementDocument';
 import {
   createDefaultCounterSettings,
@@ -36,6 +39,8 @@ import {
   commitBoundIdleTransparent,
   commitBoundInactiveImage,
   commitBoundSoundPath,
+  createPaintHandlers,
+  createShadowCommitHandler,
   createStylePropertyHandlers,
   type BatchLocalColors,
   type BatchPickerTarget,
@@ -290,6 +295,42 @@ export const LegacyKeyLikeBatchBody = ({
   const shadowKind = shadowOwners.every((owner) => owner.kind === 'knob')
     ? 'knob'
     : 'key';
+  // 표면을 가진 트리에만 있는 종류(커서 추적기 등)가 섞이면 겉모습·그림자 칸을 그 요소까지 읽고 커밋 하나로 쓴다
+  // (편집 미리보기 영역이 없어 그 요소는 커밋 때 반영)
+  const isTreeOnly = (element: ElementNode) =>
+    !isEditorElementType(element.kind);
+  const surfaceOwners = owns('surface');
+  const treeSurfaceOwners = surfaceOwners.filter(isTreeOnly);
+  const treeShadowOwners = shadowOwners.filter(isTreeOnly);
+  const targetsOf = (owners: readonly ElementNode[]) =>
+    owners.map(({ kind, id }) => ({ elementType: kind, id }));
+  const surfaceItems = surfaceOwners.map(
+    (owner) => items[elements.indexOf(owner)],
+  );
+  const surface =
+    treeSurfaceOwners.length > 0
+      ? {
+          getMixedValue: <T,>(
+            getter: (position: KeyPosition) => T | undefined,
+            defaultValue: T,
+          ) =>
+            aggregateMixedValue(
+              surfaceItems as unknown as KeyPosition[],
+              getter,
+              defaultValue,
+            ),
+          onPaintCommit: createPaintHandlers(targetsOf(surfaceOwners), sceneId)
+            .commitPaint,
+          onStylePropertyCommit: createStylePropertyHandlers(
+            targetsOf(surfaceOwners),
+            sceneId,
+          ).commitStyleProperty,
+        }
+      : undefined;
+  const shadowCommit =
+    treeShadowOwners.length > 0
+      ? createShadowCommitHandler(targetsOf(shadowOwners))
+      : commitShadow;
   // 글자 - 키·스탯끼리 (눌림 글자는 키)
   const fontStyle = createStylePropertyHandlers(
     selectedKeyLikeElements.map(({ type, id }) => ({ elementType: type, id })),
@@ -473,13 +514,19 @@ export const LegacyKeyLikeBatchBody = ({
         onPaintCommit={commitPaint}
         onFontColorPreview={previewPaint}
         onFontColorCommit={commitPaint}
-        onShadowCommit={commitShadow}
+        onShadowCommit={shadowCommit}
+        surface={surface}
         showSoundControls={selectedKeyElements.length > 0}
         showShadowControls={shadowOwners.length > 0}
         shadowKind={shadowKind}
         getShadowMixedValue={getShadowMixedValue}
         hideDisplayText={fontOwners.length === 0}
         hideFontControls={fontOwners.length === 0}
+        hideImage={owns('image').length === 0}
+        selectionKey={`${sceneId}:${elements
+          .map(({ id }) => id)
+          .sort()
+          .join(',')}`}
         typography={{
           getMixedValue,
           getActiveMixedValue: getMixedValueKeysOnly,
@@ -505,7 +552,14 @@ export const LegacyKeyLikeBatchBody = ({
           host.batchImageButtonRef as RefObject<HTMLButtonElement>
         }
         panelElement={panelElement}
-        useCustomCSS={useCustomCSS}
+        // 사용자 CSS 섹션을 가진 종류가 고른 종류에 있을 때만
+        useCustomCSS={
+          useCustomCSS &&
+          sections.some(
+            ({ section }) =>
+              'common' in section && section.common === 'customCss',
+          )
+        }
         t={tr}
       />
     );

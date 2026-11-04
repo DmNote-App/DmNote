@@ -197,3 +197,18 @@ describe('selectionPanelRoute 스프라이트 선택', () => {
     ).toEqual({ kind: 'batchKeyLike' });
   });
 });
+
+describe('selectionPanelRoute 트리에만 있는 종류가 섞인 선택', () => {
+  it.each([
+    ['키', { keyLikeCount: 1 }],
+    ['스프라이트', { spriteCount: 1 }],
+    ['플러그인 요소', { pluginCount: 1 }],
+  ] as const)(
+    '%s와 섞이면 고른 종류들 선언의 합 (batchKeyLike)',
+    (_label, counts) => {
+      expect(
+        resolveSelectionPanelRoute(input({ ...counts, treeOnlyCount: 1 })),
+      ).toEqual({ kind: 'batchKeyLike' });
+    },
+  );
+});

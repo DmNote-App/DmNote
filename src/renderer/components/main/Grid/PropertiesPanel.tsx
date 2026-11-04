@@ -32,6 +32,7 @@ import { EditSessionScope } from '@src/renderer/contexts/EditSessionScope';
 import DocumentElementPanel from './PropertiesPanel/document/DocumentElementPanel';
 import DocumentBatchPanel from './PropertiesPanel/document/DocumentBatchPanel';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import PluginSettingsForm, {
   type PluginSettingsBatch,
 } from './PropertiesPanel/plugin/PluginSettingsForm';
@@ -75,8 +76,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const { document: hostDocument } = usePanelHost();
   const {
     selectedElements,
-    legacySelectionCount,
-    bridgedDocumentSelection,
+    treeOnlyIds,
+    batchGeometryTargets,
     selectedKeyType,
     positions,
     canonicalPositions,
@@ -376,7 +377,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     handleBatchResizePreview,
   } = usePropertiesPanelBatchGeometry({
     selectedKeyType,
-    selectedBatchGeometryElements,
+    batchGeometryTargets,
     stableBatchGeometryTargets,
     stablePluginGeometryElements,
     stablePluginGeometryTargets,
@@ -433,13 +434,16 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   // 플러그인 단독 다중은 경량 기하 배치 패널에 라우트
   const renderSelectionPanelBody = () => {
     const selectionTotalCount =
-      selectedBatchGeometryElements.length + selectedPluginElements.length;
+      selectedBatchGeometryElements.length +
+      selectedPluginElements.length +
+      treeOnlyIds.length;
     const route = resolveSelectionPanelRoute({
       keyLikeCount: selectedKeyLikeElements.length,
       graphCount: selectedGraphElements.length,
       knobCount: selectedKnobElements.length,
       spriteCount: selectedSpriteElements.length,
       pluginCount: selectedPluginElements.length,
+      treeOnlyCount: treeOnlyIds.length,
       hasSinglePosition: !!(
         singleKeyPosition ||
         singleStatPosition ||
@@ -448,10 +452,18 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         singleSpritePosition
       ),
     });
-    // 크기 일괄이 고치는 플러그인 요소(크기를 정하는 정의)의 크기
+    // 크기 일괄이 고치는 플러그인 요소(크기를 정하는 정의)·트리에만 있는 종류 요소의 크기
     const resizablePluginSizes = (stablePluginGeometryElements ?? []).filter(
       ({ resizable }) => resizable,
     );
+    const treeOnlySizes = treeOnlyIds.flatMap((id) => {
+      const frame = getElementDocumentStore()?.getElement(
+        documentSceneId ?? selectedKeyType,
+        id,
+      )?.frame;
+      return frame ? [frame] : [];
+    });
+    const extraSizes = [...resizablePluginSizes, ...treeOnlySizes];
     // 함께 고른 플러그인 요소의 설정 - 정의마다 섹션 하나 (설정 모달을 쓰는 정의는 하나씩)
     const pluginGroups = pluginSettingsGroups(
       selectedPluginElements.flatMap(({ id }) => {
@@ -486,14 +498,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             (position) => position[dimension],
             60,
           );
-          const plugins = resizablePluginSizes.map((size) => size[dimension]);
+          const others = extraSizes.map((size) => size[dimension]);
           if (selectedBatchGeometryElements.length === 0) {
-            return aggregateMixedValue(plugins, (value) => value, 60);
+            return aggregateMixedValue(others, (value) => value, 60);
           }
           return {
             value: native.value,
             isMixed:
-              native.isMixed || plugins.some((value) => value !== native.value),
+              native.isMixed || others.some((value) => value !== native.value),
           };
         },
         handleBatchResize,
@@ -506,7 +518,10 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       return (
         <DocumentBatchPanel
           sceneId={selectedKeyType}
-          elementIds={selectedBatchGeometryElements.map(({ id }) => id)}
+          elementIds={[
+            ...selectedBatchGeometryElements.map(({ id }) => id),
+            ...treeOnlyIds,
+          ]}
           panelElement={panelElement}
           setPanelElement={setPanelElement}
           legacyHost={legacyBatchHost}
@@ -694,29 +709,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    // 옛 종류 요소와 트리에만 있는 종류가 섞인 선택 - 함께 편집하는 패널이 생기기 전까지 레이어 패널로
-    // 둘 다 보인다 (트리로 옮긴 옛 종류만 섞였으면 옛 패널이 함께 본다).
-    // 이미 속성 모드라 행 더블클릭은 모드를 뒤집지 않고 속성 모드를 지킨다
-    if (
-      documentSceneId &&
-      documentSelectedIds.length > 0 &&
-      legacySelectionCount > 0 &&
-      !bridgedDocumentSelection
-    ) {
-      return (
-        <LayerPanel
-          onSwitchToProperty={() => setPanelMode('property')}
-          onSelectionFromPanel={() => {
-            selectionFromLayerPanelRef.current = true;
-          }}
-        />
-      );
-    }
-
+    // 트리에만 있는 종류만 고른 선택 - 트리 패널. 옛 종류·플러그인 요소와 섞이면 아래 일괄 라우트가
+    // 고른 종류들 선언의 합으로 함께 그린다
+    const treeOnlySelection =
+      treeOnlyIds.length > 0 && selectedElements.length === 0;
     if (
       documentSceneId &&
       documentSelectedIds.length > 1 &&
-      !bridgedDocumentSelection
+      treeOnlySelection
     ) {
       return (
         <EditSessionScope>
@@ -732,7 +732,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    if (documentSceneId && documentElementId && !bridgedDocumentSelection) {
+    if (documentSceneId && documentElementId && treeOnlySelection) {
       return (
         <EditSessionScope>
           <DocumentElementPanel
@@ -781,15 +781,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     selectedKeyElements.length > 0 ||
     selectedElements.length > 0 ||
     documentElementId !== null;
-  // 트리 요소와 섞인 선택은 레이어 패널을 보이므로 머리도 레이어로
-  const mixedSelection =
-    documentSelectedIds.length > 0 &&
-    legacySelectionCount > 0 &&
-    !bridgedDocumentSelection;
   const displayedPanelMode =
-    panelMode === 'layer' || !hasAnySelection || mixedSelection
-      ? 'layer'
-      : 'property';
+    panelMode === 'layer' || !hasAnySelection ? 'layer' : 'property';
 
   // 프레임이 글래스를 소유하고, 루트/서브 페이지가 그 안에서 슬라이드 전환.
   // 열림/닫힘 모두 같은 프래그먼트 구조 유지 — 토글 버튼이 리마운트되면

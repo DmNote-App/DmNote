@@ -26,7 +26,7 @@ type PropertiesPanelSelection = ReturnType<typeof usePropertiesPanelSelection>;
 type UsePropertiesPanelBatchGeometryProps = Pick<
   PropertiesPanelSelection,
   | 'selectedKeyType'
-  | 'selectedBatchGeometryElements'
+  | 'batchGeometryTargets'
   | 'stableBatchGeometryTargets'
   | 'stablePluginGeometryElements'
   | 'stablePluginGeometryTargets'
@@ -34,17 +34,14 @@ type UsePropertiesPanelBatchGeometryProps = Pick<
 
 export const usePropertiesPanelBatchGeometry = ({
   selectedKeyType,
-  selectedBatchGeometryElements,
+  batchGeometryTargets,
   stableBatchGeometryTargets,
   stablePluginGeometryElements,
   stablePluginGeometryTargets,
 }: UsePropertiesPanelBatchGeometryProps) =>
   useBatchHandlers({
-    selectedKeyLikeElements: selectedBatchGeometryElements as {
-      type: EditorElementTypeV1;
-      id: string;
-      index?: number;
-    }[],
+    // 옛 종류와 트리에만 있는 종류 요소 (보이는 위치·크기는 트리 칸 보기에서 읽는다)
+    selectedKeyLikeElements: batchGeometryTargets,
     selectedKeyType,
     pluginLayoutElements: stablePluginGeometryElements,
     onStableGeometryPreview: (operation) => {

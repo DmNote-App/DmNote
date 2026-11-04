@@ -284,8 +284,8 @@ const DocumentBatchPanel = ({
     />
   );
 
-  // 여러 옛 종류를 고른 선택 - 고른 종류들 선언의 합을 탭마다 (옛 일괄 부품 배치)
-  if (keyLikeHost && writer) {
+  // 여러 종류를 고른 선택 - 고른 종류들 선언의 합을 탭마다 (옛 일괄 부품 배치, 트리에만 있는 종류가 섞여도)
+  if (keyLikeHost) {
     const kinds = elements.map((element) => element.kind);
     const tabs = unionBatchTabs(kinds);
     return (

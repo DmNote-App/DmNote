@@ -17,6 +17,8 @@ export interface SelectionPanelRouteInput {
   knobCount: number;
   spriteCount: number;
   pluginCount: number;
+  // 옛 종류·플러그인 요소와 함께 고른 트리에만 있는 종류 요소
+  treeOnlyCount?: number;
   // 하나 고른 native 요소의 위치를 찾았는지
   hasSinglePosition: boolean;
 }
@@ -34,9 +36,11 @@ export const resolveSelectionPanelRoute = (
     knobCount,
     spriteCount,
     pluginCount,
+    treeOnlyCount = 0,
     hasSinglePosition,
   } = input;
-  const nativeCount = keyLikeCount + graphCount + knobCount + spriteCount;
+  const nativeCount =
+    keyLikeCount + graphCount + knobCount + spriteCount + treeOnlyCount;
 
   // native 없음 - 플러그인 단독 경로 (단일 편집 또는 경량 기하 배치)
   if (nativeCount === 0) {
@@ -47,11 +51,12 @@ export const resolveSelectionPanelRoute = (
   // 플러그인 혼합은 native 1개(위치 미해결 포함)여도 배치로 라우트 -
   // 기하 커밋 경로가 fail-closed라 미해결 대상은 커밋 없이 무시된다
   if (pluginCount > 0 || nativeCount > 1) {
-    // 키/통계 포함, 또는 그래프·노브·스프라이트 중 두 종류 이상 - 고른 종류들 선언의 합
+    // 키/통계 포함, 또는 그래프·노브·스프라이트 중 두 종류 이상, 또는 트리에만 있는 종류가 섞임 -
+    // 고른 종류들 선언의 합
     const otherKinds = [graphCount, knobCount, spriteCount].filter(
       (count) => count > 0,
     ).length;
-    if (keyLikeCount > 0 || otherKinds > 1) {
+    if (keyLikeCount > 0 || otherKinds > 1 || treeOnlyCount > 0) {
       return { kind: 'batchKeyLike' };
     }
     if (knobCount > 0) return { kind: 'batchKnobOnly' };

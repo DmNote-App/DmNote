@@ -39,6 +39,10 @@ export interface BatchStyleBodyProps {
   onShadowCommit?: (patch: EditorShadowPropertyPatchV1) => void;
   hideDisplayText?: boolean;
   hideFontControls?: boolean;
+  // 이미지 묶음을 가진 요소가 없다 - 커스텀 이미지 줄을 그리지 않는다
+  hideImage?: boolean;
+  // 피커 형식 기억·드래그 소유권을 나누는 선택 구성 - 패널이 편집하는 요소 (없으면 패널 선택)
+  selectionKey?: string;
   showSoundControls?: boolean;
   showShadowControls?: boolean;
   // 선택에 키·노브가 없으면(통계뿐) 그림자 대기만 편집
@@ -88,11 +92,19 @@ export interface BatchStyleBodyProps {
   };
   // 그림자 섹션은 그림자를 그리는 종류끼리 읽는다
   getShadowMixedValue?: BatchStyleBodyProps['getMixedValue'];
+  // 겉모습(배경·테두리) 칸 - 표면을 가진 트리에만 있는 종류가 섞이면 그 요소까지 읽고 쓴다 (미리보기는 옛 종류)
+  surface?: {
+    getMixedValue: BatchStyleBodyProps['getMixedValue'];
+    onPaintCommit?: (patch: EditorPaintPropertyPatchV1) => void;
+    onStylePropertyCommit?: (patch: EditorPreviewStylePropertyPatchV1) => void;
+  };
 }
 
 const BatchStyleBody = ({
   hideDisplayText = false,
   hideFontControls = false,
+  hideImage = false,
+  selectionKey,
   soundBinding = EMPTY_BATCH_ELEMENT_BINDING,
   onSoundPathCommit,
   onSoundEnabledCommit,
@@ -121,6 +133,7 @@ const BatchStyleBody = ({
   useCustomCSS,
   typography,
   getShadowMixedValue,
+  surface,
   t,
 }: BatchStyleBodyProps) => {
   const [colorState, setColorState] = useState<'idle' | 'active'>('idle');
@@ -132,7 +145,7 @@ const BatchStyleBody = ({
   const selectedElements = usePanelSelection(selectedKeyType);
   // 선택 구성 시그니처 — 형식 왕복 기억·드래그 소유권이 다른 배치 선택과
   // 교차하지 않게 keyType + 정렬된 대상 목록을 키에 포함
-  const batchSelectionKey = useMemo(
+  const panelSelectionKey = useMemo(
     () =>
       `${selectedKeyType}:${selectedElements
         .map((el) => el.id)
@@ -140,6 +153,7 @@ const BatchStyleBody = ({
         .join(',')}`,
     [selectedKeyType, selectedElements],
   );
+  const batchSelectionKey = selectionKey ?? panelSelectionKey;
   useEffect(() => {
     // 눌림 상태 편집 능력이 사라지면 저장된 active 탭 선택도 리셋
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -150,7 +164,7 @@ const BatchStyleBody = ({
     <>
       <PropertySection>
         <BatchSurfaceRows
-          getMixedValue={getMixedValue}
+          getMixedValue={surface?.getMixedValue ?? getMixedValue}
           activeMixedValue={activeMixedValue}
           effectiveColorState={effectiveColorState}
           showStateTabs={shadowActiveState}
@@ -158,18 +172,22 @@ const BatchStyleBody = ({
           imageSuppressesDefaultBorder={imageSuppressesDefaultBorder}
           batchSelectionKey={batchSelectionKey}
           onStylePropertyPreview={onStylePropertyPreview}
-          onStylePropertyCommit={onStylePropertyCommit}
+          onStylePropertyCommit={
+            surface?.onStylePropertyCommit ?? onStylePropertyCommit
+          }
           onPaintPreview={onPaintPreview}
-          onPaintCommit={onPaintCommit}
+          onPaintCommit={surface?.onPaintCommit ?? onPaintCommit}
           panelElement={panelElement}
           t={t}
         />
-        <BatchImageButtonRow
-          showBatchImagePicker={showBatchImagePicker}
-          onToggleBatchImagePicker={onToggleBatchImagePicker}
-          batchImageButtonRef={batchImageButtonRef}
-          t={t}
-        />
+        {hideImage ? null : (
+          <BatchImageButtonRow
+            showBatchImagePicker={showBatchImagePicker}
+            onToggleBatchImagePicker={onToggleBatchImagePicker}
+            batchImageButtonRef={batchImageButtonRef}
+            t={t}
+          />
+        )}
       </PropertySection>
 
       {showShadowControls ? (
