@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { FakeElementDocumentBackend } from '@src/renderer/__tests__/fakeElementDocumentBackend';
 import type { Document } from '@src/types/generated/elementDocument';
-import type { ElementCollections } from '@src/types/editor';
 
 const SPRITE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const POSE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
@@ -144,7 +143,6 @@ const loadHarness = async () => {
     overlays,
     panel,
     overlay,
-    records,
     selection,
     position,
     dragSession,
@@ -157,7 +155,6 @@ const loadHarness = async () => {
     import('../overlays/GridSelectionOverlays'),
     import('@src/renderer/elementKinds/definitions/sprite/SpritePanelSection'),
     import('@src/renderer/editor/runtime/gesture/previewOverlay'),
-    import('@src/renderer/elementKinds/runtime/treePanelRecords'),
     import('@stores/grid/useDocumentSelectionStore'),
     import('@src/renderer/elementKinds/runtime/viewFields'),
     import('@hooks/Grid/drag/dragSession'),
@@ -174,7 +171,7 @@ const loadHarness = async () => {
     previewOverlay: overlay.previewOverlay,
     subscribePreviewOverlay: overlay.subscribePreviewOverlay,
     getPreviewOverlayVersion: overlay.getPreviewOverlayVersion,
-    treePanelRecords: records.treePanelRecords,
+    viewFieldsLookup: position.viewFieldsLookup,
     useDocumentSelectionStore: selection.useDocumentSelectionStore,
     currentFieldsOf: position.currentFieldsOf,
     viewFieldsById: position.viewFieldsById,
@@ -198,21 +195,12 @@ describe('자세 편집 세션 통합 (패널 + 캔버스 손잡이, 트리 스�
       harness.subscribePreviewOverlay,
       harness.getPreviewOverlayVersion,
     );
-    const records = harness.treePanelRecords(
+    const positionOf = harness.viewFieldsLookup(
       harness.useScene('4key'),
       '4key',
       previewVersion,
     );
-    const collections = {
-      keyPositions: records.positions,
-      statPositions: records.statItemPositions,
-      graphPositions: records.graphItemPositions,
-      knobPositions: records.knobItemPositions,
-      spritePositions: records.spriteItemPositions,
-    } as unknown as ElementCollections;
-    const position = collections.spritePositions['4key']?.find(
-      (candidate) => candidate.id === SPRITE_ID,
-    );
+    const position = positionOf(SPRITE_ID);
     if (!position) return null;
     return (
       <>
@@ -224,7 +212,7 @@ describe('자세 편집 세션 통합 (패널 + 캔버스 손잡이, 트리 스�
         />
         <harness.GridSelectionOverlays
           selectedElements={[]}
-          collections={collections}
+          positionOf={positionOf}
           mode="4key"
           pluginElements={[]}
           zoom={1}

@@ -1,13 +1,13 @@
 import React, { useEffect } from 'react';
 import { useTranslation } from '@contexts/useTranslation';
 import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
-import type { ElementCollections } from '@src/types/editor';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import type { ContinuousInputStrategy } from '@utils/animation/rafLatestScheduler';
 import {
   gradientAxisStopPoint,
   resolveGradientAxisBounds,
   type GradientAxisEnd,
+  type ResolveGradientAxisBoundsOptions,
 } from './gradientAxisGeometry';
 import { useGradientAxisDragSession } from './useGradientAxisDragSession';
 
@@ -21,9 +21,9 @@ import { useGradientAxisDragSession } from './useGradientAxisDragSession';
  */
 
 interface GradientAxisOverlayProps {
-  collections: ElementCollections;
+  // 요소의 지금 틀 찾기(id) - 지금 탭 트리의 보이는 칸(편집 미리보기 포함)
+  positionOf: ResolveGradientAxisBoundsOptions['positionOf'];
   selectedElements: SelectedElement[];
-  selectedKeyType: string;
   zoom: number;
   panX: number;
   panY: number;
@@ -46,9 +46,8 @@ const stopAll = (e: React.SyntheticEvent) => {
 };
 
 const GradientAxisOverlay = ({
-  collections,
+  positionOf,
   selectedElements,
-  selectedKeyType,
   zoom,
   panX,
   panY,
@@ -65,9 +64,8 @@ const GradientAxisOverlay = ({
   const bounds = resolveGradientAxisBounds({
     session,
     registeredAnchorBounds,
-    collections,
+    positionOf,
     selectedElements,
-    selectedKeyType,
   });
   const {
     rootRef,

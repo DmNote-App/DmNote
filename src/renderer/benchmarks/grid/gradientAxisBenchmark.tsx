@@ -71,15 +71,15 @@ export const GradientAxisBenchmarkSurface = ({
     };
   }, [apply]);
 
-  const positions = {
-    benchmark: Array.from({ length: itemCount }, (_, index) => ({
-      id: benchmarkId(index),
-      dx: 100 + (index % 20),
-      dy: 100 + Math.floor(index / 20),
-      width: 200,
-      height: 100,
-    })),
-  } as never;
+  const positions = Array.from({ length: itemCount }, (_, index) => ({
+    id: benchmarkId(index),
+    dx: 100 + (index % 20),
+    dy: 100 + Math.floor(index / 20),
+    width: 200,
+    height: 100,
+  }));
+  const positionOf = (id: string) =>
+    positions.find((position) => position.id === id);
 
   return (
     <Profiler
@@ -94,15 +94,8 @@ export const GradientAxisBenchmarkSurface = ({
           <GradientPreviewNode key={index} index={index} />
         ))}
         <GradientAxisOverlay
-          collections={{
-            keyPositions: positions,
-            statPositions: {},
-            graphPositions: {},
-            knobPositions: {},
-            spritePositions: {},
-          }}
+          positionOf={positionOf}
           selectedElements={[]}
-          selectedKeyType="benchmark"
           zoom={1}
           panX={0}
           panY={0}

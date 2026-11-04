@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import { previewOverlay } from '@src/renderer/editor/runtime/gesture/previewOverlay';
-import { viewFieldsOf } from './viewFields';
+import type { Scene } from '@src/types/generated/elementDocument';
+import { viewFieldsLookup, viewFieldsOf } from './viewFields';
 
 const knob = {
   type: 'element',
@@ -61,5 +62,42 @@ describe('칸 보기의 참조 안정성', () => {
     const previewed = viewFieldsOf(knob, '4key');
     expect(previewed).not.toBe(first);
     expect(viewFieldsOf(knob, '4key')).toBe(previewed);
+  });
+});
+
+describe('장면에서 id로 보이는 칸 찾기', () => {
+  afterEach(() => previewOverlay.clearAll());
+
+  const scene = {
+    nodes: [
+      { type: 'group', id: 'g1', children: [knob] },
+      { ...knob, id: 'n2', frame: { ...knob.frame, x: 50 } },
+    ],
+  } as unknown as Scene;
+
+  it('그룹 안까지 id로 찾아 칸 보기(편집 미리보기 포함)를 준다', () => {
+    const lookup = viewFieldsLookup(scene, '4key');
+    expect(lookup('n1')).toBe(viewFieldsOf(knob, '4key'));
+    expect(lookup('n2')?.dx).toBe(50);
+    expect(lookup('g1')).toBeUndefined();
+    expect(lookup('none')).toBeUndefined();
+    expect(viewFieldsLookup(undefined, '4key')('n1')).toBeUndefined();
+  });
+
+  it('장면·미리보기 판이 같으면 같은 함수 - 받는 쪽 메모가 바뀔 때만 다시 계산한다', () => {
+    const first = viewFieldsLookup(scene, '4key', 0);
+    expect(viewFieldsLookup(scene, '4key', 0)).toBe(first);
+    expect(viewFieldsLookup(scene, '5key', 0)).not.toBe(first);
+    previewOverlay.applyLocalPatchByIds(
+      '44444444-4444-4444-8444-444444444444',
+      '4key',
+      ['n2'],
+      { dx: 70 },
+      'knobPosition',
+    );
+    const next = viewFieldsLookup(scene, '4key', 1);
+    expect(next).not.toBe(first);
+    expect(next('n2')?.dx).toBe(70);
+    expect(viewFieldsLookup({ ...scene }, '4key', 1)).not.toBe(next);
   });
 });
