@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import { previewOverlay } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import type { Scene } from '@src/types/generated/elementDocument';
-import { viewFieldsLookup, viewFieldsOf } from './viewFields';
+import {
+  sceneElementLookup,
+  viewFieldsLookup,
+  viewFieldsOf,
+} from './viewFields';
 
 const knob = {
   type: 'element',
@@ -74,6 +78,14 @@ describe('장면에서 id로 보이는 칸 찾기', () => {
       { ...knob, id: 'n2', frame: { ...knob.frame, x: 50 } },
     ],
   } as unknown as Scene;
+
+  it('그룹 안까지 id로 요소를 찾는다 - 장면이 같으면 같은 함수', () => {
+    const lookup = sceneElementLookup(scene);
+    expect(lookup('n1')).toBe(knob);
+    expect(lookup('g1')).toBeUndefined();
+    expect(sceneElementLookup(scene)).toBe(lookup);
+    expect(sceneElementLookup(undefined)('n1')).toBeUndefined();
+  });
 
   it('그룹 안까지 id로 찾아 칸 보기(편집 미리보기 포함)를 준다', () => {
     const lookup = viewFieldsLookup(scene, '4key');

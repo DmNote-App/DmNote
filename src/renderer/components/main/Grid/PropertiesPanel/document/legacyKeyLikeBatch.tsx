@@ -1,9 +1,9 @@
 'use no memo';
-// 편집 미리보기(모듈 상태)를 담은 트리 기록을 렌더 중에 읽어서 컴파일러 메모 제외
+// 편집 미리보기(모듈 상태)를 담은 보이는 칸을 렌더 중에 읽어서 컴파일러 메모 제외
 // 여러 옛 종류를 고른 일괄 패널 - 고른 종류들 선언의 합을 탭마다 그리되 겉모습(표면·이미지·그림자·글자·
 // 사용자 CSS·사운드)·노트·카운터는 옛 일괄 부품으로, 종류마다 칸 묶음은 그 종류 요소에만, 색·이미지 피커는
 // 패널 뿌리에. 섹션은 그 묶음을 가진 종류끼리 읽고 쓴다. 섞인 값은 옛 일괄 패널과 같은 모델
-// (createBatchSelectionModel)을 같은 트리 기록(treePanelRecords)으로 만든다
+// (createBatchSelectionModel)을 같은 트리 찾기(요소·보이는 칸)로 만든다
 import React, { type ReactNode, type RefObject } from 'react';
 
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
@@ -12,7 +12,10 @@ import type {
   BundleName,
   PanelTab,
 } from '@src/renderer/elementKinds/defineElementKind';
-import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
+import {
+  sceneElementLookup,
+  viewFieldsLookup,
+} from '@src/renderer/elementKinds/runtime/viewFields';
 import {
   isEditorElementType,
   type EditorCounterFillPropertyPatchV1,
@@ -154,7 +157,6 @@ export const LegacyKeyLikeBatchBody = ({
     'graph',
     'knob',
   );
-  const records = treePanelRecords(scene, sceneId);
   const {
     getMixedValue,
     getMixedValueCanonical,
@@ -165,14 +167,8 @@ export const LegacyKeyLikeBatchBody = ({
     getSelectedBatchStyleData,
     getSelectedKeyOnlyPositions,
   } = createBatchSelectionModel({
-    selectedKeyType: sceneId,
-    positions: records.positions as never,
-    canonicalPositions: records.canonicalPositions as never,
-    keyMappings: records.keyMappings as never,
-    statItemPositions: records.statItemPositions as never,
-    graphItemPositions: records.graphItemPositions as never,
-    knobItemPositions: records.knobItemPositions as never,
-    spriteItemPositions: records.spriteItemPositions as never,
+    elementOf: sceneElementLookup(scene),
+    viewOf: viewFieldsLookup(scene, sceneId),
     selectedKeyElements,
     selectedKeyLikeElements,
     selectedGraphElements,

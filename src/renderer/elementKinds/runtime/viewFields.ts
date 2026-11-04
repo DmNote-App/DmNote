@@ -81,6 +81,7 @@ export const viewFieldsById = (
 type ViewFieldsLookup = (id: string) => PanelFieldView | undefined;
 
 const noElement: ViewFieldsLookup = () => undefined;
+const noSceneElement = () => undefined;
 const elementIndexCache = new WeakMap<Scene, Map<string, ElementNode>>();
 const lookupCache = new WeakMap<
   Scene,
@@ -97,6 +98,24 @@ const elementIndexOf = (scene: Scene) => {
     elementIndexCache.set(scene, index);
   }
   return index;
+};
+
+const elementLookupCache = new WeakMap<
+  Scene,
+  (id: string) => ElementNode | undefined
+>();
+
+/** 장면에서 id로 요소 찾기 (그룹 안까지) - 장면이 같으면 같은 함수 */
+export const sceneElementLookup = (
+  scene: Scene | undefined,
+): ((id: string) => ElementNode | undefined) => {
+  if (!scene) return noSceneElement;
+  let lookup = elementLookupCache.get(scene);
+  if (!lookup) {
+    lookup = (id) => elementIndexOf(scene).get(id);
+    elementLookupCache.set(scene, lookup);
+  }
+  return lookup;
 };
 
 /** 장면에서 id로 요소의 보이는 칸(편집 미리보기 포함) 찾기 - 장면·미리보기 판이 같으면 같은 함수라
