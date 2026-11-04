@@ -1,22 +1,14 @@
 import { isNativeElementId } from '../../model/elementId';
 import type { NativeElementType } from '../../model/elementIdMap';
 import { type PropertyIntents } from '../intent/elementIntent';
-import {
-  captureEditorDocument,
-  commitGeneratedSemanticOps,
-  commitSemanticOps,
-} from './editorSemanticOps';
+import { commitFrames, sceneOfElement } from './treeEditCommit';
 import {
   computeBatchGeometryPlan,
   type BatchGeometryOperation,
 } from '../geometry/batchGeometryPlan';
-import { EDITOR_ELEMENT_POSITION_FIELDS } from '@src/types/editor';
-import type {
-  CanonicalEditorDocumentV1,
-  EditorBoundsV1,
-  EditorOpV1,
-} from '@src/types/editor';
-import { findInRecord, type LooseRecord } from '../intent/elementDocumentModel';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import type { EditorBoundsV1 } from '@src/types/editor';
+import type { FramePatch } from '@src/types/generated/elementDocument';
 
 // 다중 선택 정산: 대상 id들의 현재 canonical 기하(dx·dy)를 의도로 캡처해
 // 슬롯 안에서 id 재해석으로 적용한다. 4컬렉션 full-record 캡처는 배타
@@ -36,10 +28,10 @@ export interface BatchGeometryDescriptor {
   operation: BatchGeometryOperation;
 }
 
-const readBatchGeometryElements = (
-  base: CanonicalEditorDocumentV1,
-  descriptor: BatchGeometryDescriptor,
-) => {
+// 대상들의 지금 틀 (트리 낙관 반영 포함, 미리보기 없음) - 모두 그 탭에 그 종류로 있어야 한다
+const readBatchGeometryElements = (descriptor: BatchGeometryDescriptor) => {
+  const store = getElementDocumentStore();
+  if (!store) return null;
   const seen = new Set<string>();
   const elements: Array<{
     key: string;
@@ -53,50 +45,32 @@ const readBatchGeometryElements = (
   for (const target of descriptor.targets) {
     if (!isNativeElementId(target.id) || seen.has(target.id)) return null;
     seen.add(target.id);
-    const record = base[
-      EDITOR_ELEMENT_POSITION_FIELDS[target.type]
-    ] as unknown as LooseRecord;
-    const locator = findInRecord(record, target.id);
-    if (!locator || locator.mode !== descriptor.mode) return null;
-    const position = record[locator.mode]?.[locator.index];
-    if (
-      !position ||
-      typeof position.dx !== 'number' ||
-      typeof position.dy !== 'number' ||
-      typeof position.width !== 'number' ||
-      typeof position.height !== 'number'
-    ) {
-      return null;
-    }
+    const element = store.getElement(descriptor.mode, target.id);
+    if (!element || element.kind !== target.type) return null;
+    const { x, y, width, height } = element.frame;
     elements.push({
       key: target.id,
       type: target.type,
       id: target.id,
-      x: position.dx,
-      y: position.dy,
-      width: position.width,
-      height: position.height,
+      x,
+      y,
+      width,
+      height,
     });
   }
   return elements;
 };
 
-// bounds 정산 op - 스프라이트는 bounds와 콘텐츠 스케일을 한 몸으로 갖는
-// resizeSprite, 나머지는 setBounds
-export const elementBoundsOp = (
-  elementType: NativeElementType,
-  id: string,
-  bounds: EditorBoundsV1,
-): EditorOpV1 =>
-  elementType === 'sprite'
-    ? { kind: 'resizeSprite', id, bounds }
-    : { kind: 'setBounds', elementType, id, bounds };
+/** bounds → 틀 (스프라이트는 크기와 함께 자세 이동값이 비례한다 - 트리 커밋 입구가 붙인다) */
+export const boundsFrame = (bounds: EditorBoundsV1): FramePatch => ({
+  x: bounds.dx,
+  y: bounds.dy,
+  width: bounds.width,
+  height: bounds.height,
+});
 
-const planBatchGeometry = (
-  base: CanonicalEditorDocumentV1,
-  descriptor: BatchGeometryDescriptor,
-) => {
-  const elements = readBatchGeometryElements(base, descriptor);
+const planBatchGeometry = (descriptor: BatchGeometryDescriptor) => {
+  const elements = readBatchGeometryElements(descriptor);
   if (!elements) return null;
   const plan = computeBatchGeometryPlan(elements, descriptor.operation);
   if (!plan) return null;
@@ -105,11 +79,17 @@ const planBatchGeometry = (
   );
   return {
     ...plan,
-    // 스프라이트는 배치에서도 resizeSprite - 치수가 변하는 연산(resize)은
-    // 콘텐츠가 함께 스케일되고, 이동 계열은 배율 1이라 setBounds와 동일
-    ops: plan.bounds.flatMap(({ key, bounds }) => {
+    frames: plan.bounds.flatMap(({ key, bounds }) => {
       const target = targetById.get(key);
-      return target ? [elementBoundsOp(target.type, target.id, bounds)] : [];
+      return target
+        ? [
+            {
+              elementType: target.type,
+              id: target.id,
+              frame: boundsFrame(bounds),
+            },
+          ]
+        : [];
     }),
   };
 };
@@ -118,26 +98,14 @@ export const commitBatchGeometryByIds = (
   descriptor: BatchGeometryDescriptor,
   options: { gestureId?: string; preflight?: () => void } = {},
 ): Promise<boolean> => {
-  const frozenDescriptor = structuredClone(descriptor);
-  const initialPlan = planBatchGeometry(
-    captureEditorDocument(),
-    frozenDescriptor,
-  );
-  if (!initialPlan || initialPlan.updates.length === 0) {
+  const plan = planBatchGeometry(structuredClone(descriptor));
+  if (!plan || plan.updates.length === 0) {
     return Promise.resolve(false);
   }
-  return commitGeneratedSemanticOps(
-    (base) => planBatchGeometry(base, frozenDescriptor)?.ops ?? null,
-    {
-      ...(options.gestureId ? { gestureId: options.gestureId } : {}),
-      ...(options.preflight ? { preflight: options.preflight } : {}),
-    },
-  ).then((outcome) => {
-    if (!outcome) {
-      return false;
-    }
-    return outcome.opResults.every(({ status }) => status !== 'targetMissing');
-  });
+  return commitFrames(plan.frames, {
+    ...(options.gestureId ? { gestureId: options.gestureId } : {}),
+    ...(options.preflight ? { preflight: options.preflight } : {}),
+  }).then((statuses) => statuses.every((status) => status !== 'targetMissing'));
 };
 
 export const commitElementGeometryById = (
@@ -160,35 +128,23 @@ export const commitElementGeometryById = (
     return Promise.resolve(false);
   }
 
-  const frozenPatch = Object.fromEntries(entries) as GeometryPatch;
-  return commitGeneratedSemanticOps(
-    (base) => {
-      const record = base[
-        EDITOR_ELEMENT_POSITION_FIELDS[type]
-      ] as unknown as LooseRecord;
-      const locator = findInRecord(record, id);
-      if (!locator) return null;
-      const position = record[locator.mode]?.[locator.index];
-      if (!position) return null;
-      const bounds: EditorBoundsV1 = {
-        dx: position.dx as number,
-        dy: position.dy as number,
-        width: position.width as number,
-        height: position.height as number,
-        ...frozenPatch,
-      };
-      return [{ kind: 'setBounds', elementType: type, id, bounds }];
-    },
-    {
-      ...(options.gestureId ? { gestureId: options.gestureId } : {}),
-      ...(options.preflight ? { preflight: options.preflight } : {}),
-    },
-  ).then((outcome) => {
-    if (!outcome) {
-      return false;
-    }
-    return outcome.opResults[0]?.status !== 'targetMissing';
-  });
+  // 지금 틀(트리 낙관 반영 포함)에 고친 칸을 얹는다
+  const store = getElementDocumentStore();
+  const scene = store ? sceneOfElement(store, id) : undefined;
+  const element = scene ? store!.getElement(scene, id) : undefined;
+  if (!element || element.kind !== type) return Promise.resolve(false);
+  const { x, y, width, height } = element.frame;
+  const bounds: EditorBoundsV1 = {
+    dx: x,
+    dy: y,
+    width,
+    height,
+    ...Object.fromEntries(entries),
+  };
+  return commitFrames([{ elementType: type, id, frame: boundsFrame(bounds) }], {
+    ...(options.gestureId ? { gestureId: options.gestureId } : {}),
+    ...(options.preflight ? { preflight: options.preflight } : {}),
+  }).then(([status]) => status !== 'targetMissing');
 };
 
 // 리사이즈 완료 전용: 시작 시 동결한 대상 id들에 최종 bounds를 한 커밋으로 (트리가 낙관 반영, 오류는 전파)
@@ -196,7 +152,11 @@ export const commitElementBoundsById = (
   intents: PropertyIntents,
   gestureId?: string,
 ): Promise<boolean> => {
-  const ops: EditorOpV1[] = [];
+  const frames: Array<{
+    elementType: NativeElementType;
+    id: string;
+    frame: FramePatch;
+  }> = [];
   const boundsKeys = new Set(['dx', 'dy', 'width', 'height']);
   const seenIds = new Set<string>();
   for (const [elementType, byId] of intents) {
@@ -219,23 +179,23 @@ export const commitElementBoundsById = (
         return Promise.resolve(false);
       }
       seenIds.add(id);
-      ops.push(
-        elementBoundsOp(elementType, id, {
+      frames.push({
+        elementType,
+        id,
+        frame: boundsFrame({
           dx: patch.dx,
           dy: patch.dy,
           width: patch.width,
           height: patch.height,
         }),
-      );
+      });
     }
   }
-  if (ops.length === 0) return Promise.resolve(false);
+  if (frames.length === 0) return Promise.resolve(false);
 
-  return commitSemanticOps(ops, {
+  return commitFrames(frames, {
     ...(gestureId ? { gestureId } : {}),
-  }).then(({ opResults }) =>
-    opResults.some(({ status }) => status !== 'targetMissing'),
-  );
+  }).then((statuses) => statuses.some((status) => status !== 'targetMissing'));
 };
 
 export const commitSingleElementBoundsById = (
@@ -255,7 +215,7 @@ export const commitSingleElementBoundsById = (
   ) {
     return Promise.resolve(false);
   }
-  return commitSemanticOps([elementBoundsOp(type, id, bounds)], {
+  return commitFrames([{ elementType: type, id, frame: boundsFrame(bounds) }], {
     ...(gestureId ? { gestureId } : {}),
-  }).then(({ opResults }) => opResults[0]?.status !== 'targetMissing');
+  }).then(([status]) => status !== 'targetMissing');
 };

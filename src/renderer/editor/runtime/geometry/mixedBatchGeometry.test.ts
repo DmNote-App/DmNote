@@ -2,18 +2,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
-import { makeCanonicalSpritePosition } from '@utils/sprite/spriteFixtures';
-import type {
-  CanonicalEditorDocumentV1,
-  CanonicalReactiveSpritePosition,
-} from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
 const mocks = vi.hoisted(() => ({
-  document: null as unknown as CanonicalEditorDocumentV1,
-  commitOps: vi.fn((_ops: unknown[], _meta?: { gestureId?: string }) =>
-    Promise.resolve({ document: null, opResults: [] }),
+  // 트리 문서 - 지금 탭의 옛 종류 요소 틀
+  nodes: [] as Array<{
+    id: string;
+    kind: string;
+    frame: { x: number; y: number; width: number; height: number };
+  }>,
+  commitTreeFrames: vi.fn(
+    (_targets: unknown[], _options?: { gestureId?: string }) =>
+      Promise.resolve([] as string[]),
   ),
   commitFrames: vi.fn(
     (_scene: string, _ids: Iterable<string>, _gestureId?: string) =>
@@ -23,11 +23,22 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock(
-  '@src/renderer/editor/runtime/operations/editorSemanticOps',
+  '@src/renderer/editor/document/elementDocumentRuntime',
   async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),
-    captureEditorDocument: () => mocks.document,
-    commitSemanticOps: mocks.commitOps,
+    getElementDocumentStore: () => ({
+      getElement: (scene: string, id: string) =>
+        scene === '4key'
+          ? mocks.nodes.find((node) => node.id === id)
+          : undefined,
+    }),
+  }),
+);
+vi.mock(
+  '@src/renderer/editor/runtime/operations/treeEditCommit',
+  async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    commitFrames: mocks.commitTreeFrames,
   }),
 );
 vi.mock(
@@ -97,21 +108,15 @@ const pluginElement = (
 const seed = (
   options: {
     plugins?: PluginDisplayElementInternal[];
-    sprite?: CanonicalReactiveSpritePosition;
+    sprite?: { x: number; y: number; width: number; height: number };
   } = {},
 ) => {
-  mocks.document = {
-    schemaVersion: 1,
-    keys: { '4key': [''] },
-    keyPositions: {
-      '4key': [{ ...createDefaultKeyPosition(), id: KEY_ID }],
-    },
-    statPositions: {},
-    graphPositions: {},
-    knobPositions: {},
-    spritePositions: options.sprite ? { '4key': [options.sprite] } : {},
-    layerGroups: {},
-  } as unknown as CanonicalEditorDocumentV1;
+  mocks.nodes = [
+    { id: KEY_ID, kind: 'key', frame: { x: 0, y: 0, width: 60, height: 60 } },
+    ...(options.sprite
+      ? [{ id: SPRITE_ID, kind: 'sprite', frame: options.sprite }]
+      : []),
+  ];
   usePluginDisplayElementStore.setState({
     elements: options.plugins ?? [pluginElement()],
   });
@@ -132,13 +137,13 @@ const pluginPosition = (fullId = FULL_ID) =>
 
 describe('commitMixedBatchGeometry', () => {
   beforeEach(() => {
-    mocks.commitOps.mockClear();
+    mocks.commitTreeFrames.mockClear();
     mocks.commitFrames.mockClear();
     mocks.commitBatchGeometryByIds.mockClear();
     seed();
   });
 
-  it('혼합 정렬은 옛 종류 setBounds 연산과 플러그인 틀 커밋을 같은 동작 id로 보낸다', async () => {
+  it('혼합 정렬은 옛 종류 틀 커밋과 플러그인 틀 커밋을 같은 동작 id로 보낸다', async () => {
     // key 0..60, plugin 100..150 - align left로 plugin만 이동
     await expect(commitMixedBatchGeometry(align(), [FULL_ID])).resolves.toBe(
       true,
@@ -150,30 +155,22 @@ describe('commitMixedBatchGeometry', () => {
     expect(ids).toEqual([FULL_ID]);
     expect(typeof gestureId).toBe('string');
     // 옛 종류는 그대로라 연산이 있어도 같은 동작 id
-    for (const [, meta] of mocks.commitOps.mock.calls) {
-      expect(meta?.gestureId).toBe(gestureId);
+    for (const [, options] of mocks.commitTreeFrames.mock.calls) {
+      expect(options?.gestureId).toBe(gestureId);
     }
   });
 
-  it('혼합 배치의 스프라이트는 resizeSprite 연산에 full bounds를 싣는다', async () => {
-    const sprite = {
-      ...makeCanonicalSpritePosition(),
-      id: SPRITE_ID,
-      dx: 300,
-      dy: 0,
-      width: 40,
-      height: 40,
-    } as CanonicalReactiveSpritePosition;
-    seed({ sprite });
+  it('혼합 배치의 스프라이트도 틀 전체(위치·크기)를 싣는다', async () => {
+    seed({ sprite: { x: 300, y: 0, width: 40, height: 40 } });
     await commitMixedBatchGeometry(align([{ type: 'sprite', id: SPRITE_ID }]), [
       FULL_ID,
     ]);
-    const [ops] = mocks.commitOps.mock.calls[0];
-    expect(ops).toEqual([
+    const [frames] = mocks.commitTreeFrames.mock.calls[0];
+    expect(frames).toEqual([
       {
-        kind: 'resizeSprite',
+        elementType: 'sprite',
         id: SPRITE_ID,
-        bounds: { dx: 100, dy: 0, width: 40, height: 40 },
+        frame: { x: 100, y: 0, width: 40, height: 40 },
       },
     ]);
   });
@@ -213,7 +210,7 @@ describe('commitMixedBatchGeometry', () => {
     await expect(commitMixedBatchGeometry(align(), [FULL_ID])).resolves.toBe(
       false,
     );
-    expect(mocks.commitOps).not.toHaveBeenCalled();
+    expect(mocks.commitTreeFrames).not.toHaveBeenCalled();
     expect(mocks.commitFrames).not.toHaveBeenCalled();
   });
 
@@ -245,7 +242,7 @@ describe('commitMixedBatchGeometry', () => {
       await expect(
         commitMixedBatchGeometry(align([]), [FULL_ID, SECOND_FULL_ID]),
       ).resolves.toBe(true);
-      expect(mocks.commitOps).not.toHaveBeenCalled();
+      expect(mocks.commitTreeFrames).not.toHaveBeenCalled();
       // 바뀐 틀만 고르는 일은 틀 커밋이 맡는다
       expect(mocks.commitFrames.mock.calls[0][1]).toEqual([
         FULL_ID,

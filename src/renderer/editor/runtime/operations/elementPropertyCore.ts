@@ -1,6 +1,6 @@
 import { isNativeElementId } from '../../model/elementId';
 import type { NativeElementType } from '../../model/elementIdMap';
-import { commitSemanticOps } from './editorSemanticOps';
+import { commitPropertyPatch } from './treeEditCommit';
 import type { EditorElementPropertyPatchV1 } from '@src/types/editor';
 
 // 빈 목록·비 native id·중복 id는 커밋 대상이 아니다
@@ -16,12 +16,11 @@ export const patchElementPropertyById = (
   options: { gestureId?: string; preflight?: () => void } = {},
 ): Promise<boolean> => {
   if (!isNativeElementId(id)) return Promise.resolve(false);
-  const ops = [{ kind: 'patchElement' as const, elementType: type, id, patch }];
-  // 트리로 갈 겉모습 칸은 대기 중인 트리 편집이 얹는다
-  return commitSemanticOps(ops, {
+  // 겉모습 칸은 대기 중인 트리 편집까지 얹은 지금 값에서 계산한다
+  return commitPropertyPatch([{ elementType: type, id }], patch, {
     ...(options.gestureId ? { gestureId: options.gestureId } : {}),
     preflight: options.preflight,
-  }).then((outcome) => outcome.opResults[0]?.status !== 'targetMissing');
+  }).then(([status]) => status !== 'targetMissing');
 };
 
 interface ElementPropertyTarget {
@@ -35,7 +34,7 @@ export interface PropertyCommitOptions {
 }
 
 // 공용 다건 경로: 빈 목록·비 native id·중복 id를 거르고 같은 property patch를
-// 전 대상에 eager+wire로 커밋한다. 속성별 기계적 래퍼는 전부 여기로 위임하고
+// 전 대상에 트리 커밋 하나로 보낸다. 속성별 기계적 래퍼는 전부 여기로 위임하고
 // value 타입은 판별 유니온 patch가 컴파일 타임에 강제한다
 export const patchElementPropertyByTargets = (
   targets: readonly ElementPropertyTarget[],
@@ -43,18 +42,10 @@ export const patchElementPropertyByTargets = (
   options: PropertyCommitOptions = {},
 ): Promise<boolean> => {
   if (!hasCommittableTargets(targets)) return Promise.resolve(false);
-  const ops = targets.map(({ elementType, id }) => ({
-    kind: 'patchElement' as const,
-    elementType,
-    id,
-    patch,
-  }));
-  return commitSemanticOps(ops, {
+  return commitPropertyPatch(targets, patch, {
     ...(options.gestureId ? { gestureId: options.gestureId } : {}),
     preflight: options.preflight,
-  }).then((outcome) =>
-    outcome.opResults.some((result) => result.status !== 'targetMissing'),
-  );
+  }).then((statuses) => statuses.some((status) => status !== 'targetMissing'));
 };
 
 export const idTargets = (

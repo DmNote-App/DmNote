@@ -1,6 +1,6 @@
 import { isNativeElementId } from '../../model/elementId';
 import type { NativeElementType } from '../../model/elementIdMap';
-import { commitSemanticOps } from './editorSemanticOps';
+import { commitPropertyPatch } from './treeEditCommit';
 import type {
   EditorCounterFillPropertyPatchV1,
   EditorNotePaintPropertyPatchV1,
@@ -49,18 +49,10 @@ export const patchPaintByTargets = (
   ) {
     return Promise.resolve(false);
   }
-  const ops = targets.map(({ elementType, id }) => ({
-    kind: 'patchElement' as const,
-    elementType,
-    id,
-    patch: structuredClone(patch),
-  }));
-  return commitSemanticOps(ops, {
+  return commitPropertyPatch(targets, structuredClone(patch), {
     ...(options.gestureId ? { gestureId: options.gestureId } : {}),
     preflight: options.preflight,
-  }).then((outcome) =>
-    outcome.opResults.some((result) => result.status !== 'targetMissing'),
-  );
+  }).then((statuses) => statuses.some((status) => status !== 'targetMissing'));
 };
 
 export const patchPaintById = (
@@ -93,17 +85,9 @@ export const patchCounterFillByTargets = (
   ) {
     return Promise.resolve(false);
   }
-  const ops = targets.map(({ elementType, id }) => ({
-    kind: 'patchElement' as const,
-    elementType,
-    id,
-    patch: structuredClone(patch),
-  }));
-  return commitSemanticOps(ops, {
+  return commitPropertyPatch(targets, structuredClone(patch), {
     preflight: options.preflight,
-  }).then((outcome) =>
-    outcome.opResults.some((result) => result.status !== 'targetMissing'),
-  );
+  }).then((statuses) => statuses.some((status) => status !== 'targetMissing'));
 };
 
 export const patchCounterFillById = (
@@ -137,18 +121,10 @@ export const patchShadowByTargets = (
   ) {
     return Promise.resolve(false);
   }
-  const ops = targets.map(({ elementType, id }) => ({
-    kind: 'patchElement' as const,
-    elementType,
-    id,
-    patch: structuredClone(patch),
-  }));
-  return commitSemanticOps(ops, {
+  return commitPropertyPatch(targets, structuredClone(patch), {
     ...(options.gestureId ? { gestureId: options.gestureId } : {}),
     preflight: options.preflight,
-  }).then((outcome) =>
-    outcome.opResults.some((result) => result.status !== 'targetMissing'),
-  );
+  }).then((statuses) => statuses.some((status) => status !== 'targetMissing'));
 };
 
 export const patchShadowById = (
@@ -172,18 +148,10 @@ export const patchNotePaintByIds = (
   ) {
     return Promise.resolve(false);
   }
-  const ops = ids.map((id) => ({
-    kind: 'patchElement' as const,
-    elementType: 'key' as const,
-    id,
-    patch: structuredClone(patch),
-  }));
-  return commitSemanticOps(ops, {
+  return commitPropertyPatch(idTargets('key', ids), structuredClone(patch), {
     ...(options.gestureId ? { gestureId: options.gestureId } : {}),
     preflight: options.preflight,
-  }).then((outcome) =>
-    outcome.opResults.some((result) => result.status !== 'targetMissing'),
-  );
+  }).then((statuses) => statuses.some((status) => status !== 'targetMissing'));
 };
 
 export const patchNotePaintById = (
