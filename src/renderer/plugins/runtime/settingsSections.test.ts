@@ -4,6 +4,7 @@ import {
   coerceSettingValue,
   getDefaultSettings,
   normalizeSettingsSections,
+  normalizeSettingsSectionsOfMany,
   omitLayoutSettingValues,
   safeEvaluateVisibility,
   type PluginValueSettingSchema,
@@ -174,6 +175,58 @@ describe('normalizeSettingsSections', () => {
       'first',
       'second',
     ]);
+  });
+});
+
+describe('normalizeSettingsSectionsOfMany', () => {
+  const schema: Record<string, PluginSettingSchema> = {
+    mode: {
+      type: 'select',
+      default: 'a',
+      label: 'Mode',
+      options: [
+        { label: 'A', value: 'a' },
+        { label: 'B', value: 'b' },
+      ],
+    },
+    onlyA: { ...value('Only A'), visible: (values) => values.mode === 'a' },
+    advanced: {
+      type: 'section',
+      label: 'Advanced',
+      visible: (values) => values.mode === 'b',
+    },
+    onlyB: { ...value('Only B'), visible: (values) => values.mode === 'b' },
+  };
+  const visibility = (sections: ReturnType<typeof normalizeSettingsSections>) =>
+    sections.map((section) => ({
+      key: section.key,
+      renderVisible: section.renderVisible,
+      entries: section.entries.map((entry) => [entry.key, entry.renderVisible]),
+    }));
+
+  it('여러 요소 중 어느 하나에서라도 보이는 섹션·칸을 보인다', () => {
+    expect(
+      visibility(
+        normalizeSettingsSectionsOfMany(schema, [{ mode: 'a' }, { mode: 'b' }]),
+      ),
+    ).toEqual([
+      {
+        key: null,
+        renderVisible: true,
+        entries: [
+          ['mode', true],
+          ['onlyA', true],
+        ],
+      },
+      { key: 'advanced', renderVisible: true, entries: [['onlyB', true]] },
+    ]);
+  });
+
+  it('요소 하나면 그 요소의 섹션 그대로, 없으면 빈 목록', () => {
+    expect(
+      visibility(normalizeSettingsSectionsOfMany(schema, [{ mode: 'a' }])),
+    ).toEqual(visibility(normalizeSettingsSections(schema, { mode: 'a' })));
+    expect(normalizeSettingsSectionsOfMany(schema, [])).toEqual([]);
   });
 });
 

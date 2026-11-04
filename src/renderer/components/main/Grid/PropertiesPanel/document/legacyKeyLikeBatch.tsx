@@ -4,7 +4,7 @@
 // 사용자 CSS·사운드)·노트·카운터는 옛 일괄 부품으로, 종류마다 칸 묶음은 그 종류 요소에만, 색·이미지 피커는
 // 패널 뿌리에. 섹션은 그 묶음을 가진 종류끼리 읽고 쓴다. 섞인 값은 옛 일괄 패널과 같은 모델
 // (createBatchSelectionModel)을 같은 트리 기록(treePanelRecords)으로 만든다
-import React, { type RefObject } from 'react';
+import React, { type ReactNode, type RefObject } from 'react';
 
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
@@ -104,6 +104,8 @@ interface LegacyKeyLikeBatchBodyProps {
   // 위치·크기·칸 묶음 섹션은 패널이 그린다
   renderers: PanelSectionRenderers;
   host: LegacyKeyLikeHost;
+  // 함께 고른 플러그인 요소의 설정 - 스타일 탭 끝
+  pluginSettings?: ReactNode;
   panelElement: HTMLElement | null;
   useCustomCSS: boolean;
   t: Translate;
@@ -128,6 +130,7 @@ export const LegacyKeyLikeBatchBody = ({
   items,
   renderers,
   host,
+  pluginSettings,
   panelElement,
   useCustomCSS,
   t,
@@ -547,6 +550,7 @@ export const LegacyKeyLikeBatchBody = ({
         batch
         renderers={tabRenderers}
       />
+      {tab === 'style' ? pluginSettings : null}
     </EditSessionBoundary>
   );
 

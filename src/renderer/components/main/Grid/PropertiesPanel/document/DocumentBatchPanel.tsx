@@ -1,6 +1,12 @@
 'use no memo';
 // 편집 미리보기(모듈 상태)를 렌더 중에 읽어서 컴파일러 메모 제외
-import React, { createElement, Suspense, useRef, useState } from 'react';
+import React, {
+  createElement,
+  Suspense,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import type { PanelSectionDecl } from '@src/renderer/elementKinds/defineElementKind';
@@ -55,6 +61,8 @@ export interface LegacyBatchHost {
   totalCount: number;
   groupInfo: { id: string; name: string; memberCount: number } | null;
   geometry: LegacyBatchGeometry;
+  // 함께 고른 플러그인 요소의 설정 - 정의마다 섹션 하나 (스타일 탭 끝)
+  pluginSettings?: ReactNode;
 }
 
 interface DocumentBatchPanelProps {
@@ -306,6 +314,7 @@ const DocumentBatchPanel = ({
           items={items}
           renderers={renderers}
           host={keyLikeHost}
+          pluginSettings={legacyHost?.pluginSettings}
           panelElement={panelElement}
           useCustomCSS={useCustomCSS}
           t={t}
@@ -355,6 +364,7 @@ const DocumentBatchPanel = ({
               batch
               renderers={union ? unionRenderers : renderers}
             />
+            {legacyHost?.pluginSettings}
           </EditSessionBoundary>
         </div>
       </div>

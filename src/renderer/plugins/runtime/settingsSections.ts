@@ -23,7 +23,7 @@ interface NormalizedSettingEntry {
   renderVisible: boolean;
 }
 
-interface NormalizedSection {
+export interface NormalizedSection {
   key: string | null;
   label?: string;
   markerVisible: boolean;
@@ -195,4 +195,31 @@ export const normalizeSettingsSections = (
   }
 
   return sections;
+};
+
+/** 여러 요소의 설정 섹션 - 어느 요소에서라도 보이는 섹션·칸을 보인다 (같은 스키마라 섹션·칸 순서가 같다) */
+export const normalizeSettingsSectionsOfMany = (
+  schema: Record<string, PluginSettingSchema> | undefined,
+  valuesList: readonly Record<string, unknown>[],
+  onNormalizationError?: SettingsNormalizationErrorHandler,
+): NormalizedSection[] => {
+  const [first, ...rest] = valuesList.map((values) =>
+    normalizeSettingsSections(schema, values, onNormalizationError),
+  );
+  if (!first) return [];
+  for (const sections of rest) {
+    sections.forEach((section, sectionIndex) => {
+      const merged = first[sectionIndex];
+      merged.markerVisible ||= section.markerVisible;
+      section.entries.forEach((entry, entryIndex) => {
+        merged.entries[entryIndex].renderVisible ||= entry.renderVisible;
+      });
+    });
+  }
+  for (const section of first) {
+    section.renderVisible =
+      section.markerVisible &&
+      section.entries.some((entry) => entry.renderVisible);
+  }
+  return first;
 };

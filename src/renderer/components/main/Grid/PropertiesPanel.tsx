@@ -32,8 +32,12 @@ import { EditSessionScope } from '@src/renderer/contexts/EditSessionScope';
 import DocumentElementPanel from './PropertiesPanel/document/DocumentElementPanel';
 import DocumentBatchPanel from './PropertiesPanel/document/DocumentBatchPanel';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
-import PluginSettingsForm from './PropertiesPanel/plugin/PluginSettingsForm';
+import PluginSettingsForm, {
+  type PluginSettingsBatch,
+} from './PropertiesPanel/plugin/PluginSettingsForm';
+import BatchPluginSettings from './PropertiesPanel/plugin/BatchPluginSettings';
 import { aggregateMixedValue } from './PropertiesPanel/batch/mixedValue';
+import { pluginSettingsGroups } from './PropertiesPanel/plugin/pluginSettingsGroups';
 import { usePropertiesPanelSelection } from './PropertiesPanel/selection/usePropertiesPanelSelection';
 import { usePanelNavigation } from './PropertiesPanel/navigation/usePanelNavigation';
 import { createBatchSelectionModel } from './PropertiesPanel/batch/batchSelectionModel';
@@ -90,6 +94,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     selectedBatchGeometryElements,
     selectedPluginElements,
     selectedPluginElement,
+    pluginElements,
+    pluginDefinitions,
     stableBatchGeometryTargets,
     stablePluginGeometryElements,
     stablePluginGeometryTargets,
@@ -401,10 +407,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     pluginId: string,
     colorIdPrefix: string,
     onChange: (key: string, value: unknown) => void,
+    batch?: PluginSettingsBatch,
   ) => (
     <PluginSettingsForm
       schema={schema}
       values={values}
+      batch={batch}
       messages={messages}
       pluginId={pluginId}
       colorIdPrefix={colorIdPrefix}
@@ -444,8 +452,25 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     const resizablePluginSizes = (stablePluginGeometryElements ?? []).filter(
       ({ resizable }) => resizable,
     );
+    // 함께 고른 플러그인 요소의 설정 - 정의마다 섹션 하나 (설정 모달을 쓰는 정의는 하나씩)
+    const pluginGroups = pluginSettingsGroups(
+      selectedPluginElements.flatMap(({ id }) => {
+        const element = pluginElements.find(({ fullId }) => fullId === id);
+        return element ? [element] : [];
+      }),
+      pluginDefinitions,
+    );
+    const batchPluginSettings =
+      pluginGroups.length > 0 ? (
+        <BatchPluginSettings
+          groups={pluginGroups}
+          renderPluginSettingsForm={renderPluginSettingsForm}
+          reportNormalizationError={reportPluginNormalizationError}
+        />
+      ) : null;
     // 옛 종류 일괄 선택의 개수·그룹·일괄 기하 (플러그인 요소 포함) - 선언 일괄 패널에 넘긴다
     const legacyBatchHost = {
+      pluginSettings: batchPluginSettings,
       totalCount: selectionTotalCount,
       groupInfo: selectedGroupInfo,
       geometry: {
@@ -578,6 +603,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           handleBatchSpacingCommit={handleBatchSpacingCommit}
           getBatchSpacingValue={getBatchSpacingValue}
           batchScrollRefFor={batchScrollRefFor}
+          sizeGeometry={
+            resizablePluginSizes.length > 0
+              ? legacyBatchHost.geometry
+              : undefined
+          }
+          pluginSettings={batchPluginSettings}
           t={t}
         />
       );
