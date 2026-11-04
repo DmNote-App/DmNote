@@ -29,12 +29,18 @@ vi.mock('@components/main/common/dropdown/Dropdown', () => ({
     value,
     onChange,
     options,
+    mixed,
   }: {
     value: string;
     onChange: (value: string) => void;
     options: { value: string; label: string }[];
+    mixed?: boolean;
   }) => (
-    <select value={value} onChange={(event) => onChange(event.target.value)}>
+    <select
+      value={value}
+      data-mixed={mixed ? 'true' : undefined}
+      onChange={(event) => onChange(event.target.value)}
+    >
       {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
@@ -217,8 +223,11 @@ describe('스프라이트 여럿 일괄 섹션', () => {
     expect(rowInput(host, 'propertiesPanel.spriteTransition')?.value).toBe(
       '100ms',
     );
-    // 기본 이미지·반응 방식이 다르다
+    // 기본 이미지·반응 방식이 다르다 - 섞인 드롭다운은 보이는 값을 골라도 확정한다
     expect(host.textContent?.match(/Mixed/g)).toHaveLength(2);
+    const [activation, easing] = host.querySelectorAll('select');
+    expect(activation.dataset.mixed).toBe('true');
+    expect(easing.dataset.mixed).toBeUndefined();
   });
 
   it('기준점 축은 스프라이트마다 제 기준점에서 그 축만 바꿔 커밋 하나로', async () => {

@@ -251,6 +251,7 @@ const SpriteBatchSection = ({
               },
             ]}
             value={first.activation}
+            mixed={activationMixed}
             onChange={(value) =>
               commit((current) =>
                 current.activation === value
@@ -281,6 +282,7 @@ const SpriteBatchSection = ({
           <Dropdown
             options={spriteEasingOptions(easingOf(first), t)}
             value={easingOf(first)}
+            mixed={easingMixed}
             onChange={(value) =>
               commit((current) =>
                 current.transitionEasing === value

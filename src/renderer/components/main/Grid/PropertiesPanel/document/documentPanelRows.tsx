@@ -151,6 +151,7 @@ export const FieldRow = ({
             label: t(option.label) || option.label,
           }))}
           value={typeof value === 'string' ? value : undefined}
+          mixed={isMixed}
           onChange={(next) => onCommit(next)}
         />
       ) : control.type === 'color' && control.preview && onPreview ? (

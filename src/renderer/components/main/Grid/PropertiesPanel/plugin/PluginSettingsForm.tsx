@@ -214,6 +214,7 @@ const PluginSettingsForm = ({
         <Dropdown
           commitStrategy="after-paint"
           value={selectedValue}
+          mixed={mixed}
           options={options}
           placeholder={
             typeof placeholderText === 'string' &&
