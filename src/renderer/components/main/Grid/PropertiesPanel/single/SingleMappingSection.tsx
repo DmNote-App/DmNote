@@ -124,9 +124,7 @@ const SingleMappingSection = ({
   return (
     <PropertySection>
       <PropertyRow label={t('propertiesPanel.keyMapping') || '키 매핑'}>
-        {mixed && (
-          <span className="text-fg-faint text-body italic">Mixed</span>
-        )}
+        {mixed && <span className="text-fg-faint text-body italic">Mixed</span>}
         <button
           onClick={() =>
             // 기존처럼 즉시 캡처 (멀티 슬롯이면 첫 키 교체)
