@@ -44,8 +44,9 @@ export interface BatchStyleBodyProps {
   // 선택에 키·노브가 없으면(통계뿐) 그림자 대기만 편집
   shadowActiveState?: boolean;
   shadowKind?: 'key' | 'knob';
-  /** 이미지가 기본 립을 억제하는 요소인지 - 키·통계만 (그래프·노브 렌더는 억제하지 않는다) */
-  imageSuppressesDefaultBorder?: boolean;
+  /** 이미지가 기본 립을 억제하는 요소인지 - 키·통계만 (그래프·노브 렌더는 억제하지 않는다).
+   * 여러 종류가 섞이면 요소마다 */
+  imageSuppressesDefaultBorder?: boolean | ((position: KeyPosition) => boolean);
   // getMixedValue 함수
   getMixedValue: <T>(
     getter: (pos: KeyPosition) => T | undefined,

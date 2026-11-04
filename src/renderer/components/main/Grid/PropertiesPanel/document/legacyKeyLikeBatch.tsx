@@ -401,6 +401,13 @@ export const LegacyKeyLikeBatchBody = ({
       : batchCounterSettings.fill.idle;
   };
 
+  // 이미지가 기본 립을 억제하는 요소인지 - 키·스탯만 (그래프·노브는 립을 그대로 그린다). 섞인 선택은 요소마다
+  const kindById = new Map(elements.map(({ id, kind }) => [id, kind]));
+  const imageSuppressesDefaultBorderOf = (position: KeyPosition) => {
+    const kind = kindById.get(position.id ?? '');
+    return kind === 'key' || kind === 'stat';
+  };
+
   // 기능 묶음 - 겉모습 묶음은 사용자 CSS를 글자와 사운드 사이에 함께 그리는 옛 스타일 본문 하나
   const bundles = (names: readonly BundleName[]) => {
     if (names.includes('note')) {
@@ -453,6 +460,7 @@ export const LegacyKeyLikeBatchBody = ({
     }
     return (
       <BatchStyleBody
+        imageSuppressesDefaultBorder={imageSuppressesDefaultBorderOf}
         soundBinding={soundBinding}
         onSoundPathCommit={(soundPath) =>
           commitBoundSoundPath(soundBinding.selection, soundPath)
