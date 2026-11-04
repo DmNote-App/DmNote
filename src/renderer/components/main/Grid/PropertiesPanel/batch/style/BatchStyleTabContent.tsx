@@ -117,9 +117,24 @@ interface BatchStyleTabContentProps {
   t: (key: string) => string;
 }
 
-const BatchStyleTabContent: React.FC<BatchStyleTabContentProps> = ({
-  selectedCount,
-  totalCount,
+// 위치·크기 아래 겉모습 본문 - 표면·이미지·그림자·글자·사용자 CSS·사운드 (선언 일괄 패널도 이것을 그린다)
+export type BatchStyleBodyProps = Omit<
+  BatchStyleTabContentProps,
+  | 'selectedCount'
+  | 'totalCount'
+  | 'afterSizeContent'
+  | 'getMixedValueSize'
+  | 'handleBatchAlign'
+  | 'handleBatchDistribute'
+  | 'handleBatchSpacing'
+  | 'handleBatchSpacingPreview'
+  | 'handleBatchSpacingCommit'
+  | 'batchSpacing'
+  | 'handleBatchResize'
+  | 'handleBatchResizePreview'
+>;
+
+export const BatchStyleBody = ({
   hideDisplayText = false,
   hideFontControls = false,
   soundBinding = EMPTY_BATCH_ELEMENT_BINDING,
@@ -138,17 +153,8 @@ const BatchStyleTabContent: React.FC<BatchStyleTabContentProps> = ({
   shadowActiveState = true,
   shadowKind = 'key',
   imageSuppressesDefaultBorder = true,
-  afterSizeContent,
   getMixedValue,
-  getMixedValueSize,
   getSelectedKeysData,
-  handleBatchAlign,
-  handleBatchDistribute,
-  handleBatchSpacing,
-  handleBatchSpacingCommit,
-  batchSpacing,
-  handleBatchResize,
-  handleBatchResizePreview,
   onElementPropertyCommit,
   getKeyOnlyMixedValue,
   getActiveCapableMixedValue,
@@ -158,7 +164,7 @@ const BatchStyleTabContent: React.FC<BatchStyleTabContentProps> = ({
   panelElement,
   useCustomCSS,
   t,
-}) => {
+}: BatchStyleBodyProps) => {
   const [colorState, setColorState] = useState<'idle' | 'active'>('idle');
   const effectiveColorState = shadowActiveState ? colorState : 'idle';
   const activeMixedValue =
@@ -184,57 +190,6 @@ const BatchStyleTabContent: React.FC<BatchStyleTabContentProps> = ({
 
   return (
     <>
-      <PropertySection>
-        {/* 정렬·분배·간격 - 공통 기하 섹션 */}
-        <BatchGeometrySection
-          totalCount={totalCount ?? selectedCount}
-          handleBatchAlign={handleBatchAlign}
-          handleBatchDistribute={handleBatchDistribute}
-          handleBatchSpacing={handleBatchSpacing}
-          handleBatchSpacingCommit={handleBatchSpacingCommit}
-          batchSpacing={batchSpacing}
-          t={t}
-        />
-
-        {/* 크기 */}
-        <PropertyRow label={t('propertiesPanel.size') || '크기'}>
-          <NumberInput
-            value={getMixedValueSize((pos) => pos.width, 60).value}
-            onChange={(value) => handleBatchResize('width', value)}
-            onPreview={(value) => handleBatchResizePreview('width', value)}
-            onCancel={() => editGestureController.cancel()}
-            prefix="W"
-            width={AXIS_FIELD_WIDTH}
-            min={10}
-            max={9999}
-            allowDecimal
-            decimalScale={1}
-            isMixed={getMixedValueSize((pos) => pos.width, 60).isMixed}
-          />
-          <NumberInput
-            value={getMixedValueSize((pos) => pos.height, 60).value}
-            onChange={(value) => handleBatchResize('height', value)}
-            onPreview={(value) => handleBatchResizePreview('height', value)}
-            onCancel={() => editGestureController.cancel()}
-            prefix="H"
-            width={AXIS_FIELD_WIDTH}
-            min={10}
-            max={9999}
-            allowDecimal
-            decimalScale={1}
-            isMixed={getMixedValueSize((pos) => pos.height, 60).isMixed}
-          />
-        </PropertyRow>
-
-        <SelectionRotationInput
-          label={t('propertiesPanel.rotation') || '회전'}
-        />
-      </PropertySection>
-
-      {afterSizeContent ? (
-        <PropertySection>{afterSizeContent}</PropertySection>
-      ) : null}
-
       <PropertySection>
         <BatchSurfaceRows
           getMixedValue={getMixedValue}
@@ -320,5 +275,74 @@ const BatchStyleTabContent: React.FC<BatchStyleTabContentProps> = ({
     </>
   );
 };
+
+const BatchStyleTabContent: React.FC<BatchStyleTabContentProps> = ({
+  selectedCount,
+  totalCount,
+  afterSizeContent,
+  getMixedValueSize,
+  handleBatchAlign,
+  handleBatchDistribute,
+  handleBatchSpacing,
+  handleBatchSpacingCommit,
+  batchSpacing,
+  handleBatchResize,
+  handleBatchResizePreview,
+  t,
+  ...body
+}) => (
+  <>
+    <PropertySection>
+      {/* 정렬·분배·간격 - 공통 기하 섹션 */}
+      <BatchGeometrySection
+        totalCount={totalCount ?? selectedCount}
+        handleBatchAlign={handleBatchAlign}
+        handleBatchDistribute={handleBatchDistribute}
+        handleBatchSpacing={handleBatchSpacing}
+        handleBatchSpacingCommit={handleBatchSpacingCommit}
+        batchSpacing={batchSpacing}
+        t={t}
+      />
+
+      {/* 크기 */}
+      <PropertyRow label={t('propertiesPanel.size') || '크기'}>
+        <NumberInput
+          value={getMixedValueSize((pos) => pos.width, 60).value}
+          onChange={(value) => handleBatchResize('width', value)}
+          onPreview={(value) => handleBatchResizePreview('width', value)}
+          onCancel={() => editGestureController.cancel()}
+          prefix="W"
+          width={AXIS_FIELD_WIDTH}
+          min={10}
+          max={9999}
+          allowDecimal
+          decimalScale={1}
+          isMixed={getMixedValueSize((pos) => pos.width, 60).isMixed}
+        />
+        <NumberInput
+          value={getMixedValueSize((pos) => pos.height, 60).value}
+          onChange={(value) => handleBatchResize('height', value)}
+          onPreview={(value) => handleBatchResizePreview('height', value)}
+          onCancel={() => editGestureController.cancel()}
+          prefix="H"
+          width={AXIS_FIELD_WIDTH}
+          min={10}
+          max={9999}
+          allowDecimal
+          decimalScale={1}
+          isMixed={getMixedValueSize((pos) => pos.height, 60).isMixed}
+        />
+      </PropertyRow>
+
+      <SelectionRotationInput label={t('propertiesPanel.rotation') || '회전'} />
+    </PropertySection>
+
+    {afterSizeContent ? (
+      <PropertySection>{afterSizeContent}</PropertySection>
+    ) : null}
+
+    <BatchStyleBody t={t} {...body} />
+  </>
+);
 
 export default BatchStyleTabContent;
