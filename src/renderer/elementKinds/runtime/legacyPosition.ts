@@ -1,5 +1,5 @@
-// 옛 종류 요소의 트리 모양 → 옛 위치 객체 - 옛 그리기·패널을 트리 요소에 그대로 쓰는 어댑터.
-// 기능 묶음 칸 이름이 옛 위치 칸 이름과 같아 칸을 펼치기만 하면 된다 (칸 패치 → 트리 연산은 fieldView)
+// 옛 종류 요소의 트리 모양 → 옛 위치 객체 - 플러그인 공개 API(키 메뉴 맥락)가 받는 옛 모양 하나만 남긴 변환.
+// 화면·패널은 트리 칸 보기(fieldView)를 읽는다. 기능 묶음 칸 이름이 옛 위치 칸 이름과 같아 칸을 펼치기만 하면 된다
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import { elementKindDefinition } from './elementKindRegistry';
 
