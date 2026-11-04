@@ -476,7 +476,48 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       },
     };
 
-    // 다중 선택인 경우 (키/통계 포함, 또는 그래프+노브 혼합)
+    // 키·스탯이 든 다중 선택 (스프라이트·플러그인 요소와 함께) - 고른 종류들 선언의 합
+    if (
+      route.kind === 'batchKeyLike' &&
+      selectedGraphElements.length === 0 &&
+      selectedKnobElements.length === 0
+    ) {
+      return (
+        <DocumentBatchPanel
+          sceneId={selectedKeyType}
+          elementIds={selectedBatchStyleElements.map(({ id }) => id)}
+          panelElement={panelElement}
+          setPanelElement={setPanelElement}
+          legacyHost={legacyBatchHost}
+          keyLikeHost={{
+            batchScrollRefFor,
+            batchNoteColorButtonRef,
+            batchGlowColorButtonRef,
+            batchBorderColorButtonRef,
+            batchCounterFillButtonRef,
+            batchImageButtonRef,
+            showBatchImagePicker,
+            setShowBatchImagePicker,
+            batchPickerFor,
+            setBatchPickerFor,
+            batchCounterColorState: effectiveBatchCounterColorState,
+            setBatchCounterColorState,
+            batchLocalColors,
+            setBatchLocalColors,
+            handleBatchPickerToggle,
+            handleBatchPickerColorChange,
+            handleBatchPickerColorChangeComplete,
+            handleBatchFillPickerColorChangeComplete,
+            getBatchPickerColor,
+            getBatchPickerRef,
+            batchColorPickerInteractiveRefs,
+          }}
+          t={t}
+        />
+      );
+    }
+
+    // 다중 선택인 경우 (키/통계와 그래프·노브가 섞이거나 그래프+노브 혼합)
     if (route.kind === 'batchKeyLike') {
       return (
         <BatchKeyLikePanel

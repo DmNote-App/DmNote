@@ -31,11 +31,6 @@ import {
   makeSpritePose,
 } from '@utils/sprite/spriteFixtures';
 
-type MixedGetter = <T>(
-  getter: (pos: { width?: number; height?: number }) => T | undefined,
-  defaultValue: T,
-) => { isMixed: boolean; value: T };
-
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const {
@@ -120,6 +115,7 @@ const {
   settleCommitMock,
   activeGestureIdMock,
   documentElementPropsMock,
+  documentBatchPropsMock,
   reportElementOpSkippedMock,
 } = vi.hoisted(() => ({
   batchKeyLikePropsMock: vi.fn(),
@@ -207,6 +203,7 @@ const {
   settleCommitMock: vi.fn(),
   activeGestureIdMock: vi.fn(() => null as string | null),
   documentElementPropsMock: vi.fn(),
+  documentBatchPropsMock: vi.fn(),
   reportElementOpSkippedMock: vi.fn(),
 }));
 
@@ -373,6 +370,17 @@ vi.mock('./PropertiesPanel/document/DocumentElementPanel', () => ({
     return <ScopeProbe id="document-element" />;
   },
 }));
+// 선언 일괄 패널 - 속성 패널이 넘기는 요소·개수·그룹·일괄 기하·피커 상태만 본다
+vi.mock(
+  './PropertiesPanel/document/DocumentBatchPanel',
+  async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    default: (props: Record<string, unknown>) => {
+      documentBatchPropsMock(props);
+      return <div />;
+    },
+  }),
+);
 vi.mock('./PropertiesPanel/batch/useBatchHandlers', () => ({
   useBatchHandlers: (props: Record<string, unknown>) => {
     batchPropsMock(props);
@@ -449,6 +457,7 @@ const resetStores = () => {
   activeGestureIdMock.mockReset();
   activeGestureIdMock.mockReturnValue(null);
   documentElementPropsMock.mockClear();
+  documentBatchPropsMock.mockClear();
   batchPluginPropsMock.mockClear();
   batchPropsMock.mockClear();
   batchKeyLikePropsMock.mockClear();
@@ -759,20 +768,24 @@ describe('PropertiesPanel canonical native contract', () => {
 
       mounted = mountPanel();
 
-      const props = batchKeyLikePropsMock.mock.lastCall?.[0] as {
-        getMixedValue: MixedGetter;
-        getMixedValueGeometry: MixedGetter;
+      const props = documentBatchPropsMock.mock.lastCall?.[0] as {
+        elementIds: string[];
+        legacyHost: {
+          geometry: {
+            getBatchSizeValue: (dimension: 'width' | 'height') => {
+              isMixed: boolean;
+              value: number;
+            };
+          };
+        };
       };
 
-      expect(props.getMixedValueGeometry((pos) => pos.width, 60)).toEqual({
+      expect(props.legacyHost.geometry.getBatchSizeValue('width')).toEqual({
         isMixed: true,
         value: 60,
       });
-      // 스타일 집합은 스프라이트를 보지 않는다 - 크기에 이걸 쓰면 안 되는 이유
-      expect(props.getMixedValue((pos) => pos.width, 60)).toEqual({
-        isMixed: false,
-        value: 60,
-      });
+      // 겉모습 대상(패널이 섞인 값을 모으는 요소)은 스프라이트를 보지 않는다 - 크기에 이걸 쓰면 안 되는 이유
+      expect(props.elementIds).toEqual([MIXED_KEY_ID]);
     });
 
     // 커밋은 resizeSprite로 자세까지 스케일한다. 미리보기가 원시
@@ -993,20 +1006,22 @@ describe('PropertiesPanel canonical native contract', () => {
       });
       mounted = mountPanel();
 
-      const props = batchKeyLikePropsMock.mock.lastCall?.[0] as {
-        selectedGroupInfo: {
-          id: string;
-          name: string;
-          memberCount: number;
-        } | null;
-        totalCount?: number;
+      const props = documentBatchPropsMock.mock.lastCall?.[0] as {
+        legacyHost: {
+          groupInfo: {
+            id: string;
+            name: string;
+            memberCount: number;
+          } | null;
+          totalCount: number;
+        };
       };
-      expect(props.selectedGroupInfo).toEqual({
+      expect(props.legacyHost.groupInfo).toEqual({
         id: 'group-a',
         name: '그룹 A',
         memberCount: 3,
       });
-      expect(props.totalCount).toBe(3);
+      expect(props.legacyHost.totalCount).toBe(3);
     });
 
     it('plugin 단독 다중 선택은 경량 기하 배치 패널로 라우트한다', () => {
@@ -1035,6 +1050,7 @@ describe('PropertiesPanel canonical native contract', () => {
       };
       expect(props.totalCount).toBe(2);
       expect(batchKeyLikePropsMock).not.toHaveBeenCalled();
+      expect(documentBatchPropsMock).not.toHaveBeenCalled();
     });
   });
 });
@@ -1170,11 +1186,16 @@ describe('PropertiesPanel 배치 색상 피커 대상 결합', () => {
     });
   };
 
+  // 일괄 피커 상태는 속성 패널이 갖고 선언 일괄 패널에 넘긴다
   const latestBatchProps = () =>
-    batchKeyLikePropsMock.mock.lastCall?.[0] as {
-      batchPickerFor: string | null;
-      handleBatchPickerToggle: (target: string) => void;
-    };
+    (
+      documentBatchPropsMock.mock.lastCall?.[0] as {
+        keyLikeHost: {
+          batchPickerFor: string | null;
+          handleBatchPickerToggle: (target: string) => void;
+        };
+      }
+    ).keyLikeHost;
 
   beforeEach(() => {
     resetStores();

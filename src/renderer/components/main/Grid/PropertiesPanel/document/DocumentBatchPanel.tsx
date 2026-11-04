@@ -27,6 +27,7 @@ import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elemen
 import { treeElementPositionOf } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import type { Op, Scene } from '@src/types/generated/elementDocument';
 import type { KeyPosition } from '@src/types/key/keys';
+import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
 import { AXIS_FIELD_WIDTH } from '@utils/cardRecipes';
 import { documentBatchGeometry } from '../../document/documentBatchGeometry';
@@ -43,6 +44,7 @@ import {
   NumberInput,
   PropertyRow,
   PropertySection,
+  Tabs,
 } from '../controls/PropertyInputs';
 import { PANEL_ROOT_CLASS } from '../navigation/panelChrome';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
@@ -59,12 +61,17 @@ import {
   SurfaceRows,
   type PanelSectionRenderers,
 } from './documentPanelRows';
+import { unionBatchSections, unionBatchTabs } from './documentPanelUnion';
 import { batchPanelWriterFor, type PanelWriter } from './documentPanelWriter';
 import {
   LegacyBatchCustomCssSection,
   LegacyBatchStyle,
   type LegacyBatchItem,
 } from './legacyBundleRows';
+import {
+  LegacyKeyLikeBatchBody,
+  type LegacyKeyLikeHost,
+} from './legacyKeyLikeBatch';
 
 type AlignDirection =
   | 'left'
@@ -114,6 +121,8 @@ interface DocumentBatchPanelProps {
   // 패널 스크롤 (Lenis) - 선택이 바뀌어도 같은 뷰포트를 쓴다
   scrollRef?: (node: HTMLDivElement | null) => void;
   legacyHost?: LegacyBatchHost;
+  // 키·스탯이 든 선택 - 속성 패널이 갖는 일괄 피커 상태 (탭마다 옛 일괄 부품으로 그린다)
+  keyLikeHost?: LegacyKeyLikeHost;
   t: Translate;
 }
 
@@ -262,6 +271,7 @@ const DocumentBatchPanel = ({
   setPanelElement,
   scrollRef,
   legacyHost,
+  keyLikeHost,
   t,
 }: DocumentBatchPanelProps) => {
   const { scene, elements, writer, items } = usePanelElements(
@@ -269,6 +279,12 @@ const DocumentBatchPanel = ({
     elementIds,
   );
   const useCustomCSS = useSettingsStore((state) => state.useCustomCSS);
+  const activeTab = usePropertiesPanelStore(
+    (state) => state.propertyPanelActiveTab,
+  );
+  const setActiveTab = usePropertiesPanelStore(
+    (state) => state.setPropertyPanelActiveTab,
+  );
   // 이름 바꾸기는 그 선택에서만 - 선택이 바뀌면 끝난다
   const selectionKey = `${sceneId}:${[...elementIds].sort().join(',')}`;
   const [renamingFor, setRenamingFor] = useState<string | null>(null);
@@ -449,53 +465,90 @@ const DocumentBatchPanel = ({
     }),
   };
 
-  return (
-    <div ref={setPanelElement} className={PANEL_ROOT_CLASS}>
-      <div className="flex-shrink-0">
-        <BatchPanelHeader
-          totalCount={totalCount}
-          selectedGroupInfo={groupInfo}
-          isRenaming={isRenaming}
-          renameInputRef={renameInputRef}
-          renameValue={renameValue}
-          setRenameValue={setRenameValue}
-          renameCancelledRef={renameCancelledRef}
-          handleRenameStart={() => {
-            if (!groupInfo) return;
-            // Escape로 언마운트된 입력은 blur가 오지 않아 취소 플래그가 남는다
-            renameCancelledRef.current = false;
-            setRenameValue(groupInfo.name);
-            setRenamingFor(selectionKey);
-            requestAnimationFrame(() => {
-              renameInputRef.current?.focus();
-              renameInputRef.current?.select();
-            });
-          }}
-          handleRenameCommit={(value) => {
-            setRenamingFor(null);
-            const trimmed = value.trim();
-            if (!groupInfo || trimmed === '') return;
-            // 그룹 이름은 트리 그룹 정보 - 지금 이름과 같으면 쓰지 않는다
-            const current = documentGroupNames(scene).find(
-              (group) => group.id === groupInfo.id,
-            );
-            if (!current || current.name === trimmed) return;
-            void editDocument([
-              {
-                op: 'setGroup',
-                scene: sceneId,
-                id: groupInfo.id,
-                name: trimmed,
-              },
-            ]);
-          }}
-          handleRenameCancel={() => {
-            renameCancelledRef.current = true;
-            setRenamingFor(null);
-          }}
+  const header = (
+    <BatchPanelHeader
+      totalCount={totalCount}
+      selectedGroupInfo={groupInfo}
+      isRenaming={isRenaming}
+      renameInputRef={renameInputRef}
+      renameValue={renameValue}
+      setRenameValue={setRenameValue}
+      renameCancelledRef={renameCancelledRef}
+      handleRenameStart={() => {
+        if (!groupInfo) return;
+        // Escape로 언마운트된 입력은 blur가 오지 않아 취소 플래그가 남는다
+        renameCancelledRef.current = false;
+        setRenameValue(groupInfo.name);
+        setRenamingFor(selectionKey);
+        requestAnimationFrame(() => {
+          renameInputRef.current?.focus();
+          renameInputRef.current?.select();
+        });
+      }}
+      handleRenameCommit={(value) => {
+        setRenamingFor(null);
+        const trimmed = value.trim();
+        if (!groupInfo || trimmed === '') return;
+        // 그룹 이름은 트리 그룹 정보 - 지금 이름과 같으면 쓰지 않는다
+        const current = documentGroupNames(scene).find(
+          (group) => group.id === groupInfo.id,
+        );
+        if (!current || current.name === trimmed) return;
+        void editDocument([
+          {
+            op: 'setGroup',
+            scene: sceneId,
+            id: groupInfo.id,
+            name: trimmed,
+          },
+        ]);
+      }}
+      handleRenameCancel={() => {
+        renameCancelledRef.current = true;
+        setRenamingFor(null);
+      }}
+      t={t}
+    />
+  );
+
+  // 키·스탯이 든 선택 - 고른 종류들 선언의 합을 탭마다 (옛 키·스탯 일괄 패널 배치)
+  if (keyLikeHost && writer) {
+    const kinds = elements.map((element) => element.kind);
+    const tabs = unionBatchTabs(kinds);
+    return (
+      <div ref={setPanelElement} className={PANEL_ROOT_CLASS}>
+        <div className="flex-shrink-0">
+          {header}
+          <div className="px-[12px] pb-[12px]">
+            <Tabs
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              t={t as (key: string) => string}
+              availableTabs={tabs}
+            />
+          </div>
+        </div>
+        <LegacyKeyLikeBatchBody
+          sceneId={sceneId}
+          scene={scene}
+          elements={elements}
+          tabs={tabs}
+          activeTab={activeTab}
+          sections={unionBatchSections(kinds).map(({ section }) => section)}
+          items={items}
+          renderers={renderers}
+          host={keyLikeHost}
+          panelElement={panelElement}
+          useCustomCSS={useCustomCSS}
           t={t}
         />
       </div>
+    );
+  }
+
+  return (
+    <div ref={setPanelElement} className={PANEL_ROOT_CLASS}>
+      <div className="flex-shrink-0">{header}</div>
       <div className="flex-1 properties-panel-overlay-scroll">
         <div ref={scrollRef} className="properties-panel-overlay-viewport">
           <EditSessionBoundary>
