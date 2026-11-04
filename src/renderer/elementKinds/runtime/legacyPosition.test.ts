@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import { legacyPatchOps, legacyPositionOf } from './legacyPosition';
+import { legacyPositionOf } from './legacyPosition';
 
 const knob: ElementNode = {
   type: 'element',
@@ -40,53 +40,5 @@ describe('트리 요소 ↔ 옛 위치 모양', () => {
       axisId: 'HIDA:1',
       zIndex: 4,
     });
-  });
-
-  it('옛 칸 패치를 칸 종류에 맞는 트리 연산으로 나눈다', () => {
-    expect(
-      legacyPatchOps('4key', knob, {
-        dx: 15,
-        width: 80,
-        sensitivity: 3,
-        borderColor: '#fff',
-        layerName: '새 이름',
-        hidden: true,
-        axisId: 'HIDA:2',
-      }).ops,
-    ).toEqual([
-      { op: 'setFrame', scene: '4key', id: 'k1', frame: { x: 15, width: 80 } },
-      {
-        op: 'setCommon',
-        scene: '4key',
-        id: 'k1',
-        name: '새 이름',
-        hidden: true,
-      },
-      { op: 'setValues', scene: '4key', id: 'k1', values: { sensitivity: 3 } },
-      {
-        op: 'setBundle',
-        scene: '4key',
-        id: 'k1',
-        bundle: 'surface',
-        fields: { borderColor: '#fff' },
-      },
-      {
-        op: 'setInput',
-        scene: '4key',
-        id: 'k1',
-        input: { type: 'axis', axisId: 'HIDA:2' },
-      },
-    ]);
-  });
-
-  it('트리에 자리가 없는 옛 칸은 uncovered로 알린다', () => {
-    expect(
-      legacyPatchOps('4key', knob, {
-        sensitivity: 3,
-        zIndex: 4,
-        groupId: 'g',
-        fontColor: '#fff',
-      }).uncovered,
-    ).toEqual(['zIndex', 'groupId', 'fontColor']);
   });
 });

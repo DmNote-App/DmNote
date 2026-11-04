@@ -15,7 +15,7 @@ import type {
 } from '@stores/grid/useGradientEditStore';
 import { isEditorElementType } from '@src/types/editor';
 import { PREVIEW_DOMAIN_BY_ELEMENT_TYPE } from '@src/types/preview';
-import { legacyPatchOps } from './legacyPosition';
+import { fieldPatchOps } from './fieldView';
 import type { ElementBundles } from './renderTypes';
 
 // 같은 요소·같은 미리보기면 같은 객체 - 얼굴의 메모가 참조로 비교한다
@@ -42,8 +42,8 @@ export const editorPreviewElementOf = (
   );
   let result = element;
   if (patch) {
-    // 옛 칸 → 트리 연산 대응과 낙관 적용을 그대로 쓴다 (둘 다 백엔드와 같게 고정돼 있다)
-    const { ops } = legacyPatchOps(sceneId, element, patch);
+    // 칸 → 트리 연산 대응과 낙관 적용을 그대로 쓴다 (둘 다 백엔드와 같게 고정돼 있다)
+    const { ops } = fieldPatchOps(sceneId, element, patch);
     const [shown] =
       applyLocalOps(
         {

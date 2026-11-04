@@ -9,10 +9,8 @@ import { getElementDocumentStore } from '@src/renderer/editor/document/elementDo
 import { treeRoutedOps } from './treeRoutedOps';
 import { withResizeValues } from '@src/renderer/elementKinds/runtime/resizeValues';
 import { legacyFieldPatch } from '@src/renderer/elementKinds/runtime/legacyFieldPatch';
-import {
-  legacyPatchOps,
-  legacyPositionOf,
-} from '@src/renderer/elementKinds/runtime/legacyPosition';
+import { fieldPatchOps } from '@src/renderer/elementKinds/runtime/fieldView';
+import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
 import { treeEditorDocument } from '@src/renderer/elementKinds/runtime/treeEditorDocument';
 import {
   ElementEditHeldError,
@@ -68,8 +66,8 @@ const treeStylePatchOf = (
     viewPositionOf(op.elementType, op.id, scene, store),
     op.patch,
   );
-  const { ops, uncovered } = legacyPatchOps(scene, element, fields);
-  return uncovered.length === 0 && ops.length > 0 ? { fields, ops } : null;
+  const { ops, unowned } = fieldPatchOps(scene, element, fields);
+  return unowned.length === 0 && ops.length > 0 ? { fields, ops } : null;
 };
 
 // 요소가 있는 장면 - 지금 탭부터 (커밋 사이에 탭을 바꿔도 그 요소의 장면으로 보낸다)
@@ -169,8 +167,8 @@ export const commitTreeLegacyFields = (
   if (!element) return null;
   const fields = makeFields(viewPositionOf(type, id, scene, store));
   if (!fields) return Promise.resolve('skipped');
-  const { ops, uncovered } = legacyPatchOps(scene, element, fields);
-  if (uncovered.length > 0) return null;
+  const { ops, unowned } = fieldPatchOps(scene, element, fields);
+  if (unowned.length > 0) return null;
   if (ops.length === 0) return Promise.resolve('committed');
   // 옛 필드 패치처럼 이동값은 그대로 (예: 기본 이미지에 상자를 맞춰도 자세 이동값은 비례하지 않는다)
   return sendTreeEdit(store, ops, gestureId, false).then(
@@ -214,8 +212,8 @@ export const commitPropertyIntents = (
         skipped = true;
         continue;
       }
-      const patch = legacyPatchOps(scene, element, fields);
-      if (patch.uncovered.length > 0) skipped = true;
+      const patch = fieldPatchOps(scene, element, fields);
+      if (patch.unowned.length > 0) skipped = true;
       ops.push(...patch.ops);
     }
   }

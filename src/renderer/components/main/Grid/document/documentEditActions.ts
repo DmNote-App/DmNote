@@ -8,7 +8,7 @@ import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elemen
 import { elementKindData } from '@src/renderer/elementKinds/defineElementKind';
 import { fillKindDefaults } from '@src/renderer/elementKinds/runtime/elementKindDefaults';
 import { buildNextLayerGroupName } from '@utils/layerGroupUtils';
-import { legacyPatchOps } from '@src/renderer/elementKinds/runtime/legacyPosition';
+import { fieldPatchOps } from '@src/renderer/elementKinds/runtime/fieldView';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import type { KeySlot } from '@src/types/key/keys';
 import { isPluginKind } from '@src/types/elementKinds';
@@ -107,7 +107,7 @@ export const insertDocumentElement = (
 };
 
 /** 옛 위치 모양의 새 요소(키·스탯 등의 생성 기본값) - 종류 기본값을 채운 노드를 넣고, 같은 커밋에 옛 칸 →
- * 트리 연산 대응(legacyPatchOps)으로 값·묶음·공통 정보를 싣는다. 키는 입력 슬롯도 */
+ * 트리 연산 대응(fieldPatchOps)으로 값·묶음·공통 정보를 싣는다. 키는 입력 슬롯도 */
 export const insertLegacyShapedElement = (
   sceneId: string,
   kind: string,
@@ -137,7 +137,7 @@ export const insertLegacyShapedElement = (
     rotation: _rotation,
     ...fields
   } = position;
-  const { ops } = legacyPatchOps(sceneId, node, fields);
+  const { ops } = fieldPatchOps(sceneId, node, fields);
   return editDocument([
     { op: 'insert', scene: sceneId, parent: null, index: null, node },
     ...ops,
