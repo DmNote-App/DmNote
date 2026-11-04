@@ -268,11 +268,20 @@ export const SurfaceRows = ({
 export interface PanelSectionRenderers {
   geometry: () => ReactNode;
   customCss: () => ReactNode;
-  // 직접 만든 섹션 - 편집 화면 전용이라 지연 로딩일 수 있다
-  custom: (component: ComponentType<PanelSectionProps>) => ReactNode;
+  // 직접 만든 섹션 - 편집 화면 전용이라 지연 로딩일 수 있다 (섹션으로 그 섹션을 가진 종류를 찾는다)
+  custom: (
+    component: ComponentType<PanelSectionProps>,
+    section: PanelSectionDecl<Values>,
+    // 여러 종류를 고른 일괄 - 그 섹션을 가진 종류의 요소 (없으면 패널의 요소 전부)
+    elementIds?: readonly string[],
+  ) => ReactNode;
   // 이어진 기능 묶음 - 섹션 상자도 그리는 쪽이 정한다 (옛 종류는 옛 패널의 섹션 배치 그대로)
   bundles: (bundles: readonly BundleName[]) => ReactNode;
   row: (row: PanelRowDecl<Values>) => ReactNode;
+  // 칸 묶음 섹션 통째 - 여러 종류를 고른 일괄 패널은 그 칸 묶음을 가진 종류 요소에만 그린다
+  rows?: (
+    section: Extract<PanelSectionDecl<Values>, { rows: unknown }>,
+  ) => ReactNode;
 }
 
 type SectionGroup =
@@ -327,7 +336,7 @@ export const PanelSections = ({
     if ('custom' in section) {
       return (
         <Fragment key={`custom-${index}`}>
-          {renderers.custom(section.custom)}
+          {renderers.custom(section.custom, section)}
         </Fragment>
       );
     }
@@ -338,6 +347,11 @@ export const PanelSections = ({
             ? renderers.geometry()
             : renderers.customCss()}
         </Fragment>
+      );
+    }
+    if (renderers.rows) {
+      return (
+        <Fragment key={`rows-${index}`}>{renderers.rows(section)}</Fragment>
       );
     }
     const rows = visibleRows(section.rows, items, batch);

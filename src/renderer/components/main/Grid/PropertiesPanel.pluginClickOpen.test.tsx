@@ -175,7 +175,6 @@ vi.mock('./PropertiesPanel/index', () => {
     LayerPanel: () => <div data-testid="layer-panel" />,
     PluginSelectionPanel: Stub,
     SingleKeyStatPanel: NullStub,
-    BatchKeyLikePanel: NullStub,
     BatchPluginOnlyPanel: NullStub,
     PluginSettingsPanelView: NullStub,
     useBatchHandlers: () => ({

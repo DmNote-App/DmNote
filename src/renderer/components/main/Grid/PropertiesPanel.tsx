@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from '@contexts/useTranslation';
 import { usePanelHost } from '@contexts/PanelHostContext';
-import { useSettingsStore } from '@stores/useSettingsStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import {
   getDefaultSettings,
@@ -17,7 +16,6 @@ import {
   TABS,
   LayerPanel,
   PluginSelectionPanel,
-  BatchKeyLikePanel,
   BatchPluginOnlyPanel,
   PluginSettingsPanelView,
   usePanelScroll,
@@ -45,7 +43,6 @@ import { usePropertiesPanelRename } from './PropertiesPanel/navigation/useProper
 import { usePluginSettingsPanelController } from './PropertiesPanel/plugin/usePluginSettingsPanelController';
 import { usePropertiesPanelVisibility } from './PropertiesPanel/navigation/usePropertiesPanelVisibility';
 import { usePropertiesPanelBatchGeometry } from './PropertiesPanel/batch/geometry/usePropertiesPanelBatchGeometry';
-import { usePropertiesPanelBatchCommitHandlers } from './PropertiesPanel/batch/usePropertiesPanelBatchCommitHandlers';
 import { useBatchColorPickerController } from './PropertiesPanel/batch/style/useBatchColorPickerController';
 
 // ============================================================================
@@ -85,7 +82,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     knobItemPositions,
     spriteItemPositions,
     selectedKeyElements,
-    selectedStatElements,
     selectedGraphElements,
     selectedKnobElements,
     selectedSpriteElements,
@@ -113,16 +109,11 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     singleSpritePosition,
     selectedGroupInfo,
   } = usePropertiesPanelSelection();
+  // 일괄 피커 기준값(키 데이터)과 크기 칸 값 - 패널 몸체는 선언 일괄 패널이 같은 모델로 따로 만든다
   const {
     getSelectedKeysData,
-    getSelectedBatchStyleData,
     getSelectedKeyOnlyPositions,
-    getMixedValue,
-    getMixedValueCanonical,
-    getMixedValueBatch,
     getMixedValueGeometry,
-    getMixedValueActiveCapable,
-    getMixedValueKeysOnly,
   } = createBatchSelectionModel({
     selectedKeyType,
     positions,
@@ -139,7 +130,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     selectedBatchStyleElements,
     selectedBatchGeometryElements,
   });
-  const { useCustomCSS } = useSettingsStore();
   const {
     pluginSettingsPanel,
     pluginPanelSettings,
@@ -374,7 +364,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     handleBatchAlign,
     handleBatchDistribute,
     handleBatchSpacing,
-    handleBatchSpacingPreview,
     handleBatchSpacingCommit,
     getBatchSpacingValue,
     handleBatchResize,
@@ -385,14 +374,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     stableBatchGeometryTargets,
     stablePluginGeometryElements,
     stablePluginGeometryTargets,
-  });
-
-  const {
-    handleBatchElementPropertyCommit,
-    handleBatchNoteElementPropertyCommit,
-  } = usePropertiesPanelBatchCommitHandlers({
-    selectedBatchStyleElements,
-    selectedKeyElements,
   });
 
   // 정규화 진단 리포터 — 플러그인·키당 1회만 기록, empty-state 단락 경로의
@@ -495,16 +476,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       },
     };
 
-    // 키·스탯이 든 다중 선택 (스프라이트·플러그인 요소와 함께) - 고른 종류들 선언의 합
-    if (
-      route.kind === 'batchKeyLike' &&
-      selectedGraphElements.length === 0 &&
-      selectedKnobElements.length === 0
-    ) {
+    // 키·스탯이 들거나 여러 종류가 섞인 다중 선택 (플러그인 요소와 함께) - 고른 종류들 선언의 합
+    if (route.kind === 'batchKeyLike') {
       return (
         <DocumentBatchPanel
           sceneId={selectedKeyType}
-          elementIds={selectedBatchStyleElements.map(({ id }) => id)}
+          elementIds={selectedBatchGeometryElements.map(({ id }) => id)}
           panelElement={panelElement}
           setPanelElement={setPanelElement}
           legacyHost={legacyBatchHost}
@@ -531,81 +508,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             getBatchPickerRef,
             batchColorPickerInteractiveRefs,
           }}
-          t={t}
-        />
-      );
-    }
-
-    // 다중 선택인 경우 (키/통계와 그래프·노브가 섞이거나 그래프+노브 혼합)
-    if (route.kind === 'batchKeyLike') {
-      return (
-        <BatchKeyLikePanel
-          setPanelElement={setPanelElement}
-          totalCount={selectionTotalCount}
-          selectedBatchStyleElements={selectedBatchStyleElements}
-          selectedKeyElements={selectedKeyElements}
-          selectedStatElements={selectedStatElements}
-          selectedGraphElements={selectedGraphElements}
-          selectedKnobElements={selectedKnobElements}
-          selectedKeyLikeElements={selectedKeyLikeElements}
-          selectedGroupInfo={selectedGroupInfo}
-          isRenaming={isRenaming}
-          renameInputRef={renameInputRef}
-          renameValue={renameValue}
-          setRenameValue={setRenameValue}
-          renameCancelledRef={renameCancelledRef}
-          handleRenameCommit={handleRenameCommit}
-          handleRenameCancel={handleRenameCancel}
-          handleRenameStart={handleRenameStart}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          handleBatchAlign={handleBatchAlign}
-          handleBatchDistribute={handleBatchDistribute}
-          handleBatchSpacing={handleBatchSpacing}
-          handleBatchSpacingPreview={handleBatchSpacingPreview}
-          handleBatchSpacingCommit={handleBatchSpacingCommit}
-          getBatchSpacingValue={getBatchSpacingValue}
-          handleBatchResize={handleBatchResize}
-          handleBatchResizePreview={handleBatchResizePreview}
-          onElementPropertyCommit={handleBatchElementPropertyCommit}
-          onNoteElementPropertyCommit={handleBatchNoteElementPropertyCommit}
-          getMixedValue={getMixedValue}
-          getMixedValueCanonical={getMixedValueCanonical}
-          getMixedValueBatch={getMixedValueBatch}
-          getMixedValueGeometry={getMixedValueGeometry}
-          getMixedValueKeysOnly={getMixedValueKeysOnly}
-          getMixedValueActiveCapable={getMixedValueActiveCapable}
-          getSelectedKeysData={getSelectedKeysData}
-          getSelectedBatchStyleData={getSelectedBatchStyleData}
-          getSelectedKeyOnlyPositions={getSelectedKeyOnlyPositions}
-          batchScrollRefFor={batchScrollRefFor}
-          batchNoteColorButtonRef={batchNoteColorButtonRef}
-          batchGlowColorButtonRef={batchGlowColorButtonRef}
-          batchBorderColorButtonRef={batchBorderColorButtonRef}
-          batchCounterFillButtonRef={batchCounterFillButtonRef}
-          batchImageButtonRef={batchImageButtonRef}
-          showBatchImagePicker={showBatchImagePicker}
-          setShowBatchImagePicker={setShowBatchImagePicker}
-          batchPickerFor={batchPickerFor}
-          setBatchPickerFor={setBatchPickerFor}
-          batchCounterColorState={effectiveBatchCounterColorState}
-          setBatchCounterColorState={setBatchCounterColorState}
-          batchLocalColors={batchLocalColors}
-          setBatchLocalColors={setBatchLocalColors}
-          handleBatchPickerToggle={handleBatchPickerToggle}
-          handleBatchPickerColorChange={handleBatchPickerColorChange}
-          handleBatchPickerColorChangeComplete={
-            handleBatchPickerColorChangeComplete
-          }
-          handleBatchFillPickerColorChangeComplete={
-            handleBatchFillPickerColorChangeComplete
-          }
-          getBatchPickerColor={getBatchPickerColor}
-          getBatchPickerRef={getBatchPickerRef}
-          batchColorPickerInteractiveRefs={batchColorPickerInteractiveRefs}
-          panelElement={panelElement}
-          useCustomCSS={useCustomCSS}
-          selectedKeyType={selectedKeyType}
           t={t}
         />
       );

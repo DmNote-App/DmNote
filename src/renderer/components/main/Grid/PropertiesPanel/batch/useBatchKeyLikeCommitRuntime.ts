@@ -17,7 +17,7 @@ import {
   captureBatchElementBinding,
   useBatchElementBinding,
 } from '@hooks/pickers/useBatchElementBinding';
-import { BATCH_STYLE_SOUND_PAGE_KEY } from './style/BatchStyleTabContent';
+import { BATCH_STYLE_SOUND_PAGE_KEY } from './style/BatchSoundSection';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
 import type {

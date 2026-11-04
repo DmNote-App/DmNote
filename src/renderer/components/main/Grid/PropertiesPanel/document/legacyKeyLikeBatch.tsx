@@ -1,15 +1,15 @@
 'use no memo';
 // 편집 미리보기(모듈 상태)를 담은 트리 기록을 렌더 중에 읽어서 컴파일러 메모 제외
-// 키·스탯이 든 일괄 선택의 옛 일괄 패널 배치 - 선언의 합을 탭마다 그리되 겉모습(표면·이미지·그림자·글자·
-// 사용자 CSS·사운드)·노트·카운터는 옛 일괄 부품 그대로, 색·이미지 피커는 패널 뿌리에. 섞인 값은 옛 일괄
-// 패널과 같은 모델(createBatchSelectionModel)을 같은 트리 기록(treePanelRecords)으로 만든다
+// 여러 옛 종류를 고른 일괄 패널 - 고른 종류들 선언의 합을 탭마다 그리되 겉모습(표면·이미지·그림자·글자·
+// 사용자 CSS·사운드)·노트·카운터는 옛 일괄 부품으로, 종류마다 칸 묶음은 그 종류 요소에만, 색·이미지 피커는
+// 패널 뿌리에. 섹션은 그 묶음을 가진 종류끼리 읽고 쓴다. 섞인 값은 옛 일괄 패널과 같은 모델
+// (createBatchSelectionModel)을 같은 트리 기록(treePanelRecords)으로 만든다
 import React, { type RefObject } from 'react';
 
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import type {
   BundleName,
-  PanelSectionDecl,
   PanelTab,
 } from '@src/renderer/elementKinds/defineElementKind';
 import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
@@ -36,6 +36,7 @@ import {
   commitBoundIdleTransparent,
   commitBoundInactiveImage,
   commitBoundSoundPath,
+  createStylePropertyHandlers,
   type BatchLocalColors,
   type BatchPickerTarget,
 } from '../batch/batchPanelShared';
@@ -47,14 +48,20 @@ import {
 } from '../batch/note/useBatchNotePaint';
 import BatchColorPickerPopup from '../batch/style/BatchColorPickerPopup';
 import BatchImagePickerPopup from '../batch/style/BatchImagePickerPopup';
-import { BatchStyleBody } from '../batch/style/BatchStyleTabContent';
+import BatchStyleBody from '../batch/style/BatchStyleBody';
 import { useBatchKeyLikeCommitRuntime } from '../batch/useBatchKeyLikeCommitRuntime';
 import { usePropertiesPanelBatchCommitHandlers } from '../batch/usePropertiesPanelBatchCommitHandlers';
+import { aggregateMixedValue } from '../batch/mixedValue';
 import { usePanelNav } from '../navigation/PanelNavContext';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
-import type { Translate, Values } from './documentPanelModel';
-import { sectionsOfTab } from './documentPanelModel';
+import KindBatchRows from './KindBatchRows';
+import {
+  sectionsOfTab,
+  type Translate,
+  type Values,
+} from './documentPanelModel';
 import { PanelSections, type PanelSectionRenderers } from './documentPanelRows';
+import { canEditBundleField, type UnionSection } from './documentPanelUnion';
 
 // 속성 패널이 갖는 일괄 피커 상태 - 선택이 바뀌면 속성 패널이 닫는다
 export interface LegacyKeyLikeHost {
@@ -91,7 +98,8 @@ interface LegacyKeyLikeBatchBodyProps {
   elements: readonly ElementNode[];
   tabs: readonly PanelTab[];
   activeTab: PanelTab;
-  sections: readonly PanelSectionDecl<Values>[];
+  // 고른 종류들 선언의 합 - 섹션마다 가진 종류
+  sections: readonly UnionSection[];
   items: readonly Values[];
   // 위치·크기·칸 묶음 섹션은 패널이 그린다
   renderers: PanelSectionRenderers;
@@ -172,6 +180,12 @@ export const LegacyKeyLikeBatchBody = ({
     selectedBatchStyleElements,
     selectedKeyElements,
   });
+  // 글자 묶음이 있는 종류(키·스탯)의 글꼴 쓰기
+  const { handleBatchElementPropertyCommit: commitFontElementProperty } =
+    usePropertiesPanelBatchCommitHandlers({
+      selectedBatchStyleElements: selectedKeyLikeElements,
+      selectedKeyElements,
+    });
 
   // 피커 open 시점의 선택을 ID로 고정 - 대기 중 재정렬·모드 전환에도 완료가 시작 시점 요소들에 적용된다.
   // 결합 소유자는 탭 바깥이다 - EditSessionBoundary 안(탭 내용)에 두면 같은 개수 선택 교체 시
@@ -237,17 +251,47 @@ export const LegacyKeyLikeBatchBody = ({
     activePageKey,
   });
 
-  const hasGraphSelection = selectedGraphElements.length > 0;
-  // 표시값·Mixed 판정은 고치는 대상 집합(키·스탯·그래프·노브)과 같아야 한다.
+  // 표시값·Mixed 판정은 고치는 대상 집합(그 묶음을 가진 종류)과 같아야 한다.
   // 노브만 섞여도 키 전용 getter를 쓰면 노브 값이 대표값에 가려진 채 덮인다
   const hasBatchStyleOnlySelection =
-    hasGraphSelection || selectedKnobElements.length > 0;
+    selectedGraphElements.length > 0 || selectedKnobElements.length > 0;
   const styleMixedValueGetter = hasBatchStyleOnlySelection
     ? getMixedValueBatch
     : getMixedValue;
   const styleSelectedDataGetter = hasBatchStyleOnlySelection
     ? getSelectedBatchStyleData
     : getSelectedKeysData;
+  // 섹션을 보일지·누구 값을 모을지 - 고른 종류가 그 묶음 칸을 가졌는지 (선언)
+  const owns = (
+    bundle: BundleName,
+    options?: { active?: boolean; shadow?: boolean },
+  ) =>
+    elements.filter((element) =>
+      canEditBundleField(element.kind, bundle, options),
+    );
+  const fontOwners = owns('font');
+  const shadowOwners = owns('surface', { shadow: true });
+  // 그림자 - 그리는 종류끼리 고른 순서로 (모두 노브면 노브 기본 그림자)
+  const shadowItems = shadowOwners.map(
+    (owner) => items[elements.indexOf(owner)],
+  );
+  const getShadowMixedValue = <T,>(
+    getter: (position: KeyPosition) => T | undefined,
+    defaultValue: T,
+  ) =>
+    aggregateMixedValue(
+      shadowItems as unknown as KeyPosition[],
+      getter,
+      defaultValue,
+    );
+  const shadowKind = shadowOwners.every((owner) => owner.kind === 'knob')
+    ? 'knob'
+    : 'key';
+  // 글자 - 키·스탯끼리 (눌림 글자는 키)
+  const fontStyle = createStylePropertyHandlers(
+    selectedKeyLikeElements.map(({ type, id }) => ({ elementType: type, id })),
+    sceneId,
+  );
 
   const keysData = getSelectedKeysData();
   const keyOnlyPositions = getSelectedKeyOnlyPositions();
@@ -420,7 +464,20 @@ export const LegacyKeyLikeBatchBody = ({
         onFontColorCommit={commitPaint}
         onShadowCommit={commitShadow}
         showSoundControls={selectedKeyElements.length > 0}
-        showShadowControls={!hasGraphSelection}
+        showShadowControls={shadowOwners.length > 0}
+        shadowKind={shadowKind}
+        getShadowMixedValue={getShadowMixedValue}
+        hideDisplayText={fontOwners.length === 0}
+        hideFontControls={fontOwners.length === 0}
+        typography={{
+          getMixedValue,
+          getActiveMixedValue: getMixedValueKeysOnly,
+          getSelectedKeysData,
+          showActiveState: selectedKeyElements.length > 0,
+          onStylePropertyPreview: fontStyle.previewStyleProperty,
+          onStylePropertyCommit: fontStyle.commitStyleProperty,
+          onElementPropertyCommit: commitFontElementProperty,
+        }}
         shadowActiveState={
           selectedKeyElements.length > 0 || selectedKnobElements.length > 0
         }
@@ -442,34 +499,80 @@ export const LegacyKeyLikeBatchBody = ({
       />
     );
   };
+  // 섹션마다 가진 종류
+  const kindsOf = new Map(
+    sections.map(({ section, kinds }) => [section, kinds]),
+  );
   const tabRenderers: PanelSectionRenderers = {
     ...renderers,
     bundles,
     // 사용자 CSS는 겉모습 본문 안에서 그린다
     customCss: () => null,
+    // 직접 만든 섹션 - 그 섹션을 가진 종류 요소만 넘긴다 (예: 스탯 종류는 스탯에만)
+    custom: (component, section) => {
+      const kinds = kindsOf.get(section) ?? [];
+      return renderers.custom(
+        component,
+        section,
+        elements
+          .filter((element) => kinds.includes(element.kind))
+          .map(({ id }) => id),
+      );
+    },
+    // 종류마다 칸 묶음 - 그 종류 요소만 고친다
+    rows: (section) => {
+      const kinds = kindsOf.get(section) ?? [];
+      return (
+        <KindBatchRows
+          sceneId={sceneId}
+          elementIds={elements
+            .filter((element) => kinds.includes(element.kind))
+            .map(({ id }) => id)}
+          section={section}
+          panelElement={panelElement}
+          t={t}
+        />
+      );
+    },
   };
+
+  const tabBody = (tab: PanelTab) => (
+    <EditSessionBoundary>
+      <PanelSections
+        sections={sectionsOfTab(
+          sections.map(({ section }) => section),
+          tab,
+        )}
+        items={items}
+        batch
+        renderers={tabRenderers}
+      />
+    </EditSessionBoundary>
+  );
 
   return (
     <>
       <div className="flex-1 properties-panel-overlay-scroll">
-        {tabs.map((tab) => (
+        {tabs.length > 1 ? (
+          tabs.map((tab) => (
+            <div
+              key={tab}
+              ref={host.batchScrollRefFor(tab)}
+              className={`properties-panel-overlay-viewport ${
+                activeTab === tab ? '' : 'hidden'
+              }`}
+            >
+              {tabBody(tab)}
+            </div>
+          ))
+        ) : (
           <div
-            key={tab}
-            ref={host.batchScrollRefFor(tab)}
-            className={`properties-panel-overlay-viewport ${
-              activeTab === tab ? '' : 'hidden'
-            }`}
+            ref={host.batchScrollRefFor('style')}
+            className="properties-panel-overlay-viewport"
           >
-            <EditSessionBoundary>
-              <PanelSections
-                sections={sectionsOfTab(sections, tab)}
-                items={items}
-                batch
-                renderers={tabRenderers}
-              />
-            </EditSessionBoundary>
+            {tabBody('style')}
           </div>
-        ))}
+        )}
       </div>
 
       <BatchColorPickerPopup

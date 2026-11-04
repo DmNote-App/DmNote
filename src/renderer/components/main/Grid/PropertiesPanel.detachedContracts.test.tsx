@@ -34,7 +34,6 @@ import {
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const {
-  batchKeyLikePropsMock,
   batchPluginPropsMock,
   batchPropsMock,
   graphUpdatePositionsMock,
@@ -118,7 +117,6 @@ const {
   documentBatchPropsMock,
   reportElementOpSkippedMock,
 } = vi.hoisted(() => ({
-  batchKeyLikePropsMock: vi.fn(),
   batchPluginPropsMock: vi.fn(),
   batchPropsMock: vi.fn(),
   graphUpdatePositionsMock: vi.fn(() => Promise.resolve()),
@@ -341,10 +339,6 @@ vi.mock('./PropertiesPanel/index', async () => {
     TextInput: Stub,
     LayerPanel: () => <div data-testid="layer-panel" />,
     PluginSelectionPanel: Stub,
-    BatchKeyLikePanel: (props: Record<string, unknown>) => {
-      batchKeyLikePropsMock(props);
-      return <div />;
-    },
     BatchPluginOnlyPanel: (props: Record<string, unknown>) => {
       batchPluginPropsMock(props);
       return <div />;
@@ -464,7 +458,6 @@ const resetStores = () => {
   documentBatchPropsMock.mockClear();
   batchPluginPropsMock.mockClear();
   batchPropsMock.mockClear();
-  batchKeyLikePropsMock.mockClear();
   patchLayerNameMock.mockClear();
   patchGraphTypeMock.mockClear();
   patchGraphColorMock.mockClear();
@@ -789,8 +782,9 @@ describe('PropertiesPanel canonical native contract', () => {
         isMixed: true,
         value: 60,
       });
-      // 겉모습 대상(패널이 섞인 값을 모으는 요소)은 스프라이트를 보지 않는다 - 크기에 이걸 쓰면 안 되는 이유
-      expect(props.elementIds).toEqual([MIXED_KEY_ID]);
+      // 패널은 고른 종류들 선언의 합이라 스프라이트도 받는다 (스프라이트 칸은 스프라이트에만).
+      // 크기 표시는 패널 요소가 아니라 일괄 기하 집합(플러그인 요소 포함)으로 모은다
+      expect(props.elementIds).toEqual([MIXED_KEY_ID, MIXED_SPRITE_ID]);
     });
 
     // 커밋은 resizeSprite로 자세까지 스케일한다. 미리보기가 원시
@@ -1078,7 +1072,6 @@ describe('PropertiesPanel canonical native contract', () => {
         totalCount: number;
       };
       expect(props.totalCount).toBe(2);
-      expect(batchKeyLikePropsMock).not.toHaveBeenCalled();
       expect(documentBatchPropsMock).not.toHaveBeenCalled();
     });
   });

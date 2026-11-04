@@ -11,7 +11,10 @@ import {
   type Mock,
 } from 'vitest';
 import type { KeyPosition } from '@src/types/key/keys';
-import BatchStyleTabContent from '@components/main/Grid/PropertiesPanel/batch/style/BatchStyleTabContent';
+import BatchGeometryRows, {
+  type BatchGeometry,
+} from '@components/main/Grid/PropertiesPanel/batch/geometry/BatchGeometryRows';
+import BatchStyleBody from '@components/main/Grid/PropertiesPanel/batch/style/BatchStyleBody';
 import { PanelNavProvider } from '@components/main/Grid/PropertiesPanel/navigation/PanelNavContext';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 
@@ -100,10 +103,15 @@ describe('배치 스타일 숫자 필드 취소', () => {
   let handleBatchResize: Mock;
   let handleBatchResizePreview: Mock;
 
+  // 일괄 패널 스타일 탭 - 위치·크기 섹션과 겉모습 본문
   const renderPanel = (
-    overrides: Partial<React.ComponentProps<typeof BatchStyleTabContent>> = {},
+    overrides: {
+      getBatchSizeValue?: BatchGeometry['getBatchSizeValue'];
+      onCancelResize?: () => void;
+    } = {},
   ) => {
     const positions = [flatPosition(), flatPosition(), flatPosition()];
+    const getMixedValue = mixedGetter(positions);
     act(() => {
       root.render(
         <PanelNavProvider
@@ -115,26 +123,37 @@ describe('배치 스타일 숫자 필드 취소', () => {
             pageHost: null,
           }}
         >
-          <BatchStyleTabContent
-            selectedCount={3}
+          <BatchGeometryRows
+            totalCount={3}
+            geometry={{
+              handleBatchAlign,
+              handleBatchDistribute,
+              handleBatchSpacing,
+              // 간격 확정도 같은 처리기 (옛 스타일 탭처럼 확정 처리기를 따로 주지 않는다)
+              handleBatchSpacingCommit: undefined as never,
+              getBatchSpacingValue: () => ({ isMixed: false, value: 10 }),
+              getBatchSizeValue:
+                overrides.getBatchSizeValue ??
+                ((dimension) => getMixedValue((pos) => pos[dimension], 60)),
+              handleBatchResize,
+              handleBatchResizePreview,
+            }}
+            onCancelResize={
+              overrides.onCancelResize ?? (() => editGestureController.cancel())
+            }
+            t={(key) => key}
+          />
+          <BatchStyleBody
             shadowActiveState
-            getMixedValue={mixedGetter(positions)}
-            getMixedValueSize={mixedGetter(positions)}
-            getKeyOnlyMixedValue={mixedGetter(positions)}
+            getMixedValue={getMixedValue}
+            getKeyOnlyMixedValue={getMixedValue}
             getSelectedKeysData={() => []}
-            handleBatchAlign={handleBatchAlign}
-            handleBatchDistribute={handleBatchDistribute}
-            handleBatchSpacing={handleBatchSpacing}
-            batchSpacing={{ isMixed: false, value: 10 }}
-            handleBatchResize={handleBatchResize}
-            handleBatchResizePreview={handleBatchResizePreview}
             showBatchImagePicker={false}
             onToggleBatchImagePicker={vi.fn()}
             batchImageButtonRef={React.createRef<HTMLButtonElement>()}
             panelElement={null}
             useCustomCSS={false}
             t={(key) => key}
-            {...overrides}
           />
         </PanelNavProvider>,
       );
@@ -165,16 +184,7 @@ describe('배치 스타일 숫자 필드 취소', () => {
   // 크기 입력이 스타일 getter로 되돌아가면 스프라이트 값이 대표값에 가린다
   it('크기 입력은 스타일 getter가 아니라 크기 getter를 읽는다', () => {
     renderPanel({
-      getMixedValue: (<T,>(_getter: unknown, _fallback: T) => ({
-        isMixed: false,
-        value: 60 as unknown as T,
-      })) as React.ComponentProps<typeof BatchStyleTabContent>['getMixedValue'],
-      getMixedValueSize: (<T,>(_getter: unknown, _fallback: T) => ({
-        isMixed: true,
-        value: 200 as unknown as T,
-      })) as React.ComponentProps<
-        typeof BatchStyleTabContent
-      >['getMixedValueSize'],
+      getBatchSizeValue: () => ({ isMixed: true, value: 200 }),
     });
 
     for (const prefix of ['W', 'H']) {

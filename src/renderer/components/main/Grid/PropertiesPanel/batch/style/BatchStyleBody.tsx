@@ -1,19 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { KeyPosition } from '@src/types/key/keys';
-import {
-  PropertyRow,
-  NumberInput,
-  PropertySection,
-} from '../../controls/PropertyInputs';
+import { PropertySection } from '../../controls/PropertyInputs';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePanelSelection } from '../../../document/treeEditedSelection';
 import {
   EMPTY_BATCH_ELEMENT_BINDING,
   type BatchElementBinding,
 } from '@hooks/pickers/useBatchElementBinding';
-import BatchGeometrySection from '../geometry/BatchGeometrySection';
-import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
-import { AXIS_FIELD_WIDTH } from '@utils/cardRecipes';
 import type {
   EditorPaintPropertyPatchV1,
   EditorPreviewStylePropertyPatchV1,
@@ -26,17 +19,11 @@ import BatchShadowSection from './BatchShadowSection';
 import BatchTypographySection, {
   type BatchTypographyKeyData,
 } from './BatchTypographySection';
-import SelectionRotationInput from '../geometry/SelectionRotationInput';
 import BatchCustomCssSection from './BatchCustomCssSection';
 import { BatchImageButtonRow, BatchSurfaceRows } from './BatchSurfaceRows';
 
-export { BATCH_STYLE_SOUND_PAGE_KEY } from './BatchSoundSection';
-
-interface BatchStyleTabContentProps {
-  // 다중 선택 정보
-  selectedCount: number;
-  // native+plugin 합산 개수 - 분배 게이트 판정용 (미전달 시 selectedCount)
-  totalCount?: number;
+// 일괄 겉모습 본문 - 표면·이미지·그림자·글자·사용자 CSS·사운드 (위치·크기 아래, 선언 일괄 패널이 그린다)
+export interface BatchStyleBodyProps {
   // 사운드 완료의 시작 시점 결합. 소유자는 EditSessionBoundary 밖 부모다 -
   // 이 컴포넌트는 선택 변경 시 리마운트되어 open 중 재캡처가 일어난다
   soundBinding?: BatchElementBinding;
@@ -59,40 +46,13 @@ interface BatchStyleTabContentProps {
   shadowKind?: 'key' | 'knob';
   /** 이미지가 기본 립을 억제하는 요소인지 - 키·통계만 (그래프·노브 렌더는 억제하지 않는다) */
   imageSuppressesDefaultBorder?: boolean;
-  afterSizeContent?: React.ReactNode;
   // getMixedValue 함수
   getMixedValue: <T>(
     getter: (pos: KeyPosition) => T | undefined,
     defaultValue: T,
   ) => { isMixed: boolean; value: T };
-  // 크기 전용 - 스타일 필드와 조절 대상이 다르다 (스프라이트는 스타일이 없지만
-  // 크기는 조절된다). 표시와 조절이 갈리면 대표값에 가린 채 덮인다
-  getMixedValueSize: <T>(
-    getter: (pos: KeyPosition) => T | undefined,
-    defaultValue: T,
-  ) => { isMixed: boolean; value: T };
   // getSelectedKeysData 함수 (displayText Mixed 판단용)
   getSelectedKeysData: () => BatchTypographyKeyData[];
-  // 핸들러
-  handleBatchAlign: (
-    direction: 'left' | 'centerH' | 'right' | 'top' | 'centerV' | 'bottom',
-  ) => void;
-  handleBatchDistribute: (direction: 'horizontal' | 'vertical') => void;
-  handleBatchSpacing: (
-    spacing: number,
-    options?: { gestureId?: string },
-  ) => void;
-  handleBatchSpacingPreview?: (spacing: number) => void;
-  handleBatchSpacingCommit?: (
-    spacing: number,
-    options?: { gestureId?: string },
-  ) => void;
-  batchSpacing: { isMixed: boolean; value: number };
-  handleBatchResize: (dimension: 'width' | 'height', value: number) => void;
-  handleBatchResizePreview: (
-    dimension: 'width' | 'height',
-    value: number,
-  ) => void;
   onElementPropertyCommit?: (
     updates: BatchElementPropertyUpdate,
     options?: { gestureId?: string },
@@ -115,26 +75,21 @@ interface BatchStyleTabContentProps {
   panelElement: HTMLElement | null;
   useCustomCSS: boolean;
   t: (key: string) => string;
+  // 여러 종류를 고른 일괄 - 글자 섹션은 글자 묶음이 있는 종류(키·스탯)끼리 읽고 쓴다
+  typography?: {
+    getMixedValue: BatchStyleBodyProps['getMixedValue'];
+    getActiveMixedValue: BatchStyleBodyProps['getMixedValue'];
+    getSelectedKeysData: BatchStyleBodyProps['getSelectedKeysData'];
+    showActiveState: boolean;
+    onStylePropertyPreview?: BatchStyleBodyProps['onStylePropertyPreview'];
+    onStylePropertyCommit?: BatchStyleBodyProps['onStylePropertyCommit'];
+    onElementPropertyCommit?: BatchStyleBodyProps['onElementPropertyCommit'];
+  };
+  // 그림자 섹션은 그림자를 그리는 종류끼리 읽는다
+  getShadowMixedValue?: BatchStyleBodyProps['getMixedValue'];
 }
 
-// 위치·크기 아래 겉모습 본문 - 표면·이미지·그림자·글자·사용자 CSS·사운드 (선언 일괄 패널도 이것을 그린다)
-export type BatchStyleBodyProps = Omit<
-  BatchStyleTabContentProps,
-  | 'selectedCount'
-  | 'totalCount'
-  | 'afterSizeContent'
-  | 'getMixedValueSize'
-  | 'handleBatchAlign'
-  | 'handleBatchDistribute'
-  | 'handleBatchSpacing'
-  | 'handleBatchSpacingPreview'
-  | 'handleBatchSpacingCommit'
-  | 'batchSpacing'
-  | 'handleBatchResize'
-  | 'handleBatchResizePreview'
->;
-
-export const BatchStyleBody = ({
+const BatchStyleBody = ({
   hideDisplayText = false,
   hideFontControls = false,
   soundBinding = EMPTY_BATCH_ELEMENT_BINDING,
@@ -163,6 +118,8 @@ export const BatchStyleBody = ({
   batchImageButtonRef,
   panelElement,
   useCustomCSS,
+  typography,
+  getShadowMixedValue,
   t,
 }: BatchStyleBodyProps) => {
   const [colorState, setColorState] = useState<'idle' | 'active'>('idle');
@@ -216,7 +173,7 @@ export const BatchStyleBody = ({
 
       {showShadowControls ? (
         <BatchShadowSection
-          getMixedValue={getMixedValue}
+          getMixedValue={getShadowMixedValue ?? getMixedValue}
           getActiveMixedValue={activeMixedValue}
           showActiveState={shadowActiveState}
           shadowKind={shadowKind}
@@ -231,18 +188,32 @@ export const BatchStyleBody = ({
         <BatchTypographySection
           hideDisplayText={hideDisplayText}
           hideFontControls={hideFontControls}
-          getMixedValue={getMixedValue}
-          getActiveMixedValue={activeMixedValue}
-          getSelectedKeysData={getSelectedKeysData}
-          effectiveColorState={effectiveColorState}
-          showActiveState={shadowActiveState}
+          getMixedValue={typography?.getMixedValue ?? getMixedValue}
+          getActiveMixedValue={
+            typography?.getActiveMixedValue ?? activeMixedValue
+          }
+          getSelectedKeysData={
+            typography?.getSelectedKeysData ?? getSelectedKeysData
+          }
+          effectiveColorState={
+            typography?.showActiveState ?? shadowActiveState
+              ? effectiveColorState
+              : 'idle'
+          }
+          showActiveState={typography?.showActiveState ?? shadowActiveState}
           onColorStateChange={setColorState}
           batchSelectionKey={batchSelectionKey}
-          onStylePropertyPreview={onStylePropertyPreview}
-          onStylePropertyCommit={onStylePropertyCommit}
+          onStylePropertyPreview={
+            typography?.onStylePropertyPreview ?? onStylePropertyPreview
+          }
+          onStylePropertyCommit={
+            typography?.onStylePropertyCommit ?? onStylePropertyCommit
+          }
           onFontColorPreview={onFontColorPreview}
           onFontColorCommit={onFontColorCommit}
-          onElementPropertyCommit={onElementPropertyCommit}
+          onElementPropertyCommit={
+            typography?.onElementPropertyCommit ?? onElementPropertyCommit
+          }
           panelElement={panelElement}
           t={t}
         />
@@ -276,73 +247,4 @@ export const BatchStyleBody = ({
   );
 };
 
-const BatchStyleTabContent: React.FC<BatchStyleTabContentProps> = ({
-  selectedCount,
-  totalCount,
-  afterSizeContent,
-  getMixedValueSize,
-  handleBatchAlign,
-  handleBatchDistribute,
-  handleBatchSpacing,
-  handleBatchSpacingCommit,
-  batchSpacing,
-  handleBatchResize,
-  handleBatchResizePreview,
-  t,
-  ...body
-}) => (
-  <>
-    <PropertySection>
-      {/* 정렬·분배·간격 - 공통 기하 섹션 */}
-      <BatchGeometrySection
-        totalCount={totalCount ?? selectedCount}
-        handleBatchAlign={handleBatchAlign}
-        handleBatchDistribute={handleBatchDistribute}
-        handleBatchSpacing={handleBatchSpacing}
-        handleBatchSpacingCommit={handleBatchSpacingCommit}
-        batchSpacing={batchSpacing}
-        t={t}
-      />
-
-      {/* 크기 */}
-      <PropertyRow label={t('propertiesPanel.size') || '크기'}>
-        <NumberInput
-          value={getMixedValueSize((pos) => pos.width, 60).value}
-          onChange={(value) => handleBatchResize('width', value)}
-          onPreview={(value) => handleBatchResizePreview('width', value)}
-          onCancel={() => editGestureController.cancel()}
-          prefix="W"
-          width={AXIS_FIELD_WIDTH}
-          min={10}
-          max={9999}
-          allowDecimal
-          decimalScale={1}
-          isMixed={getMixedValueSize((pos) => pos.width, 60).isMixed}
-        />
-        <NumberInput
-          value={getMixedValueSize((pos) => pos.height, 60).value}
-          onChange={(value) => handleBatchResize('height', value)}
-          onPreview={(value) => handleBatchResizePreview('height', value)}
-          onCancel={() => editGestureController.cancel()}
-          prefix="H"
-          width={AXIS_FIELD_WIDTH}
-          min={10}
-          max={9999}
-          allowDecimal
-          decimalScale={1}
-          isMixed={getMixedValueSize((pos) => pos.height, 60).isMixed}
-        />
-      </PropertyRow>
-
-      <SelectionRotationInput label={t('propertiesPanel.rotation') || '회전'} />
-    </PropertySection>
-
-    {afterSizeContent ? (
-      <PropertySection>{afterSizeContent}</PropertySection>
-    ) : null}
-
-    <BatchStyleBody t={t} {...body} />
-  </>
-);
-
-export default BatchStyleTabContent;
+export default BatchStyleBody;

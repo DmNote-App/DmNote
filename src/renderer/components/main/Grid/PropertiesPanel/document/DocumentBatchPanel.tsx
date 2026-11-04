@@ -1,35 +1,14 @@
 'use no memo';
 // 편집 미리보기(모듈 상태)를 렌더 중에 읽어서 컴파일러 메모 제외
-import React, {
-  createElement,
-  Fragment,
-  Suspense,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react';
+import React, { createElement, Suspense, useRef, useState } from 'react';
 
-import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
-import {
-  sceneElements,
-  type ElementNode,
-} from '@src/renderer/editor/document/documentPatch';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
-import {
-  getPreviewOverlayVersion,
-  subscribePreviewOverlay,
-} from '@src/renderer/editor/runtime/gesture/previewOverlay';
-import type {
-  ElementKindDefinition,
-  PanelRowDecl,
-} from '@src/renderer/elementKinds/defineElementKind';
+import type { PanelSectionDecl } from '@src/renderer/elementKinds/defineElementKind';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
-import { treeElementPositionOf } from '@src/renderer/elementKinds/runtime/treeElementPosition';
-import type { Op, Scene } from '@src/types/generated/elementDocument';
+import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import type { KeyPosition } from '@src/types/key/keys';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
-import { AXIS_FIELD_WIDTH } from '@utils/cardRecipes';
 import { documentBatchGeometry } from '../../document/documentBatchGeometry';
 import { editDocument } from '../../document/documentEditActions';
 import {
@@ -38,31 +17,26 @@ import {
 } from '../../document/documentGroups';
 import { aggregateMixedValue } from '../batch/mixedValue';
 import BatchPanelHeader from '../batch/BatchPanelHeader';
-import BatchGeometrySection from '../batch/geometry/BatchGeometrySection';
-import SelectionRotationInput from '../batch/geometry/SelectionRotationInput';
-import {
-  NumberInput,
-  PropertyRow,
-  PropertySection,
-  Tabs,
-} from '../controls/PropertyInputs';
+import BatchGeometryRows, {
+  type BatchGeometry,
+} from '../batch/geometry/BatchGeometryRows';
+import { PropertySection, Tabs } from '../controls/PropertyInputs';
 import { PANEL_ROOT_CLASS } from '../navigation/panelChrome';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
+import { batchRowRenderer } from './documentBatchRows';
+import { usePanelElements } from './usePanelElements';
 import {
   defaultPanel,
-  rowState,
-  visibleRows,
   type Translate,
   type Values,
 } from './documentPanelModel';
 import {
-  FieldRow,
   PanelSections,
   SurfaceRows,
   type PanelSectionRenderers,
 } from './documentPanelRows';
 import { unionBatchSections, unionBatchTabs } from './documentPanelUnion';
-import { batchPanelWriterFor, type PanelWriter } from './documentPanelWriter';
+import KindBatchRows from './KindBatchRows';
 import {
   LegacyBatchCustomCssSection,
   LegacyBatchStyle,
@@ -73,38 +47,8 @@ import {
   type LegacyKeyLikeHost,
 } from './legacyKeyLikeBatch';
 
-type AlignDirection =
-  | 'left'
-  | 'centerH'
-  | 'right'
-  | 'top'
-  | 'centerV'
-  | 'bottom';
-
-// 옛 일괄 패널의 정렬·분배·간격·크기 처리기 - 옛 종류 선택은 플러그인 요소와 함께 이것으로 쓴다
-export interface LegacyBatchGeometry {
-  handleBatchAlign: (direction: AlignDirection) => void;
-  handleBatchDistribute: (direction: 'horizontal' | 'vertical') => void;
-  handleBatchSpacing: (
-    spacing: number,
-    options?: { gestureId?: string },
-  ) => void;
-  handleBatchSpacingCommit: (
-    spacing: number,
-    options?: { gestureId?: string },
-  ) => void;
-  getBatchSpacingValue: () => { isMixed: boolean; value: number };
-  // 크기 표시 - 크기 조절이 고치는 대상 전부(스프라이트·플러그인 요소 포함)의 값
-  getBatchSizeValue: (dimension: 'width' | 'height') => {
-    isMixed: boolean;
-    value: number;
-  };
-  handleBatchResize: (dimension: 'width' | 'height', value: number) => void;
-  handleBatchResizePreview: (
-    dimension: 'width' | 'height',
-    value: number,
-  ) => void;
-}
+// 옛 종류 선택의 일괄 기하 - 속성 패널이 옛 선택 모양(플러그인 요소 포함)에서 만든다
+export type LegacyBatchGeometry = BatchGeometry;
 
 // 옛 종류 선택 - 속성 패널이 옛 선택 모양(플러그인 요소 포함)에서 만든 개수·그룹·일괄 기하
 export interface LegacyBatchHost {
@@ -121,147 +65,10 @@ interface DocumentBatchPanelProps {
   // 패널 스크롤 (Lenis) - 선택이 바뀌어도 같은 뷰포트를 쓴다
   scrollRef?: (node: HTMLDivElement | null) => void;
   legacyHost?: LegacyBatchHost;
-  // 키·스탯이 든 선택 - 속성 패널이 갖는 일괄 피커 상태 (탭마다 옛 일괄 부품으로 그린다)
+  // 여러 옛 종류를 고른 선택 - 속성 패널이 갖는 일괄 피커 상태 (탭마다 옛 일괄 부품으로 그린다)
   keyLikeHost?: LegacyKeyLikeHost;
   t: Translate;
 }
-
-interface PanelElements {
-  scene: Scene | undefined;
-  elements: ElementNode[];
-  // 옛 종류만 고른 선택의 옛 일괄 처리기 (아니면 없음 - 트리 연산)
-  writer: PanelWriter | null;
-  // 칸 값 - 옛 종류는 옛 패널이 보던 옛 칸 모양 보기(트리 값 + 편집 미리보기), 트리에만 있는 종류는 고유 값
-  items: Values[];
-}
-
-// 고른 요소들 - 편집 미리보기가 바뀌면 다시 읽는다
-const usePanelElements = (
-  sceneId: string,
-  elementIds: readonly string[],
-): PanelElements => {
-  const scene = useElementDocumentScene(sceneId);
-  useSyncExternalStore(
-    subscribePreviewOverlay,
-    getPreviewOverlayVersion,
-    getPreviewOverlayVersion,
-  );
-  const all = scene ? sceneElements(scene) : [];
-  const elements = elementIds.flatMap((id) => {
-    const element = all.find((node) => node.id === id);
-    return element ? [element] : [];
-  });
-  const writer = batchPanelWriterFor(sceneId, elements);
-  return {
-    scene,
-    elements,
-    writer,
-    items: elements.map(
-      (element) =>
-        (writer
-          ? treeElementPositionOf(element, sceneId)
-          : element.values ?? {}) as Values,
-    ),
-  };
-};
-
-interface BatchRowContext {
-  sceneId: string;
-  elements: readonly ElementNode[];
-  items: readonly Values[];
-  definition: ElementKindDefinition | undefined;
-  writer: PanelWriter | null;
-  panelElement: HTMLElement | null;
-  t: Translate;
-}
-
-// 고유 값 칸 하나 (섞인 값) - 옛 종류는 옛 일괄 처리기, 트리에만 있는 종류는 트리 연산
-const batchRowRenderer =
-  ({
-    sceneId,
-    elements,
-    items,
-    definition,
-    writer,
-    panelElement,
-    t,
-  }: BatchRowContext) =>
-  (row: PanelRowDecl<Values>) => {
-    const commitValues = (next: Values) => {
-      void Promise.all(
-        elements.map(async (element) => {
-          const merged = { ...(element.values ?? {}), ...next };
-          const frame = await definition?.adjustFrame?.(
-            merged as never,
-            element.frame,
-          );
-          const ops: Op[] = [
-            { op: 'setValues', scene: sceneId, id: element.id, values: next },
-          ];
-          if (frame) {
-            ops.push({ op: 'setFrame', scene: sceneId, id: element.id, frame });
-          }
-          return ops;
-        }),
-      ).then((ops) => editDocument(ops.flat()));
-    };
-    return (
-      <FieldRow
-        row={row}
-        state={rowState(definition, row, items)}
-        batch
-        onCommit={(value, options) =>
-          writer
-            ? writer.commitField(row.field, value, options)
-            : commitValues({ [row.field]: value })
-        }
-        onPreview={
-          writer ? (value) => writer.previewField(row.field, value) : undefined
-        }
-        onCancelPreview={writer?.cancelPreview}
-        colorId={`${elements[0]?.kind}-${row.field}-batch-${sceneId}`}
-        elementIds={elements.map(({ id }) => id)}
-        panelElement={panelElement}
-        t={t}
-      />
-    );
-  };
-
-interface KindBatchRowsProps {
-  sceneId: string;
-  // 같은 종류 요소들
-  elementIds: readonly string[];
-  panelElement: HTMLElement | null;
-  t: Translate;
-}
-
-/** 한 종류의 선언 칸 - 여러 종류가 섞인 옛 일괄 패널 안에서 그 종류 요소만 고친다 (섹션 상자는 부르는 쪽) */
-export const KindBatchRows = ({
-  sceneId,
-  elementIds,
-  panelElement,
-  t,
-}: KindBatchRowsProps) => {
-  const { elements, writer, items } = usePanelElements(sceneId, elementIds);
-  if (elements.length === 0) return null;
-  const definition = elementKindDefinition(elements[0].kind);
-  const render = batchRowRenderer({
-    sceneId,
-    elements,
-    items,
-    definition,
-    writer,
-    panelElement,
-    t,
-  });
-  return (definition?.panel ?? []).flatMap((section) =>
-    'rows' in section
-      ? visibleRows(section.rows, items, true).map((row) => (
-          <Fragment key={row.field}>{render(row)}</Fragment>
-        ))
-      : [],
-  );
-};
 
 /** 트리 요소 여러 개 - 단일 패널과 같은 선언에서 섞인 값과 함께 그린다 */
 const DocumentBatchPanel = ({
@@ -303,8 +110,13 @@ const DocumentBatchPanel = ({
   const kinds = new Set(elements.map((node) => node.kind));
   const definition =
     kinds.size === 1 ? elementKindDefinition(elements[0].kind) : undefined;
-  const usesSurface = elements.every((element) =>
+  // 표면 묶음을 가진 요소 - 트리에만 있는 종류의 표면 칸은 그 요소들에만. 옛 종류의 표면은 옛 일괄 처리기만
+  // 고친다(칠 규칙) - 트리에만 있는 종류와 섞인 선택에서는 그리지 않는다
+  const surfaceOwners = elements.filter((element) =>
     elementKindDefinition(element.kind)?.bundles?.includes('surface'),
+  );
+  const treeSurfaceOnly = !surfaceOwners.some((element) =>
+    TREE_EDITED_KINDS.has(element.kind),
   );
   // 옛 종류의 겉모습 칸 - 종류와 옛 패널이 보던 값
   const legacyItems: LegacyBatchItem[] = elements.map((element, index) => ({
@@ -339,73 +151,24 @@ const DocumentBatchPanel = ({
   const cancelResizePreview = legacyHost
     ? () => editGestureController.cancel()
     : treeGeometry.clearPreview;
-  const size = geometry.getBatchSizeValue;
-
-  // 스프라이트만 고른 옛 일괄 패널은 정렬·분배·간격만 (크기·회전 칸이 없었다)
-  const arrangeOnly =
-    writer !== null && elements.every((element) => element.kind === 'sprite');
 
   const renderers: PanelSectionRenderers = {
-    geometry: () =>
-      arrangeOnly ? (
-        <PropertySection>
-          <BatchGeometrySection
-            totalCount={totalCount}
-            handleBatchAlign={geometry.handleBatchAlign}
-            handleBatchDistribute={geometry.handleBatchDistribute}
-            handleBatchSpacing={geometry.handleBatchSpacing}
-            handleBatchSpacingCommit={geometry.handleBatchSpacingCommit}
-            batchSpacing={geometry.getBatchSpacingValue()}
-            t={t}
-          />
-        </PropertySection>
-      ) : (
-        <PropertySection>
-          <BatchGeometrySection
-            totalCount={totalCount}
-            handleBatchAlign={geometry.handleBatchAlign}
-            handleBatchDistribute={geometry.handleBatchDistribute}
-            handleBatchSpacing={geometry.handleBatchSpacing}
-            handleBatchSpacingCommit={geometry.handleBatchSpacingCommit}
-            batchSpacing={geometry.getBatchSpacingValue()}
-            t={t}
-          />
-          <PropertyRow label={t('propertiesPanel.size') || '크기'}>
-            {(['width', 'height'] as const).map((dimension) => {
-              const state = size(dimension);
-              return (
-                <NumberInput
-                  key={dimension}
-                  value={state.value}
-                  onChange={(value) =>
-                    geometry.handleBatchResize(dimension, value)
-                  }
-                  onPreview={(value) =>
-                    geometry.handleBatchResizePreview(dimension, value)
-                  }
-                  onCancel={cancelResizePreview}
-                  prefix={dimension === 'width' ? 'W' : 'H'}
-                  width={AXIS_FIELD_WIDTH}
-                  min={10}
-                  max={9999}
-                  allowDecimal
-                  decimalScale={1}
-                  isMixed={state.isMixed}
-                />
-              );
-            })}
-          </PropertyRow>
-          <SelectionRotationInput
-            label={t('propertiesPanel.rotation') || '회전'}
-          />
-        </PropertySection>
-      ),
-    custom: (component) => (
+    geometry: () => (
+      <PropertySection>
+        <BatchGeometryRows
+          totalCount={totalCount}
+          geometry={geometry}
+          onCancelResize={cancelResizePreview}
+          t={t}
+        />
+      </PropertySection>
+    ),
+    custom: (component, _section, ids = elementIds) => (
       // 편집 화면 전용 섹션은 지연 로딩일 수 있다
       <Suspense fallback={null}>
         {createElement(component, {
           sceneId,
-          elementIds,
+          elementIds: ids,
           panelElement,
           t,
         })}
@@ -431,17 +194,19 @@ const DocumentBatchPanel = ({
           />
         );
       }
-      return bundles.includes('surface') && usesSurface ? (
+      return bundles.includes('surface') &&
+        surfaceOwners.length > 0 &&
+        treeSurfaceOnly ? (
         <PropertySection>
           <SurfaceRows
-            surfaces={elements.map(
+            surfaces={surfaceOwners.map(
               (element) => (element.bundles?.surface ?? {}) as Values,
             )}
             panelElement={panelElement}
             t={t}
             onCommit={(fields) =>
               void editDocument(
-                elements.map((element) => ({
+                surfaceOwners.map((element) => ({
                   op: 'setBundle' as const,
                   scene: sceneId,
                   id: element.id,
@@ -511,22 +276,25 @@ const DocumentBatchPanel = ({
     />
   );
 
-  // 키·스탯이 든 선택 - 고른 종류들 선언의 합을 탭마다 (옛 키·스탯 일괄 패널 배치)
+  // 여러 옛 종류를 고른 선택 - 고른 종류들 선언의 합을 탭마다 (옛 일괄 부품 배치)
   if (keyLikeHost && writer) {
     const kinds = elements.map((element) => element.kind);
     const tabs = unionBatchTabs(kinds);
     return (
       <div ref={setPanelElement} className={PANEL_ROOT_CLASS}>
+        {/* 섹션이 두 탭 이상에 있으면 탭 */}
         <div className="flex-shrink-0">
           {header}
-          <div className="px-[12px] pb-[12px]">
-            <Tabs
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              t={t as (key: string) => string}
-              availableTabs={tabs}
-            />
-          </div>
+          {tabs.length > 1 ? (
+            <div className="px-[12px] pb-[12px]">
+              <Tabs
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                t={t as (key: string) => string}
+                availableTabs={tabs}
+              />
+            </div>
+          ) : null}
         </div>
         <LegacyKeyLikeBatchBody
           sceneId={sceneId}
@@ -534,7 +302,7 @@ const DocumentBatchPanel = ({
           elements={elements}
           tabs={tabs}
           activeTab={activeTab}
-          sections={unionBatchSections(kinds).map(({ section }) => section)}
+          sections={unionBatchSections(kinds)}
           items={items}
           renderers={renderers}
           host={keyLikeHost}
@@ -546,6 +314,31 @@ const DocumentBatchPanel = ({
     );
   }
 
+  // 여러 종류 (트리에만 있는 종류끼리) - 고른 종류들 선언의 합, 섹션은 그 섹션을 가진 종류 요소에만
+  const union = definition
+    ? null
+    : unionBatchSections(elements.map((element) => element.kind));
+  const ownerIdsOf = (section: PanelSectionDecl<Values>) => {
+    const kinds = union?.find((entry) => entry.section === section)?.kinds;
+    return elements
+      .filter((element) => kinds?.includes(element.kind))
+      .map(({ id }) => id);
+  };
+  const unionRenderers: PanelSectionRenderers = {
+    ...renderers,
+    custom: (component, section) =>
+      renderers.custom(component, section, ownerIdsOf(section)),
+    rows: (section) => (
+      <KindBatchRows
+        sceneId={sceneId}
+        elementIds={ownerIdsOf(section)}
+        section={section}
+        panelElement={panelElement}
+        t={t}
+      />
+    ),
+  };
+
   return (
     <div ref={setPanelElement} className={PANEL_ROOT_CLASS}>
       <div className="flex-shrink-0">{header}</div>
@@ -554,13 +347,13 @@ const DocumentBatchPanel = ({
           <EditSessionBoundary>
             <PanelSections
               sections={
-                definition
-                  ? definition.panel ?? defaultPanel(definition)
-                  : [{ common: 'geometry' }]
+                union
+                  ? union.map(({ section }) => section)
+                  : definition!.panel ?? defaultPanel(definition!)
               }
               items={items}
               batch
-              renderers={renderers}
+              renderers={union ? unionRenderers : renderers}
             />
           </EditSessionBoundary>
         </div>
