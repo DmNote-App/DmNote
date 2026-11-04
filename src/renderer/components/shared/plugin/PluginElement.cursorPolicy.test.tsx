@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import { I18nContext } from '@contexts/I18nContextDef';
 import { PluginElement } from '@components/shared/plugin/PluginElement';
+import { EditablePluginElement } from '@components/shared/plugin/EditablePluginElement';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
@@ -54,7 +55,11 @@ const renderElement = (windowType: 'main' | 'overlay') => {
       <I18nContext.Provider
         value={{ locale: 'ko', setLocale: async () => {}, t: (key) => key }}
       >
-        <PluginElement element={element} windowType={windowType} />
+        {windowType === 'main' ? (
+          <EditablePluginElement element={element} windowType={windowType} />
+        ) : (
+          <PluginElement element={element} windowType={windowType} />
+        )}
       </I18nContext.Provider>,
     );
   });

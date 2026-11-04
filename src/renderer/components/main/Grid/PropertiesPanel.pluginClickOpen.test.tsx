@@ -205,6 +205,7 @@ vi.mock('@components/main/common/dropdown/Dropdown', () => ({
 
 import { PluginElementsRenderer } from '@components/shared/plugin/PluginElementsRenderer';
 import PropertiesPanel from './PropertiesPanel';
+import { EditablePluginElement } from '@components/shared/plugin/EditablePluginElement';
 
 const SIMPLE_DEF_ID = 'simple-plugin:badge';
 const SIMPLE_FULL_ID = 'simple-plugin::11111111-1111-4111-8111-111111111111';
@@ -273,6 +274,7 @@ const flushRaf = () => {
 const Harness = () => (
   <>
     <PluginElementsRenderer
+      ElementComponent={EditablePluginElement}
       windowType="main"
       activeTool="select"
       positionOffset={{ x: 0, y: 0 }}

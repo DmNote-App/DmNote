@@ -1,32 +1,15 @@
-import React from 'react';
+import React, { type ComponentType } from 'react';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import { PluginElement } from './PluginElement';
-import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
-import type { MixedDragLifecycle } from '../../main/Grid/document/documentSelectionDrag';
+import type { EditablePluginElementProps } from './EditablePluginElement';
 
-interface PluginElementHostProps {
+// 창에 맞는 요소 - 편집 화면은 편집 가능한 요소, 오버레이·OBS는 그리기만.
+// 오버레이 번들에 편집 코드가 들지 않게 고르는 쪽(Grid·OverlayScene)이 넘긴다
+export type PluginElementComponent = ComponentType<EditablePluginElementProps>;
+
+interface PluginElementHostProps
+  extends Omit<EditablePluginElementProps, 'element'> {
   fullId: string;
-  windowType: 'main' | 'overlay';
-  activeTool?: string;
-  positionOffset?: { x: number; y: number };
-  zoom?: number;
-  panX?: number;
-  panY?: number;
-  isViewportTransforming?: boolean;
-  stackZIndex?: number;
-  fallbackZIndex?: number;
-  isSelected?: boolean;
-  selectedElements?: SelectedElement[];
-  onSelectionContextMenu?: (payload: {
-    elementId: string;
-    clientX: number;
-    clientY: number;
-    referenceElement: HTMLDivElement | null;
-  }) => boolean;
-  onMultiDrag?: (deltaX: number, deltaY: number) => void;
-  onMultiDragStart?: () => void | (() => void);
-  onMultiDragEnd?: () => void;
-  mixedDrag?: MixedDragLifecycle;
+  ElementComponent: PluginElementComponent;
 }
 
 /**
@@ -35,7 +18,11 @@ interface PluginElementHostProps {
  * 다른 요소의 갱신은 이 컴포넌트를 리렌더하지 않는다
  * (updateElement가 미변경 요소의 참조를 보존하므로 Object.is 비교로 차단됨)
  */
-const PluginElementHost = ({ fullId, ...rest }: PluginElementHostProps) => {
+const PluginElementHost = ({
+  fullId,
+  ElementComponent,
+  ...rest
+}: PluginElementHostProps) => {
   const element = usePluginDisplayElementStore((state) =>
     state.elements.find((el) => el.fullId === fullId),
   );
@@ -43,7 +30,7 @@ const PluginElementHost = ({ fullId, ...rest }: PluginElementHostProps) => {
   // 제거 직후 렌더 목록 갱신 전의 과도기 방어
   if (!element) return null;
 
-  return <PluginElement element={element} {...rest} />;
+  return <ElementComponent element={element} {...rest} />;
 };
 
 export default PluginElementHost;

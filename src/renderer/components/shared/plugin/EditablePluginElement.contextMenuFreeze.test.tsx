@@ -8,7 +8,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { I18nContext } from '@contexts/I18nContextDef';
-import { PluginElement } from '@components/shared/plugin/PluginElement';
+import { EditablePluginElement } from '@components/shared/plugin/EditablePluginElement';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
@@ -79,7 +79,7 @@ const renderElement = (element: PluginDisplayElementInternal) => {
       <I18nContext.Provider
         value={{ locale: 'ko', setLocale: async () => {}, t: (key) => key }}
       >
-        <PluginElement element={element} windowType="main" />
+        <EditablePluginElement element={element} windowType="main" />
       </I18nContext.Provider>,
     );
   });

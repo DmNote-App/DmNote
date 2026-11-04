@@ -2,7 +2,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PluginElement } from '@components/shared/plugin/PluginElement';
+import { EditablePluginElement } from '@components/shared/plugin/EditablePluginElement';
 import { I18nContext } from '@contexts/I18nContextDef';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useGridSelectionStore } from '@stores/grid/useGridSelectionStore';
@@ -96,7 +96,11 @@ describe('PluginElement 측정·설정 크기 수명주기', () => {
         <I18nContext.Provider
           value={{ locale: 'ko', setLocale: async () => {}, t: (key) => key }}
         >
-          <PluginElement element={element} windowType="main" zoom={zoom} />
+          <EditablePluginElement
+            element={element}
+            windowType="main"
+            zoom={zoom}
+          />
         </I18nContext.Provider>,
       );
     });

@@ -25,6 +25,7 @@ import ListPopup from '../../Modal/listPopup/ListPopup';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { PluginElementsRenderer } from '@components/shared/plugin/PluginElementsRenderer';
+import { EditablePluginElement } from '@components/shared/plugin/EditablePluginElement';
 import { useGridZoomPan } from '@hooks/Grid/viewport/useGridZoomPan';
 import {
   addCanvasElementAt,
@@ -734,6 +735,7 @@ const Grid = ({
           />
           <PluginElementsRenderer
             windowType="main"
+            ElementComponent={EditablePluginElement}
             activeTool={activeTool}
             zoom={zoom}
             panX={panX}

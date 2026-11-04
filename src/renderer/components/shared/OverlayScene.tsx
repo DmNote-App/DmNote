@@ -3,6 +3,7 @@ import { isMac } from '@utils/core/platform';
 import KeyCounterLayer from '@components/overlay/counters/KeyCounterLayer';
 import StatCounterLayer from '@components/overlay/counters/StatCounterLayer';
 import { PluginElementsRenderer } from '@components/shared/plugin/PluginElementsRenderer';
+import { PluginElement } from '@components/shared/plugin/PluginElement';
 import DocumentElementsLayer from '@src/renderer/elementKinds/runtime/DocumentElementsLayer';
 import { pointerInputSource } from '@src/renderer/elementKinds/runtime/pointerInput';
 import type {
@@ -172,6 +173,7 @@ const OverlayScene = ({
       {showPluginElements && positionOffset && (
         <PluginElementsRenderer
           windowType="overlay"
+          ElementComponent={PluginElement}
           positionOffset={positionOffset}
         />
       )}
