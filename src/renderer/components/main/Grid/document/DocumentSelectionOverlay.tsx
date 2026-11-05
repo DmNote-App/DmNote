@@ -19,7 +19,14 @@ import CanvasRotateHandle from '../handles/CanvasRotateHandle';
 import ResizeHandles from '../handles/ResizeHandles';
 import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
 import { useSpritePoseHandleStore } from '@stores/grid/useSpritePoseHandleStore';
-import { SELECTION_BORDER_WIDTH } from '../handles/selectionOutline';
+import GroupSelectionOutline from '../handles/GroupSelectionOutline';
+import {
+  GROUP_SELECTION_BORDER_COLOR,
+  GROUP_SELECTION_BORDER_WIDTH,
+  SELECTION_BORDER_WIDTH,
+  getSelectionOutlineEdges,
+  type GroupRotationFrame,
+} from '../handles/selectionOutline';
 import { editDocument, setDocumentFrame } from './documentEditActions';
 import { clampGroupResize, scaleDocumentFrames } from './documentGroupResize';
 import { startDocumentRotation } from './documentRotation';
@@ -31,6 +38,7 @@ import {
 import { useDocumentFramePreviewStore } from '@stores/grid/useDocumentFramePreviewStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import { isPluginKind } from '@src/types/elementKinds';
+import type { Frame } from '@src/types/generated/elementDocument';
 import {
   isKindResizable,
   useKindResizable,
@@ -49,6 +57,8 @@ interface SelectionItemProps extends DocumentSelectionOverlayProps {
   withHandles: boolean;
   // 여럿을 골랐는지 - 크기 조절이 안 되는 요소는 경고 윤곽 (묶음 크기 조절에서 빠진다)
   multi: boolean;
+  // 묶음 바깥 윤곽 틀 - 그 틀과 겹친 변은 묶음 윤곽이 그린다 (없으면 네 변 모두)
+  groupFrame: GroupRotationFrame | null;
 }
 
 const EMPTY_IDS: string[] = [];
@@ -91,6 +101,7 @@ const SelectionItem = ({
   id,
   withHandles,
   multi,
+  groupFrame,
   zoom,
   panX,
   panY,
@@ -127,6 +138,13 @@ const SelectionItem = ({
   const definition = elementKindDefinition(element.kind);
   const lockAspect =
     definition?.lockAspect?.((element.values ?? {}) as never) ?? false;
+  // 여럿을 고르면 옛 종류 다중 선택과 같은 모양 - 진한 색·각진 모서리, 묶음 틀과 겹친 변 생략
+  const edges = getSelectionOutlineEdges(frame, frame.rotation, groupFrame);
+  const color = !multi
+    ? 'var(--ui-selection-border)'
+    : resizable
+    ? GROUP_SELECTION_BORDER_COLOR
+    : 'var(--ui-warning)';
   return (
     <>
       <div
@@ -143,11 +161,15 @@ const SelectionItem = ({
           ...(frame.rotation
             ? { transform: `rotate(${frame.rotation}deg)` }
             : {}),
-          border:
-            multi && !resizable
-              ? `${SELECTION_BORDER_WIDTH}px dashed var(--ui-warning)`
-              : `${SELECTION_BORDER_WIDTH}px solid var(--ui-selection-border)`,
-          borderRadius: '4px',
+          borderWidth: multi
+            ? GROUP_SELECTION_BORDER_WIDTH
+            : SELECTION_BORDER_WIDTH,
+          borderStyle: multi && !resizable ? 'dashed' : 'solid',
+          borderTopColor: edges.top ? color : 'transparent',
+          borderRightColor: edges.right ? color : 'transparent',
+          borderBottomColor: edges.bottom ? color : 'transparent',
+          borderLeftColor: edges.left ? color : 'transparent',
+          borderRadius: multi ? 0 : '4px',
           pointerEvents: 'none',
           zIndex: 'var(--z-canvas-selection-outline)',
         }}
@@ -400,6 +422,30 @@ const DocumentGroupResizeHandles = ({
   );
 };
 
+/** 묶음 바깥 윤곽 틀 - 묶음 크기 조절 손잡이와 같은 요소(크기 조절되는 것), 크기 조절 중이면 미리보기 틀 */
+const documentGroupOutlineFrame = (
+  sceneId: string,
+  ids: readonly string[],
+  previews: Record<string, Frame>,
+): GroupRotationFrame | null => {
+  const store = getElementDocumentStore();
+  const entries = ids.flatMap((id) => {
+    const element = store?.getElement(sceneId, id);
+    if (!element || !isKindResizable(element.kind)) return [];
+    return [{ id, frame: previews[id] ?? element.frame }];
+  });
+  // 회전한 요소가 섞이면 공통 틀이 없다 (묶음 손잡이도 닫힌다)
+  if (
+    entries.length === 0 ||
+    entries.some(({ frame }) => frame.rotation !== 0)
+  ) {
+    return null;
+  }
+  return documentSelectionFrame(entries);
+};
+
+const NO_PREVIEWS: Record<string, Frame> = {};
+
 /** 트리 요소 선택 윤곽과 크기 조절·회전 핸들 - 옛 종류 선택과 같은 모양 */
 const DocumentSelectionOverlay = (props: DocumentSelectionOverlayProps) => {
   const ids = useDocumentSelectionStore((state) =>
@@ -417,6 +463,15 @@ const DocumentSelectionOverlay = (props: DocumentSelectionOverlayProps) => {
     (state) => state.session !== null,
   );
   const handlesOpen = !mixed && !gradientSession && !poseSession;
+  const groupOpen = ids.length > 1 && handlesOpen;
+  // 묶음 틀은 요소 틀·크기 조절 미리보기를 따른다
+  useElementDocumentScene(props.sceneId);
+  const previews = useDocumentFramePreviewStore((state) =>
+    groupOpen ? state.frames : NO_PREVIEWS,
+  );
+  const groupFrame = groupOpen
+    ? documentGroupOutlineFrame(props.sceneId, ids, previews)
+    : null;
   return (
     <>
       {ids.map((id) => (
@@ -426,9 +481,18 @@ const DocumentSelectionOverlay = (props: DocumentSelectionOverlayProps) => {
           id={id}
           withHandles={ids.length === 1 && handlesOpen}
           multi={ids.length > 1}
+          groupFrame={groupFrame}
         />
       ))}
-      {ids.length > 1 && handlesOpen && (
+      {groupFrame && (
+        <GroupSelectionOutline
+          bounds={groupFrame.bounds}
+          zoom={props.zoom}
+          panX={props.panX}
+          panY={props.panY}
+        />
+      )}
+      {groupOpen && (
         <>
           <DocumentGroupResizeHandles {...props} ids={ids} />
           <DocumentGroupRotateHandle {...props} ids={ids} />
