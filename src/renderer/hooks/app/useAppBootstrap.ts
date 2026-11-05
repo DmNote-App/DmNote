@@ -341,7 +341,11 @@ export function useAppBootstrap() {
           initialCounterContext,
         );
         counterRuntime.releaseCounterResync(initialCounterContext);
-        setAll(buildSettingsSnapshot(bootstrap, {}));
+        // tabNoteOverrides도 payload 내장값으로 함께 - 따로 받아오면 부트스트랩이 끝난 뒤에 탭별
+        // 노트 트랙 높이가 바뀌어 오버레이 창 크기가 한 번 더 요청된다 (네이티브가 그 차이만큼 창을 옮긴다)
+        setAll(
+          buildSettingsSnapshot(bootstrap, bootstrap.tabNoteOverrides ?? {}),
+        );
         useFontStore.setState({
           customFonts: bootstrap.settings.fontSettings.customFonts.map(
             (font) => ({ ...font }),
