@@ -137,8 +137,12 @@ const makeDocument = (values: SpriteValues): Document =>
   } as unknown as Document);
 
 const loadHarness = async () => {
+  // 목 등록은 처음 불러오는 모듈이 기다린다 - 여럿을 동시에 처음 불러오면 등록이 끝나기 전에
+  // 실물 모듈(invoke 대역은 undefined를 돌려준다)이 잡힐 수 있어 하나를 먼저 불러온다
+  const backend = await import(
+    '@src/renderer/__tests__/fakeElementDocumentBackend'
+  );
   const [
-    backend,
     runtime,
     overlays,
     panel,
@@ -150,7 +154,6 @@ const loadHarness = async () => {
     lifecycle,
     committedApply,
   ] = await Promise.all([
-    import('@src/renderer/__tests__/fakeElementDocumentBackend'),
     import('@src/renderer/editor/document/elementDocumentRuntime'),
     import('../overlays/GridSelectionOverlays'),
     import('@src/renderer/elementKinds/definitions/sprite/SpritePanelSection'),
