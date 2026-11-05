@@ -13,18 +13,8 @@ const REVEAL_DEADLINE_MS = 2500;
 const arePluginsSettled = (): boolean =>
   isLocalPluginRuntimeReady() && (!hasEnabledPlugins() || isMainPluginsReady());
 
-/**
- * 오버레이 초기 리빌 게이트
- *
- * 일반 요소는 부트스트랩 직후 나오는 반면 플러그인 요소는 메인의 주입·복구를 거쳐
- * 수백 ms 뒤에 도착해, 늦게 뜨는 요소와 뒤따르는 창 리사이즈가 덜컥거림으로 보인다.
- * 모든 요소가 자리 잡은 뒤 한 번에 보이도록 첫 페인트를 늦춘다 (1회성).
- */
-export function useOverlayReveal(
-  isBootstrapped: boolean,
-  resizePending: boolean,
-): boolean {
-  const [revealed, setRevealed] = useState(false);
+/** 플러그인 요소까지 나올 준비가 끝났는지 - 끝나면 되돌리지 않는다 (리빌·첫 창 크기 공용) */
+export function usePluginsSettled(): boolean {
   const [pluginsSettled, setPluginsSettled] = useState(arePluginsSettled);
 
   useEffect(() => {
@@ -37,6 +27,23 @@ export function useOverlayReveal(
     update();
     return subscribePluginReadiness(update);
   }, [pluginsSettled]);
+
+  return pluginsSettled;
+}
+
+/**
+ * 오버레이 초기 리빌 게이트
+ *
+ * 일반 요소는 부트스트랩 직후 나오는 반면 플러그인 요소는 메인의 주입·복구를 거쳐
+ * 수백 ms 뒤에 도착해, 늦게 뜨는 요소와 뒤따르는 창 리사이즈가 덜컥거림으로 보인다.
+ * 모든 요소가 자리 잡은 뒤 한 번에 보이도록 첫 페인트를 늦춘다 (1회성).
+ */
+export function useOverlayReveal(
+  isBootstrapped: boolean,
+  resizePending: boolean,
+): boolean {
+  const [revealed, setRevealed] = useState(false);
+  const pluginsSettled = usePluginsSettled();
 
   // 부트스트랩 실패·플러그인 미도착에도 화면이 열리도록 하는 마지막 방어선
   useEffect(() => {

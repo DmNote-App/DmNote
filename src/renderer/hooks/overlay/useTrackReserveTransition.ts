@@ -42,15 +42,21 @@ export function useTrackReserveTransition(
   hydrated: boolean,
 ): { trackHeight: number; contentFade: ContentFadeStyle | null } {
   const [applied, setApplied] = useState(target);
+  // 직전 렌더의 하이드레이션 여부 - 부트스트랩은 설정 적용과 완료 표시를 한 렌더로 묶을 수 있다
+  const [hydratedSeen, setHydratedSeen] = useState(hydrated);
   const [contentFade, setContentFade] = useState<ContentFadeStyle | null>(null);
   const runIdRef = useRef(0);
 
-  // 하이드레이션 전 값과, 예약이 유지되는 값 변경(트랙 높이 조절)은
-  // 전환 없이 같은 렌더 패스에서 채택
+  // 하이드레이션 전 값, 하이드레이션과 같은 렌더에 도착한 첫 값, 예약이 유지되는
+  // 값 변경(트랙 높이 조절)은 전환 없이 같은 렌더 패스에서 채택
   const adoptNow =
-    target !== applied && (!hydrated || (target > 0 && applied > 0));
+    target !== applied &&
+    (!hydrated || !hydratedSeen || (target > 0 && applied > 0));
   if (adoptNow) {
     setApplied(target);
+  }
+  if (hydrated !== hydratedSeen) {
+    setHydratedSeen(hydrated);
   }
 
   useEffect(() => {
