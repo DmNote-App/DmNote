@@ -140,7 +140,7 @@ export const useInPanelSelection = (sceneId: string, id: string): boolean =>
     () => false,
   );
 
-/** 옛 속성 패널이 보는 선택 구독 (일괄 패널·그라데이션 축·편집 화면 얼굴의 일괄 미리보기) */
+/** 옛 속성 패널이 보는 선택 구독 (스프라이트 기준점 손잡이 - 트리에만 있는 종류가 섞이면 하나 고른 것이 아니다) */
 export const usePanelSelection = (sceneId: string): SelectedElement[] => {
   const legacy = useDocumentSelectionStore((state) => state.selectedElements);
   const documentIds = useDocumentSelectionStore((state) =>
@@ -149,4 +149,22 @@ export const usePanelSelection = (sceneId: string): SelectedElement[] => {
   // 트리가 바뀌면(종류 확인·지운 요소) 다시 합친다
   const scene = useElementDocumentScene(sceneId);
   return panelSelectionOf(legacy, sceneId, documentIds, scene);
+};
+
+const panelEditElementsOf = (
+  legacy: SelectedElement[],
+  sceneId: string,
+  documentIds: readonly string[],
+  _scene?: unknown,
+) => propertyPanelSelectionOf(legacy, sceneId, documentIds).elements;
+
+/** 속성 패널이 편집하는 선택 구독 (그라데이션 축·바깥 카운터 일괄 미리보기) - 트리에만 있는 종류가 섞여도
+ * 고른 종류들 선언의 합 패널이 함께 편집하는 옛 종류·플러그인 요소 */
+export const usePanelEditSelection = (sceneId: string): SelectedElement[] => {
+  const legacy = useDocumentSelectionStore((state) => state.selectedElements);
+  const documentIds = useDocumentSelectionStore((state) =>
+    state.sceneId === sceneId ? state.selectedIds : EMPTY_IDS,
+  );
+  const scene = useElementDocumentScene(sceneId);
+  return panelEditElementsOf(legacy, sceneId, documentIds, scene);
 };

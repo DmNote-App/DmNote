@@ -4,7 +4,10 @@ import GroupResizeHandles from '../handles/GroupResizeHandles';
 import GradientAxisOverlay from '../handles/GradientAxisHandle';
 import SpriteCanvasHandles from '../handles/SpriteCanvasHandles';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
-import { usePanelSelection } from '../document/treeEditedSelection';
+import {
+  usePanelEditSelection,
+  usePanelSelection,
+} from '../document/treeEditedSelection';
 import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
 import { projectSpriteResize } from '@utils/sprite/resizeProjection';
 import {
@@ -73,7 +76,9 @@ const GridSelectionOverlays = ({
   onGroupResizeEnd,
   getOtherElements,
 }: GridSelectionOverlaysProps) => {
-  // 일괄 그라데이션 축은 패널이 편집하는 선택(트리로 옮긴 옛 종류 포함)을 감싼다
+  // 일괄 그라데이션 축은 패널이 편집하는 선택(트리로 옮긴 옛 종류 포함, 트리에만 있는 종류가 섞여도)을 감싼다
+  const panelEditSelection = usePanelEditSelection(mode);
+  // 스프라이트 기준점 손잡이는 하나 고른 스프라이트만 - 트리에만 있는 종류가 섞이면 닫는다
   const panelSelection = usePanelSelection(mode);
   // 기준점·자세 손잡이 - 트리에서 그리는 스프라이트는 트리 틀(끌기·크기 미리보기 포함)을 따른다
   const framedSprites = useTreeFramedPositions(
@@ -240,7 +245,7 @@ const GridSelectionOverlays = ({
         )}
       <GradientAxisOverlay
         positionOf={positionOf}
-        selectedElements={panelSelection}
+        selectedElements={panelEditSelection}
         zoom={zoom}
         panX={panX}
         panY={panY}

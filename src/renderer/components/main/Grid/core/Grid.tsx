@@ -72,7 +72,7 @@ import DocumentContextMenu from '../document/DocumentContextMenu';
 import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
 import {
   structureTargetIds,
-  usePanelSelection,
+  usePanelEditSelection,
 } from '../document/treeEditedSelection';
 import { useDocumentContextMenuStore } from '@stores/grid/useDocumentContextMenuStore';
 import DocumentGridLayer from '../document/DocumentGridLayer';
@@ -246,7 +246,7 @@ const Grid = ({
     previewVersion,
   );
 
-  const panelSelection = usePanelSelection(selectedKeyType);
+  const panelSelection = usePanelEditSelection(selectedKeyType);
   // 키·스탯의 바깥 카운터는 트리 틀을 따라간다
   const keyCounterPositions = useTreeFramedPositions('key', selectedKeyType);
   const statCounterPositions = useTreeFramedPositions('stat', selectedKeyType);

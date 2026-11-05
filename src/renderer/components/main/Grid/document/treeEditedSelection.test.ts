@@ -34,6 +34,7 @@ import {
   panelSelectionOf,
   propertyPanelSelectionOf,
   useInPanelSelection,
+  usePanelEditSelection,
 } from './treeEditedSelection';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
@@ -182,6 +183,37 @@ describe('요소 하나의 패널 선택 여부', () => {
       useDocumentSelectionStore.getState().setSelection('4key', ['t1']),
     );
     expect(renders).toEqual([false, true, false]);
+    act(() => root.unmount());
+  });
+});
+
+describe('패널이 편집하는 선택 구독 (그라데이션 축·바깥 카운터 일괄 미리보기)', () => {
+  beforeEach(() => {
+    useKeyStore.setState({ selectedKeyType: '4key' });
+    useDocumentSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clear();
+  });
+
+  it('트리에만 있는 종류가 섞여도 패널이 함께 편집하는 노브·플러그인 요소를 돌려준다', () => {
+    (
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    const onRender = vi.fn<(selected: unknown) => void>();
+    const Probe = () => {
+      onRender(usePanelEditSelection('4key'));
+      return null;
+    };
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(createElement(Probe)));
+    act(() =>
+      useDocumentSelectionStore
+        .getState()
+        .setSelection('4key', ['n1', 't1', 'p::1']),
+    );
+    expect(onRender.mock.lastCall![0]).toEqual([
+      knob,
+      { type: 'plugin', id: 'p::1' },
+    ]);
     act(() => root.unmount());
   });
 });
