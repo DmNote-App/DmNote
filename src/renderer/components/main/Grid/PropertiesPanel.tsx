@@ -43,7 +43,7 @@ import { usePropertiesPanelSelection } from './PropertiesPanel/selection/useProp
 import { usePanelNavigation } from './PropertiesPanel/navigation/usePanelNavigation';
 import { createBatchSelectionModel } from './PropertiesPanel/batch/batchSelectionModel';
 import { shouldNormalizePropertyTabToStyle } from './PropertiesPanel/selection/propertyPanelAdapters';
-import { panelSelectionOf } from './document/treeEditedSelection';
+import { propertyPanelSelectionOf } from './document/treeEditedSelection';
 import { usePropertiesPanelRename } from './PropertiesPanel/navigation/usePropertiesPanelRename';
 import { usePluginSettingsPanelController } from './PropertiesPanel/plugin/usePluginSettingsPanelController';
 import { usePropertiesPanelVisibility } from './PropertiesPanel/navigation/usePropertiesPanelVisibility';
@@ -209,14 +209,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   // 이전 렌더의 effect가 최신 탭을 덮지 않도록 커밋 직전 재확인
   useEffect(() => {
     const latestTab = usePropertiesPanelStore.getState().propertyPanelActiveTab;
-    // 패널이 보는 선택 - 트리 요소 선택을 합친다
+    // 패널이 편집하는 선택 - 트리 요소 선택을 합친다 (트리에만 있는 종류가 섞여도)
     const selection = useDocumentSelectionStore.getState();
     const latestSelection = selection.sceneId
-      ? panelSelectionOf(
+      ? propertyPanelSelectionOf(
           selection.selectedElements,
           selection.sceneId,
           selection.selectedIds,
-        )
+        ).elements
       : selection.selectedElements;
     if (shouldNormalizePropertyTabToStyle(latestSelection, latestTab)) {
       setActiveTab(TABS.STYLE);
