@@ -8,6 +8,7 @@ import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayEle
 import { useTranslation } from '@contexts/useTranslation';
 import { html, styleMap, css } from '@utils/plugin/components/templateEngine';
 import { translatePluginMessage } from '@utils/plugin/pluginI18n';
+import { stableStringify } from '@utils/core/stableStringify';
 import { usePluginElementMeasurementRuntime } from './usePluginElementMeasurementRuntime';
 import { usePluginElementOverlayRuntime } from './usePluginElementOverlayRuntime';
 
@@ -98,9 +99,9 @@ export const usePluginElementView = ({
       return;
     }
 
-    // 설정이 실제로 변경되었는지 확인
+    // 설정이 실제로 변경되었는지 확인 - 키 순서만 다른 같은 값(트리 응답)은 변경이 아니다
     const hasChanged =
-      JSON.stringify(currentSettings) !== JSON.stringify(prevSettings);
+      stableStringify(currentSettings) !== stableStringify(prevSettings);
 
     if (hasChanged) {
       // 모든 리스너에게 변경 알림

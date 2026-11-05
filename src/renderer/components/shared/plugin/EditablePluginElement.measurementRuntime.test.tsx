@@ -289,6 +289,38 @@ describe('PluginElement 측정·설정 크기 수명주기', () => {
     },
   );
 
+  it('키 순서만 다른 설정(트리 응답)은 설정 변경이 아니라 다시 재거나 옮기지 않는다', () => {
+    const definition = makeDefinition({
+      resizable: true,
+      preserveAxis: 'width',
+      resizeAnchor: 'bottom-left',
+    });
+    // 만든 직후 설정은 삽입 순서, 트리에서 돌아온 설정은 백엔드가 정렬한 키 순서다
+    renderElement(
+      makeElement({
+        resizeAnchor: 'bottom-left',
+        settings: { showKps: true, graphColor: '#86EFAC' },
+        measuredSize: { width: 200, height: 150 },
+      }),
+      definition,
+    );
+    measurementMocks.measure.mockReturnValue({ width: 200, height: 131 });
+
+    renderElement(
+      makeElement({
+        resizeAnchor: 'bottom-left',
+        settings: { graphColor: '#86EFAC', showKps: true },
+        measuredSize: { width: 200, height: 150 },
+      }),
+      definition,
+    );
+    for (const callback of [...frameCallbacks.values()]) {
+      act(() => callback(performance.now()));
+    }
+
+    expect(measurementMocks.updateElement).not.toHaveBeenCalled();
+  });
+
   it('콘텐츠 크기 변경은 resize anchor offset과 크기를 한 update에 반영한다', () => {
     const definition = makeDefinition({
       resizable: true,
