@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGridContextMenu } from '@hooks/Grid/contextMenu/useGridContextMenu';
 import { usePanelHostStore } from '@stores/grid/usePanelHostStore';
 import en from '@src/renderer/locales/en.json';
+import ja from '@src/renderer/locales/ja.json';
 import ko from '@src/renderer/locales/ko.json';
 import ru from '@src/renderer/locales/ru.json';
 import zhHant from '@src/renderer/locales/zh-Hant.json';
@@ -57,6 +58,7 @@ vi.mock('@stores/useSettingsStore', () => ({
 
 const locales = {
   en,
+  ja,
   ko,
   ru,
   'zh-Hant': zhHant,
@@ -213,7 +215,7 @@ describe('그리드 컨텍스트 메뉴', () => {
   });
 
   // 메뉴가 실제로 부르는 키만 지킨다. 쓰이지 않는 키를 지키면 번역이 비어도 통과한다
-  it('메뉴가 쓰는 키는 5개 로케일 모두 번역을 갖는다', () => {
+  it('메뉴가 쓰는 키는 모든 로케일 모두 번역을 갖는다', () => {
     const used = [
       'currentTabGroup',
       'resetPositionGroup',

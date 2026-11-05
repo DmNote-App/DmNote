@@ -9,6 +9,7 @@ import {
 } from '@src/renderer/__tests__/deferredContentHarness';
 import Alert from './Alert';
 import en from '@src/renderer/locales/en.json';
+import ja from '@src/renderer/locales/ja.json';
 import ko from '@src/renderer/locales/ko.json';
 import ru from '@src/renderer/locales/ru.json';
 import zhHant from '@src/renderer/locales/zh-Hant.json';
@@ -69,6 +70,7 @@ describe('Alert 긴 문구 레이아웃', () => {
 describe('확인 문구 개행 계약', () => {
   const locales = {
     en,
+    ja,
     ko,
     ru,
     'zh-Hant': zhHant,
