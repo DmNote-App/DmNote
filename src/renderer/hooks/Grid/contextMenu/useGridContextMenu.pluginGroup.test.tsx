@@ -11,6 +11,7 @@ import {
   useGridContextMenu,
 } from '@hooks/Grid/contextMenu/useGridContextMenu';
 import en from '@src/renderer/locales/en.json';
+import ja from '@src/renderer/locales/ja.json';
 import ko from '@src/renderer/locales/ko.json';
 import ru from '@src/renderer/locales/ru.json';
 import zhHant from '@src/renderer/locales/zh-Hant.json';
@@ -272,10 +273,11 @@ describe('빈 바닥 메뉴 플러그인 묶음', () => {
     );
   });
 
-  it('5개 로케일 모두 묶음 라벨을 갖는다', () => {
+  it('모든 로케일 모두 묶음 라벨을 갖는다', () => {
     mount();
     const locales = {
       en,
+      ja,
       ko,
       ru,
       'zh-Hant': zhHant,
