@@ -42,6 +42,7 @@ export const graphKind = defineElementKind(
   {
     // 편집 화면은 고정 미리보기 기록, 오버레이·OBS는 스탯 신호로 쌓은 기록을 같은 그리기로 그린다
     render: GraphFace as never,
+    surfaceShadow: false,
     faceOwnsClassName: true,
     placesItself: true,
     title: (values) => `${getStatTypeLabel(values.statType)} Graph`,

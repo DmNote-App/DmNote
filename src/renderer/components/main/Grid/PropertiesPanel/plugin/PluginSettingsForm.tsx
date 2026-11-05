@@ -3,6 +3,7 @@ import Checkbox from '@components/main/common/checkbox/Checkbox';
 import Dropdown from '@components/main/common/dropdown/Dropdown';
 import {
   normalizeSettingsSections,
+  normalizeSettingsSectionsOfMany,
   type SettingsNormalizationErrorKind,
 } from '@plugins/runtime/settingsSections';
 import type {
@@ -18,6 +19,13 @@ import {
   TextInput,
 } from '../controls/PropertyInputs';
 
+// 같은 정의의 요소 여럿 - 값이 다른 칸은 Mixed, 어느 요소에서라도 보이는 칸을 보인다
+export interface PluginSettingsBatch {
+  mixedKeys: ReadonlySet<string>;
+  // 요소마다 보일 설정 값 (values는 첫 요소 값)
+  valuesList: readonly Record<string, unknown>[];
+}
+
 export type PluginSettingsFormRenderer = (
   schema: Record<string, PluginSettingSchema> | undefined,
   values: Record<string, unknown>,
@@ -25,11 +33,13 @@ export type PluginSettingsFormRenderer = (
   pluginId: string,
   colorIdPrefix: string,
   onChange: (key: string, value: unknown) => void,
+  batch?: PluginSettingsBatch,
 ) => React.ReactNode;
 
 interface PluginSettingsFormProps {
   schema: Record<string, PluginSettingSchema> | undefined;
   values: Record<string, unknown>;
+  batch?: PluginSettingsBatch;
   messages: PluginMessages | undefined;
   pluginId: string;
   colorIdPrefix: string;
@@ -56,9 +66,14 @@ const getPluginInputWidth = (
   return '200px';
 };
 
+const MixedLabel = () => (
+  <span className="text-fg-faint text-body italic">Mixed</span>
+);
+
 const PluginSettingsForm = ({
   schema,
   values,
+  batch,
   messages,
   pluginId,
   colorIdPrefix,
@@ -68,11 +83,14 @@ const PluginSettingsForm = ({
   reportNormalizationError,
   t,
 }: PluginSettingsFormProps) => {
-  const sections = normalizeSettingsSections(
-    schema,
-    values,
-    (key, error, kind) => reportNormalizationError(pluginId, key, error, kind),
-  );
+  const report = (
+    key: string,
+    error: unknown,
+    kind: SettingsNormalizationErrorKind,
+  ) => reportNormalizationError(pluginId, key, error, kind);
+  const sections = batch
+    ? normalizeSettingsSectionsOfMany(schema, batch.valuesList, report)
+    : normalizeSettingsSections(schema, values, report);
   if (!sections.some((section) => section.renderVisible)) {
     return (
       <p className="text-fg-caption text-body text-center">
@@ -97,6 +115,7 @@ const PluginSettingsForm = ({
     renderVisible: boolean,
   ) => {
     if (!renderVisible) return null;
+    const mixed = batch?.mixedKeys.has(key) ?? false;
     const rawValue =
       values[key] !== undefined ? values[key] : schemaValue.default;
     const labelText = translate(schemaValue.label, schemaValue.label);
@@ -128,6 +147,8 @@ const PluginSettingsForm = ({
           colorId={`${colorIdPrefix}-${key}`}
           panelElement={panelElement}
           solidOnly={true}
+          hexMixed={mixed}
+          alphaMixed={mixed}
         />
       );
     } else if (schemaValue.type === 'number') {
@@ -152,19 +173,27 @@ const PluginSettingsForm = ({
           step={schemaValue.step}
           onChange={(nextValue) => onChange(key, nextValue)}
           width={getPluginInputWidth('number', rawValue)}
+          isMixed={mixed}
         />
       );
     } else if (schemaValue.type === 'string') {
       const stringValue =
-        rawValue === undefined || rawValue === null ? '' : String(rawValue);
+        mixed || rawValue === undefined || rawValue === null
+          ? ''
+          : String(rawValue);
       control = (
         <TextInput
           value={stringValue}
           onChange={(nextValue) => onChange(key, nextValue)}
           placeholder={
-            typeof placeholderText === 'string' ? placeholderText : undefined
+            mixed
+              ? 'Mixed'
+              : typeof placeholderText === 'string'
+              ? placeholderText
+              : undefined
           }
           width={getPluginInputWidth('string', stringValue)}
+          isMixed={mixed}
         />
       );
     } else if (schemaValue.type === 'select') {
@@ -185,6 +214,7 @@ const PluginSettingsForm = ({
         <Dropdown
           commitStrategy="after-paint"
           value={selectedValue}
+          mixed={mixed}
           options={options}
           placeholder={
             typeof placeholderText === 'string' &&
@@ -206,13 +236,17 @@ const PluginSettingsForm = ({
           className="flex justify-between items-center w-full min-h-[32px]"
         >
           <p className="text-fg-muted text-label">{labelText}</p>
-          <div className="flex items-center gap-[10.5px]">{control}</div>
+          <div className="flex items-center gap-[10.5px]">
+            {mixed && <MixedLabel />}
+            {control}
+          </div>
         </div>
       );
     }
 
     return (
       <PropertyRow key={key} label={labelText}>
+        {mixed && schemaValue.type === 'select' && <MixedLabel />}
         {control}
       </PropertyRow>
     );

@@ -573,3 +573,67 @@ describe('모드 전환 선택 리셋', () => {
     expect(clearSelection).not.toHaveBeenCalled();
   });
 });
+
+// 오버레이 창 크기는 부트스트랩이 끝난 레이아웃으로 처음 요청한다 - 그 뒤에 탭별 노트 트랙
+// 높이가 바뀌면 네이티브가 그 차이만큼 창을 옮긴다
+describe('초기 부트스트랩의 탭별 노트 설정', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let originalApi: Window['api'];
+  let originalWindowType: typeof window.__dmn_window_type;
+  let originalRuntime: typeof window.__dmn_runtime;
+
+  beforeEach(() => {
+    originalApi = window.api;
+    originalWindowType = window.__dmn_window_type;
+    originalRuntime = window.__dmn_runtime;
+    window.__dmn_window_type = 'overlay';
+    window.__dmn_runtime = 'tauri';
+    mocks.keyState = {
+      selectedKeyType: '4key',
+      isBootstrapped: false,
+      customTabs: [],
+    };
+    mocks.keyStoreListeners.clear();
+    mocks.bootstrap.mockReset();
+    useSettingsStore.setState({ tabNoteOverrides: {} });
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    window.api = originalApi;
+    window.__dmn_window_type = originalWindowType;
+    window.__dmn_runtime = originalRuntime;
+    useSettingsStore.setState({ tabNoteOverrides: {} });
+    vi.restoreAllMocks();
+  });
+
+  it('응답에 든 값을 부트스트랩이 끝나기 전에 함께 넣는다', async () => {
+    const overrides = { '4key': { trackHeight: 400 } };
+    mocks.bootstrap.mockResolvedValue({
+      ...makeBootstrap(),
+      tabNoteOverrides: overrides,
+    });
+    // 따로 받아오는 응답은 오지 않는다 - 부트스트랩 응답만으로 들어가야 한다
+    const api = makeApiMock();
+    vi.mocked(api.noteTab.getAll).mockReturnValue(new Promise(() => {}));
+    window.api = api;
+    let atBootstrapped: unknown = null;
+    mocks.keyStoreListeners.add((state, previous) => {
+      if (state.isBootstrapped && !previous.isBootstrapped) {
+        atBootstrapped = useSettingsStore.getState().tabNoteOverrides;
+      }
+    });
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(<Harness />);
+    });
+
+    expect(mocks.keyState.isBootstrapped).toBe(true);
+    expect(atBootstrapped).toEqual(overrides);
+  });
+});

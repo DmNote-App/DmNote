@@ -5,10 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { FakeElementDocumentBackend } from '@src/renderer/__tests__/fakeElementDocumentBackend';
 import type { Document } from '@src/types/generated/elementDocument';
-import type {
-  CanonicalReactiveSpritePosition,
-  ElementCollections,
-} from '@src/types/editor';
+import type { CanonicalReactiveSpritePosition } from '@src/types/editor';
 
 const SPRITE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const POSE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
@@ -104,27 +101,28 @@ const makeDocument = (): Document =>
   } as unknown as Document);
 
 const loadHarness = async () => {
+  // 목 등록은 처음 불러오는 모듈이 기다린다 - 여럿을 동시에 처음 불러오면 등록이 끝나기 전에
+  // 실물 모듈(invoke 대역은 undefined를 돌려준다)이 잡힐 수 있어 하나를 먼저 불러온다
+  const backend = await import(
+    '@src/renderer/__tests__/fakeElementDocumentBackend'
+  );
   const [
-    backend,
     runtime,
     overlays,
     panel,
     overlay,
-    records,
     selection,
     position,
     dragSession,
     spriteFace,
     editPreview,
   ] = await Promise.all([
-    import('@src/renderer/__tests__/fakeElementDocumentBackend'),
     import('@src/renderer/editor/document/elementDocumentRuntime'),
     import('../overlays/GridSelectionOverlays'),
     import('@src/renderer/elementKinds/definitions/sprite/SpritePanelSection'),
     import('@src/renderer/editor/runtime/gesture/previewOverlay'),
-    import('@src/renderer/elementKinds/runtime/treePanelRecords'),
     import('@stores/grid/useDocumentSelectionStore'),
-    import('@src/renderer/elementKinds/runtime/treeElementPosition'),
+    import('@src/renderer/elementKinds/runtime/viewFields'),
     import('@hooks/Grid/drag/dragSession'),
     import('@src/renderer/elementKinds/definitions/sprite/SpritePreview'),
     import('@stores/grid/useSpriteEditPreviewStore'),
@@ -139,9 +137,9 @@ const loadHarness = async () => {
     useSpriteEditPreviewStore: editPreview.useSpriteEditPreviewStore,
     subscribePreviewOverlay: overlay.subscribePreviewOverlay,
     getPreviewOverlayVersion: overlay.getPreviewOverlayVersion,
-    treePanelRecords: records.treePanelRecords,
+    viewFieldsLookup: position.viewFieldsLookup,
     useDocumentSelectionStore: selection.useDocumentSelectionStore,
-    currentTreePosition: position.currentTreePosition,
+    currentFieldsOf: position.currentFieldsOf,
     releaseDragSession: dragSession.releaseDragSession,
   };
 };
@@ -158,21 +156,14 @@ describe('자세 손잡이 저장 후 실제 팝업 닫기와 다시 열기 (트
       harness.subscribePreviewOverlay,
       harness.getPreviewOverlayVersion,
     );
-    const records = harness.treePanelRecords(
+    const positionOf = harness.viewFieldsLookup(
       harness.useScene('4key'),
       '4key',
       previewVersion,
     );
-    const collections = {
-      keyPositions: records.positions,
-      statPositions: records.statItemPositions,
-      graphPositions: records.graphItemPositions,
-      knobPositions: records.knobItemPositions,
-      spritePositions: records.spriteItemPositions,
-    } as unknown as ElementCollections;
-    const position = collections.spritePositions['4key']?.find(
-      (candidate) => candidate.id === SPRITE_ID,
-    ) as CanonicalReactiveSpritePosition | undefined;
+    const position = positionOf(SPRITE_ID) as unknown as
+      | CanonicalReactiveSpritePosition
+      | undefined;
     if (!position) return null;
     return (
       <>
@@ -192,7 +183,7 @@ describe('자세 손잡이 저장 후 실제 팝업 닫기와 다시 열기 (트
         ) : null}
         <harness.GridSelectionOverlays
           selectedElements={[]}
-          collections={collections}
+          positionOf={positionOf}
           mode="4key"
           pluginElements={[]}
           zoom={1}
@@ -233,7 +224,7 @@ describe('자세 손잡이 저장 후 실제 팝업 닫기와 다시 열기 (트
   const backend = () => ipc.backend!;
   const poses = () =>
     (
-      harness.currentTreePosition('4key', SPRITE_ID) as unknown as {
+      harness.currentFieldsOf('4key', SPRITE_ID) as unknown as {
         poses: Array<Record<string, unknown>>;
       }
     ).poses;

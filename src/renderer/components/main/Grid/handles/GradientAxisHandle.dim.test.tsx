@@ -32,6 +32,7 @@ import {
   type GradientEditSession,
 } from '@stores/grid/useGradientEditStore';
 import type { KeyPosition } from '@src/types/key/keys';
+import { positionLookupOf } from '@src/renderer/__tests__/positionLookup';
 
 const session: GradientEditSession = {
   anchor: { kind: 'key', id: 'k1' },
@@ -65,17 +66,14 @@ describe('그라데이션 축 오버레이 흐림', () => {
     act(() => {
       root.render(
         <GradientAxisOverlay
-          collections={
-            {
-              keyPositions: positions,
-              statPositions: {},
-              graphPositions: {},
-              knobPositions: {},
-              spritePositions: {},
-            } as never
-          }
+          positionOf={positionLookupOf({
+            keyPositions: positions,
+            statPositions: {},
+            graphPositions: {},
+            knobPositions: {},
+            spritePositions: {},
+          } as never)}
           selectedElements={[]}
-          selectedKeyType="4key"
           zoom={1}
           panX={0}
           panY={0}

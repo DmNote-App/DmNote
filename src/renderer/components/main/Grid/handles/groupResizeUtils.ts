@@ -4,10 +4,6 @@
  */
 
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
-import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
-  type ElementCollections,
-} from '@src/types/editor';
 import { fallbackElementSize } from '@src/types/elementKinds';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
@@ -248,7 +244,6 @@ export function isElementResizable(
 }
 
 type GeometryPosition = {
-  id: string;
   dx: number;
   dy: number;
   width?: number;
@@ -256,25 +251,23 @@ type GeometryPosition = {
   rotation?: number;
 };
 
+/** 요소의 지금 틀 찾기(id) - 지금 탭 트리의 보이는 칸(편집 미리보기 포함) */
+export type ElementPositionLookup = (
+  id: string,
+) => GeometryPosition | undefined;
+
 const findNativePosition = (
   element: SelectedElement,
-  collections: ElementCollections,
-  selectedKeyType: string,
-): GeometryPosition | undefined => {
-  if (element.type === 'plugin') return undefined;
-  const modePositions = collections[
-    EDITOR_ELEMENT_POSITION_FIELDS[element.type]
-  ][selectedKeyType] as readonly GeometryPosition[] | undefined;
-  return modePositions?.find((candidate) => candidate.id === element.id);
-};
+  positionOf: ElementPositionLookup,
+): GeometryPosition | undefined =>
+  element.type === 'plugin' ? undefined : positionOf(element.id);
 
 /**
  * 요소의 bounds 가져오기 (스프라이트는 활동 영역 박스가 곧 리사이즈 대상)
  */
 export function getElementBounds(
   element: SelectedElement,
-  collections: ElementCollections,
-  selectedKeyType: string,
+  positionOf: ElementPositionLookup,
   pluginElements: PluginDisplayElementInternal[],
 ): Bounds | null {
   if (element.type === 'plugin') {
@@ -289,7 +282,7 @@ export function getElementBounds(
       height: pluginEl.measuredSize.height,
     };
   }
-  const pos = findNativePosition(element, collections, selectedKeyType);
+  const pos = findNativePosition(element, positionOf);
   if (!pos) return null;
   const fallback = fallbackElementSize(element.type);
   return {
@@ -305,8 +298,7 @@ export function getElementBounds(
  */
 export function calculateGroupBounds(
   selectedElements: SelectedElement[],
-  collections: ElementCollections,
-  selectedKeyType: string,
+  positionOf: ElementPositionLookup,
   pluginElements: PluginDisplayElementInternal[],
 ): (Bounds & { elementBounds: ElementBounds[] }) | null {
   let minX = Infinity;
@@ -321,12 +313,7 @@ export function calculateGroupBounds(
       continue;
     }
 
-    const bounds = getElementBounds(
-      element,
-      collections,
-      selectedKeyType,
-      pluginElements,
-    );
+    const bounds = getElementBounds(element, positionOf, pluginElements);
     if (!bounds) continue;
 
     elementBoundsList.push({ element, bounds });
@@ -363,14 +350,9 @@ export function getNonResizableElementIds(
 // 요소 배치 회전(도). 자세 회전은 별도 채널이며 플러그인은 0
 export function getElementRotation(
   element: SelectedElement,
-  collections: ElementCollections,
-  selectedKeyType: string,
+  positionOf: ElementPositionLookup,
 ): number {
-  const rotation = findNativePosition(
-    element,
-    collections,
-    selectedKeyType,
-  )?.rotation;
+  const rotation = findNativePosition(element, positionOf)?.rotation;
   return typeof rotation === 'number' && Number.isFinite(rotation)
     ? rotation
     : 0;

@@ -8,6 +8,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const mocks = vi.hoisted(() => ({
   axisListener: null as null | ((event: { axisId: string }) => void),
   patchAxis: vi.fn(() => Promise.resolve(true)),
+  patchAxes: vi.fn(() => Promise.resolve(true)),
 }));
 
 vi.mock('@utils/input/axisEventBus', () => ({
@@ -23,6 +24,7 @@ vi.mock('@utils/input/axisEventBus', () => ({
 }));
 vi.mock('@src/renderer/editor/runtime/operations/elementOps', () => ({
   patchKnobAxisIdById: mocks.patchAxis,
+  patchKnobAxisIdByIds: mocks.patchAxes,
 }));
 vi.mock('@contexts/useTranslation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -157,5 +159,28 @@ describe('노브 축 매핑', () => {
 
     expect(mocks.patchAxis).toHaveBeenCalledExactlyOnceWith(A, 'HIDA:done');
     expect(button().textContent).not.toBe('propertiesPanel.knobCapturing');
+  });
+
+  it('여러 노브를 고르면 감지한 축을 고른 노브 모두에 커밋 하나로 쓰고, 축이 다르면 감지 안내를 보인다', () => {
+    act(() => {
+      root.render(
+        <KnobAxisControl
+          value="HIDA:a"
+          isMixed
+          onCommit={vi.fn()}
+          elementIds={[A, B]}
+        />,
+      );
+    });
+    expect(button().textContent).toBe('propertiesPanel.knobCapture');
+
+    act(() => button().click());
+    expect(button().textContent).toBe('propertiesPanel.knobCapturing');
+    emitAxis('HIDA:3');
+    emitAxis('HIDA:3');
+    emitAxis('HIDA:3');
+
+    expect(mocks.patchAxes).toHaveBeenCalledWith([A, B], 'HIDA:3');
+    expect(mocks.patchAxis).not.toHaveBeenCalled();
   });
 });

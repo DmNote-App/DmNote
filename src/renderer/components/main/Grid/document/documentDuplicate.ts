@@ -1,7 +1,7 @@
 // 우클릭 복제 - 고스트로 자리를 고른 뒤 그 자리에 트리 요소 사본을 넣는다 (옛 복제 배치와 같은 흐름)
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
-import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
+import { keySlotOf } from '@src/renderer/elementKinds/definitions/key/keySlotInfo';
+import { panelFieldViewOf } from '@src/renderer/elementKinds/runtime/fieldView';
 import { isEditorElementType } from '@src/types/editor';
 import type { DuplicateState } from '@hooks/Grid/contextMenu/useGridCanvasActions';
 import { slotDisplayName } from '@utils/keySlot';
@@ -18,8 +18,8 @@ export const beginDocumentDuplicate = (
   return {
     elementType: element.kind,
     sourceId: id,
-    keyName: slotDisplayName(treeKeySlot(element) ?? ''),
-    position: legacyPositionOf(element) as never,
+    keyName: slotDisplayName(keySlotOf(element) ?? ''),
+    position: panelFieldViewOf(element) as never,
   };
 };
 

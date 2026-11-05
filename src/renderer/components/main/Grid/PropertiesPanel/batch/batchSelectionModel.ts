@@ -1,15 +1,14 @@
-import type { GraphItemPositions } from '@src/types/key/graphItems';
-import type {
-  KeyMappings,
-  KeyPosition,
-  KeyPositions,
-} from '@src/types/key/keys';
-import type { KnobItemPositions } from '@src/types/key/knobs';
-import type { StatItemPositions } from '@src/types/key/statItems';
-import type {
-  CanonicalReactiveSpritePosition,
-  EditorElementTypeV1,
-} from '@src/types/editor';
+import type { GraphItemPosition } from '@src/types/key/graphItems';
+import type { KeyPosition } from '@src/types/key/keys';
+import type { KnobItemPosition } from '@src/types/key/knobs';
+import type { StatItemPosition } from '@src/types/key/statItems';
+import type { EditorElementTypeV1 } from '@src/types/editor';
+import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
+import {
+  panelFieldViewOf,
+  type PanelFieldView,
+} from '@src/renderer/elementKinds/runtime/fieldView';
+import { keySlotOf } from '@src/renderer/elementKinds/definitions/key/keySlotInfo';
 import { getKeyInfoByGlobalKey } from '@utils/input/KeyMaps';
 import { aggregateMixedValue } from '@src/renderer/components/main/Grid/PropertiesPanel/batch/mixedValue';
 import { slotCanonical, slotDisplayName } from '@utils/keySlot';
@@ -20,35 +19,6 @@ interface BatchSelectedElement<Type extends string> {
   type: Type;
   id: string;
 }
-
-interface IndexedPosition<Position> {
-  index: number;
-  position: Position;
-}
-
-const indexPositionsById = <Position extends { id?: string }>(
-  positions: readonly Position[],
-): Map<string, IndexedPosition<Position>> => {
-  const index = new Map<string, IndexedPosition<Position>>();
-  positions.forEach((position, positionIndex) => {
-    if (!position.id || index.has(position.id)) return;
-    index.set(position.id, { index: positionIndex, position });
-  });
-  return index;
-};
-
-const groupPositionsById = <Position extends { id?: string }>(
-  positions: readonly Position[],
-): Map<string, Position[]> => {
-  const groups = new Map<string, Position[]>();
-  positions.forEach((position) => {
-    if (!position.id) return;
-    const group = groups.get(position.id);
-    if (group) group.push(position);
-    else groups.set(position.id, [position]);
-  });
-  return groups;
-};
 
 const indexSelectionDataById = <Data extends { position: { id?: string } }>(
   data: readonly Data[],
@@ -63,14 +33,10 @@ const indexSelectionDataById = <Data extends { position: { id?: string } }>(
 };
 
 export interface BatchSelectionModelInput {
-  selectedKeyType: string;
-  positions: KeyPositions;
-  canonicalPositions: KeyPositions;
-  keyMappings: KeyMappings;
-  statItemPositions: StatItemPositions;
-  graphItemPositions: GraphItemPositions;
-  knobItemPositions: KnobItemPositions;
-  spriteItemPositions: Record<string, CanonicalReactiveSpritePosition[]>;
+  // 지금 탭 트리 요소(id로) - 지금 칸(미리보기 없음)·키 슬롯
+  elementOf: (id: string) => ElementNode | undefined;
+  // 보이는 칸(id로) - 트리 칸 보기 + 편집 미리보기
+  viewOf: (id: string) => PanelFieldView | undefined;
   selectedKeyElements: readonly BatchSelectedElement<'key'>[];
   selectedKeyLikeElements: readonly BatchSelectedElement<'key' | 'stat'>[];
   selectedGraphElements: readonly BatchSelectedElement<'graph'>[];
@@ -81,14 +47,8 @@ export interface BatchSelectionModelInput {
 }
 
 export const createBatchSelectionModel = ({
-  selectedKeyType,
-  positions,
-  canonicalPositions,
-  keyMappings,
-  statItemPositions,
-  graphItemPositions,
-  knobItemPositions,
-  spriteItemPositions,
+  elementOf,
+  viewOf,
   selectedKeyElements,
   selectedKeyLikeElements,
   selectedGraphElements,
@@ -96,49 +56,38 @@ export const createBatchSelectionModel = ({
   selectedBatchStyleElements,
   selectedBatchGeometryElements,
 }: BatchSelectionModelInput) => {
-  const modePositions = positions[selectedKeyType] ?? [];
-  const modeCanonicalPositions = canonicalPositions[selectedKeyType] ?? [];
-  const modeKeyMappings = keyMappings[selectedKeyType] ?? [];
-  const modeStatPositions = statItemPositions[selectedKeyType] ?? [];
-  const modeGraphPositions = graphItemPositions[selectedKeyType] ?? [];
-  const modeKnobPositions = knobItemPositions[selectedKeyType] ?? [];
-  const modeSpritePositions = spriteItemPositions[selectedKeyType] ?? [];
-
-  const keyIndex = indexPositionsById(modePositions);
-  const statIndex = indexPositionsById(modeStatPositions);
-  const graphIndex = indexPositionsById(modeGraphPositions);
-  const knobIndex = indexPositionsById(modeKnobPositions);
-  const spriteIndex = indexPositionsById(modeSpritePositions);
-  const canonicalKeyGroups = groupPositionsById(modeCanonicalPositions);
+  // 그 종류 요소의 보이는 칸 - 트리에 없거나 종류가 다르면 없음
+  const positionOf = <Position = KeyPosition>(
+    element: BatchSelectedElement<string>,
+  ) =>
+    elementOf(element.id)?.kind === element.type
+      ? (viewOf(element.id) as unknown as Position | undefined)
+      : undefined;
 
   const selectedKeysData = selectedKeyLikeElements
     .map((element) => {
       if (element.type === 'key') {
-        const indexed = keyIndex.get(element.id);
-        if (!indexed) return null;
-        const { index, position } = indexed;
-        const slot = modeKeyMappings[index] ?? null;
-        const keyCode = slot != null ? slotCanonical(slot) : null;
-        const keyInfo =
-          slot != null && keyCode
-            ? typeof slot === 'string'
-              ? getKeyInfoByGlobalKey(slot)
-              : {
-                  browserKey: keyCode,
-                  globalKey: keyCode,
-                  displayName: slotDisplayName(slot),
-                }
-            : null;
-        return { index, position, keyCode, keyInfo };
+        const position = positionOf(element);
+        if (!position) return null;
+        const slot = keySlotOf(elementOf(element.id)) ?? '';
+        const keyCode = slotCanonical(slot);
+        const keyInfo = keyCode
+          ? typeof slot === 'string'
+            ? getKeyInfoByGlobalKey(slot)
+            : {
+                browserKey: keyCode,
+                globalKey: keyCode,
+                displayName: slotDisplayName(slot),
+              }
+          : null;
+        return { position, keyCode, keyInfo };
       }
-      const indexed = statIndex.get(element.id);
-      if (!indexed) return null;
-      const { index, position } = indexed;
+      const position = positionOf<StatItemPosition>(element);
+      if (!position) return null;
       const statLabel =
         (position.displayText || '').trim() ||
         getStatTypeLabel(position.statType ?? null);
       return {
-        index,
         position,
         keyCode: null,
         keyInfo: { globalKey: statLabel, displayName: statLabel },
@@ -148,12 +97,10 @@ export const createBatchSelectionModel = ({
 
   const selectedGraphsData = selectedGraphElements
     .map((element) => {
-      const indexed = graphIndex.get(element.id);
-      if (!indexed) return null;
-      const { index, position } = indexed;
+      const position = positionOf<GraphItemPosition>(element);
+      if (!position) return null;
       const graphLabel = `${getStatTypeLabel(position.statType ?? null)} Graph`;
       return {
-        index,
         position,
         keyCode: null,
         keyInfo: { globalKey: graphLabel, displayName: graphLabel },
@@ -163,12 +110,10 @@ export const createBatchSelectionModel = ({
 
   const selectedKnobsData = selectedKnobElements
     .map((element) => {
-      const indexed = knobIndex.get(element.id);
-      if (!indexed) return null;
-      const { index, position } = indexed;
+      const position = positionOf<KnobItemPosition>(element);
+      if (!position) return null;
       const knobLabel = (position.displayText || '').trim() || 'Knob';
       return {
-        index,
         position,
         keyCode: null,
         keyInfo: { globalKey: knobLabel, displayName: knobLabel },
@@ -189,38 +134,37 @@ export const createBatchSelectionModel = ({
     .map((element) => styleDataIndexByType[element.type].get(element.id))
     .filter((data): data is NonNullable<typeof data> => data !== undefined);
 
-  const selectedKeyOnlyPositions = selectedKeyElements
-    .map((element) => keyIndex.get(element.id) ?? null)
-    .filter((value): value is NonNullable<typeof value> => value !== null);
+  const selectedKeyOnlyPositions = selectedKeyElements.flatMap((element) => {
+    const position = positionOf(element);
+    return position ? [{ position }] : [];
+  });
 
   // 크기 표시·Mixed 판정 전용. resize가 실제로 조절하는 집합에서 그대로 파생시켜
   // 두 집합이 갈릴 수 없게 한다 - 스타일 집합에는 스프라이트가 없어서 그걸 쓰면
   // 키 60·스프라이트 200이 Mixed 없이 60으로 보이고, 그 값을 확정하면
   // 스프라이트의 모든 자세 오프셋까지 배율이 먹는다
-  const geometryIndexByType = {
-    key: keyIndex,
-    stat: statIndex,
-    graph: graphIndex,
-    knob: knobIndex,
-    sprite: spriteIndex,
-  };
-  const selectedGeometryPositions = selectedBatchGeometryElements
-    .map((element) => {
-      const indexed = geometryIndexByType[element.type].get(element.id);
-      return indexed ? (indexed.position as KeyPosition) : null;
-    })
-    .filter((position): position is KeyPosition => position !== null);
+  const selectedGeometryPositions = selectedBatchGeometryElements.flatMap(
+    (element) => {
+      const position = positionOf(element);
+      return position ? [position] : [];
+    },
+  );
 
   const selectedActiveCapablePositions: KeyPosition[] = [
     ...selectedKeyOnlyPositions.map(({ position }) => position),
     ...selectedKnobElements.flatMap((element) => {
-      const indexed = knobIndex.get(element.id);
-      return indexed ? [indexed.position] : [];
+      const position = positionOf(element);
+      return position ? [position] : [];
     }),
   ];
+  // 지금 칸(미리보기 없음)
   const selectedCanonicalKeyPositions = selectedKeyLikeElements.flatMap(
-    (element) =>
-      element.type === 'key' ? canonicalKeyGroups.get(element.id) ?? [] : [],
+    (element) => {
+      const node = element.type === 'key' ? elementOf(element.id) : undefined;
+      return node?.kind === 'key'
+        ? [panelFieldViewOf(node) as unknown as KeyPosition]
+        : [];
+    },
   );
 
   const getSelectedKeysData = () => selectedKeysData;

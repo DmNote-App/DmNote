@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from '@contexts/useTranslation';
 import { usePanelHost } from '@contexts/PanelHostContext';
-import { useSettingsStore } from '@stores/useSettingsStore';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import {
   getDefaultSettings,
@@ -17,7 +16,6 @@ import {
   TABS,
   LayerPanel,
   PluginSelectionPanel,
-  BatchKeyLikePanel,
   BatchPluginOnlyPanel,
   PluginSettingsPanelView,
   usePanelScroll,
@@ -34,17 +32,22 @@ import { EditSessionScope } from '@src/renderer/contexts/EditSessionScope';
 import DocumentElementPanel from './PropertiesPanel/document/DocumentElementPanel';
 import DocumentBatchPanel from './PropertiesPanel/document/DocumentBatchPanel';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
-import PluginSettingsForm from './PropertiesPanel/plugin/PluginSettingsForm';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import PluginSettingsForm, {
+  type PluginSettingsBatch,
+} from './PropertiesPanel/plugin/PluginSettingsForm';
+import BatchPluginSettings from './PropertiesPanel/plugin/BatchPluginSettings';
+import { aggregateMixedValue } from './PropertiesPanel/batch/mixedValue';
+import { pluginSettingsGroups } from './PropertiesPanel/plugin/pluginSettingsGroups';
 import { usePropertiesPanelSelection } from './PropertiesPanel/selection/usePropertiesPanelSelection';
 import { usePanelNavigation } from './PropertiesPanel/navigation/usePanelNavigation';
 import { createBatchSelectionModel } from './PropertiesPanel/batch/batchSelectionModel';
 import { shouldNormalizePropertyTabToStyle } from './PropertiesPanel/selection/propertyPanelAdapters';
-import { panelSelectionOf } from './document/treeEditedSelection';
+import { propertyPanelSelectionOf } from './document/treeEditedSelection';
 import { usePropertiesPanelRename } from './PropertiesPanel/navigation/usePropertiesPanelRename';
 import { usePluginSettingsPanelController } from './PropertiesPanel/plugin/usePluginSettingsPanelController';
 import { usePropertiesPanelVisibility } from './PropertiesPanel/navigation/usePropertiesPanelVisibility';
 import { usePropertiesPanelBatchGeometry } from './PropertiesPanel/batch/geometry/usePropertiesPanelBatchGeometry';
-import { usePropertiesPanelBatchCommitHandlers } from './PropertiesPanel/batch/usePropertiesPanelBatchCommitHandlers';
 import { useBatchColorPickerController } from './PropertiesPanel/batch/style/useBatchColorPickerController';
 
 // ============================================================================
@@ -73,18 +76,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const { document: hostDocument } = usePanelHost();
   const {
     selectedElements,
-    legacySelectionCount,
-    bridgedDocumentSelection,
+    treeOnlyIds,
+    batchGeometryTargets,
     selectedKeyType,
-    positions,
-    canonicalPositions,
-    keyMappings,
-    statItemPositions,
-    graphItemPositions,
-    knobItemPositions,
-    spriteItemPositions,
+    elementOf,
+    viewOf,
     selectedKeyElements,
-    selectedStatElements,
     selectedGraphElements,
     selectedKnobElements,
     selectedSpriteElements,
@@ -93,6 +90,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     selectedBatchGeometryElements,
     selectedPluginElements,
     selectedPluginElement,
+    pluginElements,
+    pluginDefinitions,
     stableBatchGeometryTargets,
     stablePluginGeometryElements,
     stablePluginGeometryTargets,
@@ -112,25 +111,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     singleSpritePosition,
     selectedGroupInfo,
   } = usePropertiesPanelSelection();
+  // 일괄 피커 기준값(키 데이터)과 크기 칸 값 - 패널 몸체는 선언 일괄 패널이 같은 모델로 따로 만든다
   const {
     getSelectedKeysData,
-    getSelectedBatchStyleData,
     getSelectedKeyOnlyPositions,
-    getMixedValue,
-    getMixedValueCanonical,
-    getMixedValueBatch,
     getMixedValueGeometry,
-    getMixedValueActiveCapable,
-    getMixedValueKeysOnly,
   } = createBatchSelectionModel({
-    selectedKeyType,
-    positions,
-    canonicalPositions,
-    keyMappings,
-    statItemPositions,
-    graphItemPositions,
-    knobItemPositions,
-    spriteItemPositions,
+    elementOf,
+    viewOf,
     selectedKeyElements,
     selectedKeyLikeElements,
     selectedGraphElements,
@@ -138,7 +126,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     selectedBatchStyleElements,
     selectedBatchGeometryElements,
   });
-  const { useCustomCSS } = useSettingsStore();
   const {
     pluginSettingsPanel,
     pluginPanelSettings,
@@ -222,14 +209,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   // 이전 렌더의 effect가 최신 탭을 덮지 않도록 커밋 직전 재확인
   useEffect(() => {
     const latestTab = usePropertiesPanelStore.getState().propertyPanelActiveTab;
-    // 패널이 보는 선택 - 트리 요소 선택을 합친다
+    // 패널이 편집하는 선택 - 트리 요소 선택을 합친다 (트리에만 있는 종류가 섞여도)
     const selection = useDocumentSelectionStore.getState();
     const latestSelection = selection.sceneId
-      ? panelSelectionOf(
+      ? propertyPanelSelectionOf(
           selection.selectedElements,
           selection.sceneId,
           selection.selectedIds,
-        )
+        ).elements
       : selection.selectedElements;
     if (shouldNormalizePropertyTabToStyle(latestSelection, latestTab)) {
       setActiveTab(TABS.STYLE);
@@ -373,25 +360,16 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     handleBatchAlign,
     handleBatchDistribute,
     handleBatchSpacing,
-    handleBatchSpacingPreview,
     handleBatchSpacingCommit,
     getBatchSpacingValue,
     handleBatchResize,
     handleBatchResizePreview,
   } = usePropertiesPanelBatchGeometry({
     selectedKeyType,
-    selectedBatchGeometryElements,
+    batchGeometryTargets,
     stableBatchGeometryTargets,
     stablePluginGeometryElements,
     stablePluginGeometryTargets,
-  });
-
-  const {
-    handleBatchElementPropertyCommit,
-    handleBatchNoteElementPropertyCommit,
-  } = usePropertiesPanelBatchCommitHandlers({
-    selectedBatchStyleElements,
-    selectedKeyElements,
   });
 
   // 정규화 진단 리포터 — 플러그인·키당 1회만 기록, empty-state 단락 경로의
@@ -419,10 +397,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     pluginId: string,
     colorIdPrefix: string,
     onChange: (key: string, value: unknown) => void,
+    batch?: PluginSettingsBatch,
   ) => (
     <PluginSettingsForm
       schema={schema}
       values={values}
+      batch={batch}
       messages={messages}
       pluginId={pluginId}
       colorIdPrefix={colorIdPrefix}
@@ -443,13 +423,16 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   // 플러그인 단독 다중은 경량 기하 배치 패널에 라우트
   const renderSelectionPanelBody = () => {
     const selectionTotalCount =
-      selectedBatchGeometryElements.length + selectedPluginElements.length;
+      selectedBatchGeometryElements.length +
+      selectedPluginElements.length +
+      treeOnlyIds.length;
     const route = resolveSelectionPanelRoute({
       keyLikeCount: selectedKeyLikeElements.length,
       graphCount: selectedGraphElements.length,
       knobCount: selectedKnobElements.length,
       spriteCount: selectedSpriteElements.length,
       pluginCount: selectedPluginElements.length,
+      treeOnlyCount: treeOnlyIds.length,
       hasSinglePosition: !!(
         singleKeyPosition ||
         singleStatPosition ||
@@ -458,8 +441,37 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         singleSpritePosition
       ),
     });
+    // 크기 일괄이 고치는 플러그인 요소(크기를 정하는 정의)·트리에만 있는 종류 요소의 크기
+    const resizablePluginSizes = (stablePluginGeometryElements ?? []).filter(
+      ({ resizable }) => resizable,
+    );
+    const treeOnlySizes = treeOnlyIds.flatMap((id) => {
+      const frame = getElementDocumentStore()?.getElement(
+        documentSceneId ?? selectedKeyType,
+        id,
+      )?.frame;
+      return frame ? [frame] : [];
+    });
+    const extraSizes = [...resizablePluginSizes, ...treeOnlySizes];
+    // 함께 고른 플러그인 요소의 설정 - 정의마다 섹션 하나 (설정 모달을 쓰는 정의는 하나씩)
+    const pluginGroups = pluginSettingsGroups(
+      selectedPluginElements.flatMap(({ id }) => {
+        const element = pluginElements.find(({ fullId }) => fullId === id);
+        return element ? [element] : [];
+      }),
+      pluginDefinitions,
+    );
+    const batchPluginSettings =
+      pluginGroups.length > 0 ? (
+        <BatchPluginSettings
+          groups={pluginGroups}
+          renderPluginSettingsForm={renderPluginSettingsForm}
+          reportNormalizationError={reportPluginNormalizationError}
+        />
+      ) : null;
     // 옛 종류 일괄 선택의 개수·그룹·일괄 기하 (플러그인 요소 포함) - 선언 일괄 패널에 넘긴다
     const legacyBatchHost = {
+      pluginSettings: batchPluginSettings,
       totalCount: selectionTotalCount,
       groupInfo: selectedGroupInfo,
       geometry: {
@@ -468,84 +480,63 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         handleBatchSpacing,
         handleBatchSpacingCommit,
         getBatchSpacingValue,
-        // 크기 조절이 고치는 대상 전부(스프라이트 포함)로 모은다 - 고른 종류만 모으면 섞인 크기가 가려진다
-        getBatchSizeValue: (dimension: 'width' | 'height') =>
-          getMixedValueGeometry((position) => position[dimension], 60),
+        // 크기 조절이 고치는 대상 전부(스프라이트·크기를 정하는 플러그인 포함)로 모은다 - 고른 종류만 모으면
+        // 섞인 크기가 가려진다
+        getBatchSizeValue: (dimension: 'width' | 'height') => {
+          const native = getMixedValueGeometry(
+            (position) => position[dimension],
+            60,
+          );
+          const others = extraSizes.map((size) => size[dimension]);
+          if (selectedBatchGeometryElements.length === 0) {
+            return aggregateMixedValue(others, (value) => value, 60);
+          }
+          return {
+            value: native.value,
+            isMixed:
+              native.isMixed || others.some((value) => value !== native.value),
+          };
+        },
         handleBatchResize,
         handleBatchResizePreview,
       },
     };
 
-    // 다중 선택인 경우 (키/통계 포함, 또는 그래프+노브 혼합)
+    // 키·스탯이 들거나 여러 종류가 섞인 다중 선택 (플러그인 요소와 함께) - 고른 종류들 선언의 합
     if (route.kind === 'batchKeyLike') {
       return (
-        <BatchKeyLikePanel
-          setPanelElement={setPanelElement}
-          totalCount={selectionTotalCount}
-          selectedBatchStyleElements={selectedBatchStyleElements}
-          selectedKeyElements={selectedKeyElements}
-          selectedStatElements={selectedStatElements}
-          selectedGraphElements={selectedGraphElements}
-          selectedKnobElements={selectedKnobElements}
-          selectedKeyLikeElements={selectedKeyLikeElements}
-          selectedGroupInfo={selectedGroupInfo}
-          isRenaming={isRenaming}
-          renameInputRef={renameInputRef}
-          renameValue={renameValue}
-          setRenameValue={setRenameValue}
-          renameCancelledRef={renameCancelledRef}
-          handleRenameCommit={handleRenameCommit}
-          handleRenameCancel={handleRenameCancel}
-          handleRenameStart={handleRenameStart}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          handleBatchAlign={handleBatchAlign}
-          handleBatchDistribute={handleBatchDistribute}
-          handleBatchSpacing={handleBatchSpacing}
-          handleBatchSpacingPreview={handleBatchSpacingPreview}
-          handleBatchSpacingCommit={handleBatchSpacingCommit}
-          getBatchSpacingValue={getBatchSpacingValue}
-          handleBatchResize={handleBatchResize}
-          handleBatchResizePreview={handleBatchResizePreview}
-          onElementPropertyCommit={handleBatchElementPropertyCommit}
-          onNoteElementPropertyCommit={handleBatchNoteElementPropertyCommit}
-          getMixedValue={getMixedValue}
-          getMixedValueCanonical={getMixedValueCanonical}
-          getMixedValueBatch={getMixedValueBatch}
-          getMixedValueGeometry={getMixedValueGeometry}
-          getMixedValueKeysOnly={getMixedValueKeysOnly}
-          getMixedValueActiveCapable={getMixedValueActiveCapable}
-          getSelectedKeysData={getSelectedKeysData}
-          getSelectedBatchStyleData={getSelectedBatchStyleData}
-          getSelectedKeyOnlyPositions={getSelectedKeyOnlyPositions}
-          batchScrollRefFor={batchScrollRefFor}
-          batchNoteColorButtonRef={batchNoteColorButtonRef}
-          batchGlowColorButtonRef={batchGlowColorButtonRef}
-          batchBorderColorButtonRef={batchBorderColorButtonRef}
-          batchCounterFillButtonRef={batchCounterFillButtonRef}
-          batchImageButtonRef={batchImageButtonRef}
-          showBatchImagePicker={showBatchImagePicker}
-          setShowBatchImagePicker={setShowBatchImagePicker}
-          batchPickerFor={batchPickerFor}
-          setBatchPickerFor={setBatchPickerFor}
-          batchCounterColorState={effectiveBatchCounterColorState}
-          setBatchCounterColorState={setBatchCounterColorState}
-          batchLocalColors={batchLocalColors}
-          setBatchLocalColors={setBatchLocalColors}
-          handleBatchPickerToggle={handleBatchPickerToggle}
-          handleBatchPickerColorChange={handleBatchPickerColorChange}
-          handleBatchPickerColorChangeComplete={
-            handleBatchPickerColorChangeComplete
-          }
-          handleBatchFillPickerColorChangeComplete={
-            handleBatchFillPickerColorChangeComplete
-          }
-          getBatchPickerColor={getBatchPickerColor}
-          getBatchPickerRef={getBatchPickerRef}
-          batchColorPickerInteractiveRefs={batchColorPickerInteractiveRefs}
+        <DocumentBatchPanel
+          sceneId={selectedKeyType}
+          elementIds={[
+            ...selectedBatchGeometryElements.map(({ id }) => id),
+            ...treeOnlyIds,
+          ]}
           panelElement={panelElement}
-          useCustomCSS={useCustomCSS}
-          selectedKeyType={selectedKeyType}
+          setPanelElement={setPanelElement}
+          legacyHost={legacyBatchHost}
+          keyLikeHost={{
+            batchScrollRefFor,
+            batchNoteColorButtonRef,
+            batchGlowColorButtonRef,
+            batchBorderColorButtonRef,
+            batchCounterFillButtonRef,
+            batchImageButtonRef,
+            showBatchImagePicker,
+            setShowBatchImagePicker,
+            batchPickerFor,
+            setBatchPickerFor,
+            batchCounterColorState: effectiveBatchCounterColorState,
+            setBatchCounterColorState,
+            batchLocalColors,
+            setBatchLocalColors,
+            handleBatchPickerToggle,
+            handleBatchPickerColorChange,
+            handleBatchPickerColorChangeComplete,
+            handleBatchFillPickerColorChangeComplete,
+            getBatchPickerColor,
+            getBatchPickerRef,
+            batchColorPickerInteractiveRefs,
+          }}
           t={t}
         />
       );
@@ -616,6 +607,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           handleBatchSpacingCommit={handleBatchSpacingCommit}
           getBatchSpacingValue={getBatchSpacingValue}
           batchScrollRefFor={batchScrollRefFor}
+          sizeGeometry={
+            resizablePluginSizes.length > 0
+              ? legacyBatchHost.geometry
+              : undefined
+          }
+          pluginSettings={batchPluginSettings}
           t={t}
         />
       );
@@ -701,29 +698,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    // 옛 종류 요소와 트리에만 있는 종류가 섞인 선택 - 함께 편집하는 패널이 생기기 전까지 레이어 패널로
-    // 둘 다 보인다 (트리로 옮긴 옛 종류만 섞였으면 옛 패널이 함께 본다).
-    // 이미 속성 모드라 행 더블클릭은 모드를 뒤집지 않고 속성 모드를 지킨다
-    if (
-      documentSceneId &&
-      documentSelectedIds.length > 0 &&
-      legacySelectionCount > 0 &&
-      !bridgedDocumentSelection
-    ) {
-      return (
-        <LayerPanel
-          onSwitchToProperty={() => setPanelMode('property')}
-          onSelectionFromPanel={() => {
-            selectionFromLayerPanelRef.current = true;
-          }}
-        />
-      );
-    }
-
+    // 트리에만 있는 종류만 고른 선택 - 트리 패널. 옛 종류·플러그인 요소와 섞이면 아래 일괄 라우트가
+    // 고른 종류들 선언의 합으로 함께 그린다
+    const treeOnlySelection =
+      treeOnlyIds.length > 0 && selectedElements.length === 0;
     if (
       documentSceneId &&
       documentSelectedIds.length > 1 &&
-      !bridgedDocumentSelection
+      treeOnlySelection
     ) {
       return (
         <EditSessionScope>
@@ -739,7 +721,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       );
     }
 
-    if (documentSceneId && documentElementId && !bridgedDocumentSelection) {
+    if (documentSceneId && documentElementId && treeOnlySelection) {
       return (
         <EditSessionScope>
           <DocumentElementPanel
@@ -788,15 +770,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     selectedKeyElements.length > 0 ||
     selectedElements.length > 0 ||
     documentElementId !== null;
-  // 트리 요소와 섞인 선택은 레이어 패널을 보이므로 머리도 레이어로
-  const mixedSelection =
-    documentSelectedIds.length > 0 &&
-    legacySelectionCount > 0 &&
-    !bridgedDocumentSelection;
   const displayedPanelMode =
-    panelMode === 'layer' || !hasAnySelection || mixedSelection
-      ? 'layer'
-      : 'property';
+    panelMode === 'layer' || !hasAnySelection ? 'layer' : 'property';
 
   // 프레임이 글래스를 소유하고, 루트/서브 페이지가 그 안에서 슬라이드 전환.
   // 열림/닫힘 모두 같은 프래그먼트 구조 유지 — 토글 버튼이 리마운트되면

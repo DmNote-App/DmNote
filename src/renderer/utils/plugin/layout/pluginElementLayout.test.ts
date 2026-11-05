@@ -35,19 +35,27 @@ describe('pluginElementLayout', () => {
     ).toEqual({ dx: -20, dy: 0 });
   });
 
-  it('canonical 키 앵커와 오프셋으로 표시 위치를 결정한다', () => {
+  it('키 앵커와 오프셋으로 표시 위치를 결정한다', () => {
+    const keyPositionOf = (keyCode: string) =>
+      keyCode === 'KeyA' ? { x: 100, y: 200 } : null;
     expect(
       resolvePluginElementPosition({
         element: {
           ...element,
           anchor: { keyCode: 'KeyA', offset: { x: 4, y: -2 } },
         },
-        positions: { '4key': [{ dx: 100, dy: 200 }] },
-        keyMappings: { '4key': ['KeyA'] },
-        selectedKeyType: '4key',
+        keyPositionOf,
         positionOffset: { x: 10, y: 20 },
       }),
     ).toEqual({ x: 114, y: 218 });
+    // 앵커 키가 탭에 없으면 자기 위치
+    expect(
+      resolvePluginElementPosition({
+        element: { ...element, anchor: { keyCode: 'KeyZ' } },
+        keyPositionOf,
+        positionOffset: { x: 10, y: 20 },
+      }),
+    ).toEqual({ x: 20, y: 40 });
   });
 
   it('창 유형별 transform과 resizable hit box 계약을 유지한다', () => {

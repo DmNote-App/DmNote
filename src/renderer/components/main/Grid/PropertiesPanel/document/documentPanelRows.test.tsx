@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -22,6 +30,15 @@ vi.mock('@components/main/common/numberInput/NumberInput', () => ({
 }));
 
 const { FieldRow } = await import('./documentPanelRows');
+const { BUILTIN_ELEMENT_KINDS } = await import(
+  '@src/renderer/elementKinds/builtinKinds'
+);
+const { preloadPanelControls } = await import(
+  '@src/renderer/elementKinds/runtime/lazyPanelControl'
+);
+
+// 모듈이 불러 두기 시작한 지연 섹션이 다 읽힌 뒤 끝낸다 (환경을 거둔 뒤 읽지 않게)
+afterAll(() => preloadPanelControls(BUILTIN_ELEMENT_KINDS as never));
 
 // 입력 중 값을 패널에만 두는 숫자 칸(노브 민감도)
 const row = {

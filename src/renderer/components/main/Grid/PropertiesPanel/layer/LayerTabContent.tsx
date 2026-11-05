@@ -6,7 +6,6 @@ import { usePopupPresence } from '@hooks/ui/usePopupPresence';
 import { useRetainedWhileOpen } from '@hooks/ui/useRetainedValue';
 import { useLenis } from '@hooks/useLenis';
 import { usePanelHost } from '@contexts/PanelHostContext';
-import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
 import ListPopup, {
   type ListItem,
 } from '@components/main/Modal/listPopup/ListPopup';
@@ -46,9 +45,9 @@ import {
   layerRowIndent,
   type DocumentLayerRowModel,
 } from './documentLayerModel';
-import { buildLayerLabels, legacyIndicesOf } from './layerPanelModel';
+import { buildLayerLabels } from './layerPanelModel';
 import { slotDisplayName } from '@utils/keySlot';
-import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
+import { keySlotOf } from '@src/renderer/elementKinds/definitions/key/keySlotInfo';
 import {
   LayerElementRow,
   LayerGroupRow,
@@ -99,23 +98,14 @@ const LayerTabContent = ({
   const toggleCollapsed = useLayerCollapseStore((state) => state.toggle);
   const rows = documentLayerRows(scene, collapsed);
 
-  // 이름이 비었을 때의 기본 이름 - 트리의 슬롯·종류 이름 (지금 값)
-  const records = treePanelRecords(scene, sceneId);
+  // 이름이 비었을 때의 기본 이름 - 트리의 슬롯·고유 값·옛 순번 (지금 값)
   const pluginElements = usePluginDisplayElementStore(
     selectPropertyPanelPluginElements,
   );
-  // 옛 배열 순번 - 기본 이름 번호 (구독한 장면에서)
-  const storedIndices = legacyIndicesOf(scene);
   const labels = buildLayerLabels({
+    scene,
     selectedKeyType: sceneId,
-    positions: records.canonicalPositions as never,
-    keyMappings: records.keyMappings as never,
-    statPositions: records.canonicalStatItemPositions as never,
-    graphPositions: records.canonicalGraphItemPositions as never,
-    knobPositions: records.canonicalKnobItemPositions as never,
-    spritePositions: records.canonicalSpritePositions as never,
     pluginElements,
-    storedIndexOf: (id) => storedIndices.get(id),
   });
 
   const documentSelected = useDocumentSelectionStore((state) =>
@@ -172,7 +162,7 @@ const LayerTabContent = ({
   // 이름이 비었을 때 보이는 이름
   const defaultNameOf = (node: ElementNode) => {
     // 키는 트리 입력 슬롯 이름 (슬롯 바꾸기가 트리 연산 - 낙관 적용)
-    const slot = slotDisplayName(treeKeySlot(node) ?? '');
+    const slot = slotDisplayName(keySlotOf(node) ?? '');
     if (slot) return slot;
     const fallback = labels.defaultNames.get(node.id);
     if (fallback) return fallback;

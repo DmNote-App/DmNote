@@ -42,8 +42,9 @@ interface BatchSurfaceRowsProps {
   effectiveColorState: 'idle' | 'active';
   showStateTabs: boolean;
   onStateModeChange: (state: 'idle' | 'active') => void;
-  /** 이미지가 기본 립을 억제하는 요소인지 - 키·통계만 (그래프·노브 렌더는 억제하지 않는다) */
-  imageSuppressesDefaultBorder: boolean;
+  /** 이미지가 기본 립을 억제하는 요소인지 - 키·통계만 (그래프·노브 렌더는 억제하지 않는다).
+   * 여러 종류가 섞이면 요소마다 */
+  imageSuppressesDefaultBorder: boolean | ((position: KeyPosition) => boolean);
   // 선택 구성 시그니처 - 형식 왕복 기억·드래그 소유권이 다른 배치 선택과 교차하지 않게
   batchSelectionKey: string;
   onStylePropertyPreview?: (patch: EditorStylePropertyPreviewPatchV1) => void;
@@ -90,7 +91,9 @@ export const BatchSurfaceRows = ({
     // 테두리는 미지정 시 앱 기본 립이 들어가므로 렌더와 같은 해석기로 읽는다
     const border = resolveElementBorder(position, active, {
       suppressDefault:
-        imageSuppressesDefaultBorder &&
+        (typeof imageSuppressesDefaultBorder === 'function'
+          ? imageSuppressesDefaultBorder(position)
+          : imageSuppressesDefaultBorder) &&
         elementImageReplacesSurface(position, active),
     });
     return { color: border.color, gradient: border.gradient };

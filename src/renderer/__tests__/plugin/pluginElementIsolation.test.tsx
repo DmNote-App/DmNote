@@ -28,20 +28,16 @@ const probe = vi.hoisted(() => ({
   lastProps: null as null | StubProps,
 }));
 
-// 실제 PluginElement(1500줄, Shadow DOM)는 무겁고, 검증 대상은
-// "renderer가 memo를 깨뜨리지 않는 props를 주는가"이므로 memo 스텁으로 대체
-vi.mock('@components/shared/plugin/PluginElement', async () => {
-  const ReactActual = (await import('react')).default;
-  const Stub = (props: StubProps) => {
-    probe.counts[props.element.fullId] =
-      (probe.counts[props.element.fullId] ?? 0) + 1;
-    probe.lastProps = props;
-    return null;
-  };
-  return { PluginElement: ReactActual.memo(Stub) };
-});
-
 import { PluginElementsRenderer } from '@components/shared/plugin/PluginElementsRenderer';
+
+// 실제 요소(Shadow DOM·템플릿)는 무겁고, 검증 대상은
+// "renderer가 memo를 깨뜨리지 않는 props를 주는가"이므로 memo 스텁으로 대체
+const Stub = React.memo((props: StubProps) => {
+  probe.counts[props.element.fullId] =
+    (probe.counts[props.element.fullId] ?? 0) + 1;
+  probe.lastProps = props;
+  return null;
+});
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -57,6 +53,7 @@ const makeElement = (fullId: string): PluginDisplayElementInternal =>
 // Grid와 동일한 최악 조건: 렌더마다 새 콜백·새 offset 객체
 const Harness = () => (
   <PluginElementsRenderer
+    ElementComponent={Stub as never}
     windowType="main"
     positionOffset={{ x: 0, y: 0 }}
     onSelectionContextMenu={() => false}
@@ -150,6 +147,7 @@ describe('플러그인 요소 격리', () => {
       }, [version]);
       return (
         <PluginElementsRenderer
+          ElementComponent={Stub as never}
           windowType="main"
           positionOffset={{ x: 0, y: 0 }}
           onSelectionContextMenu={() => {

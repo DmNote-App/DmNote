@@ -419,17 +419,29 @@ fn set_collection(
     Ok(())
 }
 
-// 종류별 기본 옛 모양 - 남는 칸이 기본값과 같으면 따로 보존하지 않는다
+// 종류별 기본 옛 모양 - 남는 칸이 기본값과 같으면 따로 보존하지 않는다.
+// 투영은 요소마다 부르므로 종류마다 한 번 만들어 둔다
 fn default_legacy_object(kind: EditorElementTypeV1) -> Map<String, Value> {
-    let value = match kind {
-        EditorElementTypeV1::Sprite => serde_json::to_value(ReactiveSpritePosition::default()),
-        _ => serde_json::to_value(KeyPosition::default()),
-    }
-    .expect("기본 위치 직렬화");
-    match value {
-        Value::Object(object) => object,
-        _ => unreachable!("위치는 객체"),
-    }
+    static DEFAULTS: OnceLock<HashMap<EditorElementTypeV1, Map<String, Value>>> = OnceLock::new();
+    DEFAULTS.get_or_init(|| {
+        EditorElementTypeV1::ALL
+            .iter()
+            .map(|&kind| {
+                let value = match kind {
+                    EditorElementTypeV1::Sprite => {
+                        serde_json::to_value(ReactiveSpritePosition::default())
+                    }
+                    _ => serde_json::to_value(KeyPosition::default()),
+                }
+                .expect("기본 위치 직렬화");
+                match value {
+                    Value::Object(object) => (kind, object),
+                    _ => unreachable!("위치는 객체"),
+                }
+            })
+            .collect()
+    })[&kind]
+        .clone()
 }
 
 // 옛 위치 객체 하나를 그 종류의 옛 모양으로 읽을 수 있는지

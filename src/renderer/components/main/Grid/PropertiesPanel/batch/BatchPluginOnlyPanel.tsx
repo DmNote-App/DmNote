@@ -3,6 +3,7 @@ import { PANEL_ROOT_CLASS } from '../navigation/panelChrome';
 import { PropertySection } from '../controls/PropertyInputs';
 import { TABS, type TabType } from '../types';
 import BatchGeometrySection from './geometry/BatchGeometrySection';
+import { BatchSizeRow, type BatchGeometry } from './geometry/BatchGeometryRows';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
 import BatchPanelHeader from './BatchPanelHeader';
 import type { MixedValueResult } from './batchPanelShared';
@@ -34,11 +35,20 @@ interface BatchPluginOnlyPanelProps {
   ) => void;
   getBatchSpacingValue: () => MixedValueResult<number>;
   batchScrollRefFor: (tab: TabType) => (node: HTMLDivElement | null) => void;
+  // 크기를 정하는 플러그인 요소가 있으면 크기 일괄 (그 요소들만)
+  sizeGeometry?: Pick<
+    BatchGeometry,
+    'getBatchSizeValue' | 'handleBatchResize' | 'handleBatchResizePreview'
+  >;
+  // 크기 입력 Escape - 플러그인은 크기 조절 중 미리보기가 없어 거둘 것이 없다
+  onCancelResize?: () => void;
+  // 고른 플러그인 요소의 설정 - 정의마다 섹션 하나 (그 플러그인 스키마로)
+  pluginSettings?: React.ReactNode;
   t: (key: string) => string | undefined;
 }
 
-// 플러그인 크기는 content-driven이라 resize 없이 정렬·분배·간격만 노출.
-// 스타일 필드는 플러그인 스키마 소유라 배치 편집 대상이 아니다
+// 정렬·분배·간격, 크기는 크기를 정하는 플러그인(resizable)만 - 나머지 크기는 내용이 정한다.
+// 겉모습 일괄 칸은 플러그인 스키마 소유라 대상이 아니고, 설정은 정의마다 그 스키마로 고친다
 const BatchPluginOnlyPanel: React.FC<BatchPluginOnlyPanelProps> = ({
   setPanelElement,
   totalCount,
@@ -57,6 +67,9 @@ const BatchPluginOnlyPanel: React.FC<BatchPluginOnlyPanelProps> = ({
   handleBatchSpacingCommit,
   getBatchSpacingValue,
   batchScrollRefFor,
+  sizeGeometry,
+  onCancelResize = () => {},
+  pluginSettings,
   t,
 }) => {
   const batchPluginSpacing = getBatchSpacingValue();
@@ -95,7 +108,15 @@ const BatchPluginOnlyPanel: React.FC<BatchPluginOnlyPanelProps> = ({
                 batchSpacing={batchPluginSpacing}
                 t={t}
               />
+              {sizeGeometry && (
+                <BatchSizeRow
+                  geometry={sizeGeometry}
+                  onCancelResize={onCancelResize}
+                  t={t}
+                />
+              )}
             </PropertySection>
+            {pluginSettings}
           </EditSessionBoundary>
         </div>
       </div>

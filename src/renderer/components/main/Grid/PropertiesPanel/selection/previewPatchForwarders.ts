@@ -6,7 +6,7 @@
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { currentFieldsOf } from '@src/renderer/elementKinds/runtime/viewFields';
 import {
   inheritedPaintMaterialization,
   paintPropertyFields,
@@ -59,7 +59,7 @@ const sceneOf = (id: string): string | null => {
 
 // 지금 값(트리로 보내 확인 전인 낙관 적용 포함, 미리보기 없음) - 이어서 고칠 때 앞 편집을 되돌리지 않게
 const currentOf = (sceneId: string, id: string) =>
-  currentTreePosition(sceneId, id) as KeyPosition | undefined;
+  currentFieldsOf(sceneId, id) as KeyPosition | undefined;
 
 // 그림자는 leaf wire를 대상별 현재 스펙에 얹어 전체 스펙으로 투영한다 - 커밋 경로와 같은 함수.
 // 그래프는 그림자가 없고, 통계는 눌림 상태가 없어 activeShadow를 받지 않는다

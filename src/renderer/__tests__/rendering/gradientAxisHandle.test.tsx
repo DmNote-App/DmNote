@@ -11,6 +11,7 @@ import GradientAxisOverlay from '@components/main/Grid/handles/GradientAxisHandl
 import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import { useGradientEditStore } from '@stores/grid/useGradientEditStore';
 import { GRADIENT_STOPS_MAX, type GradientSpec } from '@src/types/color';
+import { positionLookupOf } from '@src/renderer/__tests__/positionLookup';
 
 vi.mock('@contexts/useTranslation', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -98,17 +99,14 @@ describe('GradientAxisOverlay 드래그 로직', () => {
       });
       root.render(
         <GradientAxisOverlay
-          collections={
-            {
-              keyPositions: positions,
-              statPositions: {} as never,
-              graphPositions: {} as never,
-              knobPositions: {} as never,
-              spritePositions: {},
-            } as never
-          }
+          positionOf={positionLookupOf({
+            keyPositions: positions,
+            statPositions: {} as never,
+            graphPositions: {} as never,
+            knobPositions: {} as never,
+            spritePositions: {},
+          } as never)}
           selectedElements={[]}
-          selectedKeyType="4key"
           zoom={1}
           panX={0}
           panY={0}
@@ -137,28 +135,25 @@ describe('GradientAxisOverlay 드래그 로직', () => {
     act(() => {
       root.render(
         <GradientAxisOverlay
-          collections={
-            {
-              keyPositions: {
-                '4key': [
-                  {
-                    id: ELEMENT_A_ID,
-                    dx: 100,
-                    dy: 100,
-                    width: 200,
-                    height: 100,
-                    rotation: 90,
-                  },
-                ],
-              } as never,
-              statPositions: {},
-              graphPositions: {},
-              knobPositions: {},
-              spritePositions: {},
-            } as never
-          }
+          positionOf={positionLookupOf({
+            keyPositions: {
+              '4key': [
+                {
+                  id: ELEMENT_A_ID,
+                  dx: 100,
+                  dy: 100,
+                  width: 200,
+                  height: 100,
+                  rotation: 90,
+                },
+              ],
+            } as never,
+            statPositions: {},
+            graphPositions: {},
+            knobPositions: {},
+            spritePositions: {},
+          } as never)}
           selectedElements={[]}
-          selectedKeyType="4key"
           zoom={1}
           panX={0}
           panY={0}
@@ -209,34 +204,31 @@ describe('GradientAxisOverlay 드래그 로직', () => {
     act(() => {
       root.render(
         <GradientAxisOverlay
-          collections={
-            {
-              keyPositions: {
-                '4key': [
-                  {
-                    id: ELEMENT_B_ID,
-                    dx: 500,
-                    dy: 400,
-                    width: 60,
-                    height: 60,
-                  },
-                  {
-                    id: ELEMENT_A_ID,
-                    dx: 100,
-                    dy: 100,
-                    width: 200,
-                    height: 100,
-                  },
-                ],
-              } as never,
-              statPositions: {} as never,
-              graphPositions: {} as never,
-              knobPositions: {} as never,
-              spritePositions: {},
-            } as never
-          }
+          positionOf={positionLookupOf({
+            keyPositions: {
+              '4key': [
+                {
+                  id: ELEMENT_B_ID,
+                  dx: 500,
+                  dy: 400,
+                  width: 60,
+                  height: 60,
+                },
+                {
+                  id: ELEMENT_A_ID,
+                  dx: 100,
+                  dy: 100,
+                  width: 200,
+                  height: 100,
+                },
+              ],
+            } as never,
+            statPositions: {} as never,
+            graphPositions: {} as never,
+            knobPositions: {} as never,
+            spritePositions: {},
+          } as never)}
           selectedElements={[]}
-          selectedKeyType="4key"
           zoom={1}
           panX={0}
           panY={0}
@@ -263,27 +255,24 @@ describe('GradientAxisOverlay 드래그 로직', () => {
     act(() => {
       root.render(
         <GradientAxisOverlay
-          collections={
-            {
-              keyPositions: {
-                '4key': [
-                  {
-                    id: ELEMENT_B_ID,
-                    dx: 500,
-                    dy: 400,
-                    width: 60,
-                    height: 60,
-                  },
-                ],
-              } as never,
-              statPositions: {} as never,
-              graphPositions: {} as never,
-              knobPositions: {} as never,
-              spritePositions: {},
-            } as never
-          }
+          positionOf={positionLookupOf({
+            keyPositions: {
+              '4key': [
+                {
+                  id: ELEMENT_B_ID,
+                  dx: 500,
+                  dy: 400,
+                  width: 60,
+                  height: 60,
+                },
+              ],
+            } as never,
+            statPositions: {} as never,
+            graphPositions: {} as never,
+            knobPositions: {} as never,
+            spritePositions: {},
+          } as never)}
           selectedElements={[]}
-          selectedKeyType="4key"
           zoom={1}
           panX={0}
           panY={0}
@@ -519,17 +508,14 @@ describe('GradientAxisOverlay 드래그 로직', () => {
     act(() => {
       root.render(
         <GradientAxisOverlay
-          collections={
-            {
-              keyPositions: positions,
-              statPositions: {} as never,
-              graphPositions: {} as never,
-              knobPositions: {} as never,
-              spritePositions: {},
-            } as never
-          }
+          positionOf={positionLookupOf({
+            keyPositions: positions,
+            statPositions: {} as never,
+            graphPositions: {} as never,
+            knobPositions: {} as never,
+            spritePositions: {},
+          } as never)}
           selectedElements={[]}
-          selectedKeyType="4key"
           zoom={1}
           panX={0}
           panY={0}
@@ -594,17 +580,14 @@ describe('GradientAxisOverlay 드래그 로직', () => {
     act(() => {
       root.render(
         <GradientAxisOverlay
-          collections={
-            {
-              keyPositions: positions,
-              statPositions: {} as never,
-              graphPositions: {} as never,
-              knobPositions: {} as never,
-              spritePositions: {},
-            } as never
-          }
+          positionOf={positionLookupOf({
+            keyPositions: positions,
+            statPositions: {} as never,
+            graphPositions: {} as never,
+            knobPositions: {} as never,
+            spritePositions: {},
+          } as never)}
           selectedElements={[]}
-          selectedKeyType="4key"
           zoom={1}
           panX={0}
           panY={0}
@@ -975,25 +958,23 @@ describe('GradientAxisOverlay 드래그 로직', () => {
       });
       root.render(
         <GradientAxisOverlay
-          collections={
-            {
-              keyPositions: positions,
-              statPositions: {
-                '4key': [
-                  {
-                    id: '33333333-3333-4333-8333-333333333333',
-                    dx: 400,
-                    dy: 400,
-                    width: 60,
-                    height: 60,
-                  },
-                ],
-              } as never,
-              graphPositions: {} as never,
-              knobPositions: {} as never,
-              spritePositions: {},
-            } as never
-          }
+          positionOf={positionLookupOf({
+            keyPositions: positions,
+            statPositions: {
+              '4key': [
+                {
+                  id: '33333333-3333-4333-8333-333333333333',
+                  dx: 400,
+                  dy: 400,
+                  width: 60,
+                  height: 60,
+                },
+              ],
+            } as never,
+            graphPositions: {} as never,
+            knobPositions: {} as never,
+            spritePositions: {},
+          } as never)}
           selectedElements={
             [
               { type: 'key', id: ELEMENT_A_ID, index: 0 },
@@ -1004,7 +985,6 @@ describe('GradientAxisOverlay 드래그 로직', () => {
               },
             ] as never
           }
-          selectedKeyType="4key"
           zoom={1}
           panX={0}
           panY={0}
@@ -1032,25 +1012,23 @@ describe('GradientAxisOverlay 드래그 로직', () => {
       });
       root.render(
         <GradientAxisOverlay
-          collections={
-            {
-              keyPositions: positions,
-              statPositions: {
-                '4key': [
-                  {
-                    id: '33333333-3333-4333-8333-333333333333',
-                    dx: 400,
-                    dy: 400,
-                    width: 60,
-                    height: 60,
-                  },
-                ],
-              } as never,
-              graphPositions: {} as never,
-              knobPositions: {} as never,
-              spritePositions: {},
-            } as never
-          }
+          positionOf={positionLookupOf({
+            keyPositions: positions,
+            statPositions: {
+              '4key': [
+                {
+                  id: '33333333-3333-4333-8333-333333333333',
+                  dx: 400,
+                  dy: 400,
+                  width: 60,
+                  height: 60,
+                },
+              ],
+            } as never,
+            graphPositions: {} as never,
+            knobPositions: {} as never,
+            spritePositions: {},
+          } as never)}
           selectedElements={
             [
               { type: 'key', id: ELEMENT_A_ID, index: 0 },
@@ -1061,7 +1039,6 @@ describe('GradientAxisOverlay 드래그 로직', () => {
               },
             ] as never
           }
-          selectedKeyType="4key"
           zoom={1}
           panX={0}
           panY={0}
@@ -1090,27 +1067,24 @@ describe('GradientAxisOverlay 드래그 로직', () => {
     act(() => {
       root.render(
         <GradientAxisOverlay
-          collections={
-            {
-              keyPositions: {
-                '4key': [
-                  {
-                    id: ELEMENT_A_ID,
-                    dx: 120,
-                    dy: 130,
-                    width: 200,
-                    height: 100,
-                  },
-                ],
-              } as never,
-              statPositions: {} as never,
-              graphPositions: {} as never,
-              knobPositions: {} as never,
-              spritePositions: {},
-            } as never
-          }
+          positionOf={positionLookupOf({
+            keyPositions: {
+              '4key': [
+                {
+                  id: ELEMENT_A_ID,
+                  dx: 120,
+                  dy: 130,
+                  width: 200,
+                  height: 100,
+                },
+              ],
+            } as never,
+            statPositions: {} as never,
+            graphPositions: {} as never,
+            knobPositions: {} as never,
+            spritePositions: {},
+          } as never)}
           selectedElements={[]}
-          selectedKeyType="4key"
           zoom={1}
           panX={0}
           panY={0}

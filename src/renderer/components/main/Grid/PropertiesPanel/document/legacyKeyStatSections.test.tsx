@@ -46,10 +46,10 @@ vi.mock('@src/renderer/editor/runtime/gesture/editGestureController', () => ({
 }));
 // 미리보기는 트리에 있는 요소에만
 vi.mock(
-  '@src/renderer/elementKinds/runtime/treeElementPosition',
+  '@src/renderer/elementKinds/runtime/viewFields',
   async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),
-    currentTreePosition: () => ({}),
+    currentFieldsOf: () => ({}),
   }),
 );
 

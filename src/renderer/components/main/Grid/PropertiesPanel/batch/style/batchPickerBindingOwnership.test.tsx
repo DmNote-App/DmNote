@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { act, createRef } from 'react';
+import React, { act, createRef, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import {
   afterEach,
@@ -17,6 +17,7 @@ import {
 import { legacyShapedSeed } from '@src/renderer/__tests__/treeNodes';
 import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import { createDefaultKeyPosition } from '@src/renderer/editor/model/keys';
+import type { KeyPosition } from '@src/types/key/keys';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
@@ -323,10 +324,12 @@ vi.mock('@src/renderer/editor/runtime/gesture/editGestureController', () => ({
 }));
 
 import { PanelNavProvider } from '@components/main/Grid/PropertiesPanel/navigation/PanelNavContext';
-import { BatchKeyLikePanel as ActualBatchKeyLikePanel } from '@components/main/Grid/PropertiesPanel/batch/BatchSelectionPanel';
 import DocumentBatchPanel from '@components/main/Grid/PropertiesPanel/document/DocumentBatchPanel';
+import type { LegacyKeyLikeHost } from '@components/main/Grid/PropertiesPanel/document/legacyKeyLikeBatch';
+import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
+import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
-import { BATCH_STYLE_SOUND_PAGE_KEY } from '@components/main/Grid/PropertiesPanel/batch/style/BatchStyleTabContent';
+import { BATCH_STYLE_SOUND_PAGE_KEY } from '@components/main/Grid/PropertiesPanel/batch/style/BatchSoundSection';
 import { BATCH_COUNTER_ANIMATION_PAGE_KEY } from '@components/main/Grid/PropertiesPanel/batch/BatchCounterTabContent';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -376,8 +379,78 @@ type RemovedLegacyPanelProps = {
   handleBatchStyleChange?: (...args: unknown[]) => void;
   handleBatchStyleChangeComplete?: (...args: unknown[]) => void;
 };
-type PanelProps = React.ComponentProps<typeof ActualBatchKeyLikePanel> &
-  RemovedLegacyPanelProps;
+type MixedGetter = <T>(
+  getter: (position: KeyPosition) => T | undefined,
+  defaultValue: T,
+) => { isMixed: boolean; value: T };
+
+// 속성 패널이 여러 종류를 고른 선언 일괄 패널에 넘기는 값 (패널 몸체의 섞인 값은 트리에서 읽는다)
+type PanelProps = LegacyKeyLikeHost &
+  RemovedLegacyPanelProps & {
+    setPanelElement: (element: HTMLDivElement | null) => void;
+    totalCount?: number;
+    selectedBatchStyleElements: SelectedElement[];
+    selectedGroupInfo: { id: string; name: string; memberCount: number } | null;
+    activeTab: 'style' | 'note' | 'counter';
+    handleBatchAlign: () => void;
+    handleBatchDistribute: () => void;
+    handleBatchSpacing: () => void;
+    handleBatchSpacingCommit: () => void;
+    getBatchSpacingValue: () => { isMixed: boolean; value: number };
+    handleBatchResize: () => void;
+    handleBatchResizePreview: () => void;
+    getMixedValueGeometry: MixedGetter;
+    panelElement: HTMLElement | null;
+    useCustomCSS?: boolean;
+    t: (key: string) => string;
+  };
+
+// 고른 요소가 트리에 없으면 그 종류의 기본 모양으로 심는다 (이미 심은 값은 그대로) - 옛 일괄 패널은
+// 선택 목록만 봤고, 선언 일괄 패널은 트리에서 요소를 찾는다
+const seedSelected = (selected: readonly SelectedElement[]) => {
+  const current = seed.current();
+  const has = (
+    positions: readonly Record<string, unknown>[] | undefined,
+    id: string,
+  ) => (positions ?? []).some((position) => position.id === id);
+  const keyList = current.canonicalPositions['4key']?.length
+    ? current.canonicalPositions['4key']
+    : current.positions['4key'];
+  const missingKeys = selected.filter(
+    ({ type, id }) => type === 'key' && !has(keyList, id),
+  );
+  if (missingKeys.length > 0) {
+    const next = [
+      ...(keyList ?? []),
+      ...missingKeys.map(({ id }) => keyAt(id)),
+    ];
+    seed.keys({
+      canonicalPositions: { '4key': next },
+      positions: { '4key': next },
+    });
+  }
+  for (const [type, write] of [
+    ['stat', seed.stats],
+    ['graph', seed.graphs],
+    ['knob', seed.knobs],
+  ] as const) {
+    const list = current[`${type}s` as const]['4key'];
+    const missing = selected.filter(
+      (element) => element.type === type && !has(list, element.id),
+    );
+    if (missing.length === 0) continue;
+    write({
+      positions: {
+        '4key': [
+          ...(list ?? []),
+          ...missing.map(({ id }) =>
+            type === 'stat' ? { ...keyAt(id), statType: 'kps' } : keyAt(id),
+          ),
+        ],
+      },
+    });
+  }
+};
 
 // 그래프·노브 일괄은 그 종류 정의의 패널 선언 - 고른 그 종류 id로 그린다
 const KindBatchPanel = ({
@@ -417,15 +490,67 @@ const KindBatchPanel = ({
   );
 };
 
-const BatchKeyLikePanel = ({
-  handleBatchCounterUpdate: _handleBatchCounterUpdate,
-  handleBatchKeyOnlyStyleChange: _handleBatchKeyOnlyStyleChange,
-  handleBatchKeyOnlyStyleChangeComplete: _handleBatchKeyOnlyStyleChangeComplete,
-  handleKeyOnlyStyleChangeComplete: _handleKeyOnlyStyleChangeComplete,
-  handleBatchStyleChange: _handleBatchStyleChange,
-  handleBatchStyleChangeComplete: _handleBatchStyleChangeComplete,
-  ...props
-}: PanelProps) => <ActualBatchKeyLikePanel {...props} />;
+// 여러 종류를 고른 일괄 - 속성 패널처럼 선언 일괄 패널에 피커 상태·일괄 기하를 넘긴다
+const BatchKeyLikePanel = (props: PanelProps) => {
+  const ids = props.selectedBatchStyleElements.map(({ id }) => id);
+  // 탭·사용자 CSS는 속성 패널·설정 상태, 고른 요소는 트리에
+  useLayoutEffect(() => {
+    usePropertiesPanelStore.setState({
+      propertyPanelActiveTab: props.activeTab,
+    });
+    useSettingsStore.setState({ useCustomCSS: props.useCustomCSS ?? false });
+    seedSelected(props.selectedBatchStyleElements);
+  });
+  return (
+    <DocumentBatchPanel
+      sceneId="4key"
+      elementIds={ids}
+      panelElement={props.panelElement}
+      setPanelElement={props.setPanelElement}
+      legacyHost={{
+        totalCount: props.totalCount ?? ids.length,
+        groupInfo: props.selectedGroupInfo,
+        geometry: {
+          handleBatchAlign: props.handleBatchAlign,
+          handleBatchDistribute: props.handleBatchDistribute,
+          handleBatchSpacing: props.handleBatchSpacing,
+          handleBatchSpacingCommit: props.handleBatchSpacingCommit,
+          getBatchSpacingValue: props.getBatchSpacingValue,
+          getBatchSizeValue: (dimension) =>
+            props.getMixedValueGeometry((position) => position[dimension], 60),
+          handleBatchResize: props.handleBatchResize,
+          handleBatchResizePreview: props.handleBatchResizePreview,
+        },
+      }}
+      keyLikeHost={{
+        batchScrollRefFor: props.batchScrollRefFor,
+        batchNoteColorButtonRef: props.batchNoteColorButtonRef,
+        batchGlowColorButtonRef: props.batchGlowColorButtonRef,
+        batchBorderColorButtonRef: props.batchBorderColorButtonRef,
+        batchCounterFillButtonRef: props.batchCounterFillButtonRef,
+        batchImageButtonRef: props.batchImageButtonRef,
+        showBatchImagePicker: props.showBatchImagePicker,
+        setShowBatchImagePicker: props.setShowBatchImagePicker,
+        batchPickerFor: props.batchPickerFor,
+        setBatchPickerFor: props.setBatchPickerFor,
+        batchCounterColorState: props.batchCounterColorState,
+        setBatchCounterColorState: props.setBatchCounterColorState,
+        batchLocalColors: props.batchLocalColors,
+        setBatchLocalColors: props.setBatchLocalColors,
+        handleBatchPickerToggle: props.handleBatchPickerToggle,
+        handleBatchPickerColorChange: props.handleBatchPickerColorChange,
+        handleBatchPickerColorChangeComplete:
+          props.handleBatchPickerColorChangeComplete,
+        handleBatchFillPickerColorChangeComplete:
+          props.handleBatchFillPickerColorChangeComplete,
+        getBatchPickerColor: props.getBatchPickerColor,
+        getBatchPickerRef: props.getBatchPickerRef,
+        batchColorPickerInteractiveRefs: props.batchColorPickerInteractiveRefs,
+      }}
+      t={props.t}
+    />
+  );
+};
 
 const mixedValue = <T,>(_getter: unknown, defaultValue: T) => ({
   isMixed: false,
@@ -761,16 +886,13 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       },
     );
     const canonical = { ...keyAt(ID_A), noteColor: '#112233' };
+    seed.keys({
+      canonicalPositions: { '4key': [canonical] },
+      positions: { '4key': [canonical] },
+    });
     const props = panelProps();
     props.activeTab = 'note';
     props.batchPickerFor = 'noteColor';
-    props.getSelectedKeyOnlyPositions = () => [
-      { index: 0, position: canonical },
-    ];
-    props.getMixedValueCanonical = ((getter: (position: never) => unknown) => ({
-      isMixed: false,
-      value: getter(canonical as never),
-    })) as PanelProps['getMixedValueCanonical'];
 
     act(() => {
       root.render(
@@ -818,18 +940,15 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       },
     );
     const canonicalA = { ...keyAt(ID_A), noteColor: '#112233' };
+    const canonicalB = { ...keyAt(ID_B), noteColor: '#445566' };
+    // 다른 키를 골라도 앞 키는 트리에 남는다
+    seed.keys({
+      canonicalPositions: { '4key': [canonicalA, canonicalB] },
+      positions: { '4key': [canonicalA, canonicalB] },
+    });
     const propsA = panelProps();
     propsA.activeTab = 'note';
     propsA.batchPickerFor = 'noteColor';
-    propsA.getSelectedKeyOnlyPositions = () => [
-      { index: 0, position: canonicalA },
-    ];
-    propsA.getMixedValueCanonical = ((
-      getter: (position: never) => unknown,
-    ) => ({
-      isMixed: false,
-      value: getter(canonicalA as never),
-    })) as PanelProps['getMixedValueCanonical'];
 
     act(() => {
       root.render(
@@ -848,20 +967,14 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
     });
     act(() => captured.color?.onColorChangeComplete('#abcdef'));
 
-    const canonicalB = { ...keyAt(ID_B), noteColor: '#445566' };
-    act(() => selectKey(ID_B));
+    act(() =>
+      useDocumentSelectionStore.setState({
+        selectedElements: [{ type: 'key', id: ID_B, index: 1 }],
+      }),
+    );
     const propsB = panelProps();
     propsB.activeTab = 'note';
     propsB.batchPickerFor = 'noteColor';
-    propsB.getSelectedKeyOnlyPositions = () => [
-      { index: 0, position: canonicalB },
-    ];
-    propsB.getMixedValueCanonical = ((
-      getter: (position: never) => unknown,
-    ) => ({
-      isMixed: false,
-      value: getter(canonicalB as never),
-    })) as PanelProps['getMixedValueCanonical'];
     act(() => {
       root.render(
         <PanelNavProvider
@@ -895,16 +1008,13 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       noteColor: '#112233',
       noteOpacity: 42,
     };
+    seed.keys({
+      canonicalPositions: { '4key': [canonical] },
+      positions: { '4key': [canonical] },
+    });
     const props = panelProps();
     props.activeTab = 'note';
     props.batchPickerFor = 'noteColor';
-    props.getSelectedKeyOnlyPositions = () => [
-      { index: 0, position: canonical },
-    ];
-    props.getMixedValueCanonical = ((getter: (position: never) => unknown) => ({
-      isMixed: false,
-      value: getter(canonical as never),
-    })) as PanelProps['getMixedValueCanonical'];
 
     act(() => {
       root.render(
@@ -1190,7 +1300,7 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
   );
 
   it.each(['main'] as const)(
-    '%s displayText actual input은 mixed 4-type stable IDs를 preview하고 같은 gesture로 commit한다',
+    '%s displayText actual input은 4종을 골라도 표시 텍스트가 있는 키·스탯에만 preview하고 같은 gesture로 commit한다',
     async (windowType) => {
       window.__dmn_window_type = windowType;
       const keyId = ID_A;
@@ -1251,34 +1361,13 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
           ],
           { domain: 'statPosition' },
         ],
-        [
-          '4key',
-          [
-            {
-              id: graphId,
-              patch: { displayText: '  Preview label  ' },
-            },
-          ],
-          { domain: 'graphPosition' },
-        ],
-        [
-          '4key',
-          [
-            {
-              id: knobId,
-              patch: { displayText: '  Preview label  ' },
-            },
-          ],
-          { domain: 'knobPosition' },
-        ],
       ]);
       act(() => input?.blur());
 
+      // 그래프·노브는 표시 텍스트가 없다
       const targets = [
         { elementType: 'key', id: keyId },
         { elementType: 'stat', id: statId },
-        { elementType: 'graph', id: graphId },
-        { elementType: 'knob', id: knobId },
       ];
       const writer = patches.patchDisplayTextByTargets;
       expect(writer).toHaveBeenCalledWith(
@@ -1292,20 +1381,25 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
     },
   );
 
-  it('displayText stable target 하나가 사라지면 partial preview 없이 중단한다', async () => {
+  it('displayText 대상 하나가 트리에서 사라지면 남은 대상만 미리보기한다 (사라진 대상을 붙잡지 않는다)', async () => {
+    const statId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
     useKeyStore.setState({ selectedKeyType: '4key' });
     seed.keys({
       canonicalPositions: { '4key': [keyAt(ID_A)] },
       positions: { '4key': [keyAt(ID_A)] },
     });
+    seed.stats({
+      positions: { '4key': [{ ...keyAt(statId), statType: 'kps' }] },
+    });
     useDocumentSelectionStore.setState({
       selectedElements: [
         { type: 'key', id: ID_A, index: 0 },
-        { type: 'graph', id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', index: 0 },
+        { type: 'stat', id: statId, index: 0 },
       ],
     });
-    seed.graphs({ positions: {} });
     renderPanel({ active: null, renderKey: null });
+    // 다른 창·되돌리기로 스탯이 트리에서 사라진다 - 패널은 트리를 따라간다
+    act(() => seed.stats({ positions: {} }));
     const input = host.querySelector<HTMLInputElement>('input[type="text"]')!;
     act(() => input.focus());
     act(() => setInputValue(input, 'Preview'));
@@ -1313,7 +1407,13 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       await new Promise((resolve) => window.setTimeout(resolve, 0));
       await new Promise((resolve) => window.setTimeout(resolve, 0));
     });
-    expect(gestures.preview).not.toHaveBeenCalled();
+    expect(gestures.preview.mock.calls).toEqual([
+      [
+        '4key',
+        [{ id: ID_A, patch: { displayText: 'Preview' } }],
+        { domain: 'keyPosition' },
+      ],
+    ]);
   });
 
   type ClassNamePanelKind = 'mixed' | 'graph' | 'knob';
@@ -1608,8 +1708,14 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       act(() => input?.onChange(value));
 
       const writer = patches.patchDisplayTextByTargets;
+      // 글자 크기는 글자 묶음이 있는 키·스탯에만
       expect(writer).toHaveBeenCalledWith(
-        targets,
+        property === 'fontSize'
+          ? targets.filter(
+              ({ elementType }) =>
+                elementType === 'key' || elementType === 'stat',
+            )
+          : targets,
         { property, value },
         { gestureId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' },
       );
@@ -2141,14 +2247,20 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
     }));
   };
 
-  it('batch graph가 포함되면 shadow controls는 비도달이다', () => {
+  it('그래프가 섞여도 그림자 칸이 보이고 그림자를 그리는 키·스탯·노브에만 쓴다', () => {
     const legacy = vi.fn();
-    selectImageTargets('mixed', 'a');
+    const targets = selectImageTargets('mixed', 'a');
     renderImagePanel('mixed', legacy);
 
-    expect(captured.shadows).toHaveLength(0);
-    expect(patches.patchShadowByTargets).not.toHaveBeenCalled();
+    expect(captured.shadows.length).toBeGreaterThan(0);
+    commitShadow('idle', { blur: 12 });
+    expect(patches.patchShadowByTargets).toHaveBeenCalledWith(
+      targets.filter(({ elementType }) => elementType !== 'graph'),
+      { property: 'shadow', value: { leaf: 'blur', value: 12 } },
+      { gestureId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' },
+    );
     expect(patches.patchShadowViaAuthority).not.toHaveBeenCalled();
+    expect(legacy).not.toHaveBeenCalled();
   });
 
   it.each(['main'] as const)(
@@ -2446,8 +2558,16 @@ describe('배치 피커 결합 소유권 (프로덕션 배선)', () => {
       'first.wav',
     );
 
-    // 같은 개수의 다른 선택으로 교체 - 경계는 리마운트되지만 결합은 유지
-    act(() => selectKey(ID_B));
+    // 같은 개수의 다른 선택으로 교체 (앞 키도 트리에 남는다) - 경계는 리마운트되지만 결합은 유지
+    act(() => {
+      seed.keys({
+        canonicalPositions: { '4key': [keyAt(ID_A), keyAt(ID_B)] },
+        positions: { '4key': [keyAt(ID_A), keyAt(ID_B)] },
+      });
+      useDocumentSelectionStore.setState({
+        selectedElements: [{ type: 'key', id: ID_B, index: 1 }],
+      });
+    });
     renderPanel({
       active: BATCH_STYLE_SOUND_PAGE_KEY,
       renderKey: BATCH_STYLE_SOUND_PAGE_KEY,

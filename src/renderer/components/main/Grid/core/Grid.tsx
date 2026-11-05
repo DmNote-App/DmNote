@@ -2,7 +2,6 @@
 // 프리뷰 오버레이(모듈 상태)를 previewVersion으로 다시 읽어야 해서 컴파일러 메모 제외
 import React, {
   useEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -17,19 +16,16 @@ declare global {
 import { useTranslation } from '@contexts/useTranslation';
 import { reportElementOpError } from '@src/renderer/editor/runtime/intent/elementIntent';
 import type { NativeElementType } from '@src/renderer/editor/model/elementIdMap';
-import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
+import { viewFieldsLookup } from '@src/renderer/elementKinds/runtime/viewFields';
 import { defaultElementSize, TREE_EDITED_KINDS } from '@src/types/elementKinds';
-import {
-  isEditorElementType,
-  isItemElementType,
-  type ElementCollections,
-} from '@src/types/editor';
+import { isEditorElementType, isItemElementType } from '@src/types/editor';
 import TabCssModal from '../../Modal/content/editors/TabCssModal';
 import TabNoteSettingModal from '../../Modal/content/editors/TabNoteSettingModal';
 import ListPopup from '../../Modal/listPopup/ListPopup';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { PluginElementsRenderer } from '@components/shared/plugin/PluginElementsRenderer';
+import { EditablePluginElement } from '@components/shared/plugin/EditablePluginElement';
 import { useGridZoomPan } from '@hooks/Grid/viewport/useGridZoomPan';
 import {
   addCanvasElementAt,
@@ -76,7 +72,7 @@ import DocumentContextMenu from '../document/DocumentContextMenu';
 import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
 import {
   structureTargetIds,
-  usePanelSelection,
+  usePanelEditSelection,
 } from '../document/treeEditedSelection';
 import { useDocumentContextMenuStore } from '@stores/grid/useDocumentContextMenuStore';
 import DocumentGridLayer from '../document/DocumentGridLayer';
@@ -87,7 +83,7 @@ import {
   beginDocumentDuplicate,
   placeDocumentDuplicate,
 } from '../document/documentDuplicate';
-import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
+import { keySlotOf } from '@src/renderer/elementKinds/definitions/key/keySlotInfo';
 import { keyMenuContextOf } from '@hooks/Grid/contextMenu/useGridContextMenu';
 import { useDocumentKeyboard } from '../document/useDocumentKeyboard';
 import {
@@ -238,46 +234,22 @@ const Grid = ({
   const pluginElements = usePluginDisplayElementStore(
     (state) => state.elements,
   );
-  // 요소 위치 기록 - 트리 값 + 편집 미리보기 (지금 탭, 패널과 같은 원천)
+  // 요소의 지금 틀 찾기 - 트리 값 + 편집 미리보기 (지금 탭, 패널과 같은 원천)
   const previewVersion = useSyncExternalStore(
     subscribePreviewOverlay,
     getPreviewOverlayVersion,
     getPreviewOverlayVersion,
   );
-  const records = treePanelRecords(
+  const positionOf = viewFieldsLookup(
     useElementDocumentScene(selectedKeyType),
     selectedKeyType,
     previewVersion,
   );
-  // 묶음 identity 유지 - 컴파일된 자식(선택 오버레이·미니맵)의 메모가 기대는 참조
-  const collections = useMemo<ElementCollections>(
-    () =>
-      ({
-        keyPositions: records.positions,
-        statPositions: records.statItemPositions,
-        graphPositions: records.graphItemPositions,
-        knobPositions: records.knobItemPositions,
-        spritePositions: records.spriteItemPositions,
-      } as unknown as ElementCollections),
-    // 장면·미리보기 판이 같으면 같은 기록
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [records, previewVersion],
-  );
-  const { statPositions, keyPositions: positions } = collections;
 
-  const panelSelection = usePanelSelection(selectedKeyType);
-  // 트리에서 그리는 키의 바깥 카운터는 트리 틀을 따라간다
-  const keyCounterPositions = useTreeFramedPositions(
-    'key',
-    positions[selectedKeyType] ?? [],
-    selectedKeyType,
-  );
-  // 트리에서 그리는 스탯의 바깥 카운터는 트리 틀을 따라간다
-  const statCounterPositions = useTreeFramedPositions(
-    'stat',
-    statPositions?.[selectedKeyType] || [],
-    selectedKeyType,
-  );
+  const panelSelection = usePanelEditSelection(selectedKeyType);
+  // 키·스탯의 바깥 카운터는 트리 틀을 따라간다
+  const keyCounterPositions = useTreeFramedPositions('key', selectedKeyType);
+  const statCounterPositions = useTreeFramedPositions('stat', selectedKeyType);
 
   // 선택 관련 로직 훅 사용
   const {
@@ -483,6 +455,7 @@ const Grid = ({
 
   // 전역 트랙 설정 모달이 열리면 탭 트랙 설정 모달 닫기 (중복 방지)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (isNoteSettingOpen) setIsTabNoteModalOpen(false);
   }, [isNoteSettingOpen]);
 
@@ -506,6 +479,7 @@ const Grid = ({
     if (previousSelectedKeyTypeRef.current !== selectedKeyType) {
       clearSelection();
       useDocumentSelectionStore.getState().clear();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDuplicateState((prev) =>
         prev?.elementType === 'sprite' ? null : prev,
       );
@@ -761,6 +735,7 @@ const Grid = ({
           />
           <PluginElementsRenderer
             windowType="main"
+            ElementComponent={EditablePluginElement}
             activeTool={activeTool}
             zoom={zoom}
             panX={panX}
@@ -812,7 +787,7 @@ const Grid = ({
       <MarqueeSelectionOverlay zoom={zoom} panX={panX} panY={panY} />
       <GridSelectionOverlays
         selectedElements={selectedElements}
-        collections={collections}
+        positionOf={positionOf}
         mode={selectedKeyType}
         pluginElements={pluginElements}
         zoom={zoom}
@@ -945,12 +920,12 @@ const Grid = ({
             }
 
             if (id === 'counterReset') {
-              const displayName = slotDisplayName(treeKeySlot(target) ?? '');
+              const displayName = slotDisplayName(keySlotOf(target) ?? '');
               showConfirm(
                 t('confirm.resetKeyCounter', { name: displayName }),
                 async () => {
                   // 확인 시점 다시 읽기 - 모달이 떠 있는 동안의 슬롯 바꾸기 반영
-                  const slot = treeKeySlot(
+                  const slot = keySlotOf(
                     getElementDocumentStore()?.getElement(
                       selectedKeyType,
                       target.id,

@@ -19,7 +19,7 @@ import {
 } from '@src/renderer/__tests__/fakeElementDocumentBackend';
 import { loadElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { currentFieldsOf } from '@src/renderer/elementKinds/runtime/viewFields';
 import type { Document } from '@src/types/generated/elementDocument';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useSpriteEditPreviewStore } from '@stores/grid/useSpriteEditPreviewStore';
@@ -68,6 +68,9 @@ const mocks = vi.hoisted(() => ({
     (_type: string, _id: string, _bounds: unknown, _gestureId?: string) =>
       Promise.resolve(true),
   ),
+  commitFrames: vi.fn((targets: unknown[], _options?: unknown) =>
+    Promise.resolve(targets.map(() => 'applied')),
+  ),
 }));
 
 // 패널은 담당 키 후보·지금 값을 트리에서 읽는다 - 실제 트리 스토어 아래에 가짜 백엔드를 붙인다
@@ -87,6 +90,15 @@ vi.mock(
   async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),
     commitSingleElementBoundsById: mocks.commitBounds,
+  }),
+);
+
+// 회전은 틀 커밋 - 커밋 인자만 검증한다
+vi.mock(
+  '@src/renderer/editor/runtime/operations/treeEditCommit',
+  async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    commitFrames: mocks.commitFrames,
   }),
 );
 
@@ -252,7 +264,7 @@ const sameField = (left: unknown, right: unknown) =>
 // 옛 패널에 넘기던 표시 값이 저장 값과 다르면 그 차이를 편집 미리보기로 얹는다
 const showDisplay = (position: CanonicalReactiveSpritePosition) => {
   previewOverlay.clearAll();
-  const stored = currentTreePosition('4key', position.id);
+  const stored = currentFieldsOf('4key', position.id);
   if (
     stored &&
     Object.entries(position).some(
@@ -1349,16 +1361,15 @@ describe('SingleSpritePanel 자세 편집', () => {
     );
     act(() => input.blur());
 
-    expect(mocks.patchPosition).toHaveBeenCalledExactlyOnceWith(
-      '4key',
-      SPRITE_ID,
-      { rotation: 0 },
-      undefined,
-      undefined,
+    // 회전만 틀로 - 위치·대기 변환·자세는 보내지 않는다
+    expect(mocks.commitFrames).toHaveBeenCalledExactlyOnceWith(
+      [{ elementType: 'sprite', id: SPRITE_ID, frame: { rotation: 0 } }],
+      {},
     );
+    expect(mocks.patchPosition).not.toHaveBeenCalled();
     expect(mocks.commitBounds).not.toHaveBeenCalled();
     expect(position).toEqual(initial);
-    expect(currentTreePosition('4key', SPRITE_ID)).toMatchObject({
+    expect(currentFieldsOf('4key', SPRITE_ID)).toMatchObject({
       dx: initial.dx,
       dy: initial.dy,
       rotation: initial.rotation,
@@ -1402,8 +1413,9 @@ describe('SingleSpritePanel 자세 편집', () => {
     expect(mocks.gestureCancel).toHaveBeenCalledOnce();
     expect(parseFloat(input.value)).toBe(90);
     expect(mocks.patchPosition).not.toHaveBeenCalled();
+    expect(mocks.commitFrames).not.toHaveBeenCalled();
     expect(mocks.commitBounds).not.toHaveBeenCalled();
-    expect(currentTreePosition('4key', SPRITE_ID)).toMatchObject({
+    expect(currentFieldsOf('4key', SPRITE_ID)).toMatchObject({
       dx: initial.dx,
       dy: initial.dy,
       rotation: initial.rotation,

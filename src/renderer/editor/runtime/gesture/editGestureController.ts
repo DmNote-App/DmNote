@@ -16,7 +16,7 @@ import { stableStringify } from '@utils/core/stableStringify';
 import { isNativeElementId } from '../../model/elementId';
 
 import { previewOverlay } from './previewOverlay';
-import { commitPropertyIntents } from '../operations/editorSemanticOps';
+import { commitPreviewIntents } from '../operations/treeEditCommit';
 import { type PropertyIntents } from '../intent/elementIntent';
 import {
   drainEditorWrites,
@@ -327,7 +327,7 @@ export const editGestureController = {
         resolved,
       ]),
     );
-    const persisted = commitPropertyIntents(propertyIntents, gesture.sessionId);
+    const persisted = commitPreviewIntents(propertyIntents, gesture.sessionId);
     this.settleCommit(persisted);
     const own = await persisted.then(
       () => true,

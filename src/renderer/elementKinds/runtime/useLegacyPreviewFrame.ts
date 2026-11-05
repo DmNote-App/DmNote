@@ -7,7 +7,7 @@ import {
   previewPatchOf,
   subscribePreviewOverlay,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
-import { treeElementPositionOf } from './treeElementPosition';
+import { viewFieldsOf } from './viewFields';
 import { isEditorElementType } from '@src/types/editor';
 import { TREE_EDITED_KINDS } from '@src/types/elementKinds';
 import type { Frame } from '@src/types/generated/elementDocument';
@@ -64,7 +64,7 @@ export const useLegacyPreviewFrame = (
   // 이 요소의 보이는 값(미리보기가 없으면 같은 객체)이 바뀔 때만 다시 그린다
   useSyncExternalStore(
     treeEdited ? subscribePreviewOverlay : noSubscribe,
-    treeEdited ? () => treeElementPositionOf(element, sceneId) : noSnapshot,
+    treeEdited ? () => viewFieldsOf(element, sceneId) : noSnapshot,
   );
   return element ? legacyPreviewFrameOf(element, sceneId) : null;
 };

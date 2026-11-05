@@ -3,19 +3,19 @@ import type { ElementBounds as SmartGuideElementBounds } from '@utils/grid/smart
 import { getCursor } from '@utils/grid/cursorUtils';
 import { useCustomCursorHover } from '@hooks/Grid/viewport/useCustomCursorHover';
 import type { ContinuousInputStrategy } from '@utils/animation/rafLatestScheduler';
-import type { ElementCollections } from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import {
   isElementResizable,
   calculateGroupBounds,
   type Bounds,
+  type ElementPositionLookup,
   type SelectedElement,
 } from './groupResizeUtils';
 import type { GroupResizeHandle, GroupResizeResult } from './groupResizePlan';
 import { useGroupResizeSession } from './useGroupResizeSession';
+import GroupSelectionOutline from './GroupSelectionOutline';
 import {
   GROUP_SELECTION_BORDER_WIDTH,
-  GROUP_SELECTION_BORDER_COLOR,
   SELECTION_BORDER_WIDTH,
 } from './selectionOutline';
 
@@ -35,8 +35,7 @@ interface HandleProps {
 
 interface GroupResizeHandlesProps {
   selectedElements: SelectedElement[];
-  collections: ElementCollections;
-  selectedKeyType: string;
+  positionOf: ElementPositionLookup;
   pluginElements: PluginDisplayElementInternal[];
   zoom?: number;
   panX?: number;
@@ -170,8 +169,7 @@ const Handle = ({
 
 const GroupResizeHandles = ({
   selectedElements,
-  collections,
-  selectedKeyType,
+  positionOf,
   pluginElements,
   zoom = 1,
   panX = 0,
@@ -186,8 +184,7 @@ const GroupResizeHandles = ({
   // 그룹 바운딩 박스 계산
   const groupData = calculateGroupBounds(
     selectedElements,
-    collections,
-    selectedKeyType,
+    positionOf,
     pluginElements,
   );
 
@@ -238,20 +235,11 @@ const GroupResizeHandles = ({
   return (
     <>
       {/* 그룹 바운딩 박스 테두리 */}
-      <div
-        data-group-resize-outline=""
-        style={{
-          position: 'absolute',
-          left: selectionLeft,
-          top: selectionTop,
-          width: selectionWidth,
-          height: selectionHeight,
-          boxSizing: 'border-box',
-          border: `${GROUP_SELECTION_BORDER_WIDTH}px solid ${GROUP_SELECTION_BORDER_COLOR}`,
-          borderRadius: '6px',
-          pointerEvents: 'none' as const,
-          zIndex: 'var(--z-canvas-group-outline)',
-        }}
+      <GroupSelectionOutline
+        bounds={displayBounds}
+        zoom={zoom}
+        panX={panX}
+        panY={panY}
       />
 
       {/* 리사이즈 핸들들 - 리사이즈 가능한 요소가 있을 때만 표시 */}

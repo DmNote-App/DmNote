@@ -22,7 +22,9 @@ import {
   treeGroupHiddenKey,
   treeStackingRanks,
 } from '@src/renderer/elementKinds/runtime/documentElementOrder';
-import PluginElementHost from './PluginElementHost';
+import PluginElementHost, {
+  type PluginElementComponent,
+} from './PluginElementHost';
 import type {
   PluginDisplayElementInternal,
   ElementResizeAnchor,
@@ -68,6 +70,8 @@ function mergeElementsFromMain(
 
 interface PluginElementsRendererProps {
   windowType: 'main' | 'overlay';
+  // 요소 하나 그리기 - 편집 화면은 EditablePluginElement, 오버레이·OBS는 PluginElement
+  ElementComponent: PluginElementComponent;
   activeTool?: string;
   positionOffset?: { x: number; y: number };
   zoom?: number;
@@ -89,6 +93,7 @@ interface PluginElementsRendererProps {
 
 export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
   windowType,
+  ElementComponent,
   activeTool,
   positionOffset = DEFAULT_POSITION_OFFSET,
   zoom = 1,
@@ -317,6 +322,7 @@ export const PluginElementsRenderer: React.FC<PluginElementsRendererProps> = ({
         <PluginElementHost
           key={fullId}
           fullId={fullId}
+          ElementComponent={ElementComponent}
           windowType={windowType}
           activeTool={activeTool}
           positionOffset={stablePositionOffset}

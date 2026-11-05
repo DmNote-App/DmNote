@@ -25,20 +25,27 @@ import {
   previewBatchStyleProperty,
 } from '../selection/previewPatchForwarders';
 import { EDITOR_ELEMENT_TYPES } from '@src/types/editor';
-import {
-  isSurfaceStyledElementType,
-  type SurfaceStyledElementType,
-} from '@src/types/elementKinds';
+import { isSurfaceStyledElementType } from '@src/types/elementKinds';
+import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
 
 const NATIVE_IMAGE_TYPES = EDITOR_ELEMENT_TYPES.filter(
   isSurfaceStyledElementType,
 );
 
+// 고칠 요소 - 옛 종류와 트리에만 있는 종류 (트리에만 있는 종류는 편집 미리보기 영역이 없어 커밋 때 반영한다)
+interface StyleTarget {
+  elementType: string;
+  id: string;
+}
+
+// 편집 미리보기를 보낼 대상 - 미리보기 영역이 있는 옛 종류
+const previewTargetsOf = <T extends StyleTarget>(targets: readonly T[]) =>
+  targets.filter(({ elementType }) =>
+    isSurfaceStyledElementType(elementType),
+  ) as unknown as Parameters<typeof previewBatchPaint>[0];
+
 export const createStylePropertyHandlers = (
-  targets: readonly {
-    elementType: SurfaceStyledElementType;
-    id: string;
-  }[],
+  targets: readonly StyleTarget[],
   selectedKeyType: string,
   options: { settleGesture?: boolean } = { settleGesture: true },
 ) => {
@@ -56,7 +63,11 @@ export const createStylePropertyHandlers = (
   }
   return {
     previewStyleProperty: (patch: EditorStylePropertyPreviewPatchV1) =>
-      previewBatchStyleProperty(stableTargets, selectedKeyType, patch),
+      previewBatchStyleProperty(
+        previewTargetsOf(stableTargets),
+        selectedKeyType,
+        patch,
+      ),
     commitStyleProperty: (patch: EditorPreviewStylePropertyPatchV1) => {
       const gestureId = options.settleGesture
         ? editGestureController.activeGestureId() ?? undefined
@@ -73,9 +84,7 @@ export const createStylePropertyHandlers = (
 };
 
 // 표면별 허용 타깃 - font는 라벨 렌더러가 있는 키·스탯(active는 키만)
-const paintRelevantTargets = <
-  T extends { elementType: SurfaceStyledElementType },
->(
+const paintRelevantTargets = <T extends StyleTarget>(
   targets: readonly T[],
   patch: EditorPaintPropertyPatchV1,
 ): readonly T[] => {
@@ -95,10 +104,7 @@ const paintRelevantTargets = <
 };
 
 export const createPaintHandlers = (
-  targets: readonly {
-    elementType: SurfaceStyledElementType;
-    id: string;
-  }[],
+  targets: readonly StyleTarget[],
   selectedKeyType: string,
 ) => {
   const stableTargets = (patch: EditorPaintPropertyPatchV1) => {
@@ -113,7 +119,7 @@ export const createPaintHandlers = (
     previewPaint: (patch: EditorPaintPropertyPatchV1) => {
       const stable = stableTargets(patch);
       if (!stable) return;
-      previewBatchPaint(stable, selectedKeyType, patch);
+      previewBatchPaint(previewTargetsOf(stable), selectedKeyType, patch);
     },
     commitPaint: (patch: EditorPaintPropertyPatchV1) => {
       const stable = stableTargets(patch);
@@ -127,16 +133,14 @@ export const createPaintHandlers = (
 };
 
 export const createShadowCommitHandler =
-  (
-    targets: readonly {
-      elementType: 'key' | 'stat' | 'knob';
-      id: string;
-    }[],
-  ) =>
-  (patch: EditorShadowPropertyPatchV1) => {
+  (targets: readonly StyleTarget[]) => (patch: EditorShadowPropertyPatchV1) => {
+    // 눌림 그림자는 눌림 그림이 있는 종류(키·노브)만
     const relevant =
       patch.property === 'activeShadow'
-        ? targets.filter(({ elementType }) => elementType !== 'stat')
+        ? targets.filter(
+            ({ elementType }) =>
+              elementKindDefinition(elementType)?.activeVisual === true,
+          )
         : targets;
     const stable =
       relevant.length > 0 &&

@@ -212,6 +212,7 @@ const BatchNoteTabContent: React.FC<BatchNoteTabContentProps> = ({
               },
             ]}
             value={getMixedValue((pos) => pos.noteAlignment, 'center').value}
+            mixed={getMixedValue((pos) => pos.noteAlignment, 'center').isMixed}
             onChange={(value) =>
               noteLiteralHandlers.setAlignment(
                 value as 'left' | 'center' | 'right',

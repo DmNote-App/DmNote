@@ -1,0 +1,61 @@
+---
+title: 커서 트래커 스타일링
+description: CSS로 커서 트래커 요소의 상자와 점·궤적 캔버스를 커스터마이징하는 방법
+---
+
+# 커서 트래커 스타일링
+
+이 가이드는 커서 트래커 요소에 커스텀 CSS를 적용하는 방법을 설명합니다.
+
+## 선택자
+
+커서 트래커는 아래 두 data 속성으로 고를 수 있습니다. 편집 화면, 오버레이, OBS에서 같은 선택자를 씁니다.
+
+| 선택자                                | 대상                                  |
+| ------------------------------------- | ------------------------------------- |
+| `[data-element-kind="cursorTracker"]` | 커서 트래커 상자 (모든 커서 트래커)   |
+| `[data-cursor-tracker-canvas]`        | 상자 안에서 점과 궤적을 그리는 캔버스 |
+
+```css
+[data-element-kind='cursorTracker'] [data-cursor-tracker-canvas] {
+  opacity: 0.9;
+}
+```
+
+<Callout type="info">
+  배경·테두리·그림자와 점·궤적의 크기·색은 속성 패널에서 정합니다. CSS는 그 위에
+  효과를 더하는 데 씁니다.
+</Callout>
+
+## 스타일 예제
+
+### 점·궤적에 빛 번짐
+
+```css
+[data-element-kind='cursorTracker'] [data-cursor-tracker-canvas] {
+  filter: drop-shadow(0 0 6px rgba(125, 211, 252, 0.9));
+}
+```
+
+### 방송 화면에서 반투명하게
+
+```css
+[data-element-kind='cursorTracker'] {
+  opacity: 0.85;
+}
+```
+
+### 배경 위에 섞어 그리기
+
+```css
+[data-element-kind='cursorTracker'] [data-cursor-tracker-canvas] {
+  mix-blend-mode: screen;
+}
+```
+
+## 참고
+
+- 상자의 위치·크기·회전은 앱이 인라인 스타일로 정합니다. `transform`, `left`, `top`,
+  `width`, `height`는 바꾸지 마세요.
+- 점과 궤적은 캔버스에 그리므로 CSS로 점 하나의 모양을 바꿀 수는 없습니다. 캔버스
+  전체에 `filter`, `opacity`, `mix-blend-mode`를 적용할 수 있습니다.

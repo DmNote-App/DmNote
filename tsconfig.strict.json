@@ -6,7 +6,6 @@
   "include": [
     "src/types/**/*.ts",
     "src/renderer/editor/model/**/*.ts",
-    "src/renderer/editor/runtime/coordinator/editorCoordinator.ts",
     "src/renderer/editor/runtime/projection/**/*.ts",
     "src/renderer/editor/runtime/geometry/batchGeometryPlan.ts"
   ],

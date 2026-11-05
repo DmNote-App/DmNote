@@ -6,7 +6,7 @@ import {
   keySlotInfoOf,
   keySlotOf,
 } from '@src/renderer/elementKinds/definitions/key/keySlotInfo';
-import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
+import { panelFieldViewOf } from '@src/renderer/elementKinds/runtime/fieldView';
 import type { KeyPosition } from '@src/types/key/keys';
 import type { StatItemType } from '@src/types/key/statItems';
 import type { KeyInfo } from '@utils/input/KeyMaps';
@@ -193,7 +193,7 @@ export const KeyNoteTab = ({
   return (
     <NoteTabContent
       keyPosition={position}
-      canonicalKeyPosition={legacyPositionOf(element) as unknown as KeyPosition}
+      canonicalKeyPosition={panelFieldViewOf(element) as unknown as KeyPosition}
       onElementPropertyCommit={handlers.stableElementPropertyCommitHandler(
         'key',
         id,

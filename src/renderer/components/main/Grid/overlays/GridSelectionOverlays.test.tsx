@@ -14,6 +14,7 @@ import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayEle
 import { useKeyStore } from '@stores/data/useKeyStore';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
+import { positionLookupOf } from '@src/renderer/__tests__/positionLookup';
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -108,15 +109,13 @@ describe('GridSelectionOverlays', () => {
       root.render(
         <GridSelectionOverlays
           selectedElements={selectedElements}
-          collections={
-            {
-              keyPositions: positions,
-              statPositions: statPositions,
-              graphPositions: graphPositions,
-              knobPositions: knobPositions,
-              spritePositions: spritePositions,
-            } as never
-          }
+          positionOf={positionLookupOf({
+            keyPositions: positions,
+            statPositions: statPositions,
+            graphPositions: graphPositions,
+            knobPositions: knobPositions,
+            spritePositions: spritePositions,
+          } as never)}
           mode="4key"
           pluginElements={pluginElements}
           zoom={zoom}
@@ -271,6 +270,8 @@ describe('GridSelectionOverlays', () => {
           { type: 'plugin', id: PLUGIN_ELEMENT.fullId },
         ],
         pluginElements: [PLUGIN_ELEMENT],
+        // 탭 안 id는 하나 - 같은 id의 키 없이 스프라이트만
+        keyPositions: { '4key': [] },
         spritePositions: {
           '4key': [
             makeCanonicalSpritePosition({

@@ -3,15 +3,12 @@ import type {
   ElementResizeAnchor,
   PluginDisplayElementInternal,
 } from '@src/types/plugin/api';
-import type { KeySlot } from '@src/types/key/keys';
-import { slotCanonical } from '@utils/keySlot';
 import { resolveResizablePluginElementSize } from './pluginElementMeasurement';
 
 interface PluginElementPositionInput {
   element: Pick<PluginDisplayElementInternal, 'position' | 'anchor'>;
-  positions: Record<string, Array<{ dx: number; dy: number }>>;
-  keyMappings: Record<string, KeySlot[]>;
-  selectedKeyType: string;
+  // 앵커 키(정규형 슬롯)의 위치 - 그 키가 없으면 null
+  keyPositionOf: (keyCode: string) => { x: number; y: number } | null;
   positionOffset: { x: number; y: number };
 }
 
@@ -59,25 +56,18 @@ export const calculatePluginAnchorOffset = (
 
 export const resolvePluginElementPosition = ({
   element,
-  positions,
-  keyMappings,
-  selectedKeyType,
+  keyPositionOf,
   positionOffset,
 }: PluginElementPositionInput): { x: number; y: number } => {
   let baseX = element.position.x;
   let baseY = element.position.y;
 
-  if (element.anchor?.keyCode && positions && selectedKeyType) {
-    const modeKeys = keyMappings[selectedKeyType] || [];
-    const keyIndex = modeKeys.findIndex(
-      (key) => slotCanonical(key) === element.anchor?.keyCode,
-    );
-
-    if (keyIndex >= 0 && positions[selectedKeyType]?.[keyIndex]) {
-      const keyPosition = positions[selectedKeyType][keyIndex];
-      baseX = keyPosition.dx + (element.anchor.offset?.x ?? 0);
-      baseY = keyPosition.dy + (element.anchor.offset?.y ?? 0);
-    }
+  const keyPosition = element.anchor?.keyCode
+    ? keyPositionOf(element.anchor.keyCode)
+    : null;
+  if (element.anchor && keyPosition) {
+    baseX = keyPosition.x + (element.anchor.offset?.x ?? 0);
+    baseY = keyPosition.y + (element.anchor.offset?.y ?? 0);
   }
 
   return {

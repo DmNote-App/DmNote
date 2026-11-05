@@ -1,9 +1,9 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { sendTreeEditedFrame } from '@src/renderer/editor/runtime/operations/editorSemanticOps';
+import { commitFrames } from '@src/renderer/editor/runtime/operations/treeEditCommit';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import { useElementDocumentScene } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { currentTreePosition } from '../../runtime/treeElementPosition';
+import { currentFieldsOf } from '../../runtime/viewFields';
 import { treeModeArrays } from '../../runtime/treeModeArrays';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { commitSingleElementBoundsById } from '@src/renderer/editor/runtime/operations/elementOps';
@@ -81,18 +81,9 @@ import SpritePoseEditorPopup from '@components/main/Grid/PropertiesPanel/single/
 import SpriteImagePreviewCard from '@components/main/Grid/PropertiesPanel/single/SpriteImagePreviewCard';
 import { useDocumentElement } from '@src/renderer/editor/document/elementDocumentRuntime';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import { useTreeElementPosition } from '../../runtime/treeElementPosition';
+import { useViewFields } from '../../runtime/viewFields';
 import type { PanelSectionProps } from '../../defineElementKind';
-
-// 계약과 동일한 cubic-bezier 문자열만 저장 (transitionEasing은 문자열 그대로 CSS로 간다)
-const SPRITE_EASING_PRESETS: ReadonlyArray<{ label: string; value: string }> = [
-  { label: 'Default', value: DEFAULT_SPRITE_TRANSITION_EASING },
-  { label: 'Linear', value: 'cubic-bezier(0, 0, 1, 1)' },
-  { label: 'Ease Out', value: 'cubic-bezier(0, 0, 0.58, 1)' },
-  { label: 'Ease In', value: 'cubic-bezier(0.42, 0, 1, 1)' },
-  { label: 'Ease In-Out', value: 'cubic-bezier(0.42, 0, 0.58, 1)' },
-  { label: 'Overshoot', value: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
-];
+import { spriteEasingOptions } from './spriteEasingOptions';
 
 // 요소 상자 입력의 편집 한계 - 다른 요소의 위치·크기 행과 같은 범위
 const BOUNDS_EDIT_LIMITS = {
@@ -206,7 +197,7 @@ const SpritePanelBody = ({
   t,
 }: SpritePanelBodyProps) => {
   // 옛 스프라이트 패널이 보던 값 - 트리 값 + 편집 미리보기 (옛 칸 모양)
-  const singleSpritePosition = useTreeElementPosition(
+  const singleSpritePosition = useViewFields(
     element,
     selectedKeyType,
   ) as unknown as CanonicalReactiveSpritePosition;
@@ -263,7 +254,7 @@ const SpritePanelBody = ({
   // 건드리지 않는다
   const storePosition =
     (scene &&
-      (currentTreePosition(selectedKeyType, position.id) as unknown as
+      (currentFieldsOf(selectedKeyType, position.id) as unknown as
         | ReactiveSpritePosition
         | undefined)) ??
     null;
@@ -515,23 +506,24 @@ const SpritePanelBody = ({
     return persisted;
   };
 
-  // 회전 - 트리 편집기가 맡는 스프라이트는 트리에 바로 써 감싸는 상자가 즉시 돈다
+  // 회전 - 틀에 바로 써 감싸는 상자가 즉시 돈다
   const commitRotation = (rotation: number) => {
     const gestureId = editGestureController.activeGestureId() ?? undefined;
-    const persisted = sendTreeEditedFrame(
-      'sprite',
-      position.id,
-      { rotation },
-      gestureId,
+    const persisted = commitFrames(
+      [{ elementType: 'sprite', id: position.id, frame: { rotation } }],
+      gestureId ? { gestureId } : {},
     );
-    if (!persisted) {
-      void commitFields({ rotation });
-      return;
-    }
     editGestureController.settleCommit(persisted);
-    void persisted.catch((error) => {
-      console.error('Failed to rotate sprite', error);
-    });
+    void persisted
+      .then(([status]) => {
+        // 무커밋 조용 종료 방지: 대상 소실은 흔적을 남긴다
+        if (status === 'targetMissing') {
+          console.error('Sprite patch target missing', position.id);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to rotate sprite', error);
+      });
   };
 
   const trackPoseWrite = (persisted: Promise<unknown>) => {
@@ -554,7 +546,7 @@ const SpritePanelBody = ({
   // 스크럽·타이핑 실시간 프리뷰 (spritePosition 도메인)
   const previewFields = (patch: Record<string, unknown>) => {
     if (!isNativeElementId(position.id)) return;
-    if (!currentTreePosition(selectedKeyType, position.id)) return;
+    if (!currentFieldsOf(selectedKeyType, position.id)) return;
     editGestureController.preview(
       selectedKeyType,
       [{ id: position.id, patch }],
@@ -1247,17 +1239,7 @@ const SpritePanelBody = ({
   const { anchor, transitionMs, pressDurationMs } = SPRITE_CONSTRAINTS;
   const easingValue =
     position.transitionEasing || DEFAULT_SPRITE_TRANSITION_EASING;
-  const easingOptions = SPRITE_EASING_PRESETS.some(
-    (preset) => preset.value === easingValue,
-  )
-    ? [...SPRITE_EASING_PRESETS]
-    : [
-        {
-          label: t('propertiesPanel.spriteEasingCustom') || '사용자 정의',
-          value: easingValue,
-        },
-        ...SPRITE_EASING_PRESETS,
-      ];
+  const easingOptions = spriteEasingOptions(easingValue, t);
   const pivotLabel = t('propertiesPanel.spritePivot') || '기준점';
 
   return (

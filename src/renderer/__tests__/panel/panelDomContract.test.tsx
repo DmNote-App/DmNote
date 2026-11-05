@@ -398,6 +398,16 @@ const CASES: Record<string, Case> = {
     nodes: [tracker, positionTracker],
     selected: [ID(4), ID(5)],
   },
+  // 옛 종류와 트리에만 있는 종류를 함께 - 고른 종류들 선언의 합
+  '키와 커서 트래커': { nodes: [key, tracker], selected: [ID(3), ID(4)] },
+  '그래프와 커서 트래커': {
+    nodes: [lineGraph, positionTracker],
+    selected: [ID(1), ID(5)],
+  },
+  '스프라이트와 커서 트래커': {
+    nodes: [sprite, tracker],
+    selected: [ID(8), ID(4)],
+  },
 };
 
 interface NodeSignature {

@@ -32,6 +32,8 @@ interface DropdownProps {
   dangerLabel?: string;
   /** 트리거 툴팁 (충돌 사유 등) */
   title?: string;
+  /** 여러 요소의 값이 섞였다 - 보이는 값(첫 요소 값)을 골라도 확정한다 (모두 그 값으로) */
+  mixed?: boolean;
 }
 
 const Dropdown: React.FC<DropdownProps> = ({
@@ -52,6 +54,7 @@ const Dropdown: React.FC<DropdownProps> = ({
   danger = false,
   dangerLabel,
   title,
+  mixed = false,
 }) => {
   const {
     buttonRef,
@@ -73,6 +76,7 @@ const Dropdown: React.FC<DropdownProps> = ({
     widthClass,
     multiple,
     values,
+    mixed,
   });
   return (
     <div

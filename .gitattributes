@@ -17,3 +17,7 @@ scripts/*.js text eol=lf
 scripts/ci/** text eol=lf
 rust-toolchain.toml text eol=lf
 .node-version text eol=lf
+
+# Rust 테스트가 생성 결과와 바이트 그대로 비교하는 TS 바인딩·fixture - Windows 체크아웃에서도 LF 유지
+src/types/generated/** text eol=lf
+tests/fixtures/** text eol=lf

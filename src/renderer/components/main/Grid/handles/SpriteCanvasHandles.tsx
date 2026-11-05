@@ -13,7 +13,7 @@ import { useCommittedApplyStore } from '@stores/data/useCommittedApplyStore';
 import { spriteItemsApi } from '@api/modules/editor/itemsApi';
 import { subscribeHistoryEditorFlushStart } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
-import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { currentFieldsOf } from '@src/renderer/elementKinds/runtime/viewFields';
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import {
   SPRITE_CONSTRAINTS,
@@ -178,7 +178,9 @@ const findCanonicalSprite = (
   mode: string,
   id: string,
 ): ReactiveSpritePosition | null =>
-  (currentTreePosition(mode, id) as ReactiveSpritePosition | undefined) ?? null;
+  (currentFieldsOf(mode, id) as unknown as
+    | ReactiveSpritePosition
+    | undefined) ?? null;
 
 const SpriteCanvasHandles = ({
   spritePositions,

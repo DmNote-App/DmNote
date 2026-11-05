@@ -162,6 +162,39 @@ describe('Dropdown keyboard contract', () => {
     expect(onChange).toHaveBeenCalledWith('two');
   });
 
+  it('섞인 값(mixed)이면 보이는 값(첫 요소 값)을 골라도 확정한다', async () => {
+    const onChange = vi.fn();
+    const render = (mixed: boolean) =>
+      act(async () => {
+        root.render(
+          <Dropdown
+            options={[
+              { label: 'One', value: 'one' },
+              { label: 'Two', value: 'two' },
+            ]}
+            value="one"
+            mixed={mixed}
+            onChange={onChange}
+          />,
+        );
+      });
+    const pickOne = async () => {
+      await act(async () => host.querySelector('button')?.click());
+      const one = [...document.querySelectorAll('[role="option"]')].find(
+        (node) => node.textContent === 'One',
+      ) as HTMLElement;
+      await act(async () => one.click());
+    };
+
+    await render(false);
+    await pickOne();
+    expect(onChange).not.toHaveBeenCalled();
+
+    await render(true);
+    await pickOne();
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('one');
+  });
+
   it('wraps ArrowUp from the first option to the last option', async () => {
     await act(async () => {
       root.render(

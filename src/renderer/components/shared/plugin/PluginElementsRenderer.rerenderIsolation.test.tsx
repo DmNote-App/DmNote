@@ -22,19 +22,16 @@ const probe = vi.hoisted(() => ({
   lastStackZIndex: {} as Record<string, number | undefined>,
 }));
 
-// memo 없는 스텁 - 렌더러/Host 리렌더가 그대로 카운트에 드러남
-vi.mock('@components/shared/plugin/PluginElement', () => {
-  const Stub = (props: StubProps) => {
-    probe.counts[props.element.fullId] =
-      (probe.counts[props.element.fullId] ?? 0) + 1;
-    probe.lastStackZIndex[props.element.fullId] =
-      props.stackZIndex ?? props.fallbackZIndex;
-    return null;
-  };
-  return { PluginElement: Stub };
-});
-
 import { PluginElementsRenderer } from '@components/shared/plugin/PluginElementsRenderer';
+
+// memo 없는 스텁 - 렌더러/Host 리렌더가 그대로 카운트에 드러남
+const Stub = (props: StubProps) => {
+  probe.counts[props.element.fullId] =
+    (probe.counts[props.element.fullId] ?? 0) + 1;
+  probe.lastStackZIndex[props.element.fullId] =
+    props.stackZIndex ?? props.fallbackZIndex;
+  return null;
+};
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -78,7 +75,12 @@ afterEach(() => {
 
 const mountRenderer = () => {
   act(() => {
-    root.render(<PluginElementsRenderer windowType="main" />);
+    root.render(
+      <PluginElementsRenderer
+        ElementComponent={Stub as never}
+        windowType="main"
+      />,
+    );
   });
 };
 
