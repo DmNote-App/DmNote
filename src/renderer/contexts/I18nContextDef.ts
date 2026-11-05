@@ -1,6 +1,6 @@
 import { createContext } from 'react';
 
-export type SupportedLocale = 'ko' | 'en' | 'zh-cn' | 'zh-Hant' | 'ru';
+export type SupportedLocale = 'ko' | 'en' | 'zh-cn' | 'zh-Hant' | 'ru' | 'ja';
 
 export interface I18nContextValue {
   locale: SupportedLocale;

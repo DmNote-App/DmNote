@@ -41,7 +41,7 @@ export function subscribe<T>(
 // ── i18n internals (shared between i18nApi and the settings listener) ──
 const LOCALE_STORAGE_KEY = 'dmnote:locale';
 const DEFAULT_LOCALE = 'ko';
-const SUPPORTED_LOCALES = new Set(['ko', 'en', 'zh-cn', 'zh-Hant', 'ru']);
+const SUPPORTED_LOCALES = new Set(['ko', 'en', 'zh-cn', 'zh-Hant', 'ru', 'ja']);
 
 let cachedLocale: string | null = null;
 const i18nListeners = new Set<(locale: string) => void>();
