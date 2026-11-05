@@ -264,11 +264,11 @@ export const usePropertiesPanelSelection = () => {
     'sprite',
   );
 
-  // 고른 것이 그룹 하나 전체면 그 그룹 (트리 그룹 - 옛·트리 전용 구분 없음)
-  const selectedGroupInfo = wholeGroupOf(
-    scene,
-    selectedElements.map(({ id }) => id),
-  );
+  // 고른 것이 그룹 하나 전체면 그 그룹 (트리 그룹 - 옛·트리 전용 구분 없음, 섞인 선택의 트리 전용 요소 포함)
+  const selectedGroupInfo = wholeGroupOf(scene, [
+    ...selectedElements.map(({ id }) => id),
+    ...treeOnlyIds,
+  ]);
 
   return {
     selectedElements,
