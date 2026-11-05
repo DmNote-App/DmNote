@@ -4,7 +4,10 @@ import GroupResizeHandles from '../handles/GroupResizeHandles';
 import GradientAxisOverlay from '../handles/GradientAxisHandle';
 import SpriteCanvasHandles from '../handles/SpriteCanvasHandles';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
-import { usePanelSelection } from '../document/treeEditedSelection';
+import {
+  usePanelEditSelection,
+  usePanelSelection,
+} from '../document/treeEditedSelection';
 import { useTreeFramedPositions } from '../document/useTreeFramedPositions';
 import { projectSpriteResize } from '@utils/sprite/resizeProjection';
 import {
@@ -21,17 +24,19 @@ import {
   isElementResizable,
   type Bounds,
   type ElementBounds,
+  type ElementPositionLookup,
 } from '../handles/groupResizeUtils';
-import type { ElementCollections } from '@src/types/editor';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
+import type { ReactiveSpritePosition } from '@src/types/key/sprites';
 
 type ResizeHandlesProps = ComponentProps<typeof ResizeHandles>;
 type GroupResizeHandlesProps = ComponentProps<typeof GroupResizeHandles>;
 
 interface GridSelectionOverlaysProps {
   selectedElements: SelectedElement[];
-  collections: ElementCollections;
+  // 요소의 지금 틀 찾기(id) - 지금 탭 트리의 보이는 칸(편집 미리보기 포함)
+  positionOf: ElementPositionLookup;
   mode: string;
   pluginElements: PluginDisplayElementInternal[];
   zoom: number;
@@ -53,7 +58,7 @@ interface GridSelectionOverlaysProps {
 
 const GridSelectionOverlays = ({
   selectedElements,
-  collections,
+  positionOf,
   mode,
   pluginElements,
   zoom,
@@ -71,19 +76,21 @@ const GridSelectionOverlays = ({
   onGroupResizeEnd,
   getOtherElements,
 }: GridSelectionOverlaysProps) => {
-  // 일괄 그라데이션 축은 패널이 편집하는 선택(트리로 옮긴 옛 종류 포함)을 감싼다
+  // 일괄 그라데이션 축은 패널이 편집하는 선택(트리로 옮긴 옛 종류 포함, 트리에만 있는 종류가 섞여도)을 감싼다
+  const panelEditSelection = usePanelEditSelection(mode);
+  // 스프라이트 기준점 손잡이는 하나 고른 스프라이트만 - 트리에만 있는 종류가 섞이면 닫는다
   const panelSelection = usePanelSelection(mode);
   // 기준점·자세 손잡이 - 트리에서 그리는 스프라이트는 트리 틀(끌기·크기 미리보기 포함)을 따른다
   const framedSprites = useTreeFramedPositions(
     'sprite',
-    collections.spritePositions[mode] ?? [],
     mode,
-  );
+  ) as unknown as readonly ReactiveSpritePosition[];
   // 크기가 달라졌으면 이동값도 같은 비율로 (얼굴·커밋과 같은 projection)
   const spriteHandlePositions = {
-    ...collections.spritePositions,
-    [mode]: framedSprites.map((framed, index) => {
-      const source = collections.spritePositions[mode]?.[index];
+    [mode]: framedSprites.map((framed) => {
+      const source = positionOf(framed.id) as
+        | ReactiveSpritePosition
+        | undefined;
       return source && framed !== source
         ? {
             ...framed,
@@ -107,17 +114,12 @@ const GridSelectionOverlays = ({
   const rotatedWithoutFrame =
     selectedElements.length > 1 &&
     selectedElements.some(
-      (element) => getElementRotation(element, collections, mode) !== 0,
+      (element) => getElementRotation(element, positionOf) !== 0,
     );
   const isMultiSelection = selectedElements.length > 1;
   const groupData =
     isMultiSelection && !rotatedWithoutFrame
-      ? calculateGroupBounds(
-          selectedElements,
-          collections,
-          mode,
-          pluginElements,
-        )
+      ? calculateGroupBounds(selectedElements, positionOf, pluginElements)
       : null;
   // 그룹 핸들이 실제로 그리는 프레임과 같은 좌표·회전·프리뷰 사용
   const groupOutlineFrame = groupData
@@ -135,12 +137,7 @@ const GridSelectionOverlays = ({
   const selectionOutlines: ReactNode[] = [];
   if (!hasGradientEditSession) {
     selectedElements.forEach((element) => {
-      const bounds = getElementBounds(
-        element,
-        collections,
-        mode,
-        pluginElements,
-      );
+      const bounds = getElementBounds(element, positionOf, pluginElements);
       if (!bounds) return;
       const displayBounds = isMultiSelection
         ? previewByElement.get(`${element.type}:${element.id}`) ?? bounds
@@ -148,7 +145,7 @@ const GridSelectionOverlays = ({
       const borderWidth = isMultiSelection
         ? GROUP_SELECTION_BORDER_WIDTH
         : SELECTION_BORDER_WIDTH;
-      const rotation = getElementRotation(element, collections, mode);
+      const rotation = getElementRotation(element, positionOf);
       const edges = getSelectionOutlineEdges(
         displayBounds,
         rotation,
@@ -193,10 +190,10 @@ const GridSelectionOverlays = ({
   const singleElement =
     selectedElements.length === 1 ? selectedElements[0] : null;
   const singleBounds = singleElement
-    ? getElementBounds(singleElement, collections, mode, pluginElements)
+    ? getElementBounds(singleElement, positionOf, pluginElements)
     : null;
   const singleRotation = singleElement
-    ? getElementRotation(singleElement, collections, mode)
+    ? getElementRotation(singleElement, positionOf)
     : 0;
   // 자세 편집 중에는 자세 프레임이 핸들을 맡는다 - 상자 핸들과 겹치지 않게
   const showSingleResizeHandles = Boolean(
@@ -234,8 +231,7 @@ const GridSelectionOverlays = ({
         !rotatedWithoutFrame && (
           <GroupResizeHandles
             selectedElements={selectedElements}
-            collections={collections}
-            selectedKeyType={mode}
+            positionOf={positionOf}
             pluginElements={pluginElements}
             zoom={zoom}
             panX={panX}
@@ -248,9 +244,8 @@ const GridSelectionOverlays = ({
           />
         )}
       <GradientAxisOverlay
-        collections={collections}
-        selectedElements={panelSelection}
-        selectedKeyType={mode}
+        positionOf={positionOf}
+        selectedElements={panelEditSelection}
         zoom={zoom}
         panX={panX}
         panY={panY}

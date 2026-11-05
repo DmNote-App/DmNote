@@ -12,6 +12,10 @@ import {
 } from '@src/renderer/__tests__/fakeElementDocumentBackend';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import type { Document } from '@src/types/generated/elementDocument';
+import {
+  notePluginFetchSettled,
+  resetPluginRuntimeReadiness,
+} from '@plugins/runtime/pluginRuntimeReadiness';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -239,6 +243,10 @@ const setupOverlay = async () => {
   });
   useSettingsStore.setState({ alwaysOnTop: false, trayEnabled: true });
   resetAllKeySignals();
+  // 플러그인 초기 조회(js.get·js.getUse) 끝 - 활성 플러그인이 없어 요소를 기다리지 않는다
+  resetPluginRuntimeReadiness();
+  notePluginFetchSettled();
+  notePluginFetchSettled();
   // 트리 스토어는 부트스트랩(목)이 아니라 여기서 불러온다. 앞 테스트가 바꾼 문서는 처음 모양으로
   await act(async () => {
     await loadElementDocumentStore();
@@ -638,6 +646,96 @@ describe('모서리 스냅', () => {
 
     // 보정 전에는 1080 - 1600 = -520으로 화면 위로 사라졌다
     expect(applied).toMatchObject({ x: 0, y: 0 });
+  });
+});
+
+describe('창 크기 첫 요청', () => {
+  beforeEach(setupOverlay);
+  afterEach(teardownOverlay);
+
+  // 키는 트리 문서에서, 노트 트랙 예약은 부트스트랩 설정에서 온다. 부트스트랩 전 레이아웃
+  // (트랙 예약 0)으로 창 크기를 보내면 다음 요청의 콘텐츠 오프셋 차이만큼 네이티브가 창을 옮긴다
+  it('부트스트랩이 끝난 뒤 트랙 예약이 반영된 값으로 처음 보낸다', async () => {
+    useKeyStore.setState({ isBootstrapped: false });
+    useSettingsStore.setState({ noteEffect: false });
+
+    await mount();
+    expect(mocks.resize).not.toHaveBeenCalled();
+
+    // 부트스트랩은 설정을 먼저 적용하고 끝났음을 표시한다
+    await act(async () => {
+      useSettingsStore.setState({ noteEffect: true });
+    });
+    await flushAsync();
+    expect(mocks.resize).not.toHaveBeenCalled();
+
+    await act(async () => {
+      useKeyStore.setState({ isBootstrapped: true });
+    });
+    await flushAsync();
+
+    expect(mocks.resize).toHaveBeenCalledTimes(1);
+    // 키 위에 트랙 높이(2000)와 여백(30)
+    expect(mocks.resize.mock.calls[0][0]).toMatchObject({
+      contentTopOffset: 2030,
+    });
+  });
+
+  it('플러그인 요소가 준비되기 전에는 보내지 않는다 - 늦게 온 요소가 창 경계를 넓히면 그 차이만큼 밀린다', async () => {
+    act(() => resetPluginRuntimeReadiness());
+
+    await mount();
+    expect(mocks.resize).not.toHaveBeenCalled();
+
+    await act(async () => {
+      notePluginFetchSettled();
+      notePluginFetchSettled();
+    });
+    await flushAsync();
+
+    expect(mocks.resize).toHaveBeenCalledTimes(1);
+  });
+
+  it('부트스트랩이 끝내 안 되어도 공개 시한이 지나면 갖춘 만큼으로 보낸다', async () => {
+    vi.useFakeTimers();
+    try {
+      useKeyStore.setState({ isBootstrapped: false });
+
+      container = document.createElement('div');
+      document.body.append(container);
+      root = createRoot(container);
+      await act(async () => {
+        root?.render(<App />);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(mocks.resize).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+      expect(mocks.resize).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('설정 적용과 부트스트랩 완료가 한 렌더로 묶여도 트랙 예약을 반영해 처음 보낸다', async () => {
+    useKeyStore.setState({ isBootstrapped: false });
+    useSettingsStore.setState({ noteEffect: false });
+
+    await mount();
+    await act(async () => {
+      useSettingsStore.setState({ noteEffect: true });
+      useKeyStore.setState({ isBootstrapped: true });
+    });
+    await flushAsync();
+
+    expect(mocks.resize).toHaveBeenCalledTimes(1);
+    expect(mocks.resize.mock.calls[0][0]).toMatchObject({
+      contentTopOffset: 2030,
+    });
   });
 });
 

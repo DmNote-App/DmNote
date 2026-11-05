@@ -1,10 +1,4 @@
-import type {
-  CanonicalEditorDocumentV1,
-  EditorElementTypeV1,
-  EditorField,
-  EditorOpResultV1,
-  EditorOpV1,
-} from '@src/types/editor';
+import type { EditorElementTypeV1, EditorOpV1 } from '@src/types/editor';
 import { mirrorBodyPaintToGlow } from '@src/types/key/notePaint';
 import { implicitElementFontBold } from '@utils/typography/fontWeights';
 import {
@@ -21,34 +15,6 @@ import {
 } from './semanticElementPaintPatchProjection';
 
 type PatchElementOp = Extract<EditorOpV1, { kind: 'patchElement' }>;
-
-export const applySemanticElementPatch = (
-  next: CanonicalEditorDocumentV1,
-  op: PatchElementOp,
-  result: EditorOpResultV1 | undefined,
-  SEMANTIC_POSITION_FIELDS: Record<EditorElementTypeV1, EditorField>,
-): void => {
-  if (result?.status === 'noChange') return;
-  const field = SEMANTIC_POSITION_FIELDS[op.elementType];
-  const record = next[field] as Record<
-    string,
-    Array<Record<string, unknown> & { id: string }>
-  >;
-  for (const [mode, positions] of Object.entries(record)) {
-    const index = positions.findIndex((position) => position.id === op.id);
-    if (index < 0) continue;
-    next[field] = {
-      ...record,
-      [mode]: positions.map((position, positionIndex) =>
-        positionIndex === index
-          ? applyPropertyPatch(op.elementType, position, op.patch)
-          : position,
-      ),
-    } as never;
-    break;
-  }
-  return;
-};
 
 type ElementPosition = Record<string, unknown> & { id: string };
 

@@ -76,3 +76,45 @@ describe('장면 트리 → 탭 하나의 옛 종류 위치 목록', () => {
     });
   });
 });
+
+describe('위치 목록의 칸 - 트리 칸 보기', () => {
+  it('종류가 쓰는 칸(고유 값·묶음·틀·공통 정보)만, 종류가 갖지 않는 옛 칸과 옛 겹침 번호는 읽지 않는다', () => {
+    const scene: Scene = {
+      nodes: [
+        {
+          type: 'element',
+          id: 'k1',
+          kind: 'key',
+          frame: frame(7),
+          input: { type: 'key', slot: 'KeyA' },
+          values: { displayText: 'A' },
+          bundles: {
+            note: { noteColor: '#123456', noteEffectEnabled: false },
+            counter: { counter: { enabled: true } },
+          },
+          className: 'mine',
+          legacy: {
+            index: 0,
+            zIndex: 9,
+            fields: { graphAnimationEnabled: true },
+          },
+        } as unknown as Node,
+      ],
+    };
+    const [position] = treeModeArrays(scene).keyPositions as unknown as Record<
+      string,
+      unknown
+    >[];
+    expect(position).toMatchObject({
+      id: 'k1',
+      dx: 7,
+      displayText: 'A',
+      noteColor: '#123456',
+      noteEffectEnabled: false,
+      counter: { enabled: true },
+      className: 'mine',
+      zIndex: 0,
+    });
+    expect(position).not.toHaveProperty('graphAnimationEnabled');
+  });
+});

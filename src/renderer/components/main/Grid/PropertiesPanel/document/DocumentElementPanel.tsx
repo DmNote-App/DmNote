@@ -10,7 +10,7 @@ import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import { useDocumentElement } from '@src/renderer/editor/document/elementDocumentRuntime';
 import type { GeometryField } from '@src/renderer/editor/runtime/operations/elementOps';
 import { elementKindDefinition } from '@src/renderer/elementKinds/runtime/elementKindRegistry';
-import { useTreeElementPosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { useViewFields } from '@src/renderer/elementKinds/runtime/viewFields';
 import type { KeyPosition } from '@src/types/key/keys';
 import { usePropertiesPanelStore } from '@stores/grid/usePropertiesPanelStore';
 import { useSettingsStore } from '@stores/useSettingsStore';
@@ -104,7 +104,7 @@ const ElementPanelBody = ({
   // 옛 종류는 옛 단일 패널과 같은 처리기로 쓰고, 옛 패널이 보던 값(트리 값 + 편집 미리보기, 옛 칸 모양)을 읽는다 -
   // 고르는 중인 값이 다른 칸에도 보인다
   const writer = singlePanelWriterFor(sceneId, element);
-  const legacyView = useTreeElementPosition(element, sceneId);
+  const legacyView = useViewFields(element, sceneId);
   const useCustomCSS = useSettingsStore((state) => state.useCustomCSS);
   const activeTab = usePropertiesPanelStore(
     (state) => state.propertyPanelActiveTab,

@@ -9,13 +9,61 @@ import {
   reportElementOpError,
   reportElementOpSkipped,
 } from '@src/renderer/editor/runtime/intent/elementIntent';
-import { rebindKeySlotById } from '@src/renderer/editor/runtime/operations/keySlotOps';
+import {
+  rebindKeySlotById,
+  rebindKeySlotsByIds,
+} from '@src/renderer/editor/runtime/operations/keySlotOps';
+import { usePanelElements } from '@components/main/Grid/PropertiesPanel/document/usePanelElements';
+import { slotCanonical } from '@utils/keySlot';
 import type { PanelSectionProps } from '../../defineElementKind';
 import { treeModeArrays } from '../../runtime/treeModeArrays';
 import { keySlotOf } from './keySlotInfo';
 
-/** 키 매핑 - 입력 슬롯을 바꾼다 (트리 입력 연산 - 낙관 적용). 옛 키 패널의 매핑 섹션 그대로 */
-const KeySlotSection = ({
+/** 키 매핑 - 입력 슬롯을 바꾼다 (트리 입력 연산 - 낙관 적용). 옛 키 패널의 매핑 섹션 그대로.
+ * 여럿이면 슬롯이 같을 때 그 슬롯, 다르면 Mixed를 보이고 고친 슬롯을 고른 키 모두에 */
+const KeySlotSection = (props: PanelSectionProps) =>
+  props.elementIds.length > 1 ? (
+    <KeySlotBatchSection {...props} />
+  ) : (
+    <KeySlotSingleSection {...props} />
+  );
+
+const KeySlotBatchSection = ({
+  sceneId,
+  elementIds,
+  panelElement,
+  t,
+}: PanelSectionProps) => {
+  const { elements } = usePanelElements(sceneId, elementIds);
+  if (elements.length === 0) return null;
+  const slots = elements.map(keySlotOf);
+  const same =
+    new Set(slots.map((slot) => (slot != null ? slotCanonical(slot) : '')))
+      .size === 1;
+  return (
+    <SingleMappingSection
+      keyIndex={-1}
+      keySlot={same ? slots[0] : null}
+      mixed={!same}
+      onKeyMappingChange={(_index, slot) =>
+        void rebindKeySlotsByIds(
+          elements.map(({ id }) => id),
+          slot,
+        )
+          .then((applied) => {
+            if (!applied) {
+              reportElementOpSkipped('key mapping targets disappeared');
+            }
+          })
+          .catch(reportElementOpError)
+      }
+      panelElement={panelElement}
+      t={t as (key: string) => string}
+    />
+  );
+};
+
+const KeySlotSingleSection = ({
   sceneId,
   elementIds,
   panelElement,

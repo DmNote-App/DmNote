@@ -31,21 +31,25 @@ export const lazyPanelControl = <Props extends object>(
 };
 
 const preloadPart = (component: unknown) =>
-  void (component as Partial<Preloadable>).preload?.();
+  (component as Partial<Preloadable>).preload?.();
 
-/** 종류 패널 선언의 지연 로딩 입력·섹션을 미리 불러 둔다 (편집 창) */
+/** 종류 패널 선언의 지연 로딩 입력·섹션을 미리 불러 둔다 (편집 창) - 다 불러오면 끝나는 약속 */
 export const preloadPanelControls = (
   definitions: readonly {
     readonly panel?: readonly PanelSectionDecl<never>[];
   }[],
-) => {
+): Promise<unknown> => {
+  const loads: unknown[] = [];
   for (const definition of definitions) {
     for (const section of definition.panel ?? []) {
-      if ('custom' in section) preloadPart(section.custom);
+      if ('custom' in section) loads.push(preloadPart(section.custom));
       if (!('rows' in section)) continue;
       for (const row of section.rows) {
-        if (row.control.type === 'custom') preloadPart(row.control.component);
+        if (row.control.type === 'custom') {
+          loads.push(preloadPart(row.control.component));
+        }
       }
     }
   }
+  return Promise.all(loads);
 };

@@ -11,6 +11,7 @@ import GroupResizeHandles from './GroupResizeHandles';
 import type { GroupResizeHandle, GroupResizeResult } from './groupResizePlan';
 import { isBoundsWithinEditorLimits } from './resizeLimits';
 import type { Bounds } from './groupResizeUtils';
+import { positionLookupOf } from '@src/renderer/__tests__/positionLookup';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -151,16 +152,10 @@ describe('GroupResizeHandles 세션', () => {
             { type: 'key', id: ID_A, index: 0 },
             { type: 'key', id: ID_B, index: 1 },
           ]}
-          collections={
-            {
-              keyPositions: positions,
-              statPositions: {},
-              graphPositions: {},
-              knobPositions: {},
-              spritePositions: {},
-            } as never
-          }
-          selectedKeyType="mode"
+          positionOf={positionLookupOf(
+            { keyPositions: positions } as never,
+            'mode',
+          )}
           pluginElements={[]}
           zoom={zoom}
           previewGroupBounds={previewGroupBounds}
@@ -330,16 +325,13 @@ describe('GroupResizeHandles 스프라이트 최소 크기·비율 고정', () =
             { type: 'sprite', id: SPRITE_A, index: 0 },
             { type: 'sprite', id: SPRITE_B, index: 1 },
           ]}
-          collections={
-            {
-              keyPositions: {},
-              statPositions: {},
-              graphPositions: {},
-              knobPositions: {},
-              spritePositions: spritePositions,
-            } as never
-          }
-          selectedKeyType="4key"
+          positionOf={positionLookupOf({
+            keyPositions: {},
+            statPositions: {},
+            graphPositions: {},
+            knobPositions: {},
+            spritePositions: spritePositions,
+          } as never)}
           pluginElements={[]}
           onGroupResize={onGroupResize}
           getOtherElements={getOtherElements}
@@ -626,16 +618,13 @@ describe('GroupResizeHandles 스프라이트 최소 크기·비율 고정', () =
               { type: 'sprite', id: SPRITE_A, index: 0 },
               { type: 'key', id: SPRITE_B, index: 0 },
             ]}
-            collections={
-              {
-                keyPositions: { '4key': [key] },
-                statPositions: {},
-                graphPositions: {},
-                knobPositions: {},
-                spritePositions: { '4key': [sprite] },
-              } as never
-            }
-            selectedKeyType="4key"
+            positionOf={positionLookupOf({
+              keyPositions: { '4key': [key] },
+              statPositions: {},
+              graphPositions: {},
+              knobPositions: {},
+              spritePositions: { '4key': [sprite] },
+            } as never)}
             pluginElements={[]}
             getOtherElements={() => []}
             onGroupResize={onGroupResize}

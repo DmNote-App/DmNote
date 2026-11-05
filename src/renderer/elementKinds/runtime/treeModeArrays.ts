@@ -6,9 +6,9 @@ import {
   type ItemElementModeArrays,
 } from '@src/types/editor';
 import type { KeySlot } from '@src/types/key/keys';
-import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
+import { keySlotOf } from '../definitions/key/keySlotInfo';
 import { treeStackingRanks } from './documentElementOrder';
-import { legacyPositionOf } from './legacyPosition';
+import { panelFieldViewOf } from './fieldView';
 
 type KeyPositions = CanonicalEditorDocumentV1['keyPositions'][string];
 
@@ -33,7 +33,7 @@ const EMPTY: TreeModeArrays = {
 const cache = new WeakMap<Scene, TreeModeArrays>();
 
 /** 장면 트리 → 탭 하나의 옛 종류 위치 목록 (바깥 카운터·노트 트랙·창 크기처럼 위치 목록으로 자리를 잡는 층).
- * 트리 순서(아래→위), 숨긴 그룹 안은 숨김, zIndex는 트리 순번. 장면이 같으면 같은 객체 */
+ * 칸은 트리 칸 보기, 트리 순서(아래→위), 숨긴 그룹 안은 숨김, zIndex는 트리 순번. 장면이 같으면 같은 객체 */
 export const treeModeArrays = (scene: Scene | undefined): TreeModeArrays => {
   if (!scene) return EMPTY;
   const cached = cache.get(scene);
@@ -54,14 +54,13 @@ export const treeModeArrays = (scene: Scene | undefined): TreeModeArrays => {
         continue;
       }
       if (node.kind !== 'key' && !isItemElementType(node.kind)) continue;
-      const base = legacyPositionOf(node);
       const position = {
-        ...base,
+        ...panelFieldViewOf(node),
         zIndex: ranks.get(node.id) ?? 0,
         ...(hidden ? { hidden: true } : {}),
       };
       if (node.kind === 'key') {
-        keySlots.push(treeKeySlot(node) ?? '');
+        keySlots.push(keySlotOf(node) ?? '');
         keyPositions.push(position as unknown as KeyPositions[number]);
       } else {
         items[EDITOR_ELEMENT_POSITION_FIELDS[node.kind]].push(position);

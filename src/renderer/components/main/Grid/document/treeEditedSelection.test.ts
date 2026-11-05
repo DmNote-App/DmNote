@@ -30,7 +30,12 @@ import { useKeyStore } from '@stores/data/useKeyStore';
 import { keepOtherSelection } from '@stores/grid/keepOtherSelection';
 import { createElement, act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { panelSelectionOf, useInPanelSelection } from './treeEditedSelection';
+import {
+  panelSelectionOf,
+  propertyPanelSelectionOf,
+  useInPanelSelection,
+  usePanelEditSelection,
+} from './treeEditedSelection';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 
 const key = { type: 'key' as const, id: 'k1', index: 0 };
@@ -118,6 +123,27 @@ describe('옛 선택으로 들어온 트리로 옮긴 옛 종류', () => {
   });
 });
 
+describe('속성 패널이 보는 선택', () => {
+  it('트리에만 있는 종류가 섞여도 노브·플러그인 요소는 합치고, 트리에만 있는 종류 id는 따로', () => {
+    const runtime = { type: 'plugin' as const, id: 'p:runtime' };
+    expect(
+      propertyPanelSelectionOf([runtime], '4key', ['n1', 't1', 'p::1']),
+    ).toEqual({
+      elements: [
+        runtime,
+        { type: 'knob', id: 'n1', index: 0 },
+        { type: 'plugin', id: 'p::1' },
+      ],
+      treeOnlyIds: ['t1'],
+    });
+    // 트리 선택이 없으면 옛 선택 그대로
+    expect(propertyPanelSelectionOf([runtime], '4key', [])).toEqual({
+      elements: [runtime],
+      treeOnlyIds: [],
+    });
+  });
+});
+
 describe('요소 하나의 패널 선택 여부', () => {
   beforeEach(() => {
     useKeyStore.setState({ selectedKeyType: '4key' });
@@ -125,7 +151,7 @@ describe('요소 하나의 패널 선택 여부', () => {
     useDocumentSelectionStore.getState().clear();
   });
 
-  it('값이 바뀔 때만 다시 그리고, 트리에만 있는 종류가 섞이면 패널 선택이 아니다', () => {
+  it('값이 바뀔 때만 다시 그리고, 트리에만 있는 종류가 섞여도 패널이 함께 편집한다', () => {
     (
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -147,11 +173,47 @@ describe('요소 하나의 패널 선택 여부', () => {
       useDocumentSelectionStore.getState().setSelection('4key', ['n1', 'n2']),
     );
     expect(renders).toEqual([false, true]);
-    // 트리에만 있는 종류가 섞이면 패널은 트리 선택을 합치지 않는다
+    // 트리에만 있는 종류가 섞여도 고른 종류들 선언의 합 패널이 n1을 편집한다 - 값이 그대로라 다시 그리지 않는다
     act(() =>
       useDocumentSelectionStore.getState().setSelection('4key', ['n1', 't1']),
     );
+    expect(renders).toEqual([false, true]);
+    // n1을 빼면 패널 선택이 아니다
+    act(() =>
+      useDocumentSelectionStore.getState().setSelection('4key', ['t1']),
+    );
     expect(renders).toEqual([false, true, false]);
+    act(() => root.unmount());
+  });
+});
+
+describe('패널이 편집하는 선택 구독 (그라데이션 축·바깥 카운터 일괄 미리보기)', () => {
+  beforeEach(() => {
+    useKeyStore.setState({ selectedKeyType: '4key' });
+    useDocumentSelectionStore.getState().clearSelection();
+    useDocumentSelectionStore.getState().clear();
+  });
+
+  it('트리에만 있는 종류가 섞여도 패널이 함께 편집하는 노브·플러그인 요소를 돌려준다', () => {
+    (
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    const onRender = vi.fn<(selected: unknown) => void>();
+    const Probe = () => {
+      onRender(usePanelEditSelection('4key'));
+      return null;
+    };
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(createElement(Probe)));
+    act(() =>
+      useDocumentSelectionStore
+        .getState()
+        .setSelection('4key', ['n1', 't1', 'p::1']),
+    );
+    expect(onRender.mock.lastCall![0]).toEqual([
+      knob,
+      { type: 'plugin', id: 'p::1' },
+    ]);
     act(() => root.unmount());
   });
 });

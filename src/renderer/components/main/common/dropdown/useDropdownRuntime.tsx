@@ -53,7 +53,12 @@ interface UseDropdownRuntimeOptions {
   multiple: boolean;
   /** 다중 모드의 선택 값 목록, 체크 표시와 트리거 요약의 기준 */
   values?: string[];
+  /** 여러 요소의 값이 섞였다 - 보이는 값을 골라도 확정한다 */
+  mixed?: boolean;
 }
+
+// 섞인 값 - 보이는 값(첫 요소 값)과 같아도 다른 요소는 다르니 언제나 확정한다
+const neverEqual = () => false;
 
 export const useDropdownRuntime = ({
   options,
@@ -66,6 +71,7 @@ export const useDropdownRuntime = ({
   widthClass,
   multiple,
   values,
+  mixed = false,
 }: UseDropdownRuntimeOptions) => {
   // 분리 패널 창 안에서는 그 창 기준으로 배치·포털·바깥 클릭 처리
   const { window: ownerWindow, document: ownerDocument } = usePanelHost();
@@ -85,6 +91,7 @@ export const useDropdownRuntime = ({
       canonicalValue: value,
       onCommit: onChange,
       strategy: commitStrategy,
+      ...(mixed ? { isEqual: neverEqual } : {}),
     });
 
   // 좌표가 확정되기 전에는 감춘 채 실측하므로, 그 프레임에 등장 모션이

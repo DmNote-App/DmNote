@@ -18,7 +18,7 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
   }),
 }));
 
-const { rebindKeySlotById, treeKeySlot } = await import('./keySlotOps');
+const { rebindKeySlotById } = await import('./keySlotOps');
 
 describe('키 슬롯 바꾸기', () => {
   beforeEach(() => {
@@ -57,15 +57,5 @@ describe('키 슬롯 바꾸기', () => {
     mocks.elements.set('4key/k1', { kind: 'key' });
     mocks.edit.mockResolvedValueOnce({ status: 'rejected' } as never);
     await expect(rebindKeySlotById('k1', 'KeyZ')).resolves.toBe(false);
-  });
-
-  it('트리 입력 슬롯을 읽는다', () => {
-    expect(treeKeySlot({ input: { type: 'key', slot: 'KeyA' } } as never)).toBe(
-      'KeyA',
-    );
-    expect(treeKeySlot({ input: { type: 'axis', axisId: 'x' } } as never)).toBe(
-      null,
-    );
-    expect(treeKeySlot(undefined)).toBe(null);
   });
 });

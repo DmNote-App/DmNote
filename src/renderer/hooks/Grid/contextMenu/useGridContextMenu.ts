@@ -20,7 +20,7 @@ import type { KeyPosition } from '@src/types/key/keys';
 import { slotCanonical } from '@utils/keySlot';
 import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
-import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
+import { keySlotOf } from '@src/renderer/elementKinds/definitions/key/keySlotInfo';
 import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
 import type { ItemElementType } from '@src/types/editor';
 import {
@@ -80,7 +80,7 @@ export const keyMenuContextOf = (
 ): KeyContext | null =>
   element?.kind === 'key'
     ? {
-        keyCode: slotCanonical(treeKeySlot(element) ?? ''),
+        keyCode: slotCanonical(keySlotOf(element) ?? ''),
         id: element.id,
         index: (element.legacy as { index?: number } | undefined)?.index ?? -1,
         position: legacyPositionOf(element) as unknown as KeyPosition,

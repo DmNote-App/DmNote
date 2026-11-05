@@ -31,15 +31,9 @@ import {
   makeSpritePose,
 } from '@utils/sprite/spriteFixtures';
 
-type MixedGetter = <T>(
-  getter: (pos: { width?: number; height?: number }) => T | undefined,
-  defaultValue: T,
-) => { isMixed: boolean; value: T };
-
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const {
-  batchKeyLikePropsMock,
   batchPluginPropsMock,
   batchPropsMock,
   graphUpdatePositionsMock,
@@ -120,9 +114,9 @@ const {
   settleCommitMock,
   activeGestureIdMock,
   documentElementPropsMock,
+  documentBatchPropsMock,
   reportElementOpSkippedMock,
 } = vi.hoisted(() => ({
-  batchKeyLikePropsMock: vi.fn(),
   batchPluginPropsMock: vi.fn(),
   batchPropsMock: vi.fn(),
   graphUpdatePositionsMock: vi.fn(() => Promise.resolve()),
@@ -207,6 +201,7 @@ const {
   settleCommitMock: vi.fn(),
   activeGestureIdMock: vi.fn(() => null as string | null),
   documentElementPropsMock: vi.fn(),
+  documentBatchPropsMock: vi.fn(),
   reportElementOpSkippedMock: vi.fn(),
 }));
 
@@ -264,7 +259,11 @@ vi.mock('@plugins/runtime/displayElement/pluginElementActions', () => ({
   patchUseInlineStylesViaAuthority: patchUseInlineStylesViaAuthorityMock,
   updatePluginElement: vi.fn(),
 }));
-vi.mock('@src/renderer/editor/runtime/operations/elementOps', () => ({
+vi.mock('@src/renderer/editor/runtime/operations/elementOps', async () => ({
+  // 비율 고정 판정은 종류 선언 그대로 (크기 일괄 미리보기·커밋이 같은 계획을 쓴다)
+  isAspectLockedNode: (
+    await import('@src/renderer/editor/runtime/operations/elementGeometryOps')
+  ).isAspectLockedNode,
   commitElementGeometryById: patchGeometryMock,
   commitBatchGeometryByIds: patchBatchGeometryMock,
   patchElementLayerNameById: patchLayerNameMock,
@@ -340,10 +339,6 @@ vi.mock('./PropertiesPanel/index', async () => {
     TextInput: Stub,
     LayerPanel: () => <div data-testid="layer-panel" />,
     PluginSelectionPanel: Stub,
-    BatchKeyLikePanel: (props: Record<string, unknown>) => {
-      batchKeyLikePropsMock(props);
-      return <div />;
-    },
     BatchPluginOnlyPanel: (props: Record<string, unknown>) => {
       batchPluginPropsMock(props);
       return <div />;
@@ -373,6 +368,17 @@ vi.mock('./PropertiesPanel/document/DocumentElementPanel', () => ({
     return <ScopeProbe id="document-element" />;
   },
 }));
+// 선언 일괄 패널 - 속성 패널이 넘기는 요소·개수·그룹·일괄 기하·피커 상태만 본다
+vi.mock(
+  './PropertiesPanel/document/DocumentBatchPanel',
+  async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    default: (props: Record<string, unknown>) => {
+      documentBatchPropsMock(props);
+      return <div />;
+    },
+  }),
+);
 vi.mock('./PropertiesPanel/batch/useBatchHandlers', () => ({
   useBatchHandlers: (props: Record<string, unknown>) => {
     batchPropsMock(props);
@@ -449,9 +455,9 @@ const resetStores = () => {
   activeGestureIdMock.mockReset();
   activeGestureIdMock.mockReturnValue(null);
   documentElementPropsMock.mockClear();
+  documentBatchPropsMock.mockClear();
   batchPluginPropsMock.mockClear();
   batchPropsMock.mockClear();
-  batchKeyLikePropsMock.mockClear();
   patchLayerNameMock.mockClear();
   patchGraphTypeMock.mockClear();
   patchGraphColorMock.mockClear();
@@ -581,6 +587,7 @@ const resetStores = () => {
   usePluginDisplayElementStore.setState({
     elements: [],
     panelElements: [],
+    definitions: new Map(),
   } as never);
   usePropertiesPanelStore.setState({
     canvasPanelMode: 'property',
@@ -759,20 +766,25 @@ describe('PropertiesPanel canonical native contract', () => {
 
       mounted = mountPanel();
 
-      const props = batchKeyLikePropsMock.mock.lastCall?.[0] as {
-        getMixedValue: MixedGetter;
-        getMixedValueGeometry: MixedGetter;
+      const props = documentBatchPropsMock.mock.lastCall?.[0] as {
+        elementIds: string[];
+        legacyHost: {
+          geometry: {
+            getBatchSizeValue: (dimension: 'width' | 'height') => {
+              isMixed: boolean;
+              value: number;
+            };
+          };
+        };
       };
 
-      expect(props.getMixedValueGeometry((pos) => pos.width, 60)).toEqual({
+      expect(props.legacyHost.geometry.getBatchSizeValue('width')).toEqual({
         isMixed: true,
         value: 60,
       });
-      // 스타일 집합은 스프라이트를 보지 않는다 - 크기에 이걸 쓰면 안 되는 이유
-      expect(props.getMixedValue((pos) => pos.width, 60)).toEqual({
-        isMixed: false,
-        value: 60,
-      });
+      // 패널은 고른 종류들 선언의 합이라 스프라이트도 받는다 (스프라이트 칸은 스프라이트에만).
+      // 크기 표시는 패널 요소가 아니라 일괄 기하 집합(플러그인 요소 포함)으로 모은다
+      expect(props.elementIds).toEqual([MIXED_KEY_ID, MIXED_SPRITE_ID]);
     });
 
     // 커밋은 resizeSprite로 자세까지 스케일한다. 미리보기가 원시
@@ -916,7 +928,31 @@ describe('PropertiesPanel canonical native contract', () => {
       expect(patchBatchGeometryViaAuthorityMock).not.toHaveBeenCalled();
     });
 
-    it('혼합 선택 resize는 native 전용 경로로 남는다', () => {
+    it('크기를 정하는 플러그인(resizable)이 섞인 resize는 mixed helper에 그 플러그인을 싣는다', () => {
+      installMixedSelection('main');
+      usePluginDisplayElementStore.setState({
+        definitions: new Map([['plugin-a', { resizable: true }]]),
+      } as never);
+      mounted = mountPanel();
+
+      act(() =>
+        commitProps().onStableGeometryCommit(
+          { kind: 'resize', dimension: 'width', value: 91 },
+          { gestureId: 'a3333333-3333-4333-8333-333333333333' },
+        ),
+      );
+
+      expect(commitMixedBatchGeometryMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: { kind: 'resize', dimension: 'width', value: 91 },
+        }),
+        [PLUGIN_FULL_ID],
+        { gestureId: 'a3333333-3333-4333-8333-333333333333' },
+      );
+      expect(patchBatchGeometryMock).not.toHaveBeenCalled();
+    });
+
+    it('내용이 크기를 정하는 플러그인이 섞인 resize는 native 전용 경로로 남는다', () => {
       installMixedSelection('main');
       mounted = mountPanel();
 
@@ -993,20 +1029,22 @@ describe('PropertiesPanel canonical native contract', () => {
       });
       mounted = mountPanel();
 
-      const props = batchKeyLikePropsMock.mock.lastCall?.[0] as {
-        selectedGroupInfo: {
-          id: string;
-          name: string;
-          memberCount: number;
-        } | null;
-        totalCount?: number;
+      const props = documentBatchPropsMock.mock.lastCall?.[0] as {
+        legacyHost: {
+          groupInfo: {
+            id: string;
+            name: string;
+            memberCount: number;
+          } | null;
+          totalCount: number;
+        };
       };
-      expect(props.selectedGroupInfo).toEqual({
+      expect(props.legacyHost.groupInfo).toEqual({
         id: 'group-a',
         name: '그룹 A',
         memberCount: 3,
       });
-      expect(props.totalCount).toBe(3);
+      expect(props.legacyHost.totalCount).toBe(3);
     });
 
     it('plugin 단독 다중 선택은 경량 기하 배치 패널로 라우트한다', () => {
@@ -1034,7 +1072,7 @@ describe('PropertiesPanel canonical native contract', () => {
         totalCount: number;
       };
       expect(props.totalCount).toBe(2);
-      expect(batchKeyLikePropsMock).not.toHaveBeenCalled();
+      expect(documentBatchPropsMock).not.toHaveBeenCalled();
     });
   });
 });
@@ -1170,11 +1208,16 @@ describe('PropertiesPanel 배치 색상 피커 대상 결합', () => {
     });
   };
 
+  // 일괄 피커 상태는 속성 패널이 갖고 선언 일괄 패널에 넘긴다
   const latestBatchProps = () =>
-    batchKeyLikePropsMock.mock.lastCall?.[0] as {
-      batchPickerFor: string | null;
-      handleBatchPickerToggle: (target: string) => void;
-    };
+    (
+      documentBatchPropsMock.mock.lastCall?.[0] as {
+        keyLikeHost: {
+          batchPickerFor: string | null;
+          handleBatchPickerToggle: (target: string) => void;
+        };
+      }
+    ).keyLikeHost;
 
   beforeEach(() => {
     resetStores();

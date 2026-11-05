@@ -3,16 +3,21 @@ import type { usePropertiesPanelSelection } from '../../selection/usePropertiesP
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import {
   commitBatchGeometryByIds,
+  isAspectLockedNode,
   type BatchGeometryDescriptor,
 } from '@src/renderer/editor/runtime/operations/elementOps';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
 import {
-  currentTreePosition,
-  viewTreePosition,
-} from '@src/renderer/elementKinds/runtime/treeElementPosition';
+  currentFieldsOf,
+  viewFieldsById,
+} from '@src/renderer/elementKinds/runtime/viewFields';
 import { computeBatchGeometryPlan } from '@src/renderer/editor/runtime/geometry/batchGeometryPlan';
 import { commitMixedBatchGeometry } from '@src/renderer/editor/runtime/geometry/mixedBatchGeometry';
 import { spriteResizePatch } from '@utils/sprite/resizeProjection';
-import type { EditorElementTypeV1 } from '@src/types/editor';
+import {
+  isEditorElementType,
+  type EditorElementTypeV1,
+} from '@src/types/editor';
 import { PREVIEW_DOMAIN_BY_ELEMENT_TYPE } from '@src/types/preview';
 import type { KeyPosition } from '@src/types/key/keys';
 
@@ -21,7 +26,7 @@ type PropertiesPanelSelection = ReturnType<typeof usePropertiesPanelSelection>;
 type UsePropertiesPanelBatchGeometryProps = Pick<
   PropertiesPanelSelection,
   | 'selectedKeyType'
-  | 'selectedBatchGeometryElements'
+  | 'batchGeometryTargets'
   | 'stableBatchGeometryTargets'
   | 'stablePluginGeometryElements'
   | 'stablePluginGeometryTargets'
@@ -29,17 +34,14 @@ type UsePropertiesPanelBatchGeometryProps = Pick<
 
 export const usePropertiesPanelBatchGeometry = ({
   selectedKeyType,
-  selectedBatchGeometryElements,
+  batchGeometryTargets,
   stableBatchGeometryTargets,
   stablePluginGeometryElements,
   stablePluginGeometryTargets,
 }: UsePropertiesPanelBatchGeometryProps) =>
   useBatchHandlers({
-    selectedKeyLikeElements: selectedBatchGeometryElements as {
-      type: EditorElementTypeV1;
-      id: string;
-      index?: number;
-    }[],
+    // 옛 종류와 트리에만 있는 종류 요소 (보이는 위치·크기는 트리 칸 보기에서 읽는다)
+    selectedKeyLikeElements: batchGeometryTargets,
     selectedKeyType,
     pluginLayoutElements: stablePluginGeometryElements,
     onStableGeometryPreview: (operation) => {
@@ -48,34 +50,44 @@ export const usePropertiesPanelBatchGeometry = ({
       const targetsByKey = new Map<
         string,
         {
-          type: EditorElementTypeV1;
+          type: string;
           position: Pick<KeyPosition, 'id' | 'dx' | 'dy' | 'width' | 'height'>;
+          lockAspect: boolean;
         }
       >();
       for (const target of stableBatchGeometryTargets) {
         // 보이는 값(트리 값 + 편집 미리보기)
-        const position = viewTreePosition(selectedKeyType, target.id) as
+        const position = viewFieldsById(selectedKeyType, target.id) as
           | Pick<KeyPosition, 'id' | 'dx' | 'dy' | 'width' | 'height'>
           | undefined;
-        if (!position) return;
+        const element = getElementDocumentStore()?.getElement(
+          selectedKeyType,
+          target.id,
+        );
+        if (!position || !element) return;
         targetsByKey.set(`${target.type}:${target.id}`, {
           type: target.type,
           position,
+          // 커밋과 같은 계획 - 비율을 지키는 요소는 크기 일괄에서도 비율 그대로
+          lockAspect: isAspectLockedNode(element),
         });
       }
       // 커밋과 같은 기준선을 쓰도록 plan 입력에는 plugin bounds를 합치되,
       // preview 반영은 native 4 domain 전용 - 플러그인은 dial 중 정지,
-      // 커밋 시 착지 (v1). resize는 native 전용이라 plugin 미합류
+      // 커밋 시 착지 (v1). resize는 크기를 정하는 플러그인만 합류
       const pluginPlanInputs =
-        operation.kind === 'resize' ? [] : stablePluginGeometryElements;
+        operation.kind === 'resize'
+          ? stablePluginGeometryElements.filter(({ resizable }) => resizable)
+          : stablePluginGeometryElements;
       const plan = computeBatchGeometryPlan(
         [
-          ...[...targetsByKey].map(([key, { position }]) => ({
+          ...[...targetsByKey].map(([key, { position, lockAspect }]) => ({
             key,
             x: position.dx,
             y: position.dy,
             width: position.width,
             height: position.height,
+            lockAspect,
           })),
           ...pluginPlanInputs.map((element) => ({
             key: `plugin:${element.fullId}`,
@@ -103,10 +115,9 @@ export const usePropertiesPanelBatchGeometry = ({
         const bounds = spriteBoundsByKey.get(key);
         if (!bounds) return null;
         // 지금 값(미리보기 없음)
-        const canonical = currentTreePosition(
-          selectedKeyType,
-          id,
-        ) as unknown as Parameters<typeof spriteResizePatch>[0] | undefined;
+        const canonical = currentFieldsOf(selectedKeyType, id) as unknown as
+          | Parameters<typeof spriteResizePatch>[0]
+          | undefined;
         return canonical
           ? (spriteResizePatch(canonical, bounds) as Record<string, unknown>)
           : null;
@@ -119,6 +130,8 @@ export const usePropertiesPanelBatchGeometry = ({
         if (update.key.startsWith('plugin:')) continue;
         const target = targetsByKey.get(update.key);
         if (!target) return;
+        // 트리에만 있는 종류는 편집 미리보기 영역이 없어 커밋 때 반영한다 (플러그인 요소처럼)
+        if (!isEditorElementType(target.type)) continue;
         const entries = byType.get(target.type) ?? [];
         // 이동 계열은 배율 1이라 커밋도 setBounds와 같다 - 원시 patch 유지
         const projected =
@@ -151,9 +164,13 @@ export const usePropertiesPanelBatchGeometry = ({
         (operation.kind === 'resize'
           ? editGestureController.activeGestureId() ?? undefined
           : undefined);
-      // 크기 일괄은 native 전용 - 플러그인 크기는 content-driven
+      // 크기 일괄은 크기를 정하는 플러그인까지 - 나머지 플러그인 크기는 내용이 정한다
       const pluginTargets =
-        operation.kind === 'resize' ? [] : stablePluginGeometryTargets;
+        operation.kind === 'resize'
+          ? (stablePluginGeometryElements ?? [])
+              .filter(({ resizable }) => resizable)
+              .map(({ fullId }) => fullId)
+          : stablePluginGeometryTargets;
       const commit =
         pluginTargets.length > 0
           ? commitMixedBatchGeometry(descriptor, pluginTargets, {

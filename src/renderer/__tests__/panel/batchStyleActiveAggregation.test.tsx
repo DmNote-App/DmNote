@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { KeyPosition } from '@src/types/key/keys';
 import type { ElementShadowSpec } from '@src/types/key/shadows';
-import ActualBatchStyleTabContent from '@components/main/Grid/PropertiesPanel/batch/style/BatchStyleTabContent';
+import ActualBatchStyleBody from '@components/main/Grid/PropertiesPanel/batch/style/BatchStyleBody';
 import { PanelNavProvider } from '@components/main/Grid/PropertiesPanel/navigation/PanelNavContext';
 import { LegacyBatchStyle } from '@components/main/Grid/PropertiesPanel/document/legacyBundleRows';
 import type { PanelWriter } from '@components/main/Grid/PropertiesPanel/document/documentPanelWriter';
@@ -81,21 +81,17 @@ const mixedGetter = (positions: KeyPosition[]) =>
     };
   };
 
-type CompatStyleProps = Omit<
-  React.ComponentProps<typeof ActualBatchStyleTabContent>,
-  'handleBatchResizePreview'
-> &
+type CompatStyleProps = React.ComponentProps<typeof ActualBatchStyleBody> &
   Record<string, unknown>;
 
+// 옛 스타일 탭 처리기 칸은 받아서 버린다 (본문은 쓰지 않는다)
 const BatchStyleTabContent = ({
   handleBatchStyleChange: _handleBatchStyleChange,
   handleBatchStyleChangeComplete: _handleBatchStyleChangeComplete,
   handleBatchShadowChangeComplete: _handleBatchShadowChangeComplete,
   handleBatchShadowEnabledChange: _handleBatchShadowEnabledChange,
   ...props
-}: CompatStyleProps) => (
-  <ActualBatchStyleTabContent handleBatchResizePreview={vi.fn()} {...props} />
-);
+}: CompatStyleProps) => <ActualBatchStyleBody {...props} />;
 
 describe('혼합 선택 active 그림자 집계', () => {
   let host: HTMLDivElement;
@@ -152,19 +148,12 @@ describe('혼합 선택 active 그림자 집계', () => {
           }}
         >
           <BatchStyleTabContent
-            selectedCount={2}
             hideDisplayText
             hideFontControls
             shadowActiveState
             getMixedValue={mixedGetter([statPosition, keyPosition])}
-            getMixedValueSize={mixedGetter([statPosition, keyPosition])}
             getKeyOnlyMixedValue={mixedGetter([keyPosition])}
             getSelectedKeysData={() => []}
-            handleBatchAlign={vi.fn()}
-            handleBatchDistribute={vi.fn()}
-            handleBatchSpacing={vi.fn()}
-            batchSpacing={{ isMixed: false, value: 0 }}
-            handleBatchResize={vi.fn()}
             handleBatchStyleChange={vi.fn()}
             handleBatchStyleChangeComplete={vi.fn()}
             handleBatchShadowChangeComplete={vi.fn()}
@@ -207,19 +196,12 @@ describe('혼합 선택 active 그림자 집계', () => {
           }}
         >
           <BatchStyleTabContent
-            selectedCount={2}
             hideDisplayText
             hideFontControls
             showShadowControls={false}
             shadowActiveState={false}
             getMixedValue={mixedGetter([graphPosition])}
-            getMixedValueSize={mixedGetter([graphPosition])}
             getSelectedKeysData={() => []}
-            handleBatchAlign={vi.fn()}
-            handleBatchDistribute={vi.fn()}
-            handleBatchSpacing={vi.fn()}
-            batchSpacing={{ isMixed: false, value: 0 }}
-            handleBatchResize={vi.fn()}
             handleBatchStyleChange={vi.fn()}
             handleBatchStyleChangeComplete={vi.fn()}
             handleBatchShadowChangeComplete={vi.fn()}
@@ -265,17 +247,10 @@ describe('혼합 선택 active 그림자 집계', () => {
           }}
         >
           <BatchStyleTabContent
-            selectedCount={2}
             hideFontControls
             showShadowControls={false}
             getMixedValue={mixedGetter([keyPosition, keyPosition])}
-            getMixedValueSize={mixedGetter([keyPosition, keyPosition])}
             getSelectedKeysData={() => []}
-            handleBatchAlign={vi.fn()}
-            handleBatchDistribute={vi.fn()}
-            handleBatchSpacing={vi.fn()}
-            batchSpacing={{ isMixed: false, value: 0 }}
-            handleBatchResize={vi.fn()}
             handleBatchStyleChange={vi.fn()}
             handleBatchStyleChangeComplete={vi.fn()}
             showBatchImagePicker={false}

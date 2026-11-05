@@ -1,6 +1,6 @@
-// 혼합(native+plugin) 배치 기하 진입점: 정렬·분배·간격 결과를 native는
-// setBounds op의 트리 커밋, 플러그인은 트리 노드 틀 커밋으로 - 같은 동작 id라
-// 한 번에 되돌린다
+// 혼합(native+plugin) 배치 기하 진입점: 정렬·분배·간격·크기 결과를 native는
+// 틀 트리 커밋, 플러그인은 트리 노드 틀 커밋으로 - 같은 동작 id라
+// 한 번에 되돌린다. 크기는 크기를 정하는 플러그인(resizable)만
 
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
 import { setPluginElementFrames } from '@plugins/runtime/displayElement/pluginTreeGeometry';
@@ -12,21 +12,15 @@ import {
   type BatchGeometryLayoutElement,
 } from './batchGeometryPlan';
 import {
+  boundsFrame,
   commitBatchGeometryByIds,
-  elementBoundsOp,
+  isAspectLockedNode,
   type BatchGeometryDescriptor,
 } from '../operations/elementOps';
 
-import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
-  isEditorElementType,
-} from '@src/types/editor';
-import type { CanonicalEditorDocumentV1, EditorOpV1 } from '@src/types/editor';
-import type { NativeElementType } from '../../model/elementIdMap';
-import {
-  captureEditorDocument,
-  commitSemanticOps,
-} from '../operations/editorSemanticOps';
+import type { FramePatch } from '@src/types/generated/elementDocument';
+import { getElementDocumentStore } from '@src/renderer/editor/document/elementDocumentRuntime';
+import { commitFrames, isTreeWritableKind } from '../operations/treeEditCommit';
 import type { PluginDisplayElementInternal } from '@src/types/plugin/api';
 
 const MAX_BATCH_GEOMETRY_TARGETS = 4096;
@@ -35,8 +29,7 @@ const PLUGIN_KEY_PREFIX = 'plugin:';
 const validStructuralText = (value: string, maxBytes: number): boolean =>
   value.length > 0 && new TextEncoder().encode(value).length <= maxBytes;
 
-const nativeLayoutKey = (type: NativeElementType, id: string): string =>
-  `${type}:${id}`;
+const nativeLayoutKey = (type: string, id: string): string => `${type}:${id}`;
 
 const pluginLayoutKey = (fullId: string): string =>
   `${PLUGIN_KEY_PREFIX}${fullId}`;
@@ -48,54 +41,38 @@ const validNativeGeometryTargets = (
 ): boolean =>
   descriptor.targets.length <= MAX_BATCH_GEOMETRY_TARGETS &&
   descriptor.targets.every(
-    ({ type, id }) => isEditorElementType(type) && isNativeElementId(id),
+    ({ type, id }) => isTreeWritableKind(type) && isNativeElementId(id),
   ) &&
   new Set(descriptor.targets.map(({ id }) => id)).size ===
     descriptor.targets.length;
 
-type PositionSlice = Record<
-  string,
-  ReadonlyArray<Record<string, unknown>> | undefined
->;
-
-// 지금 트리 값 - 시작 계획의 바탕
-const readStorePositions = (type: NativeElementType): PositionSlice =>
-  readDocumentPositions(captureEditorDocument())(type);
-
-const readDocumentPositions =
-  (base: CanonicalEditorDocumentV1) =>
-  (type: NativeElementType): PositionSlice =>
-    base[EDITOR_ELEMENT_POSITION_FIELDS[type]] as unknown as PositionSlice;
-
-// native 대상 bounds 수집 - 지정 모드에서의 소실·비유한 값은 전체 거절
+// native 대상 지금 틀 (트리 낙관 반영 포함) - 지정 모드에서의 소실은 전체 거절
 const readNativeLayoutElements = (
-  read: (type: NativeElementType) => PositionSlice,
   descriptor: BatchGeometryDescriptor,
 ): BatchGeometryLayoutElement[] | null => {
+  const store = getElementDocumentStore();
   const elements: BatchGeometryLayoutElement[] = [];
   for (const target of descriptor.targets) {
-    const position = (read(target.type)[descriptor.mode] ?? []).find(
-      (candidate) => candidate.id === target.id,
-    );
-    if (
-      !position ||
-      typeof position.dx !== 'number' ||
-      typeof position.dy !== 'number' ||
-      typeof position.width !== 'number' ||
-      typeof position.height !== 'number'
-    ) {
-      return null;
-    }
+    const element = store?.getElement(descriptor.mode, target.id);
+    if (!element || element.kind !== target.type) return null;
+    const { x, y, width, height } = element.frame;
     elements.push({
       key: nativeLayoutKey(target.type, target.id),
-      x: position.dx,
-      y: position.dy,
-      width: position.width,
-      height: position.height,
+      x,
+      y,
+      width,
+      height,
+      lockAspect: isAspectLockedNode(element),
     });
   }
   return elements;
 };
+
+// 크기를 정하는 플러그인 - 정의의 resizable (나머지는 내용이 크기를 정한다)
+const isResizablePlugin = (element: PluginDisplayElementInternal) =>
+  usePluginDisplayElementStore
+    .getState()
+    .definitions.get(element.definitionId ?? '')?.resizable === true;
 
 // 플러그인 대상 bounds 수집 - 크기는 measuredSize ?? estimatedSize ?? 기본값
 // 폴백(캔버스 렌더 크기와 동일). 대상 소실·모드 이탈은 전체 거절 (fail-closed)
@@ -132,11 +109,16 @@ const readPluginLayoutElements = (
 
 interface MixedGeometryPlanned {
   updates: Array<{ key: string; patch: Record<string, unknown> }>;
-  nativeOps: EditorOpV1[];
-  pluginPositions: Map<string, { x: number; y: number }>;
+  nativeFrames: Array<{
+    elementType: string;
+    id: string;
+    frame: FramePatch;
+  }>;
+  // 플러그인 목표 틀 - 위치, 크기 일괄이면 크기까지
+  pluginFrames: Map<string, FramePatch>;
 }
 
-// 혼합 입력 위에서 순수 plan을 계산해 native op와 plugin 목표 위치로 분해
+// 혼합 입력 위에서 순수 plan을 계산해 native 틀과 plugin 목표 위치로 분해
 const planMixedBatchGeometry = (
   nativeElements: readonly BatchGeometryLayoutElement[],
   pluginElements: readonly BatchGeometryLayoutElement[],
@@ -152,21 +134,26 @@ const planMixedBatchGeometry = (
       (target) => [nativeLayoutKey(target.type, target.id), target] as const,
     ),
   );
-  const nativeOps: EditorOpV1[] = [];
-  const pluginPositions = new Map<string, { x: number; y: number }>();
+  const nativeFrames: MixedGeometryPlanned['nativeFrames'] = [];
+  const pluginFrames = new Map<string, FramePatch>();
   for (const { key, bounds } of plan.bounds) {
     const native = targetByKey.get(key);
     if (native) {
-      // 스프라이트는 resizeSprite - 이 경로는 치수 불변 연산만 통과하므로
-      // 배율 1이지만 정산 경로 전체와 op 종류를 통일한다
-      nativeOps.push(elementBoundsOp(native.type, native.id, bounds));
+      // 크기가 바뀌면 스프라이트 이동값 비례는 트리 커밋 입구가 같은 커밋에 붙인다
+      nativeFrames.push({
+        elementType: native.type,
+        id: native.id,
+        frame: boundsFrame(bounds),
+      });
       continue;
     }
     if (key.startsWith(PLUGIN_KEY_PREFIX)) {
-      pluginPositions.set(key.slice(PLUGIN_KEY_PREFIX.length), {
-        x: bounds.dx,
-        y: bounds.dy,
-      });
+      pluginFrames.set(
+        key.slice(PLUGIN_KEY_PREFIX.length),
+        descriptor.operation.kind === 'resize'
+          ? boundsFrame(bounds)
+          : { x: bounds.dx, y: bounds.dy },
+      );
     }
   }
   return {
@@ -174,15 +161,15 @@ const planMixedBatchGeometry = (
       key,
       patch: patch as Record<string, unknown>,
     })),
-    nativeOps,
-    pluginPositions,
+    nativeFrames,
+    pluginFrames,
   };
 };
 
 /**
  * 선택된 native+plugin 요소의 배치 기하 조작 (main 창 전용)
  * plugin 대상이 없으면 기존 native 전용 경로에 위임.
- * resize는 native 전용 - 플러그인 크기는 content-driven이라 fail-closed 거절
+ * resize는 크기를 정하는 플러그인(resizable)만 - 내용이 크기를 정하는 플러그인이 섞이면 fail-closed 거절
  */
 export const commitMixedBatchGeometry = (
   descriptor: BatchGeometryDescriptor,
@@ -192,12 +179,12 @@ export const commitMixedBatchGeometry = (
   if (pluginFullIds.length === 0) {
     return commitBatchGeometryByIds(descriptor, options);
   }
+  const resize = descriptor.operation.kind === 'resize';
   if (
-    descriptor.operation.kind === 'resize' ||
     !validStructuralText(descriptor.mode, 128) ||
     !validNativeGeometryTargets(descriptor) ||
-    // 최소 개수는 native+plugin 합산 - plugin 단독도 2개 이상이면 성립
-    descriptor.targets.length + pluginFullIds.length < 2 ||
+    // 최소 개수는 native+plugin 합산 - plugin 단독도 2개 이상이면 성립 (크기는 하나부터)
+    descriptor.targets.length + pluginFullIds.length < (resize ? 1 : 2) ||
     pluginFullIds.length > MAX_BATCH_GEOMETRY_TARGETS ||
     pluginFullIds.some((fullId) => fullId.trim().length === 0) ||
     new Set(pluginFullIds).size !== pluginFullIds.length
@@ -219,16 +206,14 @@ export const commitMixedBatchGeometry = (
     targetedPlugins.length !== fullIds.length ||
     targetedPlugins.some(
       (element) => !isPluginVisibleInMode(element, frozenDescriptor.mode),
-    )
+    ) ||
+    (resize && !targetedPlugins.every(isResizablePlugin))
   ) {
     return Promise.resolve(false);
   }
 
   // 현재 스토어 기준 초기 계획 - eager 반영과 no-op 게이트에 사용
-  const initialNative = readNativeLayoutElements(
-    readStorePositions,
-    frozenDescriptor,
-  );
+  const initialNative = readNativeLayoutElements(frozenDescriptor);
   const initialPlugins = readPluginLayoutElements(
     pluginElements,
     frozenDescriptor.mode,
@@ -244,26 +229,14 @@ export const commitMixedBatchGeometry = (
 
   options.preflight?.();
   const gestureId = options.gestureId ?? crypto.randomUUID();
-  const { nativeOps, pluginPositions } = initialPlanned;
+  const { nativeFrames, pluginFrames } = initialPlanned;
   const writes: Promise<unknown>[] = [];
-  if (nativeOps.length > 0) {
-    writes.push(commitSemanticOps(nativeOps, { gestureId }));
+  if (nativeFrames.length > 0) {
+    writes.push(commitFrames(nativeFrames, { gestureId }));
   }
-  // 플러그인 위치는 트리 노드 틀로 (트리 스토어가 바로 얹는다 - 런타임은 트리를 따라온다)
+  // 플러그인 틀은 트리 노드 틀로 (트리 스토어가 바로 얹는다 - 런타임은 트리를 따라온다)
   writes.push(
-    setPluginElementFrames(
-      frozenDescriptor.mode,
-      new Map(
-        [...pluginPositions].map(([fullId, position]) => [
-          fullId,
-          {
-            ...(position.x !== undefined ? { x: position.x } : {}),
-            ...(position.y !== undefined ? { y: position.y } : {}),
-          },
-        ]),
-      ),
-      gestureId,
-    ),
+    setPluginElementFrames(frozenDescriptor.mode, pluginFrames, gestureId),
   );
   return Promise.all(writes).then(() => true);
 };

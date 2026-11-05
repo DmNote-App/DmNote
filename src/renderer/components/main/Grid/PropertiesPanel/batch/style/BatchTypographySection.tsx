@@ -35,7 +35,6 @@ import type { BatchElementPropertyUpdate } from '../../types';
 const FONT_PAGE_KEY = 'batch-style:font';
 
 export interface BatchTypographyKeyData {
-  index: number;
   position: KeyPosition | undefined;
   keyCode: string | null;
   keyInfo: { globalKey: string; displayName: string } | null;

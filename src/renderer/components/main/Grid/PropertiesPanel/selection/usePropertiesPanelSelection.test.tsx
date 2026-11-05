@@ -6,6 +6,23 @@ import { describe, expect, it, vi } from 'vitest';
 const KNOB = '00000000-0000-4000-8000-0000000000k1';
 
 const tree = vi.hoisted(() => ({
+  // 그룹 판정용 - 노브 하나 더와 트리에만 있는 종류(커서 트래커)
+  extra: [
+    {
+      type: 'element',
+      id: '00000000-0000-4000-8000-0000000000k2',
+      kind: 'knob',
+      frame: { x: 80, y: 0, width: 60, height: 60, rotation: 0 },
+      values: {},
+    },
+    {
+      type: 'element',
+      id: '00000000-0000-4000-8000-0000000000c1',
+      kind: 'cursorTracker',
+      frame: { x: 160, y: 0, width: 120, height: 120, rotation: 0 },
+      values: {},
+    },
+  ],
   element: {
     type: 'element',
     id: '00000000-0000-4000-8000-0000000000k1',
@@ -22,7 +39,7 @@ vi.mock('@src/renderer/editor/document/elementDocumentRuntime', () => ({
     (scene.value ??= { nodes: [tree.element] }) as never,
   getElementDocumentStore: () => ({
     getElement: (_scene: string, id: string) =>
-      id === tree.element.id ? tree.element : undefined,
+      [tree.element, ...tree.extra].find((element) => element.id === id),
   }),
 }));
 
@@ -30,6 +47,9 @@ import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStor
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { previewOverlay } from '@src/renderer/editor/runtime/gesture/previewOverlay';
 import { usePropertiesPanelSelection } from './usePropertiesPanelSelection';
+
+const KNOB2 = '00000000-0000-4000-8000-0000000000k2';
+const TRACKER = '00000000-0000-4000-8000-0000000000c1';
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -119,5 +139,50 @@ describe('속성 패널 단일 요소 값', () => {
     expect(onRender.mock.calls.at(-1)?.[0]).toEqual([]);
     expect(onRender.mock.calls.at(-1)?.[0]).not.toBe(seen.at(-1));
     act(() => root.unmount());
+  });
+});
+
+describe('트리에만 있는 종류가 섞인 일괄의 그룹', () => {
+  const groupInfoOf = (nodes: unknown[], selectedIds: string[]) => {
+    scene.value = { nodes };
+    useKeyStore.setState({ selectedKeyType: '4key' });
+    useDocumentSelectionStore.setState({
+      sceneId: '4key',
+      selectedIds,
+      selectedElements: [],
+    });
+    const onRender = vi.fn<(info: unknown) => void>();
+    const Probe = () => {
+      onRender(usePropertiesPanelSelection().selectedGroupInfo);
+      return null;
+    };
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(<Probe />));
+    act(() => root.unmount());
+    scene.value = null;
+    return onRender.mock.lastCall![0];
+  };
+  const [knob2, tracker] = tree.extra;
+  const group = (children: unknown[]) => ({
+    type: 'group',
+    id: 'g1',
+    name: '묶음',
+    hidden: false,
+    children,
+  });
+
+  it('노브와 커서 트래커로 된 그룹을 통째로 고르면 그 그룹이다', () => {
+    expect(
+      groupInfoOf([group([tree.element, tracker])], [KNOB, TRACKER]),
+    ).toEqual({ id: 'g1', name: '묶음', memberCount: 2 });
+  });
+
+  it('노브 그룹에 그룹 밖 커서 트래커를 더 고르면 그룹 하나 전체가 아니다', () => {
+    expect(
+      groupInfoOf(
+        [group([tree.element, knob2]), tracker],
+        [KNOB, KNOB2, TRACKER],
+      ),
+    ).toBeNull();
   });
 });

@@ -3,6 +3,7 @@ export default {
   "key-styling": "키 스타일링",
   "counter-styling": "카운터 스타일링",
   "graph-styling": "그래프 스타일링",
+  "cursor-tracker-styling": "커서 트래커 스타일링",
   variables: "CSS 변수 레퍼런스",
   examples: "예제 모음",
 };

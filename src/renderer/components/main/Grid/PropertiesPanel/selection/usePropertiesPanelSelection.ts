@@ -3,17 +3,19 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
-import { panelSelectionOf } from '../../document/treeEditedSelection';
+import { propertyPanelSelectionOf } from '../../document/treeEditedSelection';
 import { wholeGroupOf } from '../../document/documentGroups';
 import {
   getElementDocumentStore,
   useElementDocumentScene,
 } from '@src/renderer/editor/document/elementDocumentRuntime';
-import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
-import { treePanelRecords } from '@src/renderer/elementKinds/runtime/treePanelRecords';
-import type { KeyMappings, KeyPosition } from '@src/types/key/keys';
-import { legacyPositionOf } from '@src/renderer/elementKinds/runtime/legacyPosition';
-import { treeElementPositionOf } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { sceneElements } from '@src/renderer/editor/document/documentPatch';
+import { keySlotOf } from '@src/renderer/elementKinds/definitions/key/keySlotInfo';
+import type { KeyPosition } from '@src/types/key/keys';
+import {
+  sceneElementLookup,
+  viewFieldsLookup,
+} from '@src/renderer/elementKinds/runtime/viewFields';
 import {
   selectPropertyPanelPluginElements,
   usePluginDisplayElementStore,
@@ -23,11 +25,7 @@ import {
   getPreviewOverlayVersion,
   subscribePreviewOverlay,
 } from '@src/renderer/editor/runtime/gesture/previewOverlay';
-import type {
-  CanonicalEditorDocumentV1,
-  CanonicalReactiveSpritePosition,
-  EditorElementTypeV1,
-} from '@src/types/editor';
+import type { CanonicalReactiveSpritePosition } from '@src/types/editor';
 import type { BatchGeometryTarget } from '@src/renderer/editor/runtime/operations/elementOps';
 import type { GraphItemPosition } from '@src/types/key/graphItems';
 import type { KnobItemPosition } from '@src/types/key/knobs';
@@ -44,63 +42,38 @@ export const usePropertiesPanelSelection = () => {
   const documentSceneId = useDocumentSelectionStore((state) => state.sceneId);
   const documentIds = useDocumentSelectionStore((state) => state.selectedIds);
   // 트리 문서가 바뀌면(종류 확인) 다시 합친다
-  const documentScene = useElementDocumentScene(documentSceneId ?? '');
+  useElementDocumentScene(documentSceneId ?? '');
   const selectedKeyType = useKeyStore((state) => state.selectedKeyType);
   // 패널이 읽는 위치 기록·키 슬롯은 트리에서 (지금 탭, 편집 미리보기 포함) - 바뀌면 다시 읽는다
   const scene = useElementDocumentScene(selectedKeyType);
-  // 트리 선택이 모두 트리로 옮긴 옛 종류면 옛 패널이 옛 선택과 함께 그 요소들을 고른 것처럼 본다
+  // 트리 선택 중 트리로 옮긴 옛 종류·플러그인 요소는 옛 패널이 옛 선택과 함께 고른 것처럼 본다(트리에만 있는
+  // 종류가 섞여도 - 섞인 선택은 고른 종류들 선언의 합 패널). 트리에만 있는 종류 요소는 따로 든다
   // (위치·회전·숨김·이름·지우기 커밋은 공통 커밋 경로가 트리로 보낸다)
   // 같은 선택이면 같은 참조 - 선택 바뀜 effect(피커·하위 페이지 닫기)가 렌더마다, 트리를 고칠 때마다 돌지 않게.
-  // 장면이 바뀌면(종류 확인·지운 요소) 다시 합치되 고른 요소가 같으면 앞 목록을 그대로 쓴다
-  const merged = documentSceneId
-    ? panelSelectionOf(
-        legacySelection,
-        documentSceneId,
-        documentIds,
-        documentScene,
-      )
-    : legacySelection;
+  // 장면이 바뀌면(종류 확인·지운 요소, documentScene 구독) 다시 합치되 고른 요소가 같으면 앞 목록을 그대로 쓴다
+  const split = documentSceneId
+    ? propertyPanelSelectionOf(legacySelection, documentSceneId, documentIds)
+    : { elements: legacySelection, treeOnlyIds: [] as string[] };
+  const merged = split.elements;
   const mergedKey = merged
     .map((element) => `${element.type}:${element.id}:${element.index ?? ''}`)
     .join('|');
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 내용(종류·id·순번)이 같으면 같은 참조
   const selectedElements = useMemo(() => merged, [mergedKey]);
+  const treeOnlyKey = split.treeOnlyIds.join('|');
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 내용이 같으면 같은 참조
+  const treeOnlyIds = useMemo(() => split.treeOnlyIds, [treeOnlyKey]);
   const bridgedDocumentSelection =
     selectedElements.length > legacySelection.length;
-  useSyncExternalStore(
+  const previewVersion = useSyncExternalStore(
     subscribePreviewOverlay,
     getPreviewOverlayVersion,
     getPreviewOverlayVersion,
   );
-  const records = treePanelRecords(scene, selectedKeyType);
-  const positions = records.positions as unknown as Record<
-    string,
-    KeyPosition[]
-  >;
-  const canonicalPositions =
-    records.canonicalPositions as unknown as CanonicalEditorDocumentV1['keyPositions'];
-  const keyMappings = records.keyMappings as unknown as KeyMappings;
-  const statItemPositions = records.statItemPositions as unknown as Record<
-    string,
-    StatItemPosition[]
-  >;
-  const graphItemPositions = records.graphItemPositions as unknown as Record<
-    string,
-    GraphItemPosition[]
-  >;
-  const knobItemPositions = records.knobItemPositions as unknown as Record<
-    string,
-    KnobItemPosition[]
-  >;
-  const spriteItemPositions = records.spriteItemPositions as unknown as Record<
-    string,
-    CanonicalReactiveSpritePosition[]
-  >;
-  const canonicalSpritePositions =
-    records.canonicalSpritePositions as unknown as Record<
-      string,
-      CanonicalReactiveSpritePosition[]
-    >;
+  // 패널이 읽는 요소·보이는 칸(편집 미리보기 포함) - 지금 탭 트리에서 id로.
+  // 장면·미리보기 판마다 하나라 받는 쪽 메모가 바뀔 때만 다시 계산한다
+  const elementOf = sceneElementLookup(scene);
+  const viewOf = viewFieldsLookup(scene, selectedKeyType, previewVersion);
   const pluginElements = usePluginDisplayElementStore(
     selectPropertyPanelPluginElements,
   );
@@ -157,14 +130,25 @@ export const usePropertiesPanelSelection = () => {
   })();
 
   // invalid native ID 또는 모드에서 사라진 plugin이 섞이면 fail-closed
+  // 정렬·분배·간격·크기 대상 - 옛 종류와 트리에만 있는 종류 요소 (그 종류)
+  const batchGeometryTargets: BatchGeometryTarget[] = [
+    ...selectedBatchGeometryElements.map((element) => ({
+      type: element.type as string,
+      id: element.id,
+    })),
+    ...treeOnlyIds.flatMap((id) => {
+      const kind = getElementDocumentStore()?.getElement(
+        documentSceneId ?? selectedKeyType,
+        id,
+      )?.kind;
+      return kind ? [{ type: kind, id }] : [];
+    }),
+  ];
   const stableBatchGeometryTargets: BatchGeometryTarget[] | null =
-    selectedBatchGeometryElements.every(
-      (element) => element.id.length > 0 && isNativeElementId(element.id),
+    batchGeometryTargets.every(
+      (target) => target.id.length > 0 && isNativeElementId(target.id),
     )
-      ? selectedBatchGeometryElements.map((element) => ({
-          type: element.type as EditorElementTypeV1,
-          id: element.id,
-        }))
+      ? batchGeometryTargets
       : null;
   const stablePluginGeometryElements = (() => {
     const resolved: Array<{
@@ -173,6 +157,8 @@ export const usePropertiesPanelSelection = () => {
       y: number;
       width: number;
       height: number;
+      // 크기를 정하는 플러그인 - 크기 일괄 대상 (나머지는 내용이 크기를 정한다)
+      resizable: boolean;
     }> = [];
     for (const selected of selectedPluginElements) {
       const element = pluginElements.find(
@@ -188,6 +174,8 @@ export const usePropertiesPanelSelection = () => {
         y: element.position.y,
         width: size.width,
         height: size.height,
+        resizable:
+          pluginDefinitions.get(element.definitionId ?? '')?.resizable === true,
       });
     }
     return resolved;
@@ -217,48 +205,35 @@ export const usePropertiesPanelSelection = () => {
       150,
   };
 
-  // 트리 편집기가 맡는 요소의 단일 값 - 트리 값(트리로 보낸 편집의 낙관 반영 포함) + 편집 미리보기.
-  // 옛 배열에는 순번(키 매핑 결합)만 남는다. 트리에 아직 없으면 옛 값
-  const storedElement = (id: string) =>
-    getElementDocumentStore()?.getElement(selectedKeyType, id);
-  const treeView = <T>(id: string, fallback: T | null): T | null => {
-    const element = storedElement(id);
-    return element
-      ? (treeElementPositionOf(element, selectedKeyType) as unknown as T)
-      : fallback;
+  // 하나만 고른 그 종류 요소의 값 - 트리 값(트리로 보낸 편집의 낙관 반영 포함) + 편집 미리보기 (트리에 없으면 없음)
+  const singleViewOf = <T>(
+    elements: readonly { id: string }[],
+    kind: string,
+  ): T | null => {
+    if (elements.length !== 1) return null;
+    const { id } = elements[0];
+    return elementOf(id)?.kind === kind
+      ? (viewOf(id) as unknown as T | undefined) ?? null
+      : null;
   };
 
   const singleKeyId =
     selectedKeyElements.length === 1 ? selectedKeyElements[0].id : null;
-  const singleKeyIndex = singleKeyId
-    ? (positions[selectedKeyType] ?? []).findIndex(
-        (position) => position.id === singleKeyId,
-      )
-    : -1;
-  const singleKeyPosition =
-    singleKeyId && singleKeyIndex >= 0
-      ? treeView(
-          singleKeyId,
-          positions[selectedKeyType]?.[singleKeyIndex] ?? null,
-        )
-      : null;
-  // 미리보기 없는 값
-  const singleKeyElement = singleKeyId ? storedElement(singleKeyId) : undefined;
-  const singleCanonicalKeyPosition = singleKeyElement
-    ? (legacyPositionOf(singleKeyElement) as unknown as NonNullable<
-        typeof singleKeyPosition
-      >)
-    : singleKeyId
-    ? (canonicalPositions[selectedKeyType] ?? []).find(
-        (position) => position.id === singleKeyId,
-      ) ?? null
-    : null;
-  // 키 슬롯은 트리 입력 (바꾸기가 트리 연산 - 낙관 적용), 트리에 없으면 옛 매핑
+  // 키 사이 트리 순서 - 순서가 바뀌어도 선택 바뀜 effect가 돈다 (예전과 같다)
+  const singleKeyIndex =
+    singleKeyId && scene
+      ? sceneElements(scene)
+          .filter((element) => element.kind === 'key')
+          .findIndex((element) => element.id === singleKeyId)
+      : -1;
+  const singleKeyPosition = singleViewOf<KeyPosition>(
+    selectedKeyElements,
+    'key',
+  );
+  // 키 슬롯은 트리 입력 (바꾸기가 트리 연산 - 낙관 적용), 슬롯이 없으면 빈 슬롯
+  const singleKeyElement = singleKeyId ? elementOf(singleKeyId) : undefined;
   const singleKeySlot =
-    treeKeySlot(singleKeyElement) ??
-    (singleKeyIndex >= 0
-      ? keyMappings[selectedKeyType]?.[singleKeyIndex] ?? null
-      : null);
+    singleKeyElement?.kind === 'key' ? keySlotOf(singleKeyElement) ?? '' : null;
   const singleKeyCode =
     singleKeySlot != null ? slotCanonical(singleKeySlot) : null;
   const singleKeyInfo =
@@ -272,81 +247,41 @@ export const usePropertiesPanelSelection = () => {
           }
       : null;
 
-  const singleStatId =
-    selectedStatElements.length === 1 ? selectedStatElements[0].id : null;
-  const singleStatIndex = singleStatId
-    ? (statItemPositions[selectedKeyType] ?? []).findIndex(
-        (position) => position.id === singleStatId,
-      )
-    : -1;
-  const singleStatPosition: StatItemPosition | null =
-    singleStatId && singleStatIndex >= 0
-      ? treeView(
-          singleStatId,
-          statItemPositions[selectedKeyType]?.[singleStatIndex] ?? null,
-        )
-      : null;
-  const singleGraphId =
-    selectedGraphElements.length === 1 ? selectedGraphElements[0].id : null;
-  const singleGraphIndex = singleGraphId
-    ? (graphItemPositions[selectedKeyType] ?? []).findIndex(
-        (position) => position.id === singleGraphId,
-      )
-    : -1;
-  const singleGraphPosition: GraphItemPosition | null =
-    singleGraphId && singleGraphIndex >= 0
-      ? treeView(
-          singleGraphId,
-          graphItemPositions[selectedKeyType]?.[singleGraphIndex] ?? null,
-        )
-      : null;
-  const singleKnobId =
-    selectedKnobElements.length === 1 ? selectedKnobElements[0].id : null;
-  const singleKnobIndex = singleKnobId
-    ? (knobItemPositions[selectedKeyType] ?? []).findIndex(
-        (position) => position.id === singleKnobId,
-      )
-    : -1;
-  const singleKnobPosition: KnobItemPosition | null =
-    singleKnobId && singleKnobIndex >= 0
-      ? treeView(
-          singleKnobId,
-          knobItemPositions[selectedKeyType]?.[singleKnobIndex] ?? null,
-        )
-      : null;
-  const singleSpriteId =
-    selectedSpriteElements.length === 1 ? selectedSpriteElements[0].id : null;
-  const legacySingleSpritePosition = singleSpriteId
-    ? (spriteItemPositions[selectedKeyType] ?? []).find(
-        (position) => position.id === singleSpriteId,
-      ) ?? null
-    : null;
-  const singleSpritePosition: CanonicalReactiveSpritePosition | null =
-    singleSpriteId && legacySingleSpritePosition
-      ? treeView(singleSpriteId, legacySingleSpritePosition)
-      : null;
-
-  // 고른 것이 그룹 하나 전체면 그 그룹 (트리 그룹 - 옛·트리 전용 구분 없음)
-  const selectedGroupInfo = wholeGroupOf(
-    scene,
-    selectedElements.map(({ id }) => id),
+  const singleStatPosition = singleViewOf<StatItemPosition>(
+    selectedStatElements,
+    'stat',
   );
+  const singleGraphPosition = singleViewOf<GraphItemPosition>(
+    selectedGraphElements,
+    'graph',
+  );
+  const singleKnobPosition = singleViewOf<KnobItemPosition>(
+    selectedKnobElements,
+    'knob',
+  );
+  const singleSpritePosition = singleViewOf<CanonicalReactiveSpritePosition>(
+    selectedSpriteElements,
+    'sprite',
+  );
+
+  // 고른 것이 그룹 하나 전체면 그 그룹 (트리 그룹 - 옛·트리 전용 구분 없음, 섞인 선택의 트리 전용 요소 포함)
+  const selectedGroupInfo = wholeGroupOf(scene, [
+    ...selectedElements.map(({ id }) => id),
+    ...treeOnlyIds,
+  ]);
 
   return {
     selectedElements,
     // 실제 옛 선택 수 - 트리 선택을 옛 패널로 본 경우와 섞인 선택을 가린다
     legacySelectionCount: legacySelection.length,
     bridgedDocumentSelection,
+    treeOnlyIds,
+    batchGeometryTargets,
     selectedKeyType,
-    positions,
-    canonicalPositions,
-    keyMappings,
-    statItemPositions,
-    graphItemPositions,
-    knobItemPositions,
-    canonicalSpritePositions,
-    spriteItemPositions,
+    elementOf,
+    viewOf,
     pluginElements,
+    pluginDefinitions,
     selectedKeyElements,
     selectedStatElements,
     selectedGraphElements,
@@ -368,13 +303,10 @@ export const usePropertiesPanelSelection = () => {
     pluginDisplaySize,
     singleKeyIndex,
     singleKeyPosition,
-    singleCanonicalKeyPosition,
     singleKeySlot,
     singleKeyCode,
     singleKeyInfo,
-    singleStatIndex,
     singleStatPosition,
-    singleGraphIndex,
     singleGraphPosition,
     singleKnobPosition,
     singleSpritePosition,

@@ -20,6 +20,11 @@ vi.mock('../../document/documentEditActions', () => ({
   editDocument: mocks.edit,
 }));
 
+// 모니터 고르기는 화면 위치 모드 칸 - 번역 문맥 없이 자리만
+vi.mock('@src/renderer/elementKinds/cursorTracker/MonitorSelect', () => ({
+  default: () => null,
+}));
+
 vi.mock('@src/renderer/elementKinds/runtime/pointerInput', () => ({
   loadPointerMonitors: () => Promise.resolve([]),
   pointerInputSource: { subscribe: () => () => undefined },
@@ -89,6 +94,37 @@ describe('트리 요소 여러 개 속성 패널', () => {
     expect(text).toContain('elementKinds.cursorTracker.sensitivity');
     // 감도는 1과 2로 다르다
     expect(container.querySelectorAll('input').length).toBeGreaterThan(0);
+  });
+
+  it('보일 조건이 있는 칸은 그 칸이 보이는 요소에만 쓴다', async () => {
+    mocks.scene = {
+      nodes: [
+        tracker('a', 0, { mode: 'motion', sensitivity: 1 }),
+        tracker('b', 300, { mode: 'position', sensitivity: 2 }),
+      ],
+    };
+    render();
+    const label = [...container.querySelectorAll('p, span')].find(
+      (node) => node.textContent === 'elementKinds.cursorTracker.sensitivity',
+    );
+    const input = label?.parentElement?.querySelector('input');
+    expect(input).toBeTruthy();
+    // 섞인 값도 보이는 요소(움직임 모드)로만 - 감도 1
+    expect(input!.value).toBe('1×');
+    await act(async () => {
+      input!.focus();
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )?.set?.call(input, '3');
+      input!.dispatchEvent(new Event('input', { bubbles: true }));
+      input!.blur();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mocks.edit).toHaveBeenCalledTimes(1);
+    expect(mocks.edit.mock.calls[0][0]).toEqual([
+      { op: 'setValues', scene: '4key', id: 'a', values: { sensitivity: 3 } },
+    ]);
   });
 
   it('정렬은 고른 요소 모두의 위치를 한 커밋으로 바꾼다', () => {

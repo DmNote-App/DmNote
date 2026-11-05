@@ -5,6 +5,7 @@ import type {
   PluginDefinitionInternal,
   PluginDisplayElementInternal,
 } from '@src/types/plugin/api';
+import { stableStringify } from '@utils/core/stableStringify';
 import { measureConnectedPluginElement } from '@utils/plugin/layout/pluginElementMeasurement';
 import { calculatePluginAnchorOffset } from '@utils/plugin/layout/pluginElementLayout';
 import { attachPluginDomInteractions } from '@utils/plugin/interactions/pluginDomInteractions';
@@ -103,7 +104,7 @@ export const usePluginElementMeasurementRuntime = ({
       prevSettingsForResizeRef.current = { ...currentSettings };
       // 초기 설정에 대한 크기 저장
       if (element.measuredSize) {
-        const settingsKey = JSON.stringify(currentSettings);
+        const settingsKey = stableStringify(currentSettings);
         settingsSizeHistoryRef.current.set(settingsKey, {
           ...element.measuredSize,
         });
@@ -111,9 +112,9 @@ export const usePluginElementMeasurementRuntime = ({
       return;
     }
 
-    // 설정이 실제로 변경되었는지 확인 (JSON 문자열 비교)
-    const currentStr = JSON.stringify(currentSettings);
-    const prevStr = JSON.stringify(prevSettings);
+    // 설정이 실제로 변경되었는지 확인 - 키 순서만 다른 같은 값(트리 응답)은 변경이 아니다
+    const currentStr = stableStringify(currentSettings);
+    const prevStr = stableStringify(prevSettings);
     const hasChanged = currentStr !== prevStr;
 
     if (hasChanged) {

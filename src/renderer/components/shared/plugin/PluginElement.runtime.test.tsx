@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PluginElement } from '@components/shared/plugin/PluginElement';
+import { EditablePluginElement } from '@components/shared/plugin/EditablePluginElement';
 import { I18nContext } from '@contexts/I18nContextDef';
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { usePluginDisplayElementStore } from '@stores/plugin/usePluginDisplayElementStore';
@@ -119,7 +120,11 @@ const renderElement = (
       <I18nContext.Provider
         value={{ locale: 'ko', setLocale: async () => {}, t: (key) => key }}
       >
-        <PluginElement element={element} windowType={windowType} />
+        {windowType === 'main' ? (
+          <EditablePluginElement element={element} windowType={windowType} />
+        ) : (
+          <PluginElement element={element} windowType={windowType} />
+        )}
       </I18nContext.Provider>,
     );
   });

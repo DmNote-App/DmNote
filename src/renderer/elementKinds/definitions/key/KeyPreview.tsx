@@ -2,7 +2,7 @@ import { useInPanelSelection } from '@components/main/Grid/document/treeEditedSe
 import KeyFaceView, {
   type KeyFacePosition,
 } from '@components/shared/key/KeyFaceView';
-import { treeKeySlot } from '@src/renderer/editor/runtime/operations/keySlotOps';
+import { keySlotOf } from './keySlotInfo';
 import { bundleFieldViewOf } from '@src/renderer/elementKinds/runtime/bundleFieldView';
 import type { ElementRenderProps } from '@src/renderer/elementKinds/runtime/renderTypes';
 import { useKeyStore } from '@stores/data/useKeyStore';
@@ -24,7 +24,7 @@ const KeyPreview = ({ element }: KeyFaceProps) => {
       elementId={element.id}
       // 축 핸들 원점은 요소의 틀, 클래스는 상태 속성과 같은 노드에 (옛 키와 같다)
       position={bundleFieldViewOf(element) as KeyFacePosition}
-      keyName={slotDisplayName(treeKeySlot(element) ?? '')}
+      keyName={slotDisplayName(keySlotOf(element) ?? '')}
       isSelected={inPanelSelection}
       counterEnabled={counterEnabled}
       counterPreviewValue={0}

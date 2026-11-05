@@ -50,6 +50,17 @@ export const patchKnobAxisIdById = (
     options,
   );
 
+export const patchKnobAxisIdByIds = (
+  ids: readonly string[],
+  axisId: string,
+  options: { preflight?: () => void } = {},
+): Promise<boolean> =>
+  patchElementPropertyByTargets(
+    idTargets('knob', ids),
+    { property: 'axisId', value: axisId },
+    options,
+  );
+
 export const patchKnobPropertiesByIds = (
   ids: readonly string[],
   patch: EditorKnobRuntimePropertyPatchV1,

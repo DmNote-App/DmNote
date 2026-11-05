@@ -1,26 +1,39 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDefaultKeyPosition } from '../../model/keys';
 
+// 트리 커밋 입구 대역 - 칸 쓰기 함수가 거르는 것과 보내는 대상·패치·틀만 본다 (커밋은 treeEditCommit 테스트)
 const api = vi.hoisted(() => ({
-  commitGeneratedPatch: vi.fn(),
-  commitGeneratedSemanticOps: vi.fn(),
-  commitSemanticOps: vi.fn(),
-  captureEditorDocument: vi.fn(),
+  commitPropertyPatch: vi.fn(),
+  commitFrames: vi.fn(),
+}));
+vi.mock('./treeEditCommit', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./treeEditCommit')>()),
+  commitPropertyPatch: api.commitPropertyPatch,
+  commitFrames: api.commitFrames,
 }));
 
-vi.mock('./editorSemanticOps', () => ({
-  captureEditorDocument: api.captureEditorDocument,
-  commitGeneratedSemanticOps: api.commitGeneratedSemanticOps,
-  commitSemanticOps: api.commitSemanticOps,
-  // 트리 문서 없이 옛 경로만 시험한다
+// 트리 문서 - 테스트가 꾸민 요소의 지금 틀 (트리 낙관 반영 포함)
+const tree = vi.hoisted(() => ({
+  scenes: {} as Record<string, Array<{ id: string; kind: string }>>,
 }));
+vi.mock(
+  '@src/renderer/editor/document/elementDocumentRuntime',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@src/renderer/editor/document/elementDocumentRuntime')
+    >()),
+    getElementDocumentStore: () => ({
+      getElement: (scene: string, id: string) =>
+        tree.scenes[scene]?.find((node) => node.id === id),
+      getSceneIds: () => Object.keys(tree.scenes),
+    }),
+  }),
+);
 
 import { useKeyStore } from '@stores/data/useKeyStore';
 import { useDocumentSelectionStore } from '@stores/grid/useDocumentSelectionStore';
 import {
   commitBatchGeometryByIds,
   commitElementGeometryById,
-  commitElementBoundsById,
   commitSingleElementBoundsById,
   patchElementHiddenById,
   patchElementLayerNameById,
@@ -56,189 +69,93 @@ import {
   patchUseInlineStylesByTargets,
 } from './elementOps';
 
-import { enqueueEditorCompatibilityOperation } from '../lifecycle/editorCompatibilityQueue';
-
-import type {
-  CanonicalEditorDocumentV1,
-  CanonicalGraphItemPosition,
-  EditorDocumentV1,
-  EditorPatchV1,
-} from '@src/types/editor';
-import type { GraphItemPosition } from '@src/types/key/graphItems';
-
 const ID_A = '11111111-1111-4111-8111-111111111111';
 const ID_B = '22222222-2222-4222-8222-222222222222';
 
-const keyAt = (id: string, zIndex?: number) => ({
-  ...createDefaultKeyPosition(),
-  id,
-  ...(zIndex !== undefined ? { zIndex } : {}),
-});
-
-const graphAt = (
+const node = (
+  kind: string,
   id: string,
-  patch: Partial<GraphItemPosition> = {},
-): CanonicalGraphItemPosition => ({
-  ...createDefaultKeyPosition(),
+  frame: Partial<{ x: number; y: number; width: number; height: number }> = {},
+) => ({
+  type: 'element',
   id,
-  statType: 'kps',
-  graphType: 'line',
-  graphSpeed: 1000,
-  graphColor: '#86EFAC',
-  ...patch,
+  kind,
+  frame: { x: 0, y: 0, width: 60, height: 60, rotation: 0, ...frame },
 });
-
-// 편집 의도의 바탕 문서(옛 편집 문서 모양) - 테스트가 꾸민다. 실패 시 낙관 반영 되돌리기는
-// 트리 스토어 몫이라 여기서는 연산 만들기·결과 판정·오류 전파만 본다
-let stored: CanonicalEditorDocumentV1;
-
-// 슬롯 시점 base. 기본은 호출 시점 바탕 문서 - 대기 중 재정렬·삭제는 테스트가
-// slotBase로 재현한다
-let slotBase: (() => CanonicalEditorDocumentV1) | null = null;
-
-const currentDocument = (): CanonicalEditorDocumentV1 =>
-  structuredClone(stored);
 
 describe('elementOps', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    slotBase = null;
-    api.captureEditorDocument.mockImplementation(() => currentDocument());
-    // legacy patch generator 경로는 미사용 가드 - 호출 시 base만 돌려준다
-    api.commitGeneratedPatch.mockImplementation(
-      async (
-        generate: (base: CanonicalEditorDocumentV1) => EditorPatchV1 | null,
-      ) => {
-        const base = (slotBase ?? currentDocument)();
-        generate(base);
-        return base;
-      },
+    api.commitPropertyPatch.mockImplementation(async (targets: unknown[]) =>
+      targets.map(() => 'applied'),
     );
-    api.commitSemanticOps.mockImplementation((_ops, meta) =>
-      enqueueEditorCompatibilityOperation(async () => {
-        meta?.onEnrolled?.();
-        return {
-          document: currentDocument(),
-          opResults: _ops.map((op) =>
-            op.kind === 'setBounds' || op.kind === 'resizeSprite'
-              ? { status: 'applied', bounds: op.bounds }
-              : { status: 'applied' },
-          ),
-        };
-      }),
-    );
-    api.commitGeneratedSemanticOps.mockImplementation((generate, meta) =>
-      enqueueEditorCompatibilityOperation(async () => {
-        const ops = generate((slotBase ?? currentDocument)());
-        if (!ops) return null;
-        meta?.preflight?.();
-        meta?.onEnrolled?.();
-        return {
-          document: currentDocument(),
-          opResults: ops.map((op) =>
-            op.kind === 'setBounds' || op.kind === 'resizeSprite'
-              ? { status: 'applied', bounds: op.bounds }
-              : { status: 'applied' },
-          ),
-        };
-      }),
+    api.commitFrames.mockImplementation(async (targets: unknown[]) =>
+      targets.map(() => 'applied'),
     );
     useKeyStore.setState({ selectedKeyType: '4key' });
-    stored = {
-      schemaVersion: 1,
-      keys: { '4key': ['A', 'B'] },
-      keyPositions: { '4key': [keyAt(ID_A), keyAt(ID_B)] },
-      statPositions: {},
-      graphPositions: {},
-      knobPositions: {},
-      spritePositions: {},
-      layerGroups: {},
-    } as unknown as CanonicalEditorDocumentV1;
+    tree.scenes = { '4key': [node('key', ID_A), node('key', ID_B)] };
     useDocumentSelectionStore.setState({ selectedElements: [] });
   });
 
-  it('단일 축 기하는 슬롯 최신 base의 나머지 bounds를 보존한다', async () => {
-    const base = currentDocument();
-    base.keyPositions = {
-      '4key': [
-        { ...keyAt(ID_A), dx: 10, dy: 77, width: 123, height: 91 },
-        keyAt(ID_B),
-      ],
-    } as never;
-    slotBase = () => base;
+  it('단일 축 기하는 지금 틀의 나머지를 보존한다', async () => {
+    tree.scenes['4key'] = [
+      node('key', ID_A, { x: 10, y: 77, width: 123, height: 91 }),
+      node('key', ID_B),
+    ];
 
     await commitElementGeometryById('key', ID_A, { dx: 50 });
 
-    const ops = api.commitGeneratedSemanticOps.mock.calls[0][0](base);
-    expect(ops).toEqual([
-      {
-        kind: 'setBounds',
-        elementType: 'key',
-        id: ID_A,
-        bounds: { dx: 50, dy: 77, width: 123, height: 91 },
-      },
-    ]);
+    expect(api.commitFrames).toHaveBeenCalledWith(
+      [
+        {
+          elementType: 'key',
+          id: ID_A,
+          frame: { x: 50, y: 77, width: 123, height: 91 },
+        },
+      ],
+      {},
+    );
   });
 
-  it('단일 축 기하는 호출 뒤 patch 변조와 무관하게 최초 intent를 유지한다', async () => {
+  it('단일 축 기하는 호출 뒤 patch 변조와 무관하게 부른 때의 값을 쓴다', async () => {
     const patch = { dx: 50 } as { dx: number; dy?: number };
-    let capturedGenerate:
-      | ((base: EditorDocumentV1) => readonly unknown[] | null)
-      | null = null;
-    api.commitGeneratedSemanticOps.mockImplementationOnce(
-      async (generate, meta) => {
-        capturedGenerate = generate;
-        meta?.onEnrolled?.();
-        const ops = generate(currentDocument());
-        return {
-          document: currentDocument(),
-          opResults: ops!.map((op: { bounds: unknown }) => ({
-            status: 'applied',
-            bounds: op.bounds,
-          })),
-        };
-      },
-    );
 
     const committed = commitElementGeometryById('key', ID_A, patch);
     patch.dx = 999;
     patch.dy = 777;
     await committed;
 
-    const ops = capturedGenerate!(currentDocument()) as Array<{
-      bounds: Record<string, number>;
-    }>;
-    expect(ops[0].bounds.dx).toBe(50);
-    expect(ops[0].bounds.dy).not.toBe(777);
+    expect(api.commitFrames.mock.calls[0][0][0].frame).toMatchObject({
+      x: 50,
+      y: 0,
+    });
   });
 
-  it('단일 축 기하 대상이 슬롯 전에 사라지면 false로 끝난다', async () => {
-    const missing = currentDocument();
-    missing.keys = { '4key': ['B'] };
-    missing.keyPositions = { '4key': [keyAt(ID_B)] } as never;
-    slotBase = () => missing;
+  it('단일 축 기하 대상이 트리에 없거나 종류가 다르면 보내지 않고 false로 끝난다', async () => {
+    tree.scenes['4key'] = [node('key', ID_B)];
 
     await expect(
       commitElementGeometryById('key', ID_A, { width: 90 }),
     ).resolves.toBe(false);
+    await expect(
+      commitElementGeometryById('stat', ID_B, { width: 90 }),
+    ).resolves.toBe(false);
+    expect(api.commitFrames).not.toHaveBeenCalled();
   });
 
-  it('단일 축 기하의 편입 전 실패는 오류로 올린다', async () => {
-    api.commitGeneratedSemanticOps.mockRejectedValueOnce(
-      new Error('start failed'),
-    );
+  it('단일 축 기하의 커밋 실패는 오류로 올린다', async () => {
+    api.commitFrames.mockRejectedValueOnce(new Error('start failed'));
 
     await expect(
       commitElementGeometryById('key', ID_A, { height: 80 }),
     ).rejects.toThrow('start failed');
   });
 
-  it('배치 정렬은 stable ID 전 대상을 N setBounds로 한 번에 생성한다', async () => {
-    const stat = { ...keyAt(ID_B), dx: 50, dy: 10, width: 20, height: 30 };
-    stored.keyPositions = {
-      '4key': [{ ...keyAt(ID_A), dx: 10, dy: 0, width: 10, height: 20 }],
-    } as never;
-    stored.statPositions = { '4key': [stat as never] };
+  it('배치 정렬은 대상 전부의 틀을 커밋 하나로 보낸다', async () => {
+    tree.scenes['4key'] = [
+      node('key', ID_A, { x: 10, y: 0, width: 10, height: 20 }),
+      node('stat', ID_B, { x: 50, y: 10, width: 20, height: 30 }),
+    ];
 
     await commitBatchGeometryByIds({
       mode: '4key',
@@ -249,88 +166,22 @@ describe('elementOps', () => {
       operation: { kind: 'align', direction: 'right' },
     });
 
-    expect(api.commitGeneratedSemanticOps).toHaveBeenCalledOnce();
-    const generate = api.commitGeneratedSemanticOps.mock.calls[0][0];
-    expect(generate(currentDocument())).toEqual([
+    expect(api.commitFrames).toHaveBeenCalledOnce();
+    expect(api.commitFrames.mock.calls[0][0]).toEqual([
       {
-        kind: 'setBounds',
         elementType: 'key',
         id: ID_A,
-        bounds: { dx: 60, dy: 0, width: 10, height: 20 },
+        frame: { x: 60, y: 0, width: 10, height: 20 },
       },
       {
-        kind: 'setBounds',
         elementType: 'stat',
         id: ID_B,
-        bounds: { dx: 50, dy: 10, width: 20, height: 30 },
+        frame: { x: 50, y: 10, width: 20, height: 30 },
       },
     ]);
   });
 
-  it('배치 geometry는 slot 최신 base에서 전체 계획을 다시 계산한다', async () => {
-    stored.keyPositions = {
-      '4key': [
-        { ...keyAt(ID_A), dx: 0, width: 10 },
-        { ...keyAt(ID_B), dx: 30, width: 10 },
-      ],
-    } as never;
-    const latest = currentDocument();
-    latest.keyPositions = {
-      '4key': [
-        { ...keyAt(ID_B), dx: 80, width: 20 },
-        { ...keyAt(ID_A), dx: 10, width: 10 },
-      ],
-    } as never;
-    slotBase = () => latest;
-
-    await commitBatchGeometryByIds({
-      mode: '4key',
-      targets: [
-        { type: 'key', id: ID_A },
-        { type: 'key', id: ID_B },
-      ],
-      operation: { kind: 'align', direction: 'right' },
-    });
-
-    const generate = api.commitGeneratedSemanticOps.mock.calls[0][0];
-    expect(generate(latest)).toEqual([
-      expect.objectContaining({
-        id: ID_A,
-        bounds: expect.objectContaining({ dx: 90 }),
-      }),
-      expect.objectContaining({
-        id: ID_B,
-        bounds: expect.objectContaining({ dx: 80 }),
-      }),
-    ]);
-  });
-
-  it('배치 geometry 대상 하나가 소실되면 전체 null이고 false로 끝난다', async () => {
-    stored.keyPositions = {
-      '4key': [
-        { ...keyAt(ID_A), dx: 0 },
-        { ...keyAt(ID_B), dx: 30 },
-      ],
-    } as never;
-    slotBase = () => {
-      const base = currentDocument();
-      base.keyPositions = { '4key': [keyAt(ID_A)] } as never;
-      return base;
-    };
-
-    await expect(
-      commitBatchGeometryByIds({
-        mode: '4key',
-        targets: [
-          { type: 'key', id: ID_A },
-          { type: 'key', id: ID_B },
-        ],
-        operation: { kind: 'align', direction: 'right' },
-      }),
-    ).resolves.toBe(false);
-  });
-
-  it('호출 시점에 배치 geometry 대상이 없으면 슬롯 커밋을 시작하지 않는다', async () => {
+  it('배치 기하 대상 하나라도 그 탭에 그 종류로 없으면 보내지 않고 false로 끝난다', async () => {
     await expect(
       commitBatchGeometryByIds({
         mode: '4key',
@@ -341,17 +192,35 @@ describe('elementOps', () => {
         operation: { kind: 'align', direction: 'left' },
       }),
     ).resolves.toBe(false);
+    await expect(
+      commitBatchGeometryByIds({
+        mode: 'custom',
+        targets: [
+          { type: 'key', id: ID_A },
+          { type: 'key', id: ID_B },
+        ],
+        operation: { kind: 'align', direction: 'left' },
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      commitBatchGeometryByIds({
+        mode: '4key',
+        targets: [
+          { type: 'key', id: ID_A },
+          { type: 'stat', id: ID_B },
+        ],
+        operation: { kind: 'align', direction: 'left' },
+      }),
+    ).resolves.toBe(false);
 
-    expect(api.commitGeneratedSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitFrames).not.toHaveBeenCalled();
   });
 
-  it('호출 시점 spacing이 이미 정확하면 슬롯 커밋 없이 false를 반환한다', async () => {
-    stored.keyPositions = {
-      '4key': [
-        { ...keyAt(ID_A), dx: 0, width: 10 },
-        { ...keyAt(ID_B), dx: 15, width: 10 },
-      ],
-    } as never;
+  it('간격이 이미 맞으면 보내지 않고 false를 반환한다', async () => {
+    tree.scenes['4key'] = [
+      node('key', ID_A, { x: 0, width: 10 }),
+      node('key', ID_B, { x: 15, width: 10 }),
+    ];
     await expect(
       commitBatchGeometryByIds({
         mode: '4key',
@@ -363,47 +232,33 @@ describe('elementOps', () => {
       }),
     ).resolves.toBe(false);
 
-    expect(api.commitGeneratedSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitFrames).not.toHaveBeenCalled();
   });
 
-  it('배치 geometry 편입 전 실패는 오류로 올린다', async () => {
-    stored.keyPositions = {
-      '4key': [
-        { ...keyAt(ID_A), dx: 0, width: 10 },
-        { ...keyAt(ID_B), dx: 30, width: 10 },
+  it('배치 기하의 커밋 실패는 오류로 올리고, 대상 하나라도 targetMissing이면 false로 끝난다', async () => {
+    tree.scenes['4key'] = [
+      node('key', ID_A, { x: 0, width: 10 }),
+      node('key', ID_B, { x: 30, width: 10 }),
+    ];
+    const descriptor = {
+      mode: '4key',
+      targets: [
+        { type: 'key' as const, id: ID_A },
+        { type: 'key' as const, id: ID_B },
       ],
-    } as never;
-    api.commitGeneratedSemanticOps.mockRejectedValueOnce(
-      new Error('preflight failed'),
+      operation: { kind: 'align' as const, direction: 'right' as const },
+    };
+
+    api.commitFrames.mockRejectedValueOnce(new Error('preflight failed'));
+    await expect(commitBatchGeometryByIds(descriptor)).rejects.toThrow(
+      'preflight failed',
     );
-
-    await expect(
-      commitBatchGeometryByIds({
-        mode: '4key',
-        targets: [
-          { type: 'key', id: ID_A },
-          { type: 'key', id: ID_B },
-        ],
-        operation: { kind: 'align', direction: 'right' },
-      }),
-    ).rejects.toThrow('preflight failed');
+    api.commitFrames.mockResolvedValueOnce(['applied', 'targetMissing']);
+    await expect(commitBatchGeometryByIds(descriptor)).resolves.toBe(false);
   });
 
-  it('단일 bounds op의 편입 전 실패는 오류로 올린다', async () => {
-    api.commitSemanticOps.mockRejectedValue(new Error('start failed'));
-
-    await expect(
-      commitSingleElementBoundsById('key', ID_A, {
-        dx: 50,
-        dy: 60,
-        width: 90,
-        height: 80,
-      }),
-    ).rejects.toThrow('start failed');
-  });
-
-  it('sprite bounds는 콘텐츠와 한 몸인 resizeSprite로 보내고 편입 전 실패는 오류로 올린다', async () => {
-    api.commitSemanticOps.mockRejectedValue(new Error('start failed'));
+  it('단일 bounds는 틀로 보내고(스프라이트도) 커밋 실패는 오류로 올린다', async () => {
+    api.commitFrames.mockRejectedValue(new Error('start failed'));
 
     await expect(
       commitSingleElementBoundsById('sprite', ID_B, {
@@ -414,23 +269,17 @@ describe('elementOps', () => {
       }),
     ).rejects.toThrow('start failed');
 
-    expect(api.commitSemanticOps.mock.calls[0][0]).toEqual([
+    expect(api.commitFrames.mock.calls[0][0]).toEqual([
       {
-        kind: 'resizeSprite',
+        elementType: 'sprite',
         id: ID_B,
-        bounds: { dx: 5, dy: 8, width: 400, height: 60 },
+        frame: { x: 5, y: 8, width: 400, height: 60 },
       },
     ]);
   });
 
-  it('단일 bounds op의 targetMissing은 false로 끝난다', async () => {
-    api.commitSemanticOps.mockImplementationOnce(async (_ops, meta) => {
-      meta?.onEnrolled?.();
-      return {
-        document: currentDocument(),
-        opResults: [{ status: 'targetMissing' }],
-      };
-    });
+  it('단일 bounds의 targetMissing은 false로 끝난다', async () => {
+    api.commitFrames.mockResolvedValueOnce(['targetMissing']);
 
     await expect(
       commitSingleElementBoundsById('key', ID_A, {
@@ -442,120 +291,10 @@ describe('elementOps', () => {
     ).resolves.toBe(false);
   });
 
-  it('그룹 bounds는 다중 semantic op 한 요청으로 정산한다', async () => {
-    const committed = await commitElementBoundsById(
-      new Map([
-        [
-          'key',
-          new Map([
-            [ID_A, { dx: 50, dy: 60, width: 90, height: 80 }],
-            [ID_B, { dx: 70, dy: 80, width: 100, height: 110 }],
-          ]),
-        ],
-      ]),
-    );
-
-    expect(committed).toBe(true);
-    expect(api.commitSemanticOps).toHaveBeenCalledOnce();
-    expect(api.commitSemanticOps.mock.calls[0][0]).toEqual([
-      {
-        kind: 'setBounds',
-        elementType: 'key',
-        id: ID_A,
-        bounds: { dx: 50, dy: 60, width: 90, height: 80 },
-      },
-      {
-        kind: 'setBounds',
-        elementType: 'key',
-        id: ID_B,
-        bounds: { dx: 70, dy: 80, width: 100, height: 110 },
-      },
-    ]);
-    expect(api.commitGeneratedPatch).not.toHaveBeenCalled();
-  });
-
-  it('그룹 bounds의 편입 전 실패는 오류로 올린다', async () => {
-    api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
-
-    await expect(
-      commitElementBoundsById(
-        new Map([
-          [
-            'key',
-            new Map([
-              [ID_A, { dx: 50, dy: 60, width: 90, height: 80 }],
-              [ID_B, { dx: 70, dy: 80, width: 100, height: 110 }],
-            ]),
-          ],
-        ]),
-      ),
-    ).rejects.toThrow('start failed');
-  });
-
-  it('그룹 bounds 대기 중 일부 대상이 사라져도 남은 대상이 적용되면 true로 끝난다', async () => {
-    api.commitSemanticOps.mockImplementationOnce(async (ops, meta) => {
-      meta?.onEnrolled?.();
-      return {
-        document: currentDocument(),
-        opResults: [
-          { status: 'targetMissing' },
-          { status: 'applied', bounds: ops[1].bounds },
-        ],
-      };
-    });
-
-    const committed = await commitElementBoundsById(
-      new Map([
-        [
-          'key',
-          new Map([
-            [ID_A, { dx: 50, dy: 60, width: 90, height: 80 }],
-            [ID_B, { dx: 70, dy: 80, width: 100, height: 110 }],
-          ]),
-        ],
-      ]),
-    );
-
-    expect(committed).toBe(true);
-  });
-
-  it('그룹 bounds 대상이 전부 사라지면 false로 정산한다', async () => {
-    api.commitSemanticOps.mockImplementationOnce(async (_ops, meta) => {
-      meta?.onEnrolled?.();
-      return {
-        document: currentDocument(),
-        opResults: [{ status: 'targetMissing' }, { status: 'targetMissing' }],
-      };
-    });
-
-    const committed = await commitElementBoundsById(
-      new Map([
-        [
-          'key',
-          new Map([
-            [ID_A, { dx: 50, dy: 60, width: 90, height: 80 }],
-            [ID_B, { dx: 70, dy: 80, width: 100, height: 110 }],
-          ]),
-        ],
-      ]),
-    );
-
-    expect(committed).toBe(false);
-  });
-
-  it('hidden noChange는 성공으로, targetMissing은 미적용으로 반환한다', async () => {
-    stored.keyPositions = {
-      '4key': [{ ...keyAt(ID_A), hidden: true }, keyAt(ID_B)],
-    } as never;
-    api.commitSemanticOps
-      .mockResolvedValueOnce({
-        document: currentDocument(),
-        opResults: [{ status: 'noChange' }],
-      })
-      .mockResolvedValueOnce({
-        document: currentDocument(),
-        opResults: [{ status: 'targetMissing' }],
-      });
+  it('hidden은 적용되면 true, targetMissing이면 미적용으로 반환한다', async () => {
+    api.commitPropertyPatch
+      .mockResolvedValueOnce(['applied'])
+      .mockResolvedValueOnce(['targetMissing']);
 
     await expect(patchElementHiddenById('key', ID_A, true)).resolves.toBe(true);
     await expect(patchElementHiddenById('key', ID_A, false)).resolves.toBe(
@@ -564,7 +303,7 @@ describe('elementOps', () => {
   });
 
   it('hidden patch 편입 전 실패는 오류로 올린다', async () => {
-    api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
+    api.commitPropertyPatch.mockRejectedValueOnce(new Error('start failed'));
     await expect(patchElementHiddenById('key', ID_A, true)).rejects.toThrow(
       'start failed',
     );
@@ -574,10 +313,12 @@ describe('elementOps', () => {
     const preflight = vi.fn(() => {
       throw new Error('authority changed');
     });
-    api.commitSemanticOps.mockImplementationOnce(async (_ops, meta) => {
-      meta?.preflight?.();
-      throw new Error('wire must not run');
-    });
+    api.commitPropertyPatch.mockImplementationOnce(
+      async (_targets, _patch, options) => {
+        options?.preflight?.();
+        throw new Error('wire must not run');
+      },
+    );
 
     await expect(
       patchElementHiddenById('key', ID_A, true, { preflight }),
@@ -587,10 +328,7 @@ describe('elementOps', () => {
   });
 
   it('layerName 편입 전 실패는 오류로 올린다', async () => {
-    stored.keyPositions = {
-      '4key': [{ ...keyAt(ID_A), layerName: 'Before' }, keyAt(ID_B)],
-    } as never;
-    api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
+    api.commitPropertyPatch.mockRejectedValueOnce(new Error('start failed'));
 
     await expect(
       patchElementLayerNameById('key', ID_A, 'After'),
@@ -599,13 +337,7 @@ describe('elementOps', () => {
 
   it('graphType batch 편입 전 실패는 오류로 올린다', async () => {
     const graphB = '00000000-0000-4000-8000-00000000008f';
-    stored.graphPositions = {
-      '4key': [
-        graphAt(ID_A, { graphType: 'line' }),
-        graphAt(graphB, { graphType: 'line' }),
-      ],
-    };
-    api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
+    api.commitPropertyPatch.mockRejectedValueOnce(new Error('start failed'));
 
     await expect(patchGraphTypesByIds([ID_A, graphB], 'bar')).rejects.toThrow(
       'start failed',
@@ -614,35 +346,22 @@ describe('elementOps', () => {
 
   it('graphType batch는 일부 missing이어도 생존 대상 적용으로 판정한다', async () => {
     const missingId = '00000000-0000-4000-8000-000000000090';
-    api.commitSemanticOps.mockResolvedValueOnce({
-      document: currentDocument(),
-      opResults: [{ status: 'applied' }, { status: 'targetMissing' }],
-    });
+    api.commitPropertyPatch.mockResolvedValueOnce(['applied', 'targetMissing']);
 
     await expect(patchGraphTypesByIds([ID_A, missingId], 'bar')).resolves.toBe(
       true,
     );
-    expect(api.commitSemanticOps).toHaveBeenCalledOnce();
+    expect(api.commitPropertyPatch).toHaveBeenCalledOnce();
   });
 
-  it('graphColor batch는 preview gestureId를 semantic commit에 전달한다', async () => {
-    stored.graphPositions = {
-      '4key': [graphAt(ID_A, { graphColor: '#old' })],
-    };
-
+  it('graphColor batch는 preview gestureId를 트리 커밋에 전달한다', async () => {
     await patchGraphColorsByIds([ID_A], '#new', {
       gestureId: 'graph-color-gesture',
     });
 
-    expect(api.commitSemanticOps).toHaveBeenLastCalledWith(
-      [
-        {
-          kind: 'patchElement',
-          elementType: 'graph',
-          id: ID_A,
-          patch: { property: 'graphColor', value: '#new' },
-        },
-      ],
+    expect(api.commitPropertyPatch).toHaveBeenLastCalledWith(
+      [{ elementType: 'graph', id: ID_A }],
+      { property: 'graphColor', value: '#new' },
       expect.objectContaining({ gestureId: 'graph-color-gesture' }),
     );
   });
@@ -653,7 +372,7 @@ describe('elementOps', () => {
       false,
     );
 
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -688,19 +407,13 @@ describe('elementOps', () => {
       await expect(
         patchPaintByTargets(targets as never, patch as never),
       ).resolves.toBe(false);
-      expect(api.commitSemanticOps).not.toHaveBeenCalled();
+      expect(api.commitPropertyPatch).not.toHaveBeenCalled();
     },
   );
 
   it('runtime leaf batch 편입 전 실패는 graph와 knob 모두 오류로 올린다', async () => {
     const otherId = '00000000-0000-4000-8000-000000000096';
-    stored.graphPositions = {
-      '4key': [
-        graphAt(ID_A, { graphSpeed: 1000 }),
-        graphAt(otherId, { graphSpeed: 1000 }),
-      ],
-    };
-    api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
+    api.commitPropertyPatch.mockRejectedValueOnce(new Error('start failed'));
     await expect(
       patchGraphPropertiesByIds([ID_A, otherId], {
         property: 'graphSpeed',
@@ -708,13 +421,7 @@ describe('elementOps', () => {
       }),
     ).rejects.toThrow('start failed');
 
-    stored.knobPositions = {
-      '4key': [
-        { ...createDefaultKeyPosition(), id: ID_A, sensitivity: 1 },
-        { ...createDefaultKeyPosition(), id: otherId, sensitivity: 1 },
-      ] as never,
-    };
-    api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
+    api.commitPropertyPatch.mockRejectedValueOnce(new Error('start failed'));
     await expect(
       patchKnobPropertiesByIds([ID_A, otherId], {
         property: 'sensitivity',
@@ -736,7 +443,7 @@ describe('elementOps', () => {
     await expect(
       patchUseInlineStylesByTargets([{ elementType: 'graph', id: '' }], true),
     ).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it('font style batch는 duplicate와 empty ID를 wire 전에 거절한다', async () => {
@@ -755,7 +462,7 @@ describe('elementOps', () => {
         value: true,
       }),
     ).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it('fontFamily batch는 duplicate와 empty ID를 wire 전에 거절한다', async () => {
@@ -774,7 +481,7 @@ describe('elementOps', () => {
         value: 'Family One',
       }),
     ).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it('displayText는 raw common-4 leaf와 gesture를 N ops 한 commit으로 보낸다', async () => {
@@ -795,16 +502,13 @@ describe('elementOps', () => {
       },
     );
 
-    expect(api.commitSemanticOps).toHaveBeenCalledOnce();
-    expect(api.commitSemanticOps.mock.calls[0]?.[0]).toEqual(
-      targets.map(({ elementType, id }) => ({
-        kind: 'patchElement',
-        elementType,
-        id,
-        patch: { property: 'displayText', value: '  Raw label  ' },
-      })),
-    );
-    expect(api.commitSemanticOps.mock.calls[0]?.[1]).toEqual(
+    expect(api.commitPropertyPatch).toHaveBeenCalledOnce();
+    expect(api.commitPropertyPatch.mock.calls[0]?.[0]).toEqual(targets);
+    expect(api.commitPropertyPatch.mock.calls[0]?.[1]).toEqual({
+      property: 'displayText',
+      value: '  Raw label  ',
+    });
+    expect(api.commitPropertyPatch.mock.calls[0]?.[2]).toEqual(
       expect.objectContaining({
         gestureId: 'gesture-display',
       }),
@@ -825,16 +529,13 @@ describe('elementOps', () => {
       },
     );
 
-    expect(api.commitSemanticOps).toHaveBeenCalledOnce();
-    expect(api.commitSemanticOps.mock.calls[0]?.[0]).toEqual(
-      targets.map(({ elementType, id }) => ({
-        kind: 'patchElement',
-        elementType,
-        id,
-        patch: { property: 'className', value: '  Raw class  ' },
-      })),
-    );
-    expect(api.commitSemanticOps.mock.calls[0]?.[1]).toEqual(
+    expect(api.commitPropertyPatch).toHaveBeenCalledOnce();
+    expect(api.commitPropertyPatch.mock.calls[0]?.[0]).toEqual(targets);
+    expect(api.commitPropertyPatch.mock.calls[0]?.[1]).toEqual({
+      property: 'className',
+      value: '  Raw class  ',
+    });
+    expect(api.commitPropertyPatch.mock.calls[0]?.[2]).toEqual(
       expect.objectContaining({
         gestureId: 'gesture-class',
       }),
@@ -854,15 +555,9 @@ describe('elementOps', () => {
         { gestureId },
       );
 
-      expect(api.commitSemanticOps).toHaveBeenCalledWith(
-        [
-          {
-            kind: 'patchElement',
-            elementType: 'key',
-            id: ID_A,
-            patch,
-          },
-        ],
+      expect(api.commitPropertyPatch).toHaveBeenCalledWith(
+        [{ elementType: 'key', id: ID_A }],
+        patch,
         expect.objectContaining({
           gestureId,
         }),
@@ -882,7 +577,7 @@ describe('elementOps', () => {
         value: value,
       }),
     ).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -907,7 +602,7 @@ describe('elementOps', () => {
       await expect(
         patchCounterFillByTargets(targets as never, patch as never),
       ).resolves.toBe(false);
-      expect(api.commitSemanticOps).not.toHaveBeenCalled();
+      expect(api.commitPropertyPatch).not.toHaveBeenCalled();
     },
   );
 
@@ -938,7 +633,7 @@ describe('elementOps', () => {
       await expect(
         patchShadowByTargets(targets as never, patch as never),
       ).resolves.toBe(false);
-      expect(api.commitSemanticOps).not.toHaveBeenCalled();
+      expect(api.commitPropertyPatch).not.toHaveBeenCalled();
     },
   );
 
@@ -970,20 +665,12 @@ describe('elementOps', () => {
       await expect(patchNotePaintByIds([...ids], patch as never)).resolves.toBe(
         false,
       );
-      expect(api.commitSemanticOps).not.toHaveBeenCalled();
+      expect(api.commitPropertyPatch).not.toHaveBeenCalled();
     },
   );
 
   it('note paint 편입 전 실패는 오류로 올린다', async () => {
-    const key = {
-      ...keyAt(ID_A),
-      noteOpacity: 80,
-      noteOpacityTop: 70,
-      noteOpacityBottom: 60,
-      noteGlowColor: 'fresh-sibling',
-    };
-    stored.keyPositions = { '4key': [key] } as never;
-    api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
+    api.commitPropertyPatch.mockRejectedValueOnce(new Error('start failed'));
 
     await expect(
       patchNotePaintById(ID_A, {
@@ -1009,7 +696,7 @@ describe('elementOps', () => {
       await expect(
         patchStylePropertyByTargets([{ elementType, id: ID_A }], patch),
       ).resolves.toBe(false);
-      expect(api.commitSemanticOps).not.toHaveBeenCalled();
+      expect(api.commitPropertyPatch).not.toHaveBeenCalled();
     },
   );
 
@@ -1029,9 +716,9 @@ describe('elementOps', () => {
         value: '',
       }),
     ).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
 
-    api.commitSemanticOps.mockRejectedValueOnce(new Error('start failed'));
+    api.commitPropertyPatch.mockRejectedValueOnce(new Error('start failed'));
     await expect(
       patchStylePropertyById('key', ID_A, {
         property: 'displayText',
@@ -1053,7 +740,7 @@ describe('elementOps', () => {
         value: true,
       }),
     ).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it('soundEnabled batch는 empty, duplicate, synthetic ID를 wire 전에 거절한다', async () => {
@@ -1062,7 +749,7 @@ describe('elementOps', () => {
       false,
     );
     await expect(patchSoundEnabledByIds(['key-0'], true)).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it('soundVolume은 invalid value와 empty, duplicate, synthetic ID를 wire 전에 거절한다', async () => {
@@ -1074,7 +761,7 @@ describe('elementOps', () => {
     await expect(patchSoundVolumeByIds([ID_A], Number.NaN)).resolves.toBe(
       false,
     );
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it('soundPath batch는 empty, duplicate, synthetic ID를 wire 전에 거절한다', async () => {
@@ -1085,7 +772,7 @@ describe('elementOps', () => {
     await expect(patchSoundPathByIds(['key-0'], 'sounds/a.wav')).resolves.toBe(
       false,
     );
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it('counter animation batch는 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
@@ -1181,7 +868,7 @@ describe('elementOps', () => {
         value: 400.5,
       }),
     ).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it('counter fontFamily는 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
@@ -1206,7 +893,7 @@ describe('elementOps', () => {
         value: 'Counter',
       }),
     ).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it('inactiveImage batch는 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
@@ -1228,7 +915,7 @@ describe('elementOps', () => {
         'picked.png',
       ),
     ).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it('activeImage batch는 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
@@ -1250,7 +937,7 @@ describe('elementOps', () => {
         'active.png',
       ),
     ).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it('image transparency batch는 empty, duplicate, synthetic target을 wire 전에 거절한다', async () => {
@@ -1273,7 +960,7 @@ describe('elementOps', () => {
     await expect(
       patchActiveTransparentById('key', 'key-0', true),
     ).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 
   it('single image fit은 synthetic target을 wire 전에 거절한다', async () => {
@@ -1283,7 +970,7 @@ describe('elementOps', () => {
     await expect(
       patchActiveImageFitById('key', 'key-0', 'contain'),
     ).resolves.toBe(false);
-    expect(api.commitSemanticOps).not.toHaveBeenCalled();
+    expect(api.commitPropertyPatch).not.toHaveBeenCalled();
   });
 });
 

@@ -80,6 +80,16 @@ describe('useTrackReserveTransition', () => {
     expect(transitionFade).not.toHaveBeenCalled();
   });
 
+  it('하이드레이션과 같은 렌더에 도착한 값도 첫 값이라 전환 없이 채택한다', async () => {
+    // 부트스트랩은 설정 적용과 완료 표시를 한 흐름에서 해 한 렌더로 묶일 수 있다
+    render(0, false);
+    render(300, true);
+    expect(lastResult?.trackHeight).toBe(300);
+
+    await flush(0);
+    expect(transitionFade).not.toHaveBeenCalled();
+  });
+
   it('네이티브 페이드 지원 시 페이드아웃 후 값을 바꾸고 페이드인한다', async () => {
     render(300, true);
     render(0, true);

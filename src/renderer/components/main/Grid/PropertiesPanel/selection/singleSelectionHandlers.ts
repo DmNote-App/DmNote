@@ -1,6 +1,6 @@
 import { isNativeElementId } from '@src/renderer/editor/model/elementId';
 import { useKeyStore } from '@stores/data/useKeyStore';
-import { currentTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { currentFieldsOf } from '@src/renderer/elementKinds/runtime/viewFields';
 import { editGestureController } from '@src/renderer/editor/runtime/gesture/editGestureController';
 import { reportElementOpSkipped } from '@src/renderer/editor/runtime/intent/elementIntent';
 import {
@@ -82,7 +82,7 @@ const stableGeometryPreviewHandler = (
   id && isNativeElementId(id) && type !== 'sprite'
     ? (field: GeometryField, value: number) => {
         const mode = useKeyStore.getState().selectedKeyType;
-        if (!currentTreePosition(mode, id)) return;
+        if (!currentFieldsOf(mode, id)) return;
         editGestureController.preview(
           mode,
           [
@@ -345,7 +345,7 @@ const stableNotePaintPreviewHandler = (id: string | undefined) =>
     ? (patch: EditorNotePaintPropertyPatchV1) => {
         const mode = useKeyStore.getState().selectedKeyType;
         // 지금 값(트리 낙관 적용 포함) 전달 - 동기화 켜진 키의 글로우 미러가 낙관 적용과 같은 규칙
-        const current = currentTreePosition(mode, id);
+        const current = currentFieldsOf(mode, id);
         if (!current) return;
         editGestureController.preview(
           mode,

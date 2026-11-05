@@ -152,13 +152,13 @@ describe('selectionPanelRoute 스프라이트 선택', () => {
     });
   });
 
-  it('스프라이트만 다중이면 경량 기하 배치', () => {
+  it('스프라이트만 다중이면 스프라이트 일괄 (pluginBatch 라우트)', () => {
     expect(resolveSelectionPanelRoute(input({ spriteCount: 2 }))).toEqual({
       kind: 'pluginBatch',
     });
   });
 
-  it('스프라이트+플러그인은 경량 기하 배치', () => {
+  it('스프라이트+플러그인은 스프라이트 일괄 (pluginBatch 라우트)', () => {
     expect(
       resolveSelectionPanelRoute(
         input({
@@ -176,16 +176,17 @@ describe('selectionPanelRoute 스프라이트 선택', () => {
     ).toEqual({ kind: 'batchKeyLike' });
   });
 
-  it('스프라이트+노브는 batchKnobOnly', () => {
+  // 고른 모든 종류의 칸을 보인다 - 스프라이트 칸도 함께 (고른 종류들 선언의 합)
+  it('스프라이트+노브는 batchKeyLike', () => {
     expect(
       resolveSelectionPanelRoute(input({ spriteCount: 1, knobCount: 1 })),
-    ).toEqual({ kind: 'batchKnobOnly' });
+    ).toEqual({ kind: 'batchKeyLike' });
   });
 
-  it('스프라이트+그래프는 batchGraphOnly', () => {
+  it('스프라이트+그래프는 batchKeyLike', () => {
     expect(
       resolveSelectionPanelRoute(input({ spriteCount: 1, graphCount: 1 })),
-    ).toEqual({ kind: 'batchGraphOnly' });
+    ).toEqual({ kind: 'batchKeyLike' });
   });
 
   it('스프라이트가 섞여도 단일 라우트로 새지 않는다', () => {
@@ -193,6 +194,21 @@ describe('selectionPanelRoute 스프라이트 선택', () => {
       resolveSelectionPanelRoute(
         input({ spriteCount: 1, knobCount: 1, hasSinglePosition: true }),
       ),
-    ).toEqual({ kind: 'batchKnobOnly' });
+    ).toEqual({ kind: 'batchKeyLike' });
   });
+});
+
+describe('selectionPanelRoute 트리에만 있는 종류가 섞인 선택', () => {
+  it.each([
+    ['키', { keyLikeCount: 1 }],
+    ['스프라이트', { spriteCount: 1 }],
+    ['플러그인 요소', { pluginCount: 1 }],
+  ] as const)(
+    '%s와 섞이면 고른 종류들 선언의 합 (batchKeyLike)',
+    (_label, counts) => {
+      expect(
+        resolveSelectionPanelRoute(input({ ...counts, treeOnlyCount: 1 })),
+      ).toEqual({ kind: 'batchKeyLike' });
+    },
+  );
 });

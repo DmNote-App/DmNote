@@ -7,7 +7,12 @@ import type { GraphItemPositions } from '@src/types/key/graphItems';
 import type { KnobItemPositions } from '@src/types/key/knobs';
 import type { ReactiveSpritePosition } from '@src/types/key/sprites';
 import { toSpriteWireShape } from '@utils/sprite/spriteWireShape';
-import { commitTreeLegacyFields } from '@src/renderer/editor/runtime/operations/editorSemanticOps';
+import {
+  commitFieldPatch,
+  commitFieldPatches,
+  type TreeCommitStatus,
+} from '@src/renderer/editor/runtime/operations/treeEditCommit';
+import type { PanelFieldView } from '@src/renderer/elementKinds/runtime/fieldView';
 import type { LayerGroups } from '@src/types/layerGroups';
 
 // 커밋 성사 여부를 호출자가 판별하는 typed 결과. targetMissing은 무커밋
@@ -49,6 +54,26 @@ export const knobItemsApi = {
     subscribe<KnobItemPositions>('knobPositions:changed', listener),
 };
 
+// 스프라이트 칸 패치의 트리 칸 - 지금 값에서 패치를 만들어 wire 정규형(트리거 정렬 등)으로 맞춘 그 칸들
+const spriteFieldsOf = (
+  current: PanelFieldView,
+  id: string,
+  generatePatch: SpritePatchGenerator,
+) => {
+  const latestPatch = generatePatch(
+    current as unknown as ReactiveSpritePosition,
+  );
+  if (!latestPatch) return null;
+  const next = toSpriteWireShape({
+    ...(current as unknown as ReactiveSpritePosition),
+    ...latestPatch,
+    id,
+  }) as unknown as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.keys(latestPatch).map((field) => [field, next[field] ?? null]),
+  );
+};
+
 export const spriteItemsApi = {
   // 스프라이트 칸 패치를 트리로 - 지금 값에서 패치를 만들고(generatePatch) 트리 커밋으로.
   // 대상 소실이면 무커밋 targetMissing. gestureId는 숫자 스크럽 preview 게스처 정산용
@@ -60,29 +85,27 @@ export const spriteItemsApi = {
     generatePatch?: SpritePatchGenerator,
   ): Promise<SpritePatchCommitResult> => {
     // 트리 편집기가 맡는 스프라이트는 트리로 (확인 전까지 대기 중인 트리 편집이 얹는다)
-    const tree = commitTreeLegacyFields(
-      'sprite',
-      mode,
-      id,
-      (current) => {
-        const latestPatch = generatePatch
-          ? generatePatch(current as unknown as ReactiveSpritePosition)
-          : patch;
-        if (!latestPatch) return null;
-        const next = toSpriteWireShape({
-          ...(current as unknown as ReactiveSpritePosition),
-          ...latestPatch,
-          id,
-        }) as unknown as Record<string, unknown>;
-        return Object.fromEntries(
-          Object.keys(latestPatch).map((field) => [field, next[field] ?? null]),
-        );
-      },
-      gestureId,
+    const tree = commitFieldPatch(
+      { elementType: 'sprite', id, scene: mode },
+      (current) => spriteFieldsOf(current, id, generatePatch ?? (() => patch)),
+      // 칸 패치는 이동값을 비례하지 않는다 (예: 기본 이미지에 상자를 맞춰도 자세 이동값은 그대로)
+      { gestureId, resizeValues: false },
     );
     // 지금 장면 트리에 없는 스프라이트는 고칠 수 없다
     return tree ?? Promise.resolve('targetMissing');
   },
+  // 여러 스프라이트의 칸 패치 - 스프라이트마다 지금 값에서 패치를 만들어 트리 커밋 하나로.
+  // 패치를 못 만드는 스프라이트는 그대로 둔다
+  patchPositions: (
+    ids: readonly string[],
+    generatePatch: SpritePatchGenerator,
+    gestureId?: string,
+  ): Promise<TreeCommitStatus[]> =>
+    commitFieldPatches(
+      ids.map((id) => ({ elementType: 'sprite', id })),
+      (current, { id }) => spriteFieldsOf(current, id, generatePatch),
+      { gestureId, resizeValues: false },
+    ),
 };
 
 export const layerGroupsApi = {

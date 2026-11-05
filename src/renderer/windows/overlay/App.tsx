@@ -9,7 +9,10 @@ import { useNoteSystem } from '@hooks/overlay/useNoteSystem';
 import { useOverlayHitRegions } from '@hooks/overlay/useOverlayHitRegions';
 import { useOverlayContextMenuRuntime } from '@hooks/overlay/useOverlayContextMenuRuntime';
 import { useTrackReserveTransition } from '@hooks/overlay/useTrackReserveTransition';
-import { useOverlayReveal } from '@hooks/overlay/useOverlayReveal';
+import {
+  useOverlayReveal,
+  usePluginsSettled,
+} from '@hooks/overlay/useOverlayReveal';
 import { useOverlayKeyStateRuntime } from '@hooks/overlay/useOverlayKeyStateRuntime';
 import { useAppBootstrap } from '@hooks/app/useAppBootstrap';
 import { overlayApi } from '@api/modules/window/overlayApi';
@@ -243,6 +246,20 @@ export default function App() {
   // 응답 대기 중인 resize 수 - 초기 리빌이 창 리사이즈보다 먼저 일어나지 않게 한다
   const [resizeInFlight, setResizeInFlight] = useState(0);
 
+  // 모든 요소가 자리 잡은 뒤 한 번에 공개 - 플러그인 요소가 늦게 뜨며 생기던 덜컥거림 제거
+  // 트리에서 그리는 요소도 함께 보이게 트리 문서를 읽어 온 뒤 공개한다
+  const documentReady = useElementDocumentReady();
+  const revealed = useOverlayReveal(
+    isBootstrapped && documentReady,
+    resizeInFlight > 0,
+  );
+  // 창 크기는 레이아웃 입력 - 노트 트랙 예약(부트스트랩 설정)·키(트리 문서)·플러그인 요소 - 을
+  // 다 갖춘 뒤에 보낸다. 반쪽 레이아웃의 콘텐츠 오프셋이 기준선이 되면 다음 요청의 차이만큼
+  // 네이티브가 창을 옮겨 켤 때마다 오버레이가 밀린다. 공개 시한을 넘기면(부트스트랩 실패 등) 갖춘 만큼으로
+  const pluginsSettled = usePluginsSettled();
+  const layoutReady =
+    (isBootstrapped && documentReady && pluginsSettled) || revealed;
+
   // 이전 resize 값을 추적하여 실제로 변경되었을 때만 resize 호출
   const lastResizeParams = useRef<{
     width: number;
@@ -255,7 +272,7 @@ export default function App() {
   } | null>(null);
 
   useEffect(() => {
-    if (!contentOrigin || !contentSize) return;
+    if (!layoutReady || !contentOrigin || !contentSize) return;
     // OBS 오버레이에는 네이티브 창이 없다 - allowlist 밖이라 호출이 항상 거부되고,
     // 기준선을 지우는 실패 처리와 맞물려 레이아웃이 바뀔 때마다 헛호출이 반복된다
     if (window.__dmn_runtime === 'obs') return;
@@ -330,6 +347,7 @@ export default function App() {
         setResizeInFlight((count) => Math.max(0, count - 1));
       });
   }, [
+    layoutReady,
     contentOrigin,
     contentSize,
     topMostY,
@@ -337,14 +355,6 @@ export default function App() {
     overlayAnchor,
     overlayPadding,
   ]);
-
-  // 모든 요소가 자리 잡은 뒤 한 번에 공개 - 플러그인 요소가 늦게 뜨며 생기던 덜컥거림 제거
-  // 트리에서 그리는 요소도 함께 보이게 트리 문서를 읽어 온 뒤 공개한다
-  const documentReady = useElementDocumentReady();
-  const revealed = useOverlayReveal(
-    isBootstrapped && documentReady,
-    resizeInFlight > 0,
-  );
 
   return (
     <OverlayScene

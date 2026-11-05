@@ -5,17 +5,11 @@ import type {
 } from '@stores/grid/useGradientEditStore';
 import type { SelectedElement } from '@stores/grid/useGridSelectionStore';
 import {
-  EDITOR_ELEMENT_POSITION_FIELDS,
-  type ElementCollections,
-} from '@src/types/editor';
-import {
   fallbackElementSize,
   isSurfaceStyledElementType,
-  type SurfaceStyledElementType,
 } from '@src/types/elementKinds';
 
 type AxisPosition = {
-  id: string;
   dx: number;
   dy: number;
   width?: number;
@@ -53,12 +47,12 @@ interface RegisteredGradientAnchorBounds {
   origin: { x: number; y: number } | null;
 }
 
-interface ResolveGradientAxisBoundsOptions {
+export interface ResolveGradientAxisBoundsOptions {
   session: GradientEditSession | null;
   registeredAnchorBounds: RegisteredGradientAnchorBounds | null;
-  collections: ElementCollections;
+  // 요소의 지금 틀 찾기(id) - 지금 탭 트리의 보이는 칸(편집 미리보기 포함)
+  positionOf: (id: string) => AxisPosition | undefined;
   selectedElements: SelectedElement[];
-  selectedKeyType: string;
 }
 
 export type GradientAxisEnd = 'start' | 'end';
@@ -96,16 +90,10 @@ export const buildGradientAxisMagnetAngles = (
 export const resolveGradientAxisBounds = ({
   session,
   registeredAnchorBounds,
-  collections,
+  positionOf,
   selectedElements,
-  selectedKeyType,
 }: ResolveGradientAxisBoundsOptions): GradientAxisBounds | null => {
   if (!session) return null;
-  // 그라데이션 대상(표면 스타일 종류)의 현재 모드 배열
-  const surfaceModePositions = (kind: SurfaceStyledElementType) =>
-    collections[EDITOR_ELEMENT_POSITION_FIELDS[kind]][selectedKeyType] as
-      | readonly AxisPosition[]
-      | undefined;
   // 표면 소유 레이어가 실측 박스를 등록했으면 우선 사용 - 카운터 표면은
   // 요소(키) 박스가 아니라 실제 카운터 텍스트 박스가 축의 기준
   if (registeredAnchorBounds?.sessionKey === session.sessionKey) {
@@ -113,9 +101,7 @@ export const resolveGradientAxisBounds = ({
     const anchor = session.anchor;
     // 등록 후 요소가 이동하면 저장 좌표 델타로 실측 박스를 추종
     if (origin && anchor.kind !== 'batch') {
-      const pos = surfaceModePositions(anchor.kind)?.find(
-        (position) => position.id === anchor.id,
-      );
+      const pos = positionOf(anchor.id);
       if (pos && (pos.dx !== origin.x || pos.dy !== origin.y)) {
         return {
           ...bounds,
@@ -140,9 +126,7 @@ export const resolveGradientAxisBounds = ({
         continue;
       }
       if (!isSurfaceStyledElementType(element.type)) continue;
-      const pos = surfaceModePositions(element.type)?.find(
-        (position) => position.id === element.id,
-      );
+      const pos = positionOf(element.id);
       if (!pos) continue;
       const fallback = fallbackElementSize(element.type);
       const width = pos.width || fallback.width;
@@ -161,9 +145,7 @@ export const resolveGradientAxisBounds = ({
     };
   }
 
-  const pos = surfaceModePositions(anchor.kind)?.find(
-    (position) => position.id === anchor.id,
-  );
+  const pos = positionOf(anchor.id);
   if (!pos) return null;
   const fallback = fallbackElementSize(anchor.kind);
   return {

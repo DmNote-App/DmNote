@@ -1,6 +1,6 @@
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';
 import type { ReactiveSpritePosition } from '@src/types/key/sprites';
-import { treeElementPositionOf } from '../../runtime/treeElementPosition';
+import { viewFieldsOf } from '../../runtime/viewFields';
 import { matchSpriteAnchorPreset } from '@utils/sprite/spriteGeometry';
 
 /** 기준점 표식이 프리셋 자리에 앉아 있으면(기본 자세가 제자리) 그 자리 크기 조절 손잡이를 비운다 */
@@ -9,7 +9,7 @@ export const spriteOccupiedResizeHandle = (
   sceneId: string,
 ) => {
   // 트리 값 + 편집 미리보기
-  const sprite = treeElementPositionOf(
+  const sprite = viewFieldsOf(
     element,
     sceneId,
   ) as unknown as Partial<ReactiveSpritePosition>;

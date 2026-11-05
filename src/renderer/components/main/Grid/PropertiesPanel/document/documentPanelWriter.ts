@@ -1,4 +1,4 @@
-// 선언 패널의 옛 종류 쓰기 - 옛 단일·일괄 패널과 같은 처리기(칸 규칙은 applySemanticElementPatch)·미리보기를 쓴다.
+// 선언 패널의 옛 종류 쓰기 - 옛 단일·일괄 패널과 같은 처리기(칸 규칙은 applyPropertyPatch)·미리보기를 쓴다.
 // 트리에만 있는 종류는 패널이 트리 연산으로 쓴다
 import type { ElementIdSelection } from '@hooks/pickers/useBatchElementBinding';
 import type { ElementNode } from '@src/renderer/editor/document/documentPatch';

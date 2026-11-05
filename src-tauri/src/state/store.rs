@@ -64,6 +64,7 @@ mod persistence;
 #[cfg(test)]
 pub(crate) use persistence::serialize_store;
 mod plugin_storage;
+pub(crate) mod preload;
 mod sound_assets;
 
 use asset_references::{
@@ -245,7 +246,11 @@ impl AppStore {
         let had_existing_default_store = default_path.exists();
         let (path, mut state, mut needs_persist, skip_asset_sweep, document_missing) =
             if default_path.exists() {
-                let loaded = load_store_from_path(&default_path)?;
+                // 시작 직후 같은 경로로 미리 읽었으면 그 결과 (읽기·해석만 - 쓰기는 아래에서 한다)
+                let loaded = match preload::take(&default_path) {
+                    Some(loaded) => loaded?,
+                    None => load_store_from_path(&default_path)?,
+                };
                 if loaded.repaired {
                     backup_store_file(&default_path)?;
                 }

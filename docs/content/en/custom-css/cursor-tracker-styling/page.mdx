@@ -1,0 +1,62 @@
+---
+title: Cursor Tracker Styling
+description: How to customize the cursor tracker box and its dot/trail canvas with CSS
+---
+
+# Cursor Tracker Styling
+
+This guide explains how to apply custom CSS to cursor tracker elements.
+
+## Selectors
+
+Cursor trackers can be targeted with the two data attributes below. The same selectors work in the editor, the overlay, and OBS.
+
+| Selector                              | Target                                         |
+| ------------------------------------- | ---------------------------------------------- |
+| `[data-element-kind="cursorTracker"]` | The cursor tracker box (all cursor trackers)   |
+| `[data-cursor-tracker-canvas]`        | The canvas inside the box that draws dot/trail |
+
+```css
+[data-element-kind='cursorTracker'] [data-cursor-tracker-canvas] {
+  opacity: 0.9;
+}
+```
+
+<Callout type="info">
+  Background, border, shadow, and the dot and trail size and color are set in
+  the properties panel. Use CSS to add effects on top of them.
+</Callout>
+
+## Style Examples
+
+### Glowing dot and trail
+
+```css
+[data-element-kind='cursorTracker'] [data-cursor-tracker-canvas] {
+  filter: drop-shadow(0 0 6px rgba(125, 211, 252, 0.9));
+}
+```
+
+### Semi-transparent on stream
+
+```css
+[data-element-kind='cursorTracker'] {
+  opacity: 0.85;
+}
+```
+
+### Blend over the background
+
+```css
+[data-element-kind='cursorTracker'] [data-cursor-tracker-canvas] {
+  mix-blend-mode: screen;
+}
+```
+
+## Notes
+
+- The app sets the box position, size, and rotation with inline styles. Do not
+  change `transform`, `left`, `top`, `width`, or `height`.
+- The dot and trail are drawn on a canvas, so CSS cannot change the shape of a
+  single dot. You can apply `filter`, `opacity`, and `mix-blend-mode` to the
+  whole canvas.

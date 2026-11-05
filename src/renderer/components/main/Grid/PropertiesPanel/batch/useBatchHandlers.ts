@@ -1,13 +1,12 @@
-import { viewTreePosition } from '@src/renderer/elementKinds/runtime/treeElementPosition';
+import { viewFieldsById } from '@src/renderer/elementKinds/runtime/viewFields';
 import {
   computeBatchGeometryPlan,
   computeBatchSpacingValue,
   type BatchGeometryOperation,
 } from '@src/renderer/editor/runtime/geometry/batchGeometryPlan';
 
-import type { EditorElementTypeV1 } from '@src/types/editor';
-
-type KeyLikeType = EditorElementTypeV1;
+// 요소 종류 - 트리로 옮긴 옛 종류와 트리에만 있는 내장 종류
+type KeyLikeType = string;
 
 export interface BatchCommitOptions {
   gestureId?: string;
@@ -24,6 +23,8 @@ export interface PluginLayoutElement {
   y: number;
   width: number;
   height: number;
+  // 크기를 정하는 플러그인 - 크기 일괄 대상
+  resizable?: boolean;
 }
 
 interface UseBatchHandlersProps {
@@ -53,12 +54,12 @@ export function useBatchHandlers({
 }: UseBatchHandlersProps) {
   // 보이는 값(트리 값 + 편집 미리보기) - 지금 탭의 요소만
   const getPosition = (_type: KeyLikeType, id: string) =>
-    (viewTreePosition(selectedKeyType, id) as
+    (viewFieldsById(selectedKeyType, id) as
       | { dx: number; dy: number; width: number; height: number }
       | undefined) ?? null;
 
   const getSelectedLayoutElements = (
-    options: { includePlugins?: boolean } = {},
+    options: { resizeOnly?: boolean } = {},
   ) => {
     // plugin 대상 미해결(null)은 부분 조작 대신 전체 차단 (fail-closed)
     if (pluginLayoutElements === null) return null;
@@ -77,23 +78,25 @@ export function useBatchHandlers({
         : [];
     });
     if (elements.length !== selectedKeyLikeElements.length) return null;
-    if (options.includePlugins === false) return elements;
     return [
       ...elements,
-      ...pluginLayoutElements.map((element) => ({
-        key: getPluginLayoutElementKey(element.fullId),
-        x: element.x,
-        y: element.y,
-        width: element.width,
-        height: element.height,
-      })),
+      ...pluginLayoutElements
+        // 크기 일괄은 크기를 정하는 플러그인만
+        .filter((element) => !options.resizeOnly || element.resizable)
+        .map((element) => ({
+          key: getPluginLayoutElementKey(element.fullId),
+          x: element.x,
+          y: element.y,
+          width: element.width,
+          height: element.height,
+        })),
     ];
   };
 
   const hasGeometryPlan = (operation: BatchGeometryOperation) => {
-    // 크기 일괄은 native 전용 - 게이트도 native만으로 계산
+    // 크기 일괄은 크기를 정하는 플러그인까지 - 게이트도 그 집합으로 계산
     const elements = getSelectedLayoutElements({
-      includePlugins: operation.kind !== 'resize',
+      resizeOnly: operation.kind === 'resize',
     });
     return (
       elements !== null &&
