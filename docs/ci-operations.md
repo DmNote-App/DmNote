@@ -1,6 +1,6 @@
 # CI 운영 안내
 
-CI는 `.node-version`의 Node 22.23.2와 `rust-toolchain.toml`의 Rust 1.93.0을 사용한다. 로컬 커밋 hook과 브랜치 push에는 검사 통과를 강제하지 않는다. `main` 직접 push도 허용한다.
+CI는 `.node-version`의 Node 22.23.2와 `rust-toolchain.toml`의 Rust 1.99.1을 사용한다. 로컬 커밋 hook과 브랜치 push에는 검사 통과를 강제하지 않는다. `main` 직접 push도 허용한다.
 
 ## PR 검사
 

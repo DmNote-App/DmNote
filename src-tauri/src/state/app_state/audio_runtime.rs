@@ -27,7 +27,7 @@ impl AppState {
 
     pub fn unsubscribe_pointer_input(&self) -> u32 {
         self.pointer_input_subscribers
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |count| {
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |count| {
                 Some(count.saturating_sub(1))
             })
             .map_or(0, |previous| previous.saturating_sub(1))
