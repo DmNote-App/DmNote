@@ -141,6 +141,7 @@ npm run tauri:dev
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/KGH1113"><img src="https://avatars.githubusercontent.com/u/123816263?v=4&s=200" width="100" alt="KGH1113"/><br /><sub><b>KGH1113</b></sub></a><br /><a href="https://github.com/DmNote-App/DmNote/commits?author=KGH1113" title="Code"><img src="https://github.githubassets.com/images/icons/emoji/unicode/1f4bb.png?v8" width="20" align="absmiddle" alt="💻"/></a><br /><img width="1" height="1" hspace="30" align="left" alt=""/></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/cashmere53"><img src="https://avatars.githubusercontent.com/u/15913755?v=4&s=200" width="100" alt="cashmere53"/><br /><sub><b>cashmere53</b></sub></a><br /><a href="#translation-cashmere53" title="Translation"><img src="https://github.githubassets.com/images/icons/emoji/unicode/1f30d.png?v8" width="20" align="absmiddle" alt="🌍"/></a><br /><img width="1" height="1" hspace="30" align="left" alt=""/></td>
     </tr>
   </tbody>
 </table>
