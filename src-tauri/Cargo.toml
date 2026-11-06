@@ -2,7 +2,7 @@
 name = "dm-note"
 version = "2.1.0"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.99"
 default-run = "dm-note"
 
 [workspace]
