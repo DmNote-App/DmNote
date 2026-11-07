@@ -25,6 +25,7 @@ import { usePickerItemMenu } from '@hooks/usePickerItemMenu';
 import { usePluginHealthStore } from '@stores/plugin/usePluginHealthStore';
 import { getPluginDisplayName } from '@utils/plugin/components/pluginUtils';
 import type { JsPlugin } from '@src/types/plugin/js';
+import OverlayScrollbar from '@components/main/common/overlayScrollbar/OverlayScrollbar';
 
 interface PluginsPanelContentProps {
   plugins: JsPlugin[];
@@ -146,6 +147,7 @@ const PluginsPanelContent = ({
             </div>
           )}
         </div>
+        <OverlayScrollbar />
       </div>
 
       {/* 하단 바 - 추가(주 액션, 크게) + 닫기 */}

@@ -70,6 +70,7 @@ import {
 } from './documentPanelModel';
 import { PanelSections, type PanelSectionRenderers } from './documentPanelRows';
 import { canEditBundleField, type UnionSection } from './documentPanelUnion';
+import OverlayScrollbar from '@components/main/common/overlayScrollbar/OverlayScrollbar';
 
 // 속성 패널이 갖는 일괄 피커 상태 - 선택이 바뀌면 속성 패널이 닫는다
 export interface LegacyKeyLikeHost {
@@ -635,6 +636,7 @@ export const LegacyKeyLikeBatchBody = ({
             {tabBody('style')}
           </div>
         )}
+        <OverlayScrollbar />
       </div>
 
       <BatchColorPickerPopup

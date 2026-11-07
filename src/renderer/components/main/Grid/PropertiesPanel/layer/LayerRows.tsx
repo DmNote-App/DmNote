@@ -50,13 +50,14 @@ interface LayerRowHandlers {
   onContextMenu: (event: React.MouseEvent) => void;
 }
 
+// 오른쪽 12px는 스크롤 막대 자리 - 숨김 토글 버튼이 그 띠에 걸리지 않게 비워 둔다
 const rowClass = (
   selected: boolean,
   hidden: boolean,
   dragging: boolean,
   dimmed = false,
 ) => `
-  group relative flex items-center gap-[8px] pr-[4px] h-[34px] select-none dmn-row-grabbable
+  group relative flex items-center gap-[8px] pr-[12px] h-[34px] select-none dmn-row-grabbable
   ${dimmed ? 'opacity-30' : hidden ? 'opacity-60' : ''}
   ${
     selected
@@ -200,7 +201,7 @@ export const LayerGroupRow = ({
       style={{ paddingLeft: layerRowIndent(depth) }}
       className={
         dropInto
-          ? 'group relative flex items-center gap-[8px] pr-[4px] h-[34px] select-none bg-fill-hover text-fg-muted'
+          ? 'group relative flex items-center gap-[8px] pr-[12px] h-[34px] select-none bg-fill-hover text-fg-muted'
           : rowClass(selected, hidden, dragging, dimmed)
       }
     >

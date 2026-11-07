@@ -35,6 +35,7 @@ import type {
 } from '@src/types/plugin/api';
 import { cssApi } from '@api/modules/resources/cssApi';
 import { useSingleFlightAction } from '@hooks/useSingleFlightAction';
+import OverlayScrollbar from '@components/main/common/overlayScrollbar/OverlayScrollbar';
 
 const CSS_HISTORY_ERROR_CODES: ReadonlySet<string> = new Set([
   'PATH_NOT_AUTHORIZED',
@@ -334,6 +335,7 @@ const CssPanelContent = ({
             </div>
           )}
         </div>
+        <OverlayScrollbar />
       </div>
 
       {/* 하단 바 - 불러오기(주 액션, 크게) + 닫기 */}
