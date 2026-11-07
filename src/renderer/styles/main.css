@@ -304,6 +304,73 @@ body.dmn-dragging * {
   display: none !important;
 }
 
+/* 오버레이 스크롤 막대 (OverlayScrollbar) - 네이티브 막대는 위에서 숨긴 채 콘텐츠 위에 띄운다.
+   레이아웃을 차지하지 않고, 스크롤할 때와 가장자리에 포인터가 닿을 때만 드러난다.
+   top·left·height와 썸 transform은 컨트롤러가 인라인으로 맞춘다.
+   레일 띠는 막대 전용 자리다. 쓰는 쪽 레이아웃이 그 띠에 버튼을 두지 않으므로
+   넘치는 동안은 숨어 있어도 포인터를 받아, 가장자리에 닿으면 굵어지며 드러난다.
+   트랙 면은 그리지 않고 굵어지는 썸이 잡을 수 있다는 신호를 맡는다.
+   :where()로 특이도를 0에 둬 사용자 CSS가 항상 이긴다 */
+:where(.dmn-scrollbar) {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--ui-scrollbar-band);
+  z-index: 1;
+  touch-action: none;
+}
+
+/* 사라질 땐 천천히(280ms), 나타날 땐 빠르게 - 상태별 규칙이 duration만 덮는다 */
+:where(.dmn-scrollbar-thumb) {
+  position: absolute;
+  top: 0;
+  right: var(--ui-scrollbar-edge);
+  width: var(--ui-scrollbar-size);
+  border-radius: 999px;
+  background: var(--ui-scrollbar-thumb);
+  box-shadow: 0 0 0 0.5px var(--ui-scrollbar-outline);
+  opacity: 0;
+  transition: opacity 280ms ease,
+    width var(--ui-duration-base) var(--ui-ease-out),
+    background-color var(--ui-duration-fast) ease;
+  will-change: transform;
+}
+
+:where(.dmn-scrollbar[data-state='thin'] .dmn-scrollbar-thumb) {
+  opacity: 1;
+  transition-duration: var(--ui-duration-fast), var(--ui-duration-base),
+    var(--ui-duration-fast);
+}
+
+:where(.dmn-scrollbar[data-state='expanded'] .dmn-scrollbar-thumb) {
+  opacity: 1;
+  width: var(--ui-scrollbar-size-expanded);
+  background: var(--ui-scrollbar-thumb-hover);
+  transition-duration: var(--ui-duration-fast), var(--ui-duration-base),
+    var(--ui-duration-fast);
+}
+
+:where(.dmn-scrollbar[data-state='dragging'] .dmn-scrollbar-thumb) {
+  opacity: 1;
+  width: var(--ui-scrollbar-size-expanded);
+  background: var(--ui-scrollbar-thumb-active);
+  transition-duration: var(--ui-duration-fast), var(--ui-duration-base), 60ms;
+}
+
+/* 모션 축소 - 굵기 전환 없이 페이드만 */
+:where(:root[data-dmn-reduced-motion] .dmn-scrollbar-thumb) {
+  transition: opacity var(--ui-duration-fast) linear;
+}
+
+/* 넘치지 않을 때·끌어 정렬 중(inert)·다른 드래그 중에는 막대가 입력을 받지 않는다 */
+:where(
+    .dmn-scrollbar[data-state='none'],
+    .dmn-scrollbar[data-inert],
+    html.dmn-drag-cursor .dmn-scrollbar
+  ) {
+  pointer-events: none;
+}
+
 /* PropertiesPanel 오버레이 스크롤바 (레이아웃 수축 방지) */
 .properties-panel-overlay-scroll {
   position: relative;
