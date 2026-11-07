@@ -80,6 +80,60 @@ export const scrollLenisBy = (wrapper: HTMLElement, delta: number) => {
   });
 };
 
+/**
+ * 지정 위치로 스크롤. immediate면 한 프레임에 붙고, 아니면 Lenis 감속을 탄다
+ * 스크롤 막대 썸 끌기·트랙 누름처럼 휠 밖에서 오는 이동이 쓰는 경로
+ */
+export const scrollLenisTo = (
+  wrapper: HTMLElement,
+  top: number,
+  { immediate = false }: { immediate?: boolean } = {},
+) => {
+  const instance = lenisByWrapper.get(wrapper);
+  if (!instance) {
+    wrapper.scrollTo({ top, behavior: immediate ? 'auto' : 'smooth' });
+    return;
+  }
+  instance.scrollTo(top, immediate ? { immediate: true, force: true } : {});
+};
+
+// 같은 프레임에 스크롤 값을 받아야 하는 표시용 구독 (네이티브 scroll 이벤트는 한 프레임 늦다)
+export const getWrapperLenis = (wrapper: HTMLElement): Lenis | undefined =>
+  lenisByWrapper.get(wrapper);
+
+/**
+ * 스크롤 영역 바깥 형제 요소(스크롤 막대 레일)에 떨어진 휠을 Lenis로 넘긴다
+ * Lenis는 wrapper의 wheel 리스너로 동작하므로 같은 값의 이벤트를 다시 쏜다.
+ * Lenis가 없는 영역이면 false - 호출 쪽이 네이티브 스크롤로 처리
+ */
+export const forwardWheelToLenis = (
+  wrapper: HTMLElement,
+  event: WheelEvent,
+): boolean => {
+  if (!lenisByWrapper.has(wrapper)) return false;
+  const view = wrapper.ownerDocument.defaultView ?? window;
+  wrapper.dispatchEvent(
+    new view.WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      deltaX: event.deltaX,
+      deltaY: event.deltaY,
+      deltaZ: event.deltaZ,
+      deltaMode: event.deltaMode,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      screenX: event.screenX,
+      screenY: event.screenY,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+    }),
+  );
+  return true;
+};
+
 // 문서 간 DOM 이동 뒤 브라우저 스크롤과 Lenis 목표점을 함께 맞춘다
 export const restoreLenisScroll = (wrapper: HTMLElement, top: number) => {
   const instance = lenisByWrapper.get(wrapper);
