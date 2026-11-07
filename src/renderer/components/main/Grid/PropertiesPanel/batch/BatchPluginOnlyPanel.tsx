@@ -7,6 +7,7 @@ import { BatchSizeRow, type BatchGeometry } from './geometry/BatchGeometryRows';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
 import BatchPanelHeader from './BatchPanelHeader';
 import type { MixedValueResult } from './batchPanelShared';
+import OverlayScrollbar from '@components/main/common/overlayScrollbar/OverlayScrollbar';
 
 interface BatchPluginOnlyPanelProps {
   setPanelElement: (el: HTMLDivElement | null) => void;
@@ -119,6 +120,7 @@ const BatchPluginOnlyPanel: React.FC<BatchPluginOnlyPanelProps> = ({
             {pluginSettings}
           </EditSessionBoundary>
         </div>
+        <OverlayScrollbar />
       </div>
     </div>
   );

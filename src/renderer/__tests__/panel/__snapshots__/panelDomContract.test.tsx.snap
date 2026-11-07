@@ -2041,6 +2041,24 @@ exports[`속성 패널 DOM 약속 > 그래프 여럿 - 그룹 하나 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -4378,6 +4396,24 @@ exports[`속성 패널 DOM 약속 > 그래프 여럿 - 섞인 값 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -6005,6 +6041,24 @@ exports[`속성 패널 DOM 약속 > 그래프 하나 - 기본값 1`] = `
                   ],
                   "class": [
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -7695,6 +7749,24 @@ exports[`속성 패널 DOM 약속 > 그래프 하나 - 이름·고른 값·사�
                   ],
                   "class": [
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -10779,6 +10851,24 @@ exports[`속성 패널 DOM 약속 > 그래프와 커서 트래커 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -13064,6 +13154,24 @@ exports[`속성 패널 DOM 약속 > 노브 여럿 - 섞인 값 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -14644,6 +14752,24 @@ exports[`속성 패널 DOM 약속 > 노브 하나 - 기본값 1`] = `
                   ],
                   "class": [
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -16331,6 +16457,24 @@ exports[`속성 패널 DOM 약속 > 노브 하나 - 축·고른 값·사용자 C
                   ],
                   "class": [
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -18851,6 +18995,24 @@ exports[`속성 패널 DOM 약속 > 노브와 그래프 - 카운터 탭 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -21365,6 +21527,24 @@ exports[`속성 패널 DOM 약속 > 노브와 그래프 1`] = `
                   ],
                   "class": [
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -25464,6 +25644,24 @@ exports[`속성 패널 DOM 약속 > 스탯 여럿 - 카운터 탭 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -29560,6 +29758,24 @@ exports[`속성 패널 DOM 약속 > 스탯 여럿 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -33148,6 +33364,24 @@ exports[`속성 패널 DOM 약속 > 스탯 하나 - 기본값 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -36636,6 +36870,24 @@ exports[`속성 패널 DOM 약속 > 스탯 하나 - 이름·누적·카운터 �
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -38585,6 +38837,24 @@ exports[`속성 패널 DOM 약속 > 스프라이트 여럿 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -39942,6 +40212,24 @@ exports[`속성 패널 DOM 약속 > 스프라이트 하나 - 기본값 1`] = `
                   ],
                   "class": [
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -41476,6 +41764,24 @@ exports[`속성 패널 DOM 약속 > 스프라이트 하나 - 이미지·자세·
                   ],
                   "class": [
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -44127,6 +44433,24 @@ exports[`속성 패널 DOM 약속 > 스프라이트와 그래프 1`] = `
                   ],
                   "class": [
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -47184,6 +47508,24 @@ exports[`속성 패널 DOM 약속 > 스프라이트와 커서 트래커 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -49806,6 +50148,24 @@ exports[`속성 패널 DOM 약속 > 커서 트래커 여럿 - 섞인 모드 1`] 
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -51716,6 +52076,24 @@ exports[`속성 패널 DOM 약속 > 커서 트래커 하나 1`] = `
                   ],
                   "class": [
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -57355,6 +57733,24 @@ exports[`속성 패널 DOM 약속 > 키 여럿 - 그룹 하나 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -62928,6 +63324,24 @@ exports[`속성 패널 DOM 약속 > 키 여럿 - 노트 탭 1`] = `
                   "class": [
                     "hidden",
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -68631,6 +69045,24 @@ exports[`속성 패널 DOM 약속 > 키 여럿 - 섞인 값 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -74207,6 +74639,24 @@ exports[`속성 패널 DOM 약속 > 키 여럿 - 카운터 탭 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -79191,6 +79641,24 @@ exports[`속성 패널 DOM 약속 > 키 하나 - 기본값 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -84172,6 +84640,24 @@ exports[`속성 패널 DOM 약속 > 키 하나 - 노트 탭 1`] = `
                   "class": [
                     "hidden",
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -89171,6 +89657,24 @@ exports[`속성 패널 DOM 약속 > 키 하나 - 이름·고른 값·사용자 C
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -94152,6 +94656,24 @@ exports[`속성 패널 DOM 약속 > 키 하나 - 카운터 탭 1`] = `
                   ],
                   "class": [
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -100294,6 +100816,24 @@ exports[`속성 패널 DOM 약속 > 키·그래프·노브 1`] = `
                   "class": [
                     "hidden",
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -106705,6 +107245,24 @@ exports[`속성 패널 DOM 약속 > 키·스프라이트·그래프 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -112604,6 +113162,24 @@ exports[`속성 패널 DOM 약속 > 키와 그래프 - 카운터 탭 1`] = `
                   ],
                   "class": [
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -118509,6 +119085,24 @@ exports[`속성 패널 DOM 약속 > 키와 그래프 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -124217,6 +124811,24 @@ exports[`속성 패널 DOM 약속 > 키와 노브 - 노트 탭 1`] = `
                   "class": [
                     "hidden",
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -129931,6 +130543,24 @@ exports[`속성 패널 DOM 약속 > 키와 노브 - 카운터 탭 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -135642,6 +136272,24 @@ exports[`속성 패널 DOM 약속 > 키와 노브 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -141328,6 +141976,24 @@ exports[`속성 패널 DOM 약속 > 키와 스탯 - 노트 탭 1`] = `
                   "class": [
                     "hidden",
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -147020,6 +147686,24 @@ exports[`속성 패널 DOM 약속 > 키와 스탯 - 카운터 탭 1`] = `
                   ],
                   "tag": "div",
                 },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
+                  ],
+                  "tag": "div",
+                },
               ],
               "class": [
                 "flex-1",
@@ -152706,6 +153390,24 @@ exports[`속성 패널 DOM 약속 > 키와 스탯 1`] = `
                   "class": [
                     "hidden",
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -158691,6 +159393,24 @@ exports[`속성 패널 DOM 약속 > 키와 스프라이트 1`] = `
                   "class": [
                     "hidden",
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },
@@ -164916,6 +165636,24 @@ exports[`속성 패널 DOM 약속 > 키와 커서 트래커 1`] = `
                   "class": [
                     "hidden",
                     "properties-panel-overlay-viewport",
+                  ],
+                  "tag": "div",
+                },
+                {
+                  "attrs": {
+                    "aria-hidden": "true",
+                    "data-state": "none",
+                  },
+                  "children": [
+                    {
+                      "class": [
+                        "dmn-scrollbar-thumb",
+                      ],
+                      "tag": "div",
+                    },
+                  ],
+                  "class": [
+                    "dmn-scrollbar",
                   ],
                   "tag": "div",
                 },

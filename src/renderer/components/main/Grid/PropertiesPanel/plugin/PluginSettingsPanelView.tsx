@@ -14,6 +14,7 @@ import {
   hasRenderableSettings,
   type SettingsNormalizationErrorKind,
 } from '@plugins/runtime/settingsSections';
+import OverlayScrollbar from '@components/main/common/overlayScrollbar/OverlayScrollbar';
 
 interface PluginSettingsPanelViewProps {
   setPanelElement: (el: HTMLDivElement | null) => void;
@@ -100,6 +101,7 @@ const PluginSettingsPanelView: React.FC<PluginSettingsPanelViewProps> = ({
               )}
             </div>
           </div>
+          <OverlayScrollbar />
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center px-[24px]">

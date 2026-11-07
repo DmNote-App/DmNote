@@ -52,6 +52,7 @@ import {
   LegacyKeyLikeBatchBody,
   type LegacyKeyLikeHost,
 } from './legacyKeyLikeBatch';
+import OverlayScrollbar from '@components/main/common/overlayScrollbar/OverlayScrollbar';
 
 // 옛 종류 선택의 일괄 기하 - 속성 패널이 옛 선택 모양(플러그인 요소 포함)에서 만든다
 export type LegacyBatchGeometry = BatchGeometry;
@@ -367,6 +368,7 @@ const DocumentBatchPanel = ({
             {legacyHost?.pluginSettings}
           </EditSessionBoundary>
         </div>
+        <OverlayScrollbar />
       </div>
     </div>
   );

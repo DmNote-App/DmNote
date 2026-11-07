@@ -49,6 +49,7 @@ import { cssApi } from '@api/modules/resources/cssApi';
 import { jsApi } from '@api/modules/plugin/jsApi';
 import { keysApi } from '@api/modules/editor/keysApi';
 import { appApi, windowApi } from '@api/modules/app/appApi';
+import OverlayScrollbar from '@components/main/common/overlayScrollbar/OverlayScrollbar';
 
 interface SettingsProps {
   showAlert: (msg: string, confirmText?: string) => void;
@@ -63,6 +64,10 @@ interface SettingsProps {
     },
   ) => void;
 }
+
+// 스크롤 컨테이너가 창 전체 폭이라 막대를 오른쪽 끝에 두면 프리뷰 옆에 붙는다.
+// 카드 열(패딩 12 + 폭 348)과 프리뷰 페인(left 372) 사이 12px 골에 둔다
+const SETTINGS_RAIL_LEFT = 360;
 
 const Settings = ({
   showAlert,
@@ -739,6 +744,10 @@ const Settings = ({
           </div>
         </div>
       </div>
+      <OverlayScrollbar
+        railLeft={SETTINGS_RAIL_LEFT}
+        className="[--ui-scrollbar-band:12px] [--ui-scrollbar-pad:12px]"
+      />
       {/* 우측 고정 콘텐츠 페인 - 기본은 튜토리얼 프리뷰, 선택 시 설정 상세가 같은 표면을 채움 */}
       <div
         className={

@@ -3,6 +3,7 @@ import { useLenis } from '@hooks/useLenis';
 import Dropdown from '@components/main/common/dropdown/Dropdown';
 import SearchField from '@components/main/common/SearchField';
 import ListAddRow from '@components/main/common/ListAddRow';
+import OverlayScrollbar from '@components/main/common/overlayScrollbar/OverlayScrollbar';
 
 type FilterOption = {
   value: string;
@@ -167,7 +168,7 @@ export default function CommonListPickerPage<T>({
         />
       </div>
       {/* 리스트 컨테이너 — 배경보다 한 단계 밝은 필 테이블. 빈 공간도 테이블의 빈 영역으로 읽힘 */}
-      <div className="mx-[12px] bg-inset rounded-surface p-[4px] flex-1 min-h-0 flex flex-col">
+      <div className="relative mx-[12px] bg-inset rounded-surface p-[4px] flex-1 min-h-0 flex flex-col">
         <div
           ref={setViewportEl}
           className="flex-1 min-h-0 flex flex-col overflow-y-auto modal-content-scroll dmn-scroll-fade dmn-scroll-fade-shallow"
@@ -212,6 +213,11 @@ export default function CommonListPickerPage<T>({
             )}
           </div>
         </div>
+        {/* 행과 ⋮ 버튼이 상자 끝까지 차 있어 막대는 상자 바깥 12px 여백에 둔다 */}
+        <OverlayScrollbar
+          placement="outside"
+          className="[--ui-scrollbar-band:12px]"
+        />
       </div>
       {/* 하단 필터 바 */}
       <div className="p-[12px] shrink-0">
