@@ -98,7 +98,6 @@ export const createOverlayScrollbarController = (
   let lenis: ReturnType<typeof getWrapperLenis>;
   let unsubscribeLenis: (() => void) | null = null;
   let destroyed = false;
-  let syncingContentSize = false;
   const observed = new Set<Element>();
 
   const applyState = () => {
@@ -157,8 +156,14 @@ export const createOverlayScrollbarController = (
     );
 
     viewportVisible = true;
+    const sizeChanged =
+      viewportSize !== viewport.clientHeight ||
+      contentSize !== viewport.scrollHeight;
     viewportSize = viewport.clientHeight;
     contentSize = viewport.scrollHeight;
+    // 크기가 바뀌면 Lenis 한도도 함께 다시 잰다 - Lenis 관찰자는 깊은 자손 변화를 놓칠 수 있다.
+    // resize()는 진행 중인 부드러운 스크롤 목표를 현재 위치로 덮으므로 dimensions만 다시 잰다
+    if (sizeChanged) getWrapperLenis(viewport)?.dimensions.resize();
 
     let top = 0;
     let left: number;
@@ -196,22 +201,15 @@ export const createOverlayScrollbarController = (
   // 바뀐 경우를 휠·스크롤·호버 시점에 바로잡는다. 같은 이유로 Lenis 한도도 낡았을 수 있어
   // 함께 다시 잰다 - 안 그러면 휠이 이전 한도에 묶여 새 영역으로 못 간다. 바뀌었으면 true
   const syncContentSize = (): boolean => {
-    if (!viewport || syncingContentSize) return false;
+    if (!viewport) return false;
     if (
       viewport.scrollHeight === contentSize &&
       viewport.clientHeight === viewportSize
     ) {
       return false;
     }
-    syncingContentSize = true;
-    try {
-      // 캐시를 먼저 갱신한다 - Lenis resize()는 'scroll'을 동기로 내서 여기로 다시 들어온다
-      measure();
-      getWrapperLenis(viewport)?.resize();
-      applyState();
-    } finally {
-      syncingContentSize = false;
-    }
+    measure();
+    applyState();
     return true;
   };
 
