@@ -22,6 +22,7 @@ import {
 } from '../controls/PropertyInputs';
 import { AXIS_FIELD_WIDTH } from '@utils/cardRecipes';
 import EditSessionBoundary from '../selection/EditSessionBoundary';
+import OverlayScrollbar from '@components/main/common/overlayScrollbar/OverlayScrollbar';
 
 // ============================================================================
 // Plugin Selection Panel
@@ -256,6 +257,7 @@ export const PluginSelectionPanel: React.FC<PluginSelectionPanelProps> = ({
               )}
           </EditSessionBoundary>
         </div>
+        <OverlayScrollbar />
       </div>
     </div>
   );

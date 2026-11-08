@@ -45,6 +45,7 @@ import { singlePanelWriterFor } from './documentPanelWriter';
 import { LegacyCustomCssSection, LegacySingleStyle } from './legacyBundleRows';
 import { KeyStatGeometry } from './legacyKeyStatSections';
 import type { PanelTab } from '@src/renderer/elementKinds/defineElementKind';
+import OverlayScrollbar from '@components/main/common/overlayScrollbar/OverlayScrollbar';
 
 interface DocumentElementPanelProps {
   sceneId: string;
@@ -380,6 +381,7 @@ const ElementPanelBody = ({
             {tabBody('style')}
           </div>
         )}
+        <OverlayScrollbar />
       </div>
     </div>
   );

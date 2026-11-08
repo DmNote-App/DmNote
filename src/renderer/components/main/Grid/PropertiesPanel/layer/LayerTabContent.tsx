@@ -54,6 +54,7 @@ import {
   type LayerRowRename,
 } from './LayerRows';
 import { useLayerCollapseStore } from '@stores/grid/useLayerCollapseStore';
+import OverlayScrollbar from '@components/main/common/overlayScrollbar/OverlayScrollbar';
 
 // 끌기로 보지 않는 움직임 (화면 px)
 // 예전 레이어 끌기와 같은 시작 거리 (가로·세로 어느 쪽이든)
@@ -771,6 +772,7 @@ const LayerTabContent = ({
           </div>
         )}
       </div>
+      <OverlayScrollbar inert={dragging} />
 
       {contextMenuPresence.mounted &&
         createPortal(

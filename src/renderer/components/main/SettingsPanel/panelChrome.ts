@@ -39,7 +39,7 @@ export const PANEL_PILL_CLASS =
 
 // 인셋 리스트 웰 + 내부 스크롤 + 빈 상태 + 행 이름
 export const PANEL_LIST_WELL_CLASS =
-  'mx-[12px] mb-[12px] bg-inset rounded-surface flex-1 min-h-0 flex flex-col';
+  'relative mx-[12px] mb-[12px] bg-inset rounded-surface flex-1 min-h-0 flex flex-col';
 // 마스터 스위치가 꺼져도 목록은 가라앉히지 않는다. 그룹 opacity는 켜짐 알약의
 // 면과 항목 이름까지 같이 깎아, 정작 읽어야 할 '무엇이 켜져 있나'를 지운다.
 // 마스터 상태는 바로 위 토글이 이미 말하고 있다

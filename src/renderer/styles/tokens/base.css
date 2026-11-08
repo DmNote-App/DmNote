@@ -48,6 +48,16 @@
   --ui-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ui-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
+  /* 오버레이 스크롤 막대 - 굵기·간격·대기 시간이 다이얼. 색은 테마 파일이 소유
+     band는 포인터를 받는 띠 폭. 굵은 썸 + 가장자리 간격이 이 안에서 끝나야 한다 */
+  --ui-scrollbar-band: 10px;
+  --ui-scrollbar-size: 5px;
+  --ui-scrollbar-size-expanded: 7px;
+  --ui-scrollbar-edge: 3px;
+  --ui-scrollbar-pad: 4px;
+  --ui-scrollbar-min: 28px;
+  --ui-scrollbar-hide-delay: 900ms;
+
   /* 토글 노브 - 끝점을 지나쳤다 돌아온다. 세기는 커브의 y값이 소유한다.
      1.35는 12px 이동에서 0.49px밖에 넘지 않아 눈에 안 띈다. 1.56이면 1.17px로
      인셋 2px 안에서 끝나면서 확실히 읽힌다.

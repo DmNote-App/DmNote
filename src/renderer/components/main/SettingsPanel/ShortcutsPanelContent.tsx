@@ -14,6 +14,7 @@ import type {
 } from '@src/types/settings/shortcuts';
 import { getDefaultShortcuts } from '@src/renderer/defaults';
 import { isHistoryEditorFlushLocked } from '@src/renderer/editor/runtime/lifecycle/historyEditorFlushLock';
+import OverlayScrollbar from '@components/main/common/overlayScrollbar/OverlayScrollbar';
 
 type ShortcutKey = keyof ShortcutsState;
 
@@ -321,7 +322,7 @@ const ShortcutsPanelContent = ({
 
   return (
     <div
-      className="flex flex-col h-full"
+      className="relative flex flex-col h-full"
       onPointerDownCapture={(event) => {
         if (!isListening) return;
         const target = event.target as HTMLElement | null;
@@ -353,6 +354,7 @@ const ShortcutsPanelContent = ({
           ) : null}
         </div>
       </div>
+      <OverlayScrollbar />
 
       {/* 하단 바 - 닫기 */}
       <div className="px-[12px] pb-[12px] shrink-0">

@@ -114,11 +114,12 @@
   --ui-tab-socket-fill: rgba(255, 255, 255, 0.145);
   --ui-tab-socket-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
 
-  /* 코드 에디터 스크롤바 썸 — 크롬 필보다 진하다. 좁은 4px 막대라
-     같은 알파로는 웰 바닥과 안 갈린다 */
-  --ui-scrollbar-thumb: rgba(255, 255, 255, 0.14);
-  --ui-scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
-  --ui-scrollbar-thumb-active: rgba(255, 255, 255, 0.26);
+  /* 스크롤 막대 썸 — 콘텐츠 위에 뜨는 얇은 막대라 크롬 필보다 훨씬 진하다.
+     반대 톤 외곽선이 스와치·그라데이션 위에서도 형태를 지킨다 */
+  --ui-scrollbar-thumb: rgba(255, 255, 255, 0.32);
+  --ui-scrollbar-thumb-hover: rgba(255, 255, 255, 0.44);
+  --ui-scrollbar-thumb-active: rgba(255, 255, 255, 0.56);
+  --ui-scrollbar-outline: rgba(0, 0, 0, 0.28);
 
   /* 텍스트 위계 — 애플 실측(1차 L*88.6 / 2차 65.5 / 3차 59.2)에 맞춘 값.
      체감 눈부심에는 표면보다 텍스트가 더 크게 기여한다. 순백에 가까운 본문색을 두고
