@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { buildNoteShaders } from './noteShaders';
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
@@ -54,13 +53,71 @@ describe('WebGL 노트 쿼드 AA halo', () => {
   });
 
   it('vertex shader가 길이 있는 노트에 최소 1px halo를 확보한다', () => {
-    const source = readFileSync(join(__dirname, 'WebGLTracksOGL.tsx'), 'utf-8');
-    expect(source).toContain(
+    const { vertex } = buildNoteShaders({ webgl2: true, lutRows: 256 });
+    expect(vertex).toContain(
       'float edgeAAHalo = noteLength > 0.0 ? 1.0 : 0.0;',
     );
-    expect(source).toContain('float quadHalo = max(glowSize, edgeAAHalo);');
-    expect(source).toContain('noteWidth + quadHalo * 2.0');
-    expect(source).toContain('noteLength + quadHalo * 2.0');
-    expect(source).toContain('vHalfSize = vec2(noteWidth, noteLength) * 0.5');
+    expect(vertex).toContain('float quadHalo = max(glowSize, edgeAAHalo);');
+    expect(vertex).toContain('noteWidth + quadHalo * 2.0');
+    expect(vertex).toContain('noteLength + quadHalo * 2.0');
+    expect(vertex).toContain(
+      'vec2 halfSize = vec2(noteWidth, noteLength) * 0.5',
+    );
+  });
+});
+
+describe('노트 셰이더 소스', () => {
+  it('WebGL2는 GLSL ES 3.00으로, LUT를 명시적 LOD로 샘플한다', () => {
+    const { vertex, fragment } = buildNoteShaders({
+      webgl2: true,
+      lutRows: 256,
+    });
+    // #version은 첫 줄이어야 컴파일된다
+    expect(vertex.startsWith('#version 300 es\n')).toBe(true);
+    expect(fragment.startsWith('#version 300 es\n')).toBe(true);
+    // 암시적 미분 샘플은 분기가 펼쳐져 그라데이션 없는 노트도 샘플 비용을 낸다
+    expect(fragment).toContain('textureLod(lut, uv, 0.0)');
+    expect(fragment).not.toContain('texture2D');
+    expect(fragment).not.toContain('gl_FragColor');
+  });
+
+  it('WebGL1 폴백은 같은 본문을 GLSL ES 1.00으로 낸다', () => {
+    const webgl1 = buildNoteShaders({ webgl2: false, lutRows: 256 });
+    const webgl2 = buildNoteShaders({ webgl2: true, lutRows: 256 });
+    expect(webgl1.vertex).not.toContain('#version');
+    expect(webgl1.fragment).toContain('texture2D(lut, uv)');
+    expect(webgl1.fragment).toContain('#define FRAG_COLOR gl_FragColor');
+
+    const body = (source: string) =>
+      source.slice(source.indexOf('\n  uniform'));
+    expect(body(webgl1.vertex)).toBe(body(webgl2.vertex));
+    expect(body(webgl1.fragment)).toBe(body(webgl2.fragment));
+  });
+
+  it('LUT 행 수를 실수 리터럴로 넘긴다', () => {
+    const { vertex } = buildNoteShaders({ webgl2: true, lutRows: 128 });
+    expect(vertex).toContain('#define LUT_ROWS 128.0\n');
+  });
+
+  it('렌더러가 넘기는 인스턴스 속성을 모두 선언한다', () => {
+    const { vertex } = buildNoteShaders({ webgl2: true, lutRows: 256 });
+    for (const name of [
+      'noteInfo',
+      'noteSize',
+      'noteDir',
+      'noteColorTop',
+      'noteColorBottom',
+      'noteRadius',
+      'noteGlow',
+      'noteGlowColorTop',
+      'noteGlowColorBottom',
+      'noteBorder',
+      'noteBorderOpacity',
+      'noteBorderGradientInfo',
+      'noteBodyPaint',
+      'noteGlowPaint',
+    ]) {
+      expect(vertex).toMatch(new RegExp(`ATTRIBUTE \\w+ ${name};`));
+    }
   });
 });
