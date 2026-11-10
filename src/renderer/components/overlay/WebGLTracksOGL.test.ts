@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildNoteShaders } from './noteShaders';
+import { createNoteFrameGate } from './noteFrameGate';
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
@@ -119,5 +120,45 @@ describe('노트 셰이더 소스', () => {
     ]) {
       expect(vertex).toMatch(new RegExp(`ATTRIBUTE \\w+ ${name};`));
     }
+  });
+});
+
+describe('정지 장면 프레임 생략', () => {
+  it('움직이는 장면은 항상 그린다', () => {
+    const gate = createNoteFrameGate();
+    expect(gate.shouldDraw(false)).toBe(true);
+    expect(gate.shouldDraw(false)).toBe(true);
+  });
+
+  it('정지로 바뀐 첫 프레임은 그리고 그 뒤부터 생략한다', () => {
+    const gate = createNoteFrameGate();
+    expect(gate.shouldDraw(false)).toBe(true);
+    expect(gate.shouldDraw(true)).toBe(true);
+    expect(gate.shouldDraw(true)).toBe(false);
+    expect(gate.shouldDraw(true)).toBe(false);
+  });
+
+  it('정지 장면이라도 바뀐 것이 있으면 한 번 그린다', () => {
+    const gate = createNoteFrameGate();
+    gate.shouldDraw(true);
+    gate.shouldDraw(true);
+    expect(gate.shouldDraw(true)).toBe(false);
+    gate.markDirty();
+    expect(gate.shouldDraw(true)).toBe(true);
+    expect(gate.shouldDraw(true)).toBe(false);
+  });
+
+  it('다시 움직이기 시작하면 정지로 돌아온 첫 프레임을 또 그린다', () => {
+    const gate = createNoteFrameGate();
+    gate.shouldDraw(true);
+    gate.shouldDraw(true);
+    expect(gate.shouldDraw(false)).toBe(true);
+    expect(gate.shouldDraw(true)).toBe(true);
+    expect(gate.shouldDraw(true)).toBe(false);
+  });
+
+  it('처음 만든 직후에는 정지 장면도 그린다', () => {
+    const gate = createNoteFrameGate();
+    expect(gate.shouldDraw(true)).toBe(true);
   });
 });

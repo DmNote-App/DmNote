@@ -20,6 +20,10 @@ const EPOCH_REBASE_LIMIT_MS = 524_288;
 // 셰이더 sentinel(startTime 0.0 = 빈 슬롯, endTime 0.0 = 활성)과의 우연 충돌 방지
 const EPOCH_ZERO_NUDGE = 1e-4;
 
+// 정지 판정 여유(px) - 셰이더의 Float32 계산과 경계에서 어긋나도 움직이는 노트를
+// 정지로 보지 않게 한다. 늦게 정지로 보는 쪽은 프레임 몇 장을 더 그릴 뿐이라 안전
+const STATIC_SCENE_MARGIN_PX = 2;
+
 const SRGB_TO_LINEAR = new Float32Array(256);
 for (let i = 0; i < 256; i += 1) {
   const c = i / 255;
@@ -473,6 +477,29 @@ export class NoteBuffer {
     }
     this.epoch = nowMs;
     this.version += 1;
+    return true;
+  }
+
+  // nowMs의 그림이 시간이 흘러도 그대로인지 - 모든 슬롯이 트랙 끝까지 자란 활성
+  // 노트이거나 트랙을 벗어난 완료 노트일 때만 true. 렌더러가 같은 프레임을 다시
+  // 그리지 않는 데 쓴다
+  isSceneStatic(
+    nowMs: number,
+    flowSpeed: number,
+    trackHeight: number,
+  ): boolean {
+    const gpuNow = nowMs - this.epoch;
+    const limitPx = trackHeight + STATIC_SCENE_MARGIN_PX;
+    for (let i = 0; i < this.activeCount; i += 1) {
+      const infoOffset = i * 3;
+      const startTime = this.noteInfo[infoOffset];
+      if (startTime === 0) continue;
+      const endTime = this.noteInfo[infoOffset + 1];
+      // 활성은 자란 길이, 완료는 히트라인에서 멀어진 거리
+      const sinceMs = gpuNow - (endTime === 0 ? startTime : endTime);
+      // NaN이 정지로 새지 않게 부정형으로 비교
+      if (!((sinceMs * flowSpeed) / 1000 >= limitPx)) return false;
+    }
     return true;
   }
 

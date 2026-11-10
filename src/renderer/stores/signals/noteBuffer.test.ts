@@ -491,3 +491,69 @@ describe('NoteBuffer 테두리 그라데이션 LUT', () => {
     expect(buffer.noteBorderGradientInfo[2]).toBe(-1);
   });
 });
+
+describe('NoteBuffer 정지 장면 판정', () => {
+  const SPEED = 400;
+  const TRACK = 300;
+  // 트랙 끝까지 자라는 데 걸리는 시간 (ms)
+  const FILL_MS = (TRACK / SPEED) * 1000;
+
+  const bufferWith = () => {
+    const buffer = createNoteBuffer();
+    buffer.updateTrackLayouts([layoutFor('a'), layoutFor('b')]);
+    return buffer;
+  };
+
+  it('자라는 중인 활성 노트가 있으면 정지가 아니다', () => {
+    const buffer = bufferWith();
+    buffer.allocate('a', 'a-1', 1000);
+    expect(buffer.isSceneStatic(1000 + FILL_MS / 2, SPEED, TRACK)).toBe(false);
+  });
+
+  it('활성 노트가 트랙 끝까지 자라면 정지다', () => {
+    const buffer = bufferWith();
+    buffer.allocate('a', 'a-1', 1000);
+    expect(buffer.isSceneStatic(1000 + FILL_MS + 50, SPEED, TRACK)).toBe(true);
+  });
+
+  it('셰이더와 판정이 어긋나지 않게 경계에서는 정지로 보지 않는다', () => {
+    const buffer = bufferWith();
+    buffer.allocate('a', 'a-1', 1000);
+    expect(buffer.isSceneStatic(1000 + FILL_MS, SPEED, TRACK)).toBe(false);
+    expect(buffer.isSceneStatic(1000 + FILL_MS + 1, SPEED, TRACK)).toBe(false);
+  });
+
+  it('이동 중인 완료 노트가 있으면 정지가 아니다', () => {
+    const buffer = bufferWith();
+    buffer.allocate('a', 'a-1', 1000);
+    buffer.allocate('b', 'b-1', 1000);
+    buffer.finalize('b-1', 1100);
+    // a는 포화, b는 트랙을 지나는 중
+    expect(buffer.isSceneStatic(1000 + FILL_MS + 50, SPEED, TRACK)).toBe(false);
+  });
+
+  it('완료 노트가 트랙을 벗어나면 정리 전이라도 정지다', () => {
+    const buffer = bufferWith();
+    buffer.allocate('a', 'a-1', 1000);
+    buffer.allocate('b', 'b-1', 1000);
+    buffer.finalize('b-1', 1100);
+    expect(buffer.isSceneStatic(1100 + FILL_MS + 50, SPEED, TRACK)).toBe(true);
+  });
+
+  it('epoch 재기준화 뒤에도 같은 판정을 낸다', () => {
+    const buffer = bufferWith();
+    const late = 600_000;
+    buffer.allocate('a', 'a-1', late);
+    expect(buffer.timeEpoch).toBe(late);
+    expect(buffer.isSceneStatic(late + FILL_MS / 2, SPEED, TRACK)).toBe(false);
+    expect(buffer.isSceneStatic(late + FILL_MS + 50, SPEED, TRACK)).toBe(true);
+  });
+
+  it('속도·트랙 높이가 유효하지 않으면 정지로 보지 않는다', () => {
+    const buffer = bufferWith();
+    buffer.allocate('a', 'a-1', 1000);
+    expect(buffer.isSceneStatic(1_000_000, 0, TRACK)).toBe(false);
+    expect(buffer.isSceneStatic(1_000_000, Number.NaN, TRACK)).toBe(false);
+    expect(buffer.isSceneStatic(1_000_000, SPEED, Number.NaN)).toBe(false);
+  });
+});

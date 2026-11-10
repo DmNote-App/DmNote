@@ -22,6 +22,7 @@ import {
 } from '@stores/signals/noteBuffer';
 import { trackRectFromOrigin } from '@utils/layout/trackGeometry';
 import { buildNoteShaders } from './noteShaders';
+import { createNoteFrameGate } from './noteFrameGate';
 
 const buildPlaneGeometry = (gl: OGLRenderingContext): Geometry =>
   new Geometry(gl, {
@@ -225,6 +226,7 @@ interface NoteBuffer {
   activeCount: number;
   timeEpoch: number;
   maybeRebaseEpoch(nowMs: number): boolean;
+  isSceneStatic(nowMs: number, flowSpeed: number, trackHeight: number): boolean;
   noteInfo: Float32Array;
   noteSize: Float32Array;
   noteDir: Float32Array;
@@ -278,6 +280,8 @@ export function WebGLTracksOGL({
     normalizeFrameLimit(noteSettings?.frameLimit),
   );
   const frameClockRef = useRef<FrameClock>({ nextFrameTime: 0, stableTime: 0 });
+  // 정지 장면 프레임 생략 - 버퍼·유니폼·캔버스가 바뀌면 markDirty로 다시 그린다
+  const frameGateRef = useRef(createNoteFrameGate());
   const cropAppliedRef = useRef<AppliedCrop | null>(null);
   const refreshCropRef = useRef<() => void>(() => {});
   const subscribeRef = useRef(subscribe);
@@ -289,6 +293,7 @@ export function WebGLTracksOGL({
     const canvas = canvasRef.current;
     if (!canvas || !noteBuffer) return;
     const initialDpr = resolveDpr();
+    frameGateRef.current = createNoteFrameGate();
 
     const renderer = new Renderer({
       canvas,
@@ -552,17 +557,27 @@ export function WebGLTracksOGL({
         pendingUpdateRef.current.dirtyKeys.clear();
         pendingUpdateRef.current.dirtySinceFrame = false;
         pendingUpdateRef.current.instancedCount = null;
+        frameGateRef.current.markDirty();
       }
 
       // LUT에 새 행이 래스터라이즈됐으면 프레임 시작에 재업로드 예약
       if (appliedLUTVersion !== noteBuffer.gradientLUTVersion) {
         appliedLUTVersion = noteBuffer.gradientLUTVersion;
         gradientLUTTexture.needsUpdate = true;
+        frameGateRef.current.markDirty();
       }
 
+      // 키를 누른 채 트랙이 꽉 찬 상태처럼 같은 그림이 이어지면 다시 그리지 않는다
+      const uniforms = programRef.current.uniforms;
+      const sceneStatic = noteBuffer.isSceneStatic(
+        renderTime,
+        uniforms.uFlowSpeed.value,
+        uniforms.uTrackHeight.value,
+      );
+      if (!frameGateRef.current.shouldDraw(sceneStatic)) return;
+
       // uTime도 epoch 상대값 - noteInfo와 같은 기준이어야 길이·이동 계산이 성립
-      programRef.current.uniforms.uTime.value =
-        renderTime - noteBuffer.timeEpoch;
+      uniforms.uTime.value = renderTime - noteBuffer.timeEpoch;
       rendererRef.current.render({
         scene: sceneRef.current,
         camera: cameraRef.current,
@@ -573,6 +588,7 @@ export function WebGLTracksOGL({
       if (!event) return;
       const geometryTarget = geometryRef.current;
       if (!geometryTarget) return;
+      frameGateRef.current.markDirty();
 
       if (event.activeCount !== undefined) {
         geometryTarget.instancedCount = Math.min(event.activeCount, MAX_NOTES);
@@ -674,6 +690,12 @@ export function WebGLTracksOGL({
     }
     armDprQuery();
 
+    // 숨겨진 동안 브라우저가 캔버스 표시 버퍼를 버릴 수 있어 다시 보일 때 한 번 그린다
+    const handleVisibilityChange = (): void => {
+      frameGateRef.current.markDirty();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     if (noteBuffer.activeCount > 0 && !isAnimating.current) {
       resetFrameClock(frameClockRef.current);
       animationScheduler.add(animate);
@@ -685,6 +707,7 @@ export function WebGLTracksOGL({
     return () => {
       unsubscribe();
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       disarmDprQuery();
       if (isAnimating.current) {
         animationScheduler.remove(animate);
@@ -716,6 +739,7 @@ export function WebGLTracksOGL({
     const fade = resolvedFadeValues(noteSettings);
     uniforms.uFadeTopPx.value = fade.topPx;
     uniforms.uFadeBottomPx.value = fade.bottomPx;
+    frameGateRef.current.markDirty();
   }, [noteSettings]);
 
   // 트랙 union bounds로 캔버스 crop — backing 크기가 컴포지팅 비용을 결정하므로
@@ -752,6 +776,8 @@ export function WebGLTracksOGL({
       program.uniforms.uDomPerPx.value =
         rect.h / Math.max(renderer.gl.drawingBufferHeight, 1);
       cropAppliedRef.current = { rect, windowH, dpr };
+      // 크기를 바꾸면 캔버스가 비워진다
+      frameGateRef.current.markDirty();
     };
 
     const refreshCrop = (): void => {
